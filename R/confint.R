@@ -157,7 +157,7 @@ print.mixture_confint <- function(x, ...) {
       is_ref <- grepl("\\(Ref\\)", rownames(df)[i])
       if (is_ref) {
         cat(sprintf("  %-16s  %7.3f  %7s  %7s\n",
-                    rownames(df)[i], df$OR[i], "—", "—"))
+                    rownames(df)[i], df$OR[i], "-", "-"))
       } else {
         cat(sprintf("  %-16s  %7.3f  %7.3f  %7.3f\n",
                     rownames(df)[i], df$OR[i], df$Lower[i], df$Upper[i]))

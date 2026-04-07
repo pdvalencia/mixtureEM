@@ -262,7 +262,7 @@ classification_diagnostics <- function(object) {
 # Format p-values to publication conventions.
 # Values below .001 are shown as "< .001"; NaN/NA appear as a dash.
 .fmt_pval <- function(p) {
-  if (is.na(p) || is.nan(p)) return("       —")
+  if (is.na(p) || is.nan(p)) return("       -")
   if (p < 0.001)              return("  < .001")
   sprintf("   %5.3f", p)
 }
@@ -274,7 +274,7 @@ classification_diagnostics <- function(object) {
 #   W = c^T V^{-1} c,  where c = R * mu,  V = R * Sigma_mu * R^T
 #   R = contrast matrix [class k vs class 1, k = 2..K]  (df = K-1)
 #
-# This matches LatentGOLD's robust Wald statistic (Bakk, Oberski & Vermunt,
+# This calculates the robust Wald statistic (Bakk, Oberski & Vermunt,
 # 2014) and accounts for the cross-class covariance induced by BCH weights.
 #
 # Falls back to the diagonal (precision-weighted) approximation when
@@ -537,7 +537,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     M            <- M_minus_1 + 1L
 
     if (M_minus_1 == 0L) {
-      cat("  (Constant outcome — no parameters to display)\n")
+      cat("  (Constant outcome - no parameters to display)\n")
     } else {
       var_names <- c("Intercept", paste0("Z", seq_len(D_distal - 1L)))
       cov_note  <- if (D_distal > 1L) " (covariates held at zero)" else ""
@@ -640,7 +640,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 
     # Omnibus Wald test on class intercepts (class-specific means at Z = 0).
     # Uses the model-based SE for each intercept (sigma^2 * B_inv_k[1,1]),
-    # assuming classes are independent — matching LatentGOLD's Wald(=) test.
+    # assuming classes are independent.
     intercepts <- betas[, 1L]
     int_ses    <- ses[, 1L]   # already model-based if fitted with BCH v2
     prec_int   <- 1 / pmax(int_ses^2, 1e-15)
@@ -673,7 +673,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 
     # ── Per-covariate Wald(=) tests: H0: slope_k equal across all classes ──
     # Uses the diagonal independence approximation (separate per-class
-    # regressions), matching LatentGOLD's Wald(=) column.
+    # regressions), matching standard equality formulations.
     # Contrast matrix R = [-1 | I_{K-1}], df = K-1.
     if (K > 1L && D > 1L) {
       cat("---------------------------------------------------------\n")
@@ -722,8 +722,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     # Omnibus Wald test on class intercepts
     # When cov_theta is available (BCH step stored it), use the full
     # model-based contrast Wald: H0: int_k = int_1 for all k != 1.
-    # This matches LatentGOLD's omnibus test and accounts for the
-    # covariance between intercept estimates.
+    # This accounts for the covariance between intercept estimates.
     cov_theta  <- cont_pool_sub$parameters$cov_theta
     intercepts <- theta[seq_len(K_distal)]
     int_ses    <- ses[seq_len(K_distal)]
@@ -827,6 +826,8 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   from largest to smallest after fitting.
 #' @param weights Optional numeric vector of length \code{nrow(X)} for survey
 #'   or case weights. Default is \code{NULL} (equal weights of 1).
+#' @param refine Logical. If \code{TRUE} (default), applies L-BFGS refinement
+#'   after EM convergence to reach the penalized maximum likelihood.
 #' @param ... Additional arguments passed to the measurement or structural
 #'   model constructors (e.g., \code{max_val} for multinoulli models).
 #'
@@ -865,7 +866,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #' summary(fit_cov)
 #'
 #' @export
-#' @importFrom stats complete.cases cov dnorm optim pchisq pnorm qnorm rbinom rnorm runif sd var
+#' @importFrom stats complete.cases cov dnorm optim pchisq plogis pnorm qlogis qnorm rbinom rnorm runif sd var
 #' @importFrom utils setTxtProgressBar txtProgressBar
 fit_mixture <- function(X, Y = NULL, n_components = 2,
                         measurement = "binary", structural = NULL,
@@ -885,8 +886,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
 
   # --- Input Validation ---
 
-  # n_components must be a positive integer (Bug 2 fix: k=0 silently produced
-  # garbage; k<0 crashed deep in initialization with a cryptic message)
+  # n_components must be a positive integer prevent invalid K inputs)
   if (!is.numeric(n_components) || length(n_components) != 1 ||
       !is.finite(n_components) || n_components < 1L)
     stop(sprintf(
@@ -898,7 +898,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
   if (!n_steps %in% c(1L, 2L, 3L))
     stop(sprintf("n_steps must be 1, 2, or 3. Got: %d", n_steps))
 
-  # correction must be one of the three supported values (Gap 10 fix)
+  # correction must be one of the three supported values
   valid_corrections <- c("none", "ML", "BCH")
   if (!correction %in% valid_corrections)
     stop(sprintf(
@@ -906,7 +906,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
       correction, paste(valid_corrections, collapse = ", ")
     ))
 
-  # Warn when X contains NAs but a non-NaN measurement family is used (Bug 7 fix)
+  # Warn when X contains NAs but a non-NaN measurement family is used
   if (anyNA(X) && is.character(measurement)) {
     nan_variants <- c("bernoulli_nan", "binary_nan",
                       "multinoulli_nan", "categorical_nan",
@@ -919,7 +919,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
       ))
   }
 
-  # Validate binary data when a Bernoulli family is requested (Bug 8 fix)
+  # Validate binary data when a Bernoulli family is requested
   if (is.character(measurement) &&
       measurement %in% c("binary", "bernoulli", "binary_nan", "bernoulli_nan")) {
     valid_vals <- X[!is.na(X)]
@@ -962,7 +962,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
     correction            = correction,
     sample_weights        = weights,
     # Store the original descriptor so bootstrap.R can re-fit replicates
-    # using the same measurement specification (Bug 2 fix).
+    # using the same measurement specification.
     measurement_descriptor = measurement
   )
   class(model_state) <- "mixture_model"
@@ -990,7 +990,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
     resp_s1      <- exp(model_state$log_resp)
     abs_ent_s1   <- sum(model_state$sample_weights *
                           (-resp_s1 * log(resp_s1 + 1e-15)))
-    # Use relative_entropy() helper to handle K=1 correctly (Gap 9 fix)
+    # Use relative_entropy() helper to handle K=1 correctly
     rel_ent_s1   <- relative_entropy(abs_ent_s1,
                                      sum(model_state$sample_weights),
                                      model_state$n_components)
@@ -1010,7 +1010,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
       } else if (correction == "BCH") {
         model_state <- fit_bch(model_state, X, Y)
       } else {
-        # correction = "none": plain 2-step update on the structural model (Bug 1 fix).
+        # correction = "none": plain 2-step update on the structural model.
         # The measurement model is already frozen; we just fit the SM on the
         # posterior responsibilities from step 1 without any bias correction.
         resp <- exp(model_state$log_resp)
@@ -1057,9 +1057,8 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
       colnames(model_state$sm$parameters$beta_pooled) <- bp_names
   }
 
-  # Attach covariate names to beta only when the SM is initialized (Bug 1 fix:
-  # guard against NULL beta after correction="none" before the else branch above
-  # ran, or any other path where the SM was never fit).
+  # Attach covariate names to beta only when the SM is initialized
+  # (Guard against NULL beta if the structural model was initialized but never fit).
   if (!is.null(Y) && !is.null(model_state$sm) &&
       inherits(model_state$sm, "covariate") &&
       !is.null(model_state$sm$parameters$beta)) {
@@ -1081,7 +1080,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
   ll       <- sum(model_state$sample_weights * model_state$lower_bound)
   resp     <- exp(model_state$log_resp)
   abs_ent  <- sum(model_state$sample_weights * (-resp * log(resp + 1e-15)))
-  # Use relative_entropy() helper to handle K=1 (returns 1) cleanly (Gap 9 fix)
+  # Use relative_entropy() helper to handle K=1 (returns 1) cleanly
   ent      <- relative_entropy(abs_ent,
                                sum(model_state$sample_weights),
                                model_state$n_components)

@@ -64,7 +64,7 @@ init_params.distal_pooled <- function(model_state, X, resp,
 #' @exportS3Method
 m_step.distal_pooled <- function(model_state, X, resp, weights = NULL, ...) {
   Y <- .validate_pooled_Y(X[, 1], "distal_pooled m_step")
-  if (is.null(Y)) return(model_state)  # constant outcome — skip (Bug 4 fix)
+  if (is.null(Y)) return(model_state)  # constant outcome - skip
 
   Z <- impute_covariates(X[, -1, drop = FALSE])
 
@@ -128,10 +128,10 @@ m_step.distal_pooled <- function(model_state, X, resp, weights = NULL, ...) {
   }
 
   # ----------------------------------------------------------------
-  # Always recompute H at the FINAL converged beta_mat (same stale-H
-  # bug fix as in distal_regression): if the gradient was already small
-  # at iteration 1, the loop breaks before H_nr is ever assigned, and
-  # the previous call's H would be silently returned.
+  # Always recompute H at the FINAL converged beta_mat (ensures H is
+  # computed correctly even if the loop breaks early): if the gradient
+  # was already small at iteration 1, the loop breaks before H_nr
+  # is ever assigned, and the previous call's H would be silently returned.
   # The ridge penalty is omitted here — we want the true Fisher
   # information matrix at the MLE, not the NR stabilisation term.
   # ----------------------------------------------------------------

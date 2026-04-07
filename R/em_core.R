@@ -77,18 +77,18 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = 1.0) {
 # EM converges to a Q-function fixed point, not necessarily the PM optimum.
 # L-BFGS steps on the full penalised log-posterior climb past that fixed point.
 #
-# The objective matches LG's PM formulation (technical guide §7.3–7.4):
+# The objective uses a penalized maximum likelihood (PM) formulation:
 #   log P(ϑ) = log L(X; ϑ) + log p(ϑ)
-# where the Dirichlet priors (Bayes constants α1 = α2 = 1, LG defaults) are:
+# where the Dirichlet priors (Bayes constants α1 = α2 = 1) are:
 #   Weights  : (α1/K)   · Σ_k  log π_k
 #   Bernoulli: (α2/K)   · Σ_k Σ_j  [ π̂_j · log π_kj + (1-π̂_j) · log(1-π_kj) ]
-# with π̂_j the observed marginal probability of item j (LG's "conservative null
+# with π̂_j the observed marginal probability of item j ("conservative null
 # model"). Gaussian models carry no Dirichlet prior in the EM M-step (gaussian_diag
 # uses a hard-floor regularisation instead), so only the weight prior is added.
 #
 # Using the prior instead of box constraints is the correct approach: it lets
 # the gradient pull parameters freely while the prior provides soft penalisation
-# proportional to the evidence — exactly what LG does in its NR phase (eq. 20–21).
+# proportional to the evidence — which heavily stabilizes the estimation.
 #
 # Supported: bernoulli, bernoulli_nan, gaussian_diag, gaussian_unit.
 # No-op for nested models and other types.
@@ -112,8 +112,8 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
   J  <- ncol(X)
   sw <- model_state$sample_weights
 
-  # Observed marginal probabilities — the "conservative null model" LG uses
-  # as the centre of the Dirichlet prior for binary items (guide §7.3).
+  # Observed marginal probabilities — the "conservative null model"
+  # as the centre of the Dirichlet prior for binary items.
   marginal <- colMeans(X, na.rm = TRUE)
   marginal <- pmax(pmin(marginal, 1 - 1e-7), 1e-7)
 
