@@ -15,7 +15,7 @@ get_modal_resp <- function(resp) {
 
 # Apply the BCH Correction
 #
-# Implementation follows Vermunt (2010) and LatentGOLD's "proportional BCH":
+# Implementation follows the proportional BCH approach (Vermunt, 2010):
 #
 #   Step 1: Build the classification error matrix C from PROPORTIONAL assignment
 #           C[k,j] = sum_i resp[i,k] * resp[i,j] / sum_i resp[i,j]
@@ -170,11 +170,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10, rel_tol 
     log_sm <- log_likelihood(model_state$sm, Y_clean)
 
     # ── E-step ─────────────────────────────────────────────────────────────
-    # FIX: correct ML EM following LG tech guide eq (14) for proportional
-    # assignment.  The previous code normalised log_sm to get P(x|o) and
-    # then computed Z_mat = P(x|o) %*% C, which is the wrong objective for
-    # categorical/discrete outcomes (it matched distal_continuous because
-    # the normalisation cancels there, but not for distal_pooled).
+    # Correct ML EM formulation for proportional assignment.
     #
     # Correct formulation (expanded dataset, K records per person):
     #   P(o_i|x=j)   = exp(log_sm)[i,j]           (raw, un-normalised)

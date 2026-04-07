@@ -52,12 +52,12 @@ m_step.distal_continuous_regression <- function(model_state, X, resp,
 
   # ── Pass 2: pooled residual variance (SIGNED BCH weights) ─────────────────
   #
-  #    FIX: use signed weights, not abs(W_k), and pool across ALL classes.
+  #    Use signed weights and pool across all classes.
   #
   #    sigma^2 = sum_k sum_i [ w_ik * (y_i - yhat_ik)^2 ]
   #              / sum_k sum_i w_ik
   #
-  #    This matches LatentGOLD's pooled "error variance" (homoskedastic model).
+  #    This calculates the pooled error variance (homoskedastic model).
   #    Using abs() inflates sigma^2 and all downstream SEs.
   total_ss <- 0
   total_n  <- 0
@@ -75,12 +75,12 @@ m_step.distal_continuous_regression <- function(model_state, X, resp,
 
   # ── Pass 3: model-based SEs ────────────────────────────────────────────────
   #
-  #    FIX: replace naive sandwich sqrt(diag(B^{-1} M B^{-1})) with
-  #    model-based sqrt(sigma^2 * diag(B_inv_k)).
+  #    Use the model-based estimator sqrt(sigma^2 * diag(B_inv_k))
+  #    instead of the naive sandwich.
   #
   #    Each class has its own B_inv_k (separate WLS), so the SE for class k
   #    is sqrt(sigma^2 * diag(B_inv_k)).  The pooled sigma^2 is shared.
-  #    This exactly reproduces LatentGOLD's reported SEs.
+  #    This yields the correct standard errors for independent group regressions.
   ses <- matrix(0, nrow = K, ncol = D)
   for (k in seq_len(K))
     ses[k, ] <- sqrt(pmax(sigma2 * diag(B_invs[[k]]), 1e-8))

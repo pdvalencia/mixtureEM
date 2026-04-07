@@ -64,13 +64,13 @@ m_step.distal_continuous_pooled <- function(model_state, X, resp, weights = NULL
 
   # 3. Pooled residual variance
   #
-  #    FIX: use SIGNED BCH weights, not abs(W_k).
+  #    Use SIGNED BCH weights, not absolute weights.
   #
   #    sigma^2 = sum_k sum_i [ w_ik * (y_i - yhat_ik)^2 ]
   #              / sum_k sum_i w_ik
   #
-  #    This matches LatentGOLD's "error variance" under the homoskedastic
-  #    (pooled) model and gives a single scalar shared across all classes.
+  #    This calculates the pooled error variance under the
+  #    homoskedastic model, giving a single scalar shared across all classes.
   #    Using abs() inflates sigma^2 and, consequently, all SEs.
   preds  <- U %*% theta
   resids <- as.vector(Y_flat - preds)
@@ -88,7 +88,7 @@ m_step.distal_continuous_pooled <- function(model_state, X, resp, weights = NULL
 
   # 4. Model-based SEs: sqrt( sigma^2 * diag(B^{-1}) )
   #
-  #    FIX: replace the naive sandwich   sqrt(diag(B^{-1} M B^{-1}))
+  #    Replace the naive sandwich variance estimator   sqrt(diag(B^{-1} M B^{-1}))
   #    with the model-based estimator    sqrt(sigma^2 * diag(B^{-1})).
   #
   #    Rationale: the BCH expanded dataset has K weighted records per
@@ -96,10 +96,9 @@ m_step.distal_continuous_pooled <- function(model_state, X, resp, weights = NULL
   #    inflating the meat by roughly K.  The model-based SE assumes the
   #    normal linear model Y ~ N(X theta, sigma^2 I) with BCH weights,
   #    giving Var(theta) = sigma^2 (U^T W U)^{-1} = sigma^2 B^{-1}.
-  #    This reproduces LatentGOLD's reported SEs exactly.
+  #    This provides the correct model-based standard errors.
   #
-  #    Note: LG reports SEs for CONTRASTS (class k vs. reference class 1)
-  #    for the intercepts, while we report SEs for the absolute intercepts.
+  #    Note: We report SEs for the absolute intercepts rather than pairwise contrasts.
   #    Both are correct; they differ only in parameterisation.  The
   #    contrast SE is recoverable as sqrt(V[k,k] + V[1,1] - 2*V[k,1])
   #    where V = sigma^2 * B^{-1}.

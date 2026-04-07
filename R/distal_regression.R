@@ -17,7 +17,7 @@ distal_regression_model <- function(n_components, tol = 1e-4, max_iter = 100,
 .validate_distal_Y <- function(Y_col, context = "distal_regression") {
   Y <- as.numeric(Y_col)
 
-  # Reject negative values (Bug 5 fix)
+  # Reject negative values
   if (any(!is.na(Y) & Y < 0))
     stop(sprintf(
       paste0("%s: Y outcome column contains negative values (%s). ",
@@ -30,7 +30,7 @@ distal_regression_model <- function(n_components, tol = 1e-4, max_iter = 100,
   # Shift 0-indexed to 1-indexed
   if (!all(is.na(Y)) && min(Y, na.rm = TRUE) == 0) Y <- Y + 1
 
-  # Guard against degenerate constant outcome (Bug 4 fix)
+  # Guard against degenerate constant outcome
   M <- max(Y, na.rm = TRUE)
   if (M <= 1) {
     warning(sprintf(
@@ -74,7 +74,7 @@ init_params.distal_regression <- function(model_state, X, resp,
 #' @exportS3Method
 m_step.distal_regression <- function(model_state, X, resp, weights = NULL, ...) {
   Y <- .validate_distal_Y(X[, 1], "distal_regression m_step")
-  if (is.null(Y)) return(model_state)  # constant outcome — skip (Bug 4 fix)
+  if (is.null(Y)) return(model_state)  # constant outcome - skip
 
   Z_raw <- impute_covariates(X[, -1, drop = FALSE])
   Z     <- cbind(1, Z_raw)
@@ -145,13 +145,8 @@ m_step.distal_regression <- function(model_state, X, resp, weights = NULL, ...) 
     }
 
     # ----------------------------------------------------------------
-    # Always recompute H at the FINAL converged beta_k.
-    # Bug fix: previously H was only assigned inside the loop, after the
-    # gradient check — meaning it was never set when the loop broke early
-    # (convergence at first iteration).  The stale value from the previous
-    # class's loop was silently used instead, producing identical Hessians
-    # across classes.  Computing H here, outside the loop and without the
-    # ridge penalty, gives the true observed Fisher information at the MLE.
+    # Always recompute H at the FINAL converged beta_k to ensure the
+    # true observed Fisher information is captured.
     # ----------------------------------------------------------------
     P_final  <- distal_forward(Z_valid, beta_k)
     H_final  <- matrix(0, nrow = (M - 1) * D, ncol = (M - 1) * D)

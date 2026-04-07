@@ -72,6 +72,9 @@ from largest to smallest after fitting.}
 \item{weights}{Optional numeric vector of length \code{nrow(X)} for survey
 or case weights. Default is \code{NULL} (equal weights of 1).}
 
+\item{refine}{Logical. If \code{TRUE} (default), applies L-BFGS refinement
+after EM convergence to reach the penalized maximum likelihood.}
+
 \item{...}{Additional arguments passed to the measurement or structural
 model constructors (e.g., \code{max_val} for multinoulli models).}
 }
