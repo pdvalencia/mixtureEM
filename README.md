@@ -18,8 +18,9 @@ binary or categorical; LPA is used when they are continuous.
 
 ## Features
 
-- **Measurement models:** Binary (Bernoulli), categorical (Multinoulli),
-  and continuous (Gaussian) indicators, including missing-data variants.
+- **Measurement models:** Binary, categorical (ordinal/polytomous), and
+  continuous indicators, including full-information missing data
+  variants.
 - **Mixed measurement models:** Combine different variable types in a
   single model via a named-list descriptor.
 - **Structural models:** Covariate predictors of class membership, and
@@ -161,8 +162,10 @@ sel <- compare_mixtures(X,
 ### Latent Profile Analysis (LPA)
 
 For continuous indicators (e.g., scale scores, physiological measures),
-switch `measurement` to `"continuous"`. The model estimates a mean and
-variance for each indicator within each profile.
+switch `measurement` to `"continuous"`. The model estimates both a mean
+and a variance for each indicator within each profile (though
+`measurement_summary()` prints the means to help you interpret and
+characterize the profiles).
 
 ``` r
 # Simulate continuous data from a 2-profile population
@@ -671,31 +674,28 @@ cat(sprintf("Observed LR statistic: %.2f\n", result$obs_diff))
 
 ### Measurement (`measurement =`)
 
-| String | Indicator type |
-|----|----|
-| `"binary"` / `"bernoulli"` | Binary (0/1) |
-| `"binary_nan"` / `"bernoulli_nan"` | Binary with missing data |
-| `"categorical"` / `"multinoulli"` | Ordinal / polytomous |
-| `"categorical_nan"` / `"multinoulli_nan"` | Ordinal with missing data |
-| `"continuous"` / `"gaussian_diag"` | Continuous (estimated variance) |
-| `"continuous_nan"` / `"gaussian_diag_nan"` | Continuous with missing data |
-| `"gaussian"` / `"gaussian_unit"` | Continuous (unit variance) |
-| Named list | Mixed model combining any of the above |
+| String              | Indicator Type                               |
+|---------------------|----------------------------------------------|
+| `"binary"`          | Binary (0/1)                                 |
+| `"binary_nan"`      | Binary with missing data                     |
+| `"categorical"`     | Ordinal / polytomous                         |
+| `"categorical_nan"` | Ordinal with missing data                    |
+| `"continuous"`      | Continuous (estimates within-class variance) |
+| `"continuous_nan"`  | Continuous with missing data                 |
+| `"gaussian"`        | Continuous (unit variance fixed to 1)        |
+| Named list          | Mixed model combining any of the above       |
 
 ### Structural (`structural =`)
 
-| New name | Original name | Outcome type | Covariate slope | `Y` layout | Recommended correction |
-|----|----|----|----|----|----|
-| `"predict_class"` | `"covariate"` | – (predicts class) | – | Covariates only | `"ML"` |
-| `"continuous_outcome"` | `"distal_continuous"` | Continuous | None | Outcome only | `"BCH"` |
-| `"continuous_outcome_adjusted"` | `"distal_continuous_pooled"` | Continuous | Pooled | Outcome (col 1), covariates (cols 2+) | `"BCH"` |
-| `"continuous_outcome_moderated"` | `"distal_continuous_regression"` | Continuous | Class-specific | Outcome (col 1), covariates (cols 2+) | `"BCH"` |
-| `"categorical_outcome"` | – | Categorical | None | Outcome only | `"ML"` |
-| `"categorical_outcome_adjusted"` | `"distal_pooled"` | Categorical | Pooled | Outcome (col 1), covariates (cols 2+) | `"ML"` |
-| `"categorical_outcome_moderated"` | `"distal_regression"` | Categorical | Class-specific | Outcome (col 1), covariates (cols 2+) | `"ML"` |
-
-Original names are retained as aliases and continue to work. The new
-names are the recommended interface.
+| Structural Model | Outcome Type | Covariate Slope | `Y` Layout | Recommended Correction |
+|----|----|----|----|----|
+| `"predict_class"` | – (predicts class) | – | Covariates only | `"ML"` |
+| `"continuous_outcome"` | Continuous | None | Outcome only | `"BCH"` |
+| `"continuous_outcome_adjusted"` | Continuous | Pooled | Outcome (col 1), covariates (cols 2+) | `"BCH"` |
+| `"continuous_outcome_moderated"` | Continuous | Class-specific | Outcome (col 1), covariates (cols 2+) | `"BCH"` |
+| `"categorical_outcome"` | Categorical | None | Outcome only | `"ML"` |
+| `"categorical_outcome_adjusted"` | Categorical | Pooled | Outcome (col 1), covariates (cols 2+) | `"ML"` |
+| `"categorical_outcome_moderated"` | Categorical | Class-specific | Outcome (col 1), covariates (cols 2+) | `"ML"` |
 
 > **Pooled vs. moderated:** Both continuous and categorical distal
 > models come in a pooled (main-effects-only) and a moderated
@@ -715,7 +715,7 @@ measurement-structural model architecture in this package follow the
 framework laid out in StepMix. If you make use of these methods, please
 also consider citing the StepMix paper:
 
-> Morin, S., Legault, R., Laliberte, F., Bakk, Z., Giguere, C.-E., de la
+> Morin, S., Legault, R., Laliberte, F., Bakk, Z., Giguère, C.-E., de la
 > Sablonnière, R., & Lacourse, E. (2025). StepMix: A Python package for
 > pseudo-likelihood estimation of generalised mixture models with
 > external variables. *Journal of Statistical Software*, *113*(8), 1-39.
@@ -726,4 +726,4 @@ also consider citing the StepMix paper:
 If you use mixtureEM in published research, please cite it as:
 
     Valencia, P. D. (2026). mixtureEM: Latent Class and Profile Analysis in R.
-    R package. [https://github.com/pdvalencia/mixtureEM](https://github.com/pdvalencia/mixtureEM)
+    R package. https://github.com/pdvalencia/mixtureEM
