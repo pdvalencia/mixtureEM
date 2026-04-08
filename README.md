@@ -12,28 +12,28 @@ of measurement models, structural models, and multi-step estimation
 strategies.
 
 The core idea behind these models is that an unobserved (latent)
-categorical variable — the *class* or *profile* — explains patterns of
+categorical variable—the *class* or *profile*—explains patterns of
 similarity among observed indicators. LCA is used when indicators are
-binary or categorical; LPA when they are continuous.
+binary or categorical; LPA is used when they are continuous.
 
 ## Features
 
-- **Measurement models:** binary (Bernoulli), categorical (Multinoulli),
+- **Measurement models:** Binary (Bernoulli), categorical (Multinoulli),
   and continuous (Gaussian) indicators, including missing-data variants.
-- **Mixed measurement models:** combine different variable types in a
+- **Mixed measurement models:** Combine different variable types in a
   single model via a named-list descriptor.
-- **Structural models:** covariate predictors of class membership, and
-  distal outcomes (continuous or categorical — with options for pooled
-  or class-specific regression slopes).
+- **Structural models:** Covariate predictors of class membership, and
+  distal outcomes (continuous or categorical, with options for pooled or
+  class-specific regression slopes).
 - **Multi-step estimation:** 1-step (simultaneous), 2-step, and 3-step
   with **BCH** or **ML** bias correction.
 - **Model selection:** AIC, BIC, SABIC, and relative entropy across a
   range of K.
 - **Bootstrap Likelihood Ratio Test (BLRT)** for comparing nested
   models.
-- **Inference for covariates:** analytical Wald tests, bootstrap
+- **Inference for covariates:** Analytical Wald tests, bootstrap
   standard errors, and confidence intervals for odds ratios.
-- **Survey weights** support throughout.
+- **Support for survey weights** throughout the package.
 
 ## Installation
 
@@ -56,7 +56,7 @@ library(mixtureEM)
 set.seed(42)
 probs <- list(
   c(0.1, 0.2, 0.1, 0.1, 0.1),  # Class 1: Low on all items
-  c(0.9, 0.8, 0.7, 0.1, 0.1),  # Class 2: High on items 1–3
+  c(0.9, 0.8, 0.7, 0.1, 0.1),  # Class 2: High on items 1-3
   c(0.8, 0.8, 0.7, 0.9, 0.9)   # Class 3: High on all items
 )
 weights <- c(0.6, 0.3, 0.1)
@@ -109,8 +109,8 @@ measurement_summary(fit)
 ```
 
 ``` r
-# Average posterior probabilities — diagonal values near 1 indicate
-# well-separated, clearly-defined classes
+# Average posterior probabilities -- diagonal values near 1 indicate
+# well-separated, clearly defined classes
 classification_diagnostics(fit)
 #> =========================================================
 #>           AVERAGE POSTERIOR PROBABILITIES (AvePP)        
@@ -129,7 +129,7 @@ classification_diagnostics(fit)
 In practice, the number of classes is unknown and must be determined
 from the data. `compare_mixtures()` fits models from K = 1 to K = 4 and
 returns standard fit indices. **BIC** is the most widely used criterion:
-lower is better, and you are looking for the model where BIC stops
+lower is better, and you are looking for the model where the BIC stops
 meaningfully decreasing.
 
 ``` r
@@ -153,9 +153,9 @@ sel <- compare_mixtures(X,
 #> 
 #> -> Best model according to BIC: 3 classes
 
-# sel$best_k  — the K with the lowest BIC, as an integer for use in subsequent code
-# sel$models  — the full list of fitted model objects, indexed as "K1", "K2", etc.
-# sel$fit_table — data frame with LL, AIC, BIC, SABIC, and Entropy for each K
+# sel$best_k    -- the K with the lowest BIC, as an integer
+# sel$models    -- the full list of fitted model objects, indexed as "K1", "K2", etc.
+# sel$fit_table -- data frame with LL, AIC, BIC, SABIC, and Entropy for each K
 ```
 
 ### Latent Profile Analysis (LPA)
@@ -213,12 +213,13 @@ measurement_summary(fit_lpa)
 
 **Why 3-step?** The 3-step approach separates the measurement and
 structural parts of the model. In the 1-step approach, the covariate
-influences how the classes are formed, which conflates class structure
-with class predictors. The 3-step approach first establishes the class
-solution from the indicators alone (step 1), assigns each person to a
-class (step 2), then regresses class membership on the covariate (step
-3) — while correcting for the classification error introduced in step 2.
-This protects the substantive meaning of the classes.
+influences how the classes are formed, which conflates the class
+structure with class predictors. The 3-step approach first establishes
+the class solution from the indicators alone (step 1), assigns each
+person to a class (step 2), and then regresses class membership on the
+covariate (step 3), while correcting for the classification error
+introduced in step 2. This protects the substantive meaning of the
+classes.
 
 The `"ML"` correction is recommended for covariate structural models
 (Vermunt, 2010).
@@ -235,7 +236,7 @@ colnames(Z) <- "z1"
 fit_cov <- fit_mixture(X, Y = Z,
                        n_components = 3,
                        measurement  = "binary",
-                       structural   = "covariate",
+                       structural   = "predict_class",
                        n_steps      = 3,
                        correction   = "ML",
                        n_init       = 5,
@@ -286,7 +287,7 @@ summary(fit_cov, ref_class = 3)
 ### Distal outcomes
 
 A **distal outcome** is a variable that is *caused by* (rather than
-constitutive of) the latent classes — for example, a health outcome or a
+constitutive of) the latent classes—for example, a health outcome or a
 behavioural measure assessed after class membership has been
 established. The 3-step approach first fixes the class solution from the
 indicators, then links it to the outcome, preventing the outcome from
@@ -303,12 +304,12 @@ distorting the class structure.
   structural components and handles missing outcome data (Vermunt,
   2010).
 
-> **Column convention for `Y`:** column 1 is always the outcome
+> **Column convention for `Y`:** Column 1 is always the outcome
 > variable; any additional columns are treated as covariates.
 
 #### Continuous distal: Outcome ~ Class
 
-Use `structural = "distal_continuous"` to estimate the mean of a
+Use `structural = "continuous_outcome"` to estimate the mean of a
 continuous outcome within each class, with no covariate adjustment.
 `summary()` reports class-specific means with 95% CIs and robust
 sandwich standard errors.
@@ -325,7 +326,7 @@ colnames(D) <- "outcome"
 fit_distal <- fit_mixture(X, Y = D,
                           n_components = 3,
                           measurement  = "binary",
-                          structural   = "distal_continuous",
+                          structural   = "continuous_outcome",
                           n_steps      = 3,
                           correction   = "BCH",
                           n_init       = 5,
@@ -340,7 +341,7 @@ summary(fit_distal)
 #> CONTINUOUS DISTAL OUTCOME (MEANS)
 #> ---------------------------------------------------------
 #> 
-#> Omnibus test (class differences): Wald χ²(2) = 203.09, p  < .001
+#> Omnibus test (class differences): Wald chi^2(2) = 203.09, p  < .001
 #> 
 #>                  Mean       [95% CI]        SE
 #>   Class 1       -0.002  [-0.159,  0.154]     0.080
@@ -351,7 +352,7 @@ summary(fit_distal)
 
 #### Continuous distal with covariate: pooled slope
 
-`structural = "distal_continuous_pooled"` estimates **class-varying
+`structural = "continuous_outcome_adjusted"` estimates **class-varying
 intercepts** (mean differences between classes) but a **single covariate
 slope shared across all classes**. This is a parsimonious choice when
 you expect the covariate to shift the outcome uniformly, regardless of
@@ -365,7 +366,7 @@ colnames(Y_cont_reg) <- c("outcome", "z1")
 fit_distal_pool_cont <- fit_mixture(X, Y = Y_cont_reg,
                                     n_components = 3,
                                     measurement  = "binary",
-                                    structural   = "distal_continuous_pooled",
+                                    structural   = "continuous_outcome_adjusted",
                                     n_steps      = 3,
                                     correction   = "BCH",
                                     n_init       = 5,
@@ -380,7 +381,7 @@ summary(fit_distal_pool_cont)
 #> CONTINUOUS DISTAL POOLED REGRESSION (Main Effects)
 #> ---------------------------------------------------------
 #> 
-#> Omnibus test (class differences (at covariate zero)): Wald χ²(2) = 321.37, p  < .001
+#> Omnibus test (class differences (at covariate zero)): Wald chi^2(2) = 321.37, p  < .001
 #> 
 #>   Latent Class (Intercepts):
 #>                  Estimate   [95% CI]        P-Value
@@ -396,16 +397,16 @@ summary(fit_distal_pool_cont)
 
 #### Continuous distal with covariate: class-specific slopes
 
-`structural = "distal_continuous_regression"` allows the covariate’s
-effect on the outcome to **differ across classes** — i.e., the covariate
-is a moderator of the class–outcome relationship. Each class gets its
+`structural = "continuous_outcome_moderated"` allows the covariate’s
+effect on the outcome to **differ across classes**—i.e., the covariate
+is a moderator of the class-outcome relationship. Each class gets its
 own intercept and slope.
 
 ``` r
 fit_distal_reg <- fit_mixture(X, Y = Y_cont_reg,
                               n_components = 3,
                               measurement  = "binary",
-                              structural   = "distal_continuous_regression",
+                              structural   = "continuous_outcome_moderated",
                               n_steps      = 3,
                               correction   = "BCH",
                               n_init       = 5,
@@ -420,7 +421,7 @@ summary(fit_distal_reg)
 #> CONTINUOUS DISTAL REGRESSION (Y ~ Z * Class)
 #> ---------------------------------------------------------
 #> 
-#> Omnibus test (class differences (at covariate zero)): Wald χ²(2) = 385.20, p  < .001
+#> Omnibus test (class differences (at covariate zero)): Wald chi^2(2) = 385.20, p  < .001
 #> 
 #> Class 1:
 #>                  Estimate   [95% CI]        P-Value
@@ -439,24 +440,71 @@ summary(fit_distal_reg)
 #> 
 #> ---------------------------------------------------------
 #> Wald tests (equality of slopes across classes):
-#>                   Wald(χ²(2))  P-Value
+#>                   Wald(chi^2(2))  P-Value
 #>   z1                 55.66            < .001
 #> =========================================================
 ```
 
-#### Categorical distal: pooled slope
+#### Categorical distal: Outcome ~ Class
 
-For a binary or ordinal distal outcome, `structural = "distal_pooled"`
-estimates class-varying intercepts with a **single covariate slope
-shared across all classes**.
+Use `structural = "categorical_outcome"` to estimate class-specific
+probabilities for a binary or ordinal distal outcome with no covariate
+adjustment. This is the categorical analogue of `"continuous_outcome"`:
+the model contains only class intercepts, one per outcome category minus
+the reference. `summary()` reports predicted probabilities and pairwise
+odds ratios between classes.
 
 ``` r
-# Simulate a binary categorical distal outcome
+# Simulate a binary categorical distal outcome with class-specific log-odds
 set.seed(33)
 log_odds <- ifelse(classes == 1, -1.0,
-            ifelse(classes == 2,  1.5, 0.0)) + 0.4 * Z[, 1]
+            ifelse(classes == 2,  1.5, 0.0))
 D_cat <- matrix(rbinom(n, 1, plogis(log_odds)), ncol = 1)
+colnames(D_cat) <- "cat_outcome"
 
+fit_cat <- fit_mixture(X, Y = D_cat,
+                       n_components = 3,
+                       measurement  = "binary",
+                       structural   = "categorical_outcome",
+                       n_steps      = 3,
+                       correction   = "ML",
+                       n_init       = 5,
+                       random_state = 33)
+
+# Class-specific predicted probabilities and pairwise odds ratios
+summary(fit_cat)
+#> =========================================================
+#>              STRUCTURAL MODEL SUMMARY                    
+#> =========================================================
+#> 
+#> CATEGORICAL DISTAL OUTCOME (CLASS PROBABILITIES)
+#> ---------------------------------------------------------
+#> 
+#> Omnibus test (class differences): Wald chi^2(2) = 32.73, p  < .001
+#> 
+#> Predicted Probabilities:
+#>                Cat 1    Cat 2   
+#>   Class 1        0.725    0.275 
+#>   Class 2        0.170    0.830 
+#>   Class 3        0.533    0.467 
+#> 
+#> Pairwise Odds Ratios (Reference: Class 1)
+#>                      OR       [95% CI]        P-Value
+#> 
+#> Outcome Category 2 (vs Category 1) ON
+#>   Latent Class:
+#>     Class 2         12.865  [ 5.258, 31.477]    < .001
+#>     Class 3          2.315  [ 1.086,  4.933]     0.030
+#> =========================================================
+```
+
+#### Categorical distal with covariate: pooled slope
+
+`structural = "categorical_outcome_adjusted"` estimates class-varying
+intercepts with a **single covariate slope shared across all classes**.
+The outcome is passed in column 1 and the covariate in column 2.
+
+``` r
 # Y layout: categorical outcome (col 1), covariate (col 2)
 Y_pooled <- cbind(D_cat, Z)
 colnames(Y_pooled) <- c("cat_outcome", "z1")
@@ -464,14 +512,14 @@ colnames(Y_pooled) <- c("cat_outcome", "z1")
 fit_pooled <- fit_mixture(X, Y = Y_pooled,
                           n_components = 3,
                           measurement  = "binary",
-                          structural   = "distal_pooled",
+                          structural   = "categorical_outcome_adjusted",
                           n_steps      = 3,
                           correction   = "ML",
                           n_init       = 5,
                           random_state = 33)
 
 # Class-specific intercepts + one pooled covariate slope
-# Reported as odds ratios; class main effects are contrasted against ref_class
+# Reported as odds ratios; class main effects contrasted against ref_class
 summary(fit_pooled)
 #> =========================================================
 #>              STRUCTURAL MODEL SUMMARY                    
@@ -480,38 +528,38 @@ summary(fit_pooled)
 #> CATEGORICAL DISTAL OUTCOME (POOLED SLOPES)
 #> ---------------------------------------------------------
 #> 
-#> Omnibus test (class differences): Wald χ²(2) = 25.86, p  < .001
+#> Omnibus test (class differences): Wald chi^2(2) = 20.73, p  < .001
 #> 
 #> Predicted Probabilities (covariates held at zero):
 #>                Cat 1    Cat 2   
-#>   Class 1        0.695    0.305 
-#>   Class 2        0.229    0.771 
-#>   Class 3        0.422    0.578 
+#>   Class 1        0.670    0.330 
+#>   Class 2        0.217    0.783 
+#>   Class 3        0.553    0.447 
 #> 
 #> Pairwise Odds Ratios (Reference: Class 1)
 #>                      OR       [95% CI]        P-Value
 #> 
 #> Outcome Category 2 (vs Category 1) ON
 #>   Latent Class:
-#>     Class 2          7.683  [ 3.410, 17.310]    < .001
-#>     Class 3          3.117  [ 1.403,  6.922]     0.005
+#>     Class 2          7.336  [ 3.100, 17.359]    < .001
+#>     Class 3          1.644  [ 0.757,  3.568]     0.209
 #>   Covariates (Pooled Slope):
-#>     Z1              1.393  [ 1.109,  1.750]     0.004
+#>     Z1              0.735  [ 0.593,  0.912]     0.005
 #> =========================================================
 ```
 
-#### Categorical distal: class-specific slopes
+#### Categorical distal with covariate: class-specific slopes
 
-`structural = "distal_regression"` relaxes the pooling assumption so
-that both the intercept **and** the covariate slope are free to vary by
-class. Use this when you have reason to believe the covariate moderates
-the class–outcome relationship.
+`structural = "categorical_outcome_moderated"` relaxes the pooling
+assumption so that both the intercept **and** the covariate slope are
+free to vary by class. Use this when you have reason to believe the
+covariate moderates the class-outcome relationship.
 
 ``` r
 fit_moderated <- fit_mixture(X, Y = Y_pooled,
                              n_components = 3,
                              measurement  = "binary",
-                             structural   = "distal_regression",
+                             structural   = "categorical_outcome_moderated",
                              n_steps      = 3,
                              correction   = "ML",
                              n_init       = 5,
@@ -528,27 +576,27 @@ summary(fit_moderated)
 #> 
 #> Predicted Probabilities (covariates held at zero):
 #>                Cat 1    Cat 2   
-#>   Class 1        0.689    0.311 
-#>   Class 2        0.210    0.790 
-#>   Class 3        0.424    0.576 
+#>   Class 1        0.660    0.340 
+#>   Class 2        0.187    0.813 
+#>   Class 3        0.564    0.436 
 #> 
 #> Class-Specific Estimates
 #>                      OR       [95% CI]        P-Value
 #> 
 #> Class 1:
 #>   Outcome Category 2 (vs Category 1) ON
-#>     Intercept       0.451  [ 0.238,  0.857]     0.015
-#>     Z1              1.341  [ 0.854,  2.105]     0.202
+#>     Intercept       0.514  [ 0.275,  0.962]     0.037
+#>     Z1              0.657  [ 0.419,  1.031]     0.067
 #> 
 #> Class 2:
 #>   Outcome Category 2 (vs Category 1) ON
-#>     Intercept       3.751  [ 2.579,  5.456]    < .001
-#>     Z1              1.570  [ 1.202,  2.052]    < .001
+#>     Intercept       4.334  [ 3.043,  6.172]    < .001
+#>     Z1              1.115  [ 0.841,  1.480]     0.450
 #> 
 #> Class 3:
 #>   Outcome Category 2 (vs Category 1) ON
-#>     Intercept       1.360  [ 0.703,  2.631]     0.361
-#>     Z1              1.393  [ 0.781,  2.485]     0.262
+#>     Intercept       0.772  [ 0.396,  1.506]     0.448
+#>     Z1              0.621  [ 0.341,  1.130]     0.119
 #> =========================================================
 ```
 
@@ -558,15 +606,15 @@ meaningfully improve fit:
 
 ``` r
 cat("Pooled:    BIC =", round(fit_pooled$metrics$bic, 2), "\n")
-#> Pooled:    BIC = 703.67
+#> Pooled:    BIC = 714.89
 cat("Moderated: BIC =", round(fit_moderated$metrics$bic, 2), "\n")
-#> Moderated: BIC = 712.56
+#> Moderated: BIC = 720.33
 ```
 
 ### Bootstrap Likelihood Ratio Test (BLRT)
 
 The BLRT tests whether a K-class model fits significantly better than a
-(K−1)-class model. Because the standard chi-squared approximation is
+(K-1)-class model. Because the standard chi-squared approximation is
 invalid for mixture models (the null hypothesis places a parameter on
 the boundary of the parameter space), the BLRT uses a parametric
 bootstrap to build the reference distribution from scratch.
@@ -636,16 +684,20 @@ cat(sprintf("Observed LR statistic: %.2f\n", result$obs_diff))
 
 ### Structural (`structural =`)
 
-| String | Outcome type | Covariate slope | `Y` layout | Recommended correction |
-|----|----|----|----|----|
-| `"covariate"` | — (predicts class) | — | Covariates only | `"ML"` |
-| `"distal_continuous"` | Continuous | None | Outcome only | `"BCH"` |
-| `"distal_continuous_pooled"` | Continuous | **Pooled** across classes | Outcome (col 1), covariates (cols 2+) | `"BCH"` |
-| `"distal_continuous_regression"` | Continuous | Class-specific | Outcome (col 1), covariates (cols 2+) | `"BCH"` |
-| `"distal_pooled"` | Categorical | **Pooled** across classes | Outcome (col 1), covariates (cols 2+) | `"ML"` |
-| `"distal_regression"` | Categorical | Class-specific | Outcome (col 1), covariates (cols 2+) | `"ML"` |
+| New name | Original name | Outcome type | Covariate slope | `Y` layout | Recommended correction |
+|----|----|----|----|----|----|
+| `"predict_class"` | `"covariate"` | – (predicts class) | – | Covariates only | `"ML"` |
+| `"continuous_outcome"` | `"distal_continuous"` | Continuous | None | Outcome only | `"BCH"` |
+| `"continuous_outcome_adjusted"` | `"distal_continuous_pooled"` | Continuous | Pooled | Outcome (col 1), covariates (cols 2+) | `"BCH"` |
+| `"continuous_outcome_moderated"` | `"distal_continuous_regression"` | Continuous | Class-specific | Outcome (col 1), covariates (cols 2+) | `"BCH"` |
+| `"categorical_outcome"` | – | Categorical | None | Outcome only | `"ML"` |
+| `"categorical_outcome_adjusted"` | `"distal_pooled"` | Categorical | Pooled | Outcome (col 1), covariates (cols 2+) | `"ML"` |
+| `"categorical_outcome_moderated"` | `"distal_regression"` | Categorical | Class-specific | Outcome (col 1), covariates (cols 2+) | `"ML"` |
 
-> **Pooled vs. moderated:** both continuous and categorical distal
+Original names are retained as aliases and continue to work. The new
+names are the recommended interface.
+
+> **Pooled vs. moderated:** Both continuous and categorical distal
 > models come in a pooled (main-effects-only) and a moderated
 > (class-specific slopes) version. Start with the pooled model for
 > parsimony; switch to the moderated version if you have theoretical
@@ -659,14 +711,14 @@ cat(sprintf("Observed LR statistic: %.2f\n", result$obs_diff))
 2025), which pioneered open-source, bias-adjusted multi-step estimation
 of generalised mixture models with external variables. The design of the
 stepwise estimators, BCH and ML corrections, and the overall modular
-measurement–structural model architecture in this package follow the
+measurement-structural model architecture in this package follow the
 framework laid out in StepMix. If you make use of these methods, please
 also consider citing the StepMix paper:
 
-> Morin, S., Legault, R., Laliberté, F., Bakk, Z., Giguère, C.-É., de la
-> Sablonnière, R., & Lacourse, É. (2025). StepMix: A Python package for
+> Morin, S., Legault, R., Laliberte, F., Bakk, Z., Giguere, C.-E., de la
+> Sablonnière, R., & Lacourse, E. (2025). StepMix: A Python package for
 > pseudo-likelihood estimation of generalised mixture models with
-> external variables. *Journal of Statistical Software*, *113*(8), 1–39.
+> external variables. *Journal of Statistical Software*, *113*(8), 1-39.
 > <https://doi.org/10.18637/jss.v113.i08>
 
 ## Citation
@@ -674,4 +726,4 @@ also consider citing the StepMix paper:
 If you use mixtureEM in published research, please cite it as:
 
     Valencia, P. D. (2026). mixtureEM: Latent Class and Profile Analysis in R.
-    R package. https://github.com/pdvalencia/mixtureEM
+    R package. [https://github.com/pdvalencia/mixtureEM](https://github.com/pdvalencia/mixtureEM)

@@ -274,7 +274,7 @@ classification_diagnostics <- function(object) {
 #   W = c^T V^{-1} c,  where c = R * mu,  V = R * Sigma_mu * R^T
 #   R = contrast matrix [class k vs class 1, k = 2..K]  (df = K-1)
 #
-# This calculates the robust Wald statistic (Bakk, Oberski & Vermunt,
+# This matches LatentGOLD's robust Wald statistic (Bakk, Oberski & Vermunt,
 # 2014) and accounts for the cross-class covariance induced by BCH weights.
 #
 # Falls back to the diagonal (precision-weighted) approximation when
@@ -439,11 +439,85 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     }
   }
 
-  # B. Distal pooled
-  pooled_sub <- NULL
-  if (inherits(object$sm, "distal_pooled")) pooled_sub <- object$sm
+  # B0. Categorical distal outcome with no covariate (distal_categorical).
+  #     This section is checked before B because distal_categorical inherits
+  #     from distal_pooled; without the explicit class check below, section B
+  #     would match first and display the wrong header.
+  cat_sub <- NULL
+  if (inherits(object$sm, "distal_categorical"))
+    cat_sub <- object$sm
   if (inherits(object$sm, "nested") && "distal" %in% names(object$sm$models) &&
-      inherits(object$sm$models$distal, "distal_pooled"))
+      inherits(object$sm$models$distal, "distal_categorical"))
+    cat_sub <- object$sm$models$distal
+
+  if (!is.null(cat_sub) && !is.null(cat_sub$parameters$beta_pooled)) {
+    cat("\nCATEGORICAL DISTAL OUTCOME (CLASS PROBABILITIES)\n")
+    cat("---------------------------------------------------------\n")
+
+    beta_mat  <- cat_sub$parameters$beta_pooled
+    M_minus_1 <- nrow(beta_mat)
+    K_distal  <- K
+    # distal_categorical has no covariate columns; D_cov is always 0.
+    D_cov <- ncol(beta_mat) - K_distal
+    M     <- M_minus_1 + 1L
+
+    if (M_minus_1 == 0L) {
+      cat("  (Constant outcome - no parameters to display)\n")
+    } else {
+      Sigma <- pinv(-cat_sub$parameters$hessian)
+
+      # --- Omnibus test ---
+      omni <- .wald_omnibus_pooled(beta_mat, cat_sub$parameters$hessian,
+                                   K_distal, D_cov, ref_class)
+      if (!is.na(omni$stat)) {
+        cat(sprintf(
+          "\nOmnibus test (class differences): Wald chi^2(%d) = %.2f, p%s\n",
+          omni$df, omni$stat, .fmt_pval(omni$p)))
+      }
+
+      # --- Predicted probabilities ---
+      cat("\nPredicted Probabilities:\n")
+      cat(sprintf("  %-12s", ""))
+      for (m in seq_len(M)) cat(sprintf(" Cat %-4d", m))
+      cat("\n")
+      for (k in seq_len(K_distal)) {
+        probs <- .pred_probs_pooled(beta_mat, K_distal, D_cov = 0L, k)
+        cat(sprintf("  Class %-6d", k))
+        for (m in seq_len(M)) cat(sprintf("  %6.3f ", probs[m]))
+        cat("\n")
+      }
+
+      # --- Pairwise OR table ---
+      cat(sprintf("\nPairwise Odds Ratios (Reference: Class %d)\n", ref_class))
+      cat("                     OR       [95% CI]        P-Value\n")
+      for (m in seq_len(M_minus_1)) {
+        cat(sprintf("\nOutcome Category %d (vs Category 1) ON\n", m + 1L))
+        cat("  Latent Class:\n")
+        for (c in setdiff(seq_len(K_distal), ref_class)) {
+          est      <- beta_mat[m, c] - beta_mat[m, ref_class]
+          idx_c    <- (m - 1L) * K_distal + c
+          idx_ref  <- (m - 1L) * K_distal + ref_class
+          var_diff <- Sigma[idx_c, idx_c] + Sigma[idx_ref, idx_ref] -
+            2 * Sigma[idx_c, idx_ref]
+          se    <- sqrt(max(0, var_diff))
+          z_val <- if (se > 0) est / se else NA_real_
+          p_val <- if (!is.na(z_val)) 2 * (1 - pnorm(abs(z_val))) else NA_real_
+          cat(sprintf("    Class %d        %7.3f  [%6.3f, %6.3f]  %s\n",
+                      c, exp(est), exp(est - 1.96 * se), exp(est + 1.96 * se),
+                      .fmt_pval(p_val)))
+        }
+      }
+    }
+  }
+
+  # B. Categorical distal outcome with a pooled covariate slope (distal_pooled).
+  #    Excludes distal_categorical, which is handled in section B0 above.
+  pooled_sub <- NULL
+  if (inherits(object$sm, "distal_pooled") &&
+      !inherits(object$sm, "distal_categorical")) pooled_sub <- object$sm
+  if (inherits(object$sm, "nested") && "distal" %in% names(object$sm$models) &&
+      inherits(object$sm$models$distal, "distal_pooled") &&
+      !inherits(object$sm$models$distal, "distal_categorical"))
     pooled_sub <- object$sm$models$distal
 
   if (!is.null(pooled_sub) && !is.null(pooled_sub$parameters$beta_pooled)) {
@@ -465,7 +539,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
                                    K_distal, D_cov, ref_class)
       if (!is.na(omni$stat)) {
         cat(sprintf(
-          "\nOmnibus test (class differences): Wald \u03c7\u00b2(%d) = %.2f, p%s\n",
+          "\nOmnibus test (class differences): Wald chi^2(%d) = %.2f, p%s\n",
           omni$df, omni$stat, .fmt_pval(omni$p)))
       }
 
@@ -608,7 +682,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     omni <- .wald_omnibus_means(means, ses, K, Sigma_mu = Sigma_mu)
     if (!is.na(omni$stat)) {
       cat(sprintf(
-        "\nOmnibus test (class differences): Wald \u03c7\u00b2(%d) = %.2f, p%s\n",
+        "\nOmnibus test (class differences): Wald chi^2(%d) = %.2f, p%s\n",
         omni$df, omni$stat, .fmt_pval(omni$p)))
     }
 
@@ -640,7 +714,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 
     # Omnibus Wald test on class intercepts (class-specific means at Z = 0).
     # Uses the model-based SE for each intercept (sigma^2 * B_inv_k[1,1]),
-    # assuming classes are independent.
+    # assuming classes are independent - matching LatentGOLD's Wald(=) test.
     intercepts <- betas[, 1L]
     int_ses    <- ses[, 1L]   # already model-based if fitted with BCH v2
     prec_int   <- 1 / pmax(int_ses^2, 1e-15)
@@ -651,7 +725,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     if (!is.na(omni$stat)) {
       cov_note <- if (D > 1L) " (at covariate zero)" else ""
       cat(sprintf(
-        "\nOmnibus test (class differences%s): Wald \u03c7\u00b2(%d) = %.2f, p%s\n",
+        "\nOmnibus test (class differences%s): Wald chi^2(%d) = %.2f, p%s\n",
         cov_note, omni$df, omni$stat, .fmt_pval(omni$p)))
     }
 
@@ -671,15 +745,15 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
       cat("\n")
     }
 
-    # ── Per-covariate Wald(=) tests: H0: slope_k equal across all classes ──
+    #  Per-covariate Wald(=) tests: H0: slope_k equal across all classes
     # Uses the diagonal independence approximation (separate per-class
-    # regressions), matching standard equality formulations.
+    # regressions), matching LatentGOLD's Wald(=) column.
     # Contrast matrix R = [-1 | I_{K-1}], df = K-1.
     if (K > 1L && D > 1L) {
       cat("---------------------------------------------------------\n")
       cat("Wald tests (equality of slopes across classes):\n")
       cat(sprintf("  %-13s   Wald(%s)%s  P-Value\n",
-                  "", paste0("\u03c7\u00b2(", K - 1L, ")"), ""))
+                  "", paste0("chi^2(", K - 1L, ")"), ""))
       R_eq <- cbind(-1, diag(K - 1L))
       for (v in 2L:D) {
         theta_v <- betas[, v]
@@ -722,7 +796,8 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     # Omnibus Wald test on class intercepts
     # When cov_theta is available (BCH step stored it), use the full
     # model-based contrast Wald: H0: int_k = int_1 for all k != 1.
-    # This accounts for the covariance between intercept estimates.
+    # This matches LatentGOLD's omnibus test and accounts for the
+    # covariance between intercept estimates.
     cov_theta  <- cont_pool_sub$parameters$cov_theta
     intercepts <- theta[seq_len(K_distal)]
     int_ses    <- ses[seq_len(K_distal)]
@@ -746,7 +821,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     if (!is.na(omni$stat)) {
       cov_note <- if (D_cov > 0) " (at covariate zero)" else ""
       cat(sprintf(
-        "\nOmnibus test (class differences%s): Wald \u03c7\u00b2(%d) = %.2f, p%s\n",
+        "\nOmnibus test (class differences%s): Wald chi^2(%d) = %.2f, p%s\n",
         cov_note, omni$df, omni$stat, .fmt_pval(omni$p)))
     }
 
@@ -827,7 +902,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #' @param weights Optional numeric vector of length \code{nrow(X)} for survey
 #'   or case weights. Default is \code{NULL} (equal weights of 1).
 #' @param refine Logical. If \code{TRUE} (default), applies L-BFGS refinement
-#'   after EM convergence to reach the penalized maximum likelihood.
+#'   after EM convergence to optimize the penalized maximum likelihood.
 #' @param ... Additional arguments passed to the measurement or structural
 #'   model constructors (e.g., \code{max_val} for multinoulli models).
 #'
@@ -886,7 +961,8 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
 
   # --- Input Validation ---
 
-  # n_components must be a positive integer prevent invalid K inputs)
+  # n_components must be a positive integer. Values of 0 or below would either
+  # produce degenerate output silently or crash with uninformative messages.
   if (!is.numeric(n_components) || length(n_components) != 1 ||
       !is.finite(n_components) || n_components < 1L)
     stop(sprintf(
@@ -898,7 +974,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
   if (!n_steps %in% c(1L, 2L, 3L))
     stop(sprintf("n_steps must be 1, 2, or 3. Got: %d", n_steps))
 
-  # correction must be one of the three supported values
+  # correction must be one of the three supported values.
   valid_corrections <- c("none", "ML", "BCH")
   if (!correction %in% valid_corrections)
     stop(sprintf(
@@ -906,7 +982,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
       correction, paste(valid_corrections, collapse = ", ")
     ))
 
-  # Warn when X contains NAs but a non-NaN measurement family is used
+  # Warn when X contains NAs but a non-NaN measurement family is used.
   if (anyNA(X) && is.character(measurement)) {
     nan_variants <- c("bernoulli_nan", "binary_nan",
                       "multinoulli_nan", "categorical_nan",
@@ -919,7 +995,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
       ))
   }
 
-  # Validate binary data when a Bernoulli family is requested
+  # Validate binary data when a Bernoulli family is requested.
   if (is.character(measurement) &&
       measurement %in% c("binary", "bernoulli", "binary_nan", "bernoulli_nan")) {
     valid_vals <- X[!is.na(X)]
@@ -990,7 +1066,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
     resp_s1      <- exp(model_state$log_resp)
     abs_ent_s1   <- sum(model_state$sample_weights *
                           (-resp_s1 * log(resp_s1 + 1e-15)))
-    # Use relative_entropy() helper to handle K=1 correctly
+    # Use relative_entropy() to handle the K=1 edge case cleanly.
     rel_ent_s1   <- relative_entropy(abs_ent_s1,
                                      sum(model_state$sample_weights),
                                      model_state$n_components)
@@ -1011,7 +1087,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
         model_state <- fit_bch(model_state, X, Y)
       } else {
         # correction = "none": plain 2-step update on the structural model.
-        # The measurement model is already frozen; we just fit the SM on the
+        # The measurement model is already frozen at this point; the SM is fit on the
         # posterior responsibilities from step 1 without any bias correction.
         resp <- exp(model_state$log_resp)
         model_state$sm <- init_params(model_state$sm, Y, resp)
@@ -1024,7 +1100,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
 
   # Attach column names.
   # Guard: only assign colnames to pis when dimensions match (Bernoulli: J cols;
-  # Multinoulli: J*M cols — colnames(X) has length J so would misfire there).
+  # Multinoulli: J*M cols - colnames(X) has length J so would misfire there).
   if (!is.null(colnames(X)) && !is.null(model_state$mm$parameters$pis) &&
       ncol(model_state$mm$parameters$pis) == ncol(X))
     colnames(model_state$mm$parameters$pis) <- colnames(X)
@@ -1057,8 +1133,8 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
       colnames(model_state$sm$parameters$beta_pooled) <- bp_names
   }
 
-  # Attach covariate names to beta only when the SM is initialized
-  # (Guard against NULL beta if the structural model was initialized but never fit).
+  # Attach covariate names to beta only when the SM has been initialised.
+  # Guards against NULL beta on paths where the SM was not fit.
   if (!is.null(Y) && !is.null(model_state$sm) &&
       inherits(model_state$sm, "covariate") &&
       !is.null(model_state$sm$parameters$beta)) {
@@ -1080,7 +1156,7 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
   ll       <- sum(model_state$sample_weights * model_state$lower_bound)
   resp     <- exp(model_state$log_resp)
   abs_ent  <- sum(model_state$sample_weights * (-resp * log(resp + 1e-15)))
-  # Use relative_entropy() helper to handle K=1 (returns 1) cleanly
+  # Use relative_entropy() to handle the K=1 edge case cleanly.
   ent      <- relative_entropy(abs_ent,
                                sum(model_state$sample_weights),
                                model_state$n_components)
