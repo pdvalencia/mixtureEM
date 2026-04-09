@@ -164,6 +164,12 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10, rel_tol 
   model_state$sm <- init_params(model_state$sm, Y_clean, resp_step1)
   model_state$sm <- m_step(model_state$sm, Y_clean, resp_step1, weights = w_clean)
 
+  # Weighted class proportions; computed once for discrete models and reused
+  # both in the EM loop and in the variance estimation block below.
+  if (inherits(model_state$sm, c("distal_pooled", "distal_regression"))) {
+    pi_k_clean <- colSums(resp_step1 * w_clean) / sum(w_clean)
+  }
+
   prev_ll <- -Inf
 
   for (iter in seq_len(max_iter)) {
@@ -185,8 +191,6 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10, rel_tol 
 
     if (inherits(model_state$sm, c("distal_pooled", "distal_regression"))) {
       po_given_x <- exp(log_sm)                      # n_clean x K
-      pi_k_clean <- colSums(resp_step1 * w_clean) /
-        sum(w_clean)                                  # K (weighted class props)
       Z_mat      <- sweep(po_given_x, 2, pi_k_clean, "*") %*% C_row_norm
       current_ll <- sum(w_clean * rowSums(
         resp_step1 * log(pmax(Z_mat, 1e-300))))
@@ -214,58 +218,47 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10, rel_tol 
     model_state$sm <- m_step(model_state$sm, Y_clean, W, weights = w_clean)
   }
 
-  # Robust sandwich standard errors for discrete structural models.
+  # ============================================================================
+  # Variance estimation for discrete structural models under ML step-3.
   #
-  # For distal_pooled and distal_regression under ML step-3, the Q-function
-  # Hessian stored by m_step reflects only the expected complete-data curvature,
-  # not the marginal LL curvature, which leads to underestimation of variance.
+  # The Q-function Hessian stored by m_step reflects only the expected
+  # complete-data curvature, not the marginal LL curvature, which leads to
+  # underestimation of variance.  The robust sandwich estimator is used instead
+  # (Bakk, Oberski & Vermunt, 2014):
   #
-  # The robust sandwich estimator (Bakk, Oberski & Vermunt, 2014) is used:
-  #   V_robust = B^{-1} M B^{-1}
-  # where:
-  #   B = -H_marg  (numerical Hessian of the marginal LL at convergence)
-  #   M = sum_i s_i s_i^T  (outer product of person-level marginal scores)
+  #   V = B^{-1} M B^{-1}
   #
-  # The marginal LL is: L(theta) = sum_i sum_k resp1[i,k] * log Z_mat[i,k].
-  # The Hessian slot is replaced with -V_robust^{-1} so that downstream
-  # inference code, which calls pinv(-hessian) to obtain the variance matrix,
-  # recovers V_robust.
-  if (inherits(model_state$sm, c("distal_pooled", "distal_regression"))) {
-    theta0 <- as.vector(model_state$sm$parameters$beta_pooled)
-    if (is.null(theta0))
-      theta0 <- as.vector(model_state$sm$parameters$betas)
-    n_theta <- length(theta0)
-    eps_nd  <- 1e-4
+  # where B = -H_marg is the numerical Hessian of the marginal log-likelihood
+  #   L(theta) = sum_i sum_k resp1[i,k] * log Z_mat[i,k]
+  # and M = sum_i s_i s_i^T is the outer product of person-level scores.
+  #
+  # For distal_pooled the parameters form one joint vector and the corrected
+  # variance is stored in $hessian (singular), which is where downstream
+  # inference reads from.
+  #
+  # For distal_regression the parameters are class-specific; the marginal LL
+  # Hessian is block-diagonal across classes.  The per-class sandwich is
+  # computed independently for each class k and stored in $hessians[[k]]
+  # (plural list), which is where downstream inference reads from.
+  # ============================================================================
 
-    # Capture the true dimensions of beta_pooled before entering the closures.
-    # beta_pooled is an (M-1) x (K + D_cov) matrix; restoring it from a flat
-    # vector requires the correct row count (M-1), which equals 1 only for
-    # binary outcomes and is larger for polytomous ones.
-    beta_pooled_dim <- if (!is.null(model_state$sm$parameters$beta_pooled))
-      dim(model_state$sm$parameters$beta_pooled)
-    else NULL
+  # --- distal_pooled (joint parameter vector, one shared Hessian) -------------
 
-    # Dimensions of the betas array for distal_regression: c(K, M-1, D).
-    betas_dim <- if (inherits(model_state$sm, "distal_regression"))
-      dim(model_state$sm$parameters$betas)
-    else NULL
+  if (inherits(model_state$sm, "distal_pooled")) {
+    theta0          <- as.vector(model_state$sm$parameters$beta_pooled)
+    n_theta         <- length(theta0)
+    eps_nd          <- 1e-4
+    beta_pooled_dim <- dim(model_state$sm$parameters$beta_pooled)
 
-    # Marginal log-likelihood as a function of the structural parameters.
     marg_ll_fn <- function(theta) {
       sm_tmp <- model_state$sm
-      if (!is.null(beta_pooled_dim)) {
-        sm_tmp$parameters$beta_pooled <-
-          matrix(theta, nrow = beta_pooled_dim[1], ncol = beta_pooled_dim[2])
-      } else if (!is.null(betas_dim)) {
-        sm_tmp$parameters$betas <- array(theta, dim = betas_dim)
-      }
-      log_s <- log_likelihood(sm_tmp, Y_clean)
-      po_x  <- exp(log_s)
-      Z_m   <- sweep(po_x, 2, pi_k_clean, "*") %*% C_row_norm
+      sm_tmp$parameters$beta_pooled <-
+        matrix(theta, nrow = beta_pooled_dim[1], ncol = beta_pooled_dim[2])
+      po_x <- exp(log_likelihood(sm_tmp, Y_clean))
+      Z_m  <- sweep(po_x, 2, pi_k_clean, "*") %*% C_row_norm
       sum(w_clean * rowSums(resp_step1 * log(pmax(Z_m, 1e-300))))
     }
 
-    # Numerical Hessian of the marginal LL (central differences, O(eps^2)).
     H_marg <- matrix(0, n_theta, n_theta)
     for (j in seq_len(n_theta)) {
       for (k in j:n_theta) {
@@ -278,41 +271,83 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10, rel_tol 
       }
     }
 
-    # Person-level marginal scores (numerical gradient).
     score_mat <- matrix(0, nrow(Y_clean), n_theta)
     for (j in seq_len(n_theta)) {
       ej   <- rep(0, n_theta); ej[j] <- eps_nd
-      sm_p <- model_state$sm
-      sm_m <- model_state$sm
-      if (!is.null(beta_pooled_dim)) {
-        sm_p$parameters$beta_pooled <-
-          matrix(theta0 + ej, nrow = beta_pooled_dim[1], ncol = beta_pooled_dim[2])
-        sm_m$parameters$beta_pooled <-
-          matrix(theta0 - ej, nrow = beta_pooled_dim[1], ncol = beta_pooled_dim[2])
-      } else if (!is.null(betas_dim)) {
-        sm_p$parameters$betas <- array(theta0 + ej, dim = betas_dim)
-        sm_m$parameters$betas <- array(theta0 - ej, dim = betas_dim)
-      }
-      log_sp  <- log_likelihood(sm_p, Y_clean)
-      log_sm_m <- log_likelihood(sm_m, Y_clean)
-      Zp <- sweep(exp(log_sp),  2, pi_k_clean, "*") %*% C_row_norm
-      Zm <- sweep(exp(log_sm_m), 2, pi_k_clean, "*") %*% C_row_norm
-      # Person i score for parameter j:
-      # s_i[j] = sum_k resp1[i,k] * (log Zp[i,k] - log Zm[i,k]) / (2 * eps)
+      sm_p <- model_state$sm; sm_m <- model_state$sm
+      sm_p$parameters$beta_pooled <-
+        matrix(theta0 + ej, nrow = beta_pooled_dim[1], ncol = beta_pooled_dim[2])
+      sm_m$parameters$beta_pooled <-
+        matrix(theta0 - ej, nrow = beta_pooled_dim[1], ncol = beta_pooled_dim[2])
+      Zp <- sweep(exp(log_likelihood(sm_p, Y_clean)), 2, pi_k_clean, "*") %*% C_row_norm
+      Zm <- sweep(exp(log_likelihood(sm_m, Y_clean)), 2, pi_k_clean, "*") %*% C_row_norm
       score_mat[, j] <- rowSums(
         resp_step1 * (log(pmax(Zp, 1e-300)) - log(pmax(Zm, 1e-300)))
       ) / (2 * eps_nd)
     }
 
-    # Meat = sum_i s_i s_i^T
-    meat <- t(score_mat) %*% score_mat
-
-    # Robust sandwich variance: V = B^{-1} M B^{-1} where B = -H_marg.
+    meat     <- t(score_mat) %*% score_mat
     B_inv    <- pinv(-H_marg)
     V_robust <- B_inv %*% meat %*% B_inv
 
-    # Store -V_robust^{-1} so that pinv(-hessian) returns V_robust downstream.
     model_state$sm$parameters$hessian <- -pinv(V_robust)
+  }
+
+  # --- distal_regression (class-specific parameters, per-class Hessians) ------
+  #
+  # The marginal LL is block-diagonal in the class-specific parameter blocks
+  # because P(o_i | x=k) depends only on betas[k,,].  Each class k's sandwich
+  # is therefore computed independently from the others.
+
+  if (inherits(model_state$sm, "distal_regression")) {
+    betas_dim   <- dim(model_state$sm$parameters$betas)   # c(K, M-1, D)
+    K_dr        <- betas_dim[1]
+    n_per_class <- betas_dim[2] * betas_dim[3]             # (M-1) * D
+    eps_nd      <- 1e-4
+
+    for (kk in seq_len(K_dr)) {
+      theta_k <- as.vector(model_state$sm$parameters$betas[kk, , ])
+
+      marg_ll_k <- function(theta) {
+        sm_tmp <- model_state$sm
+        sm_tmp$parameters$betas[kk, , ] <-
+          array(theta, dim = betas_dim[2:3])
+        po_x <- exp(log_likelihood(sm_tmp, Y_clean))
+        Z_m  <- sweep(po_x, 2, pi_k_clean, "*") %*% C_row_norm
+        sum(w_clean * rowSums(resp_step1 * log(pmax(Z_m, 1e-300))))
+      }
+
+      H_k <- matrix(0, n_per_class, n_per_class)
+      for (j in seq_len(n_per_class)) {
+        for (l in j:n_per_class) {
+          ej <- rep(0, n_per_class); ej[j] <- eps_nd
+          el <- rep(0, n_per_class); el[l] <- eps_nd
+          H_k[j, l] <- H_k[l, j] <-
+            (marg_ll_k(theta_k + ej + el) - marg_ll_k(theta_k + ej - el) -
+               marg_ll_k(theta_k - ej + el) + marg_ll_k(theta_k - ej - el)) /
+            (4 * eps_nd^2)
+        }
+      }
+
+      score_k <- matrix(0, nrow(Y_clean), n_per_class)
+      for (j in seq_len(n_per_class)) {
+        ej   <- rep(0, n_per_class); ej[j] <- eps_nd
+        sm_p <- model_state$sm; sm_m <- model_state$sm
+        sm_p$parameters$betas[kk, , ] <- array(theta_k + ej, dim = betas_dim[2:3])
+        sm_m$parameters$betas[kk, , ] <- array(theta_k - ej, dim = betas_dim[2:3])
+        Zp <- sweep(exp(log_likelihood(sm_p, Y_clean)), 2, pi_k_clean, "*") %*% C_row_norm
+        Zm <- sweep(exp(log_likelihood(sm_m, Y_clean)), 2, pi_k_clean, "*") %*% C_row_norm
+        score_k[, j] <- rowSums(
+          resp_step1 * (log(pmax(Zp, 1e-300)) - log(pmax(Zm, 1e-300)))
+        ) / (2 * eps_nd)
+      }
+
+      meat_k  <- t(score_k) %*% score_k
+      B_inv_k <- pinv(-H_k)
+      V_k     <- B_inv_k %*% meat_k %*% B_inv_k
+
+      model_state$sm$parameters$hessians[[kk]] <- -pinv(V_k)
+    }
   }
 
   e_res_full <- e_step(model_state, X, NULL)
