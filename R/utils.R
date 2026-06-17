@@ -1,6 +1,10 @@
 # ==============================================================================
-# unmixR Implementation - Utilities and Math Helpers
+# mixtureEM Implementation - Utilities and Math Helpers
 # ==============================================================================
+
+# Null-coalescing helper. Defined locally so the package carries no dependency
+# on rlang or on base R >= 4.4 (which introduced `%||%`).
+`%||%` <- function(a, b) if (is.null(a)) b else a
 
 # Log-Sum-Exp trick for numerical stability
 logsumexp <- function(x, MARGIN = 1) {
@@ -100,6 +104,74 @@ pinv <- function(X, tol = sqrt(.Machine$double.eps)) {
   return(s$v %*% diag(d_inv, nrow = length(d)) %*% t(s$u))
 }
 
+# Design-adjusted "meat" matrix for the robust sandwich estimator under a
+# complex survey design (Taylor-series linearization).
+#
+# Given an N x P matrix of individual-level score (gradient) vectors, the
+# scores are aggregated to the primary sampling unit (PSU) level within each
+# stratum and combined as
+#
+#   B = sum_o (C_o / (C_o - 1)) sum_c (g_oc - g_bar_o)(g_oc - g_bar_o)^T
+#
+# where o indexes strata, c indexes the C_o PSUs in stratum o, g_oc is the
+# summed score over all cases in PSU c, and g_bar_o is the mean PSU score in
+# the stratum. The finite population correction is omitted, which is the
+# standard choice for large-scale surveys where it approaches 1.
+#
+# PSUs are identified within strata: an identical cluster label appearing in
+# two different strata denotes two distinct PSUs.
+#
+# Singleton strata (C_o = 1) make the C_o/(C_o - 1) multiplier undefined.
+# They are handled with the "adjust" / centered-at-grand-mean convention:
+# the single PSU is centered on the overall mean of all PSU scores and the
+# multiplier defaults to 1, which contributes a conservative variance term
+# rather than dropping the stratum.
+compute_survey_B <- function(score_mat, strata, cluster) {
+  score_mat <- as.matrix(score_mat)
+  P <- ncol(score_mat)
+  B <- matrix(0, nrow = P, ncol = P)
+
+  # Combined key so PSUs are unique within (and only within) their stratum.
+  psu_key <- paste(strata, cluster, sep = "\r")
+
+  # Grand mean of PSU-aggregated scores, used to center singleton strata.
+  unique_psu <- unique(psu_key)
+  g_all_psu  <- matrix(0, nrow = length(unique_psu), ncol = P)
+  for (i in seq_along(unique_psu)) {
+    rows <- which(psu_key == unique_psu[i])
+    g_all_psu[i, ] <- colSums(score_mat[rows, , drop = FALSE])
+  }
+  g_bar_grand <- colMeans(g_all_psu)
+
+  for (o in unique(strata)) {
+    in_stratum     <- which(strata == o)
+    psu_in_stratum <- unique(psu_key[in_stratum])
+    C_o            <- length(psu_in_stratum)
+
+    # Aggregate individual scores to the PSU level within this stratum.
+    g_oc <- matrix(0, nrow = C_o, ncol = P)
+    for (c_idx in seq_len(C_o)) {
+      rows         <- in_stratum[psu_key[in_stratum] == psu_in_stratum[c_idx]]
+      g_oc[c_idx, ] <- colSums(score_mat[rows, , drop = FALSE])
+    }
+
+    if (C_o == 1L) {
+      # Singleton stratum: center on the grand mean, multiplier = 1.
+      centered  <- sweep(g_oc, 2, g_bar_grand, "-")
+      stratum_B <- crossprod(centered)
+    } else {
+      # Standard linearization: center on the stratum mean.
+      g_bar_o   <- colMeans(g_oc)
+      centered  <- sweep(g_oc, 2, g_bar_o, "-")
+      stratum_B <- (C_o / (C_o - 1)) * crossprod(centered)
+    }
+
+    B <- B + stratum_B
+  }
+
+  return(B)
+}
+
 # Relative Entropy (normalised by log(K), scales 0-1)
 relative_entropy <- function(absolute_entropy, n_samples, n_classes) {
   if (n_classes <= 1) return(1)
@@ -107,28 +179,94 @@ relative_entropy <- function(absolute_entropy, n_samples, n_classes) {
   return(max(0, min(1, rel_ent)))
 }
 
-# Mean imputation for missing covariates in structural models
-impute_covariates <- function(Z) {
+# Completion of incomplete covariates for structural models under the
+# endogenous-constrained-x approach (Sterba, 2014, Multivariate Behavioral
+# Research, 49, 614-632; see also Depaoli, Jia & Visser, 2025).
+#
+# Rather than listwise deleting cases with missing covariates or filling them
+# with an unconditional column mean, the covariates are treated as endogenous
+# with a single Gaussian marginal distribution whose parameters are held
+# common across latent classes. Each missing block of a row is filled with its
+# conditional expectation given the observed block under that shared Gaussian,
+#
+#   E[x_mis | x_obs] = mu_mis + Sigma_{mis,obs} Sigma_{obs,obs}^{-1} (x_obs - mu_obs),
+#
+# which is the best linear predictor and uses the inter-covariate associations
+# (the off-diagonal of Sigma) instead of ignoring them. Holding the marginal
+# class-invariant is what lets the joint likelihood recover the conditional
+# model: the marginal density cancels from the class posteriors (Sterba, 2014,
+# eq. 13), so completion never lets covariate shape define the class structure.
+#
+# On complete data this function is an exact no-op, preserving the equivalence
+# between the conditional (exogenous-x) and joint (endogenous-constrained-x)
+# specifications that holds when covariates are fully observed.
+complete_covariates <- function(Z) {
   Z <- as.matrix(Z)
-  if (ncol(Z) == 0) return(Z)
-  for (j in seq_len(ncol(Z))) {
-    na_idx <- is.na(Z[, j])
-    if (any(na_idx)) {
-      col_mean <- mean(Z[, j], na.rm = TRUE)
-      # All-NA column: mean() returns NaN, which would silently propagate
-      # through logit calculations. Warn and impute 0 instead.
-      if (is.nan(col_mean)) {
-        warning(sprintf(
-          paste0("impute_covariates: column %d is entirely NA. ",
-                 "Imputing with 0. Check your data for completely missing covariates."),
-          j
-        ))
-        col_mean <- 0
-      }
-      Z[na_idx, j] <- col_mean
-    }
+  if (ncol(Z) == 0L || !anyNA(Z)) return(Z)
+
+  mu <- colMeans(Z, na.rm = TRUE)
+
+  # A column with no observed values cannot inform any conditional mean. Centre
+  # it at zero and warn, matching the previous all-NA safeguard.
+  all_na <- is.nan(mu)
+  if (any(all_na)) {
+    warning(sprintf(
+      paste0("complete_covariates: column(s) %s are entirely NA. ",
+             "Centring at 0. Check your data for completely missing covariates."),
+      paste(which(all_na), collapse = ", ")))
+    mu[all_na] <- 0
   }
-  return(Z)
+
+  p <- ncol(Z)
+  if (p == 1L) {
+    # A single covariate has nothing to condition on, so the conditional mean
+    # under the shared Gaussian reduces to the marginal mean.
+    na_idx <- is.na(Z[, 1L])
+    Z[na_idx, 1L] <- mu[1L]
+    return(Z)
+  }
+
+  # Class-invariant covariance of the covariates. Pairwise-complete estimation
+  # uses every observed cell; a small ridge keeps the observed blocks solvable.
+  Sigma <- stats::cov(Z, use = "pairwise.complete.obs")
+  Sigma[is.na(Sigma)] <- 0
+  diag(Sigma) <- diag(Sigma) + 1e-6
+
+  miss_rows <- which(rowSums(is.na(Z)) > 0L)
+  for (i in miss_rows) {
+    mis <- which(is.na(Z[i, ]))
+    obs <- which(!is.na(Z[i, ]))
+    if (length(obs) == 0L) {
+      Z[i, mis] <- mu[mis]                 # whole row missing: marginal mean
+      next
+    }
+    S_oo_inv  <- pinv(Sigma[obs, obs, drop = FALSE])
+    S_mo      <- Sigma[mis, obs, drop = FALSE]
+    Z[i, mis] <- mu[mis] +
+      as.vector(S_mo %*% S_oo_inv %*% (Z[i, obs] - mu[obs]))
+  }
+  Z
+}
+
+# Complete only the covariate columns carried by a structural sub-model, under
+# the endogenous-constrained-x scheme. For distal-outcome models the first
+# column of Y is the endogenous outcome and is left untouched (its own
+# likelihood masks missing values via FIML); the remaining columns are
+# covariates/moderators. For a class-prediction (covariate) model every column
+# is a covariate.
+complete_structural_covariates <- function(sm, Y) {
+  if (is.null(Y) || is.null(sm)) return(Y)
+  Y <- as.matrix(Y)
+  distal_types <- c("distal_continuous", "distal_continuous_regression",
+                    "distal_continuous_pooled", "distal_pooled",
+                    "distal_regression", "distal_categorical")
+  if (inherits(sm, distal_types)) {
+    if (ncol(Y) > 1L)
+      Y[, -1L] <- complete_covariates(Y[, -1L, drop = FALSE])
+  } else {
+    Y <- complete_covariates(Y)
+  }
+  Y
 }
 
 # ==============================================================================

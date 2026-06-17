@@ -35,10 +35,15 @@ fit_bch <- function(model_state, X, Y) {
   if (inherits(model_state$sm, c("covariate", "distal_regression", "distal_pooled"))) {
     warning(paste(
       "BCH correction is not recommended for covariates or categorical distal outcomes.",
-      "Vermunt (2010) and Bakk et al. (2013) show ML correction is preferred in this case.",
+      "Vermunt (2010) and Bakk et al. (2013) show ML correction is preferred in this case,",
       "Consider correction = 'ML' instead."
     ))
   }
+
+  # Complete missing covariates under the class-invariant Gaussian marginal
+  # (endogenous-constrained-x; Sterba, 2014) so all cases are retained; a
+  # missing distal outcome stays NA and is masked by the structural likelihood.
+  Y <- complete_structural_covariates(model_state$sm, Y)
 
   weights <- model_state$sample_weights
   e_res   <- e_step(model_state, X, NULL)
@@ -142,10 +147,24 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10, rel_tol 
     ))
   }
 
-  keep    <- complete.cases(Y)
+  # Retain every case. Missing covariates are completed under the class-invariant
+  # Gaussian marginal (endogenous-constrained-x; Sterba, 2014) instead of being
+  # listwise deleted, which sacrifices efficiency and biases estimates under MAR
+  # (Little, 1992; Little & Zhang, 2011). A missing distal outcome is left as NA
+  # and masked by the structural model's own FIML likelihood.
+  Y       <- complete_structural_covariates(model_state$sm, Y)
+  keep    <- rep(TRUE, nrow(Y))
   X_clean <- X[keep, , drop = FALSE]
   Y_clean <- Y[keep, , drop = FALSE]
   w_clean <- model_state$sample_weights[keep]
+
+  # Keep the sub-model's survey design row-aligned with the retained cases so
+  # that variance code running inside m_step (e.g. the covariate M-step) sees
+  # strata and cluster vectors that match Y_clean.
+  if (!is.null(model_state$sm$strata)) {
+    model_state$sm$strata  <- model_state$sm$strata[keep]
+    model_state$sm$cluster <- model_state$sm$cluster[keep]
+  }
 
   if (nrow(X_clean) == 0) stop("All rows have missing covariates.")
 
@@ -286,7 +305,9 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10, rel_tol 
       ) / (2 * eps_nd)
     }
 
-    meat     <- t(score_mat) %*% score_mat
+    meat     <- compute_survey_B(score_mat,
+                                 model_state$strata[keep],
+                                 model_state$cluster[keep])
     B_inv    <- pinv(-H_marg)
     V_robust <- B_inv %*% meat %*% B_inv
 
@@ -342,7 +363,9 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10, rel_tol 
         ) / (2 * eps_nd)
       }
 
-      meat_k  <- t(score_k) %*% score_k
+      meat_k  <- compute_survey_B(score_k,
+                                  model_state$strata[keep],
+                                  model_state$cluster[keep])
       B_inv_k <- pinv(-H_k)
       V_k     <- B_inv_k %*% meat_k %*% B_inv_k
 

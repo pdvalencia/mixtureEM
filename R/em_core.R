@@ -90,8 +90,12 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = 1.0) {
 # the gradient pull parameters freely while the prior provides soft penalisation
 # proportional to the evidence — which heavily stabilizes the estimation.
 #
-# Supported: bernoulli, bernoulli_nan, gaussian_diag, gaussian_unit.
-# No-op for nested models and other types.
+# Supported: bernoulli, bernoulli_nan, gaussian_diag, gaussian_diag_nan,
+#            gaussian_unit, gaussian_unit_nan.
+# No-op for nested models and other types. The missing-data (_nan) variants
+# share the complete-data objective and gradient; observed-data masking is
+# applied wherever the indicator matrix contributes, so refinement behaves
+# consistently whether or not the data contain missing cells.
 #
 # Parameterisation (unconstrained):
 #   bernoulli     : logit(pis) [K×J]  + log-ratio weights [K-1]
@@ -100,13 +104,22 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = 1.0) {
 #
 refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
   mm_type <- class(model_state$mm)[1]
-  supported <- c("bernoulli", "bernoulli_nan", "gaussian_diag", "gaussian_unit")
+  supported <- c("bernoulli", "bernoulli_nan",
+                 "gaussian_diag", "gaussian_diag_nan",
+                 "gaussian_unit", "gaussian_unit_nan")
   if (!mm_type %in% supported) return(model_state)
   if (inherits(model_state$mm, "nested")) return(model_state)
   # K=1 has no weight parameters; the M-step already gives the exact analytic
   # solution (item marginals), so L-BFGS is a no-op and the K-2 index arithmetic
   # below produces an out-of-bounds sequence that triggers a sweep() warning.
   if (model_state$n_components == 1L) return(model_state)
+
+  # Collapse the missing-data variants onto their complete-data family so the
+  # packing, likelihood, and gradient branches treat them identically. Where the
+  # data contain NA, the branches below mask the missing cells (na.rm); with
+  # complete data they fall through to the faster matrix-multiply forms.
+  fam    <- sub("_nan$", "", mm_type)
+  has_na <- anyNA(X)
 
   K  <- model_state$n_components
   J  <- ncol(X)
@@ -121,11 +134,11 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
   wts <- pmax(model_state$weights, 1e-15)
   log_ratio_w <- log(wts[-K] / wts[K])   # K-1 free weight params (last anchored = 0)
 
-  if (mm_type %in% c("bernoulli", "bernoulli_nan")) {
+  if (fam == "bernoulli") {
     pis  <- pmax(pmin(model_state$mm$parameters$pis, 1 - 1e-7), 1e-7)
     par0 <- c(qlogis(as.vector(pis)), log_ratio_w)   # K*J + K-1
 
-  } else if (mm_type == "gaussian_diag") {
+  } else if (fam == "gaussian_diag") {
     means <- as.vector(model_state$mm$parameters$means)
     sds   <- sqrt(as.vector(model_state$mm$parameters$covariances))
     par0  <- c(means, log(pmax(sds, 1e-7)), log_ratio_w)   # 2*K*J + K-1
@@ -163,12 +176,23 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
     w_vec <- exp(log_w)
 
     # ── Decode measurement model ─────────────────────────────────────────────
-    if (mm_type %in% c("bernoulli", "bernoulli_nan")) {
+    if (fam == "bernoulli") {
       pis_p <- pmax(pmin(matrix(plogis(par[seq_len(K * J)]), K, J), 1-1e-15), 1e-15)
-      # Vectorised log-likelihood: n×K  (matrix multiply — no R for-loop over k)
-      log_lik <- X %*% t(log(pis_p)) + (1 - X) %*% t(log(1 - pis_p))
+      if (has_na) {
+        # Per-component sum with missing cells dropped (FIML). Slower than the
+        # matrix multiply but the only NA-safe form.
+        log_lik <- matrix(0, nrow(X), K)
+        for (k in seq_len(K))
+          log_lik[, k] <- rowSums(
+            sweep(X, 2, log(pis_p[k, ]), "*") +
+              sweep(1 - X, 2, log(1 - pis_p[k, ]), "*"),
+            na.rm = TRUE)
+      } else {
+        # Vectorised log-likelihood: n×K  (matrix multiply — no R for-loop over k)
+        log_lik <- X %*% t(log(pis_p)) + (1 - X) %*% t(log(1 - pis_p))
+      }
 
-    } else if (mm_type == "gaussian_diag") {
+    } else if (fam == "gaussian_diag") {
       means_p <- matrix(par[seq_len(K * J)],           K, J)
       sds_p   <- matrix(exp(par[(K*J+1):(2*K*J)]),     K, J)
       sds_p   <- pmax(sds_p, 1e-7)
@@ -199,7 +223,7 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
 
     # ── Priors (also normalised by n_obs) ─────────────────────────────────────
     log_prior_w <- (1 / K) * sum(log_w) / n_obs
-    log_prior_pis <- if (mm_type %in% c("bernoulli", "bernoulli_nan"))
+    log_prior_pis <- if (fam == "bernoulli")
       sum((marginal / K) %*% t(log(pis_p)) + ((1 - marginal) / K) %*% t(log(1 - pis_p))) / n_obs
     else 0
 
@@ -211,19 +235,33 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
 
     grad <- numeric(length(par))
 
-    if (mm_type %in% c("bernoulli", "bernoulli_nan")) {
-      g_pis <- t(swR) %*% X -
-        sweep(pis_p, 1, nk, "*") +
-        (matrix(marginal, K, J, byrow = TRUE) - pis_p) / K
+    if (fam == "bernoulli") {
+      if (has_na) {
+        # Missing cells inform neither item j's score nor its effective count,
+        # so zero the missing contributions and count only observed cells per
+        # item. With complete data nk_obs[k, ] == nk[k] and this reduces to the
+        # matrix-multiply form below.
+        obs    <- !is.na(X)
+        X0     <- X; X0[!obs] <- 0
+        nk_obs <- t(swR) %*% obs
+        g_pis  <- t(swR) %*% X0 - pis_p * nk_obs +
+          (matrix(marginal, K, J, byrow = TRUE) - pis_p) / K
+      } else {
+        g_pis <- t(swR) %*% X -
+          sweep(pis_p, 1, nk, "*") +
+          (matrix(marginal, K, J, byrow = TRUE) - pis_p) / K
+      }
       grad[seq_len(K * J)] <- as.vector(-g_pis) / n_obs
 
-    } else if (mm_type == "gaussian_diag") {
+    } else if (fam == "gaussian_diag") {
       g_mu  <- matrix(0, K, J)
       g_lsd <- matrix(0, K, J)
       for (k in seq_len(K)) {
         res_k <- sweep(X, 2, means_p[k,], "-")
-        g_mu[k,]  <- colSums(swR[,k] * sweep(res_k, 2, sds_p[k,]^(-2), "*"))
-        g_lsd[k,] <- colSums(swR[,k] * sweep(res_k^2, 2, sds_p[k,]^(-2), "*") - nk[k])
+        z2    <- sweep(res_k^2, 2, sds_p[k,]^(-2), "*")          # (x − μ)² / σ²
+        g_mu[k,]  <- colSums(swR[,k] * sweep(res_k, 2, sds_p[k,]^(-2), "*"),
+                             na.rm = has_na)
+        g_lsd[k,] <- colSums(swR[,k] * (z2 - 1), na.rm = has_na)
       }
       grad[seq_len(K * J)]  <- as.vector(-g_mu)  / n_obs
       grad[(K*J+1):(2*K*J)] <- as.vector(-g_lsd) / n_obs
@@ -231,7 +269,7 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
     } else {  # gaussian_unit
       g_mu <- matrix(0, K, J)
       for (k in seq_len(K))
-        g_mu[k,] <- colSums(swR[,k] * sweep(X, 2, means_p[k,], "-"))
+        g_mu[k,] <- colSums(swR[,k] * sweep(X, 2, means_p[k,], "-"), na.rm = has_na)
       grad[seq_len(K * J)] <- as.vector(-g_mu) / n_obs
     }
 
@@ -263,11 +301,11 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
   lr   <- lr - (max(lr) + log(sum(exp(lr - max(lr)))))
   model_state$weights <- exp(lr)
 
-  if (mm_type %in% c("bernoulli", "bernoulli_nan")) {
+  if (fam == "bernoulli") {
     model_state$mm$parameters$pis <-
       pmax(pmin(matrix(plogis(par[1:(K*J)]), nrow=K, ncol=J), 1-1e-7), 1e-7)
 
-  } else if (mm_type == "gaussian_diag") {
+  } else if (fam == "gaussian_diag") {
     model_state$mm$parameters$means       <- matrix(par[1:(K*J)],          nrow=K, ncol=J)
     model_state$mm$parameters$covariances <- matrix(exp(par[(K*J+1):(2*K*J)]), nrow=K, ncol=J)^2
 

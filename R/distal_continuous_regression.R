@@ -24,7 +24,7 @@ init_params.distal_continuous_regression <- function(model_state, X, resp, ...) 
 m_step.distal_continuous_regression <- function(model_state, X, resp,
                                                 weights = NULL, ...) {
   Y     <- as.numeric(X[, 1])
-  Z_raw <- impute_covariates(X[, -1, drop = FALSE])
+  Z_raw <- complete_covariates(X[, -1, drop = FALSE])
   Z     <- cbind(1, Z_raw)
   valid <- !is.na(Y)
 
@@ -95,7 +95,7 @@ m_step.distal_continuous_regression <- function(model_state, X, resp,
 #' @exportS3Method
 log_likelihood.distal_continuous_regression <- function(model_state, X, ...) {
   Y     <- as.numeric(X[, 1])
-  Z_raw <- impute_covariates(X[, -1, drop = FALSE])
+  Z_raw <- complete_covariates(X[, -1, drop = FALSE])
   Z     <- cbind(1, Z_raw)
   K     <- model_state$n_components
   N     <- length(Y)

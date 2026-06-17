@@ -48,6 +48,8 @@ build_emission <- function(descriptor, n_components = 2, ...) {
       return(do.call(categorical_model, c(list(type = "multinoulli_nan"), args_list)))
     } else if (descriptor %in% c("gaussian_unit", "gaussian")) {
       return(do.call(gaussian_model, c(list(type = "gaussian_unit"), args_list)))
+    } else if (descriptor %in% c("gaussian_unit_nan", "gaussian_nan")) {
+      return(do.call(gaussian_model, c(list(type = "gaussian_unit_nan"), args_list)))
     } else if (descriptor %in% c("gaussian_diag", "continuous")) {
       return(do.call(gaussian_model, c(list(type = "gaussian_diag"), args_list)))
     } else if (descriptor %in% c("gaussian_diag_nan", "continuous_nan")) {

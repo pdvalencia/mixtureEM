@@ -62,7 +62,60 @@ n_parameters.gaussian_unit <- function(model_state, ...) {
 }
 
 # ------------------------------------------------------------------------------
-# 2. Gaussian Diag (Estimated feature-specific variance) S3 Methods
+# 2. Gaussian Unit NaN (Fixed Variance = 1, Missing Data FIML) S3 Methods
+# ------------------------------------------------------------------------------
+
+#' @exportS3Method
+init_params.gaussian_unit_nan <- function(model_state, X, resp, random_state = NULL, ...) {
+  if (!is.null(random_state)) set.seed(random_state)
+  idx   <- sample.int(nrow(X), model_state$n_components)
+  means <- X[idx, , drop = FALSE]
+  # Seed rows may themselves contain NA; falling back to the column mean over
+  # observed cases keeps every component's starting mean well defined and stops
+  # an NA seed from masking out otherwise-valid likelihood contributions.
+  if (anyNA(means)) {
+    col_means <- colMeans(X, na.rm = TRUE)
+    na_cells  <- which(is.na(means), arr.ind = TRUE)
+    means[na_cells] <- col_means[na_cells[, "col"]]
+  }
+  model_state$parameters$means <- means
+  return(model_state)
+}
+
+#' @exportS3Method
+m_step.gaussian_unit_nan <- function(model_state, X, resp, weights = NULL, ...) {
+  if (!is.null(weights)) resp <- sweep(resp, 1, weights, "*")
+
+  means <- matrix(0, nrow = model_state$n_components, ncol = ncol(X))
+  for (j in seq_len(ncol(X))) {
+    valid <- !is.na(X[, j])
+    if (any(valid)) {
+      resp_valid <- resp[valid, , drop = FALSE]
+      means[, j] <- t(resp_valid) %*% X[valid, j] / colSums(resp_valid)
+    }
+  }
+  model_state$parameters$means <- means
+  return(model_state)
+}
+
+#' @exportS3Method
+log_likelihood.gaussian_unit_nan <- function(model_state, X, ...) {
+  n <- nrow(X)
+  log_eps <- matrix(0, nrow = n, ncol = model_state$n_components)
+  for (c in seq_len(model_state$n_components)) {
+    mean_c <- matrix(model_state$parameters$means[c, ], nrow = n, ncol = ncol(X), byrow = TRUE)
+    ll_matrix <- dnorm(X, mean = mean_c, sd = 1, log = TRUE)
+    ll_matrix[is.na(ll_matrix)] <- 0 # FIML: missing cells drop out of the sum
+    log_eps[, c] <- rowSums(ll_matrix)
+  }
+  return(log_eps)
+}
+
+#' @exportS3Method n_parameters gaussian_unit_nan
+n_parameters.gaussian_unit_nan <- n_parameters.gaussian_unit
+
+# ------------------------------------------------------------------------------
+# 3. Gaussian Diag (Estimated feature-specific variance) S3 Methods
 # ------------------------------------------------------------------------------
 
 #' @exportS3Method
@@ -113,11 +166,16 @@ n_parameters.gaussian_diag <- function(model_state, ...) {
 }
 
 # ------------------------------------------------------------------------------
-# 3. Gaussian Diag NaN (Missing Data FIML) S3 Methods
+# 4. Gaussian Diag NaN (Missing Data FIML) S3 Methods
 # ------------------------------------------------------------------------------
 
-#' @exportS3Method init_params gaussian_diag_nan
-init_params.gaussian_diag_nan <- init_params.gaussian_diag
+#' @exportS3Method
+init_params.gaussian_diag_nan <- function(model_state, X, resp, random_state = NULL, ...) {
+  model_state <- init_params.gaussian_unit_nan(model_state, X, resp, random_state)
+  model_state$parameters$covariances <- matrix(1, nrow = model_state$n_components, ncol = ncol(X))
+  return(model_state)
+}
+
 #' @exportS3Method n_parameters gaussian_diag_nan
 n_parameters.gaussian_diag_nan <- n_parameters.gaussian_diag
 
