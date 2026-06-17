@@ -11,7 +11,12 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 
 #' @exportS3Method
 m_step.covariate <- function(model_state, X, resp, weights = NULL, ...) {
-  X_mat <- if(model_state$intercept) cbind(1, as.matrix(X)) else as.matrix(X)
+  # Missing covariates are completed under the class-invariant Gaussian marginal
+  # (endogenous-constrained-x; Sterba, 2014) so every case is retained rather
+  # than dropped or filled with an unconditional column mean. With complete
+  # covariates this is a no-op.
+  X <- complete_covariates(as.matrix(X))
+  X_mat <- if(model_state$intercept) cbind(1, X) else X
   K <- model_state$n_components
   D <- ncol(X_mat)
   w_vec <- if(!is.null(weights)) weights else rep(1, nrow(X_mat))
@@ -87,6 +92,43 @@ m_step.covariate <- function(model_state, X, resp, weights = NULL, ...) {
 
   model_state$parameters$beta <- beta_final
   model_state$parameters$hessian <- H_full
+
+  # ============================================================================
+  # 3. SURVEY-ROBUST COVARIANCE (optional)
+  # ============================================================================
+  # When a complex survey design is attached to the sub-model, the naive
+  # information-based variance is replaced by the linearization sandwich
+  #   V = (-H)^{-1} B (-H)^{-1}
+  # where B aggregates the multinomial-logistic scores to the PSU level within
+  # strata. Computed only when the design vectors are present and row-aligned
+  # with the data used in this M-step; otherwise downstream code falls back to
+  # the Hessian-based variance.
+  has_design   <- isTRUE(model_state$has_survey_design) &&
+    !is.null(model_state$strata) && !is.null(model_state$cluster) &&
+    length(model_state$strata)  == nrow(X_mat) &&
+    length(model_state$cluster) == nrow(X_mat)
+
+  if (has_design && (K-1)*D > 0) {
+    # Individual score vectors for the free classes k = 1..K-1. The score for
+    # the multinomial logit is X_i * (resp_ik - prob_ik), weighted by w_i, the
+    # same weighting used to form the Hessian above.
+    score_list <- vector("list", K - 1)
+    for (k in seq_len(K - 1)) {
+      resid_k         <- (resp[, k] - prob[, k]) * w_vec
+      score_list[[k]] <- sweep(X_mat, 1, resid_k, "*")
+    }
+    score_mat <- do.call(cbind, score_list)   # N x ((K-1)*D)
+
+    meat     <- compute_survey_B(score_mat, model_state$strata, model_state$cluster)
+    B_inv    <- pinv(-H)
+    V_robust <- B_inv %*% meat %*% B_inv
+
+    # Pad with zeros for the anchor class to match the K*D layout of H_full.
+    V_full <- matrix(0, K*D, K*D)
+    V_full[1:((K-1)*D), 1:((K-1)*D)] <- V_robust
+    model_state$parameters$V_robust <- V_full
+  }
+
   return(model_state)
 }
 
@@ -99,8 +141,10 @@ init_params.covariate <- function(model_state, X, resp, ...) {
 
 #' @exportS3Method
 log_likelihood.covariate <- function(model_state, X, ...) {
-  # 1. Prepare Matrix
-  X_mat <- if(model_state$intercept) cbind(1, as.matrix(X)) else as.matrix(X)
+  # 1. Prepare Matrix (completing any missing covariates under the shared,
+  #    class-invariant Gaussian marginal; a no-op when covariates are complete).
+  X <- complete_covariates(as.matrix(X))
+  X_mat <- if(model_state$intercept) cbind(1, X) else X
 
   # 2. Compute Raw Logits
   logits <- X_mat %*% t(model_state$parameters$beta)

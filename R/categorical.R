@@ -174,6 +174,10 @@ one_hot <- function(X, max_val) {
 init_params.multinoulli <- function(model_state, X, resp, random_state = NULL, ...) {
   if (!is.null(random_state)) set.seed(random_state)
 
+  # Retain the original item (column) names so summaries can label each
+  # polytomous indicator; the one-hot expansion used internally discards them.
+  if (!is.null(colnames(X))) model_state$item_names <- colnames(X)
+
   # Only infer max_val from the data if the user didn't explicitly provide it
   if (is.null(model_state$max_val)) {
     model_state$max_val <- max(X, na.rm = TRUE)
@@ -195,6 +199,9 @@ m_step.multinoulli <- function(model_state, X, resp, weights = NULL, alpha = 1.0
   if (!is.null(weights)) {
     resp <- sweep(resp, 1, weights, "*")
   }
+
+  if (is.null(model_state$item_names) && !is.null(colnames(X)))
+    model_state$item_names <- colnames(X)
 
   X_oh <- one_hot(X, model_state$max_val)
   K <- model_state$n_components

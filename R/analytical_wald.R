@@ -55,9 +55,15 @@ analytical_wald_test <- function(model, term_name, ref_class = 1) {
     stop("analytical_wald_test requires at least 2 classes. Got n_components = 1.")
 
   H <- model$sm$parameters$hessian
-  if (is.null(H) || all(H == 0)) stop("Hessian matrix is missing. Refit the model.")
-
-  Sigma_full <- pinv(-H)
+  V_robust <- model$sm$parameters$V_robust
+  if (!is.null(V_robust)) {
+    Sigma_full  <- V_robust
+    test_method <- "Survey-robust"
+  } else {
+    if (is.null(H) || all(H == 0)) stop("Hessian matrix is missing. Refit the model.")
+    Sigma_full  <- pinv(-H)
+    test_method <- "Analytical"
+  }
   K <- model$n_components
   D <- ncol(model$sm$parameters$beta)
   col_names <- colnames(model$sm$parameters$beta)
@@ -95,7 +101,7 @@ analytical_wald_test <- function(model, term_name, ref_class = 1) {
     Wald_Chi2 = round(W_stat, 3),
     df        = df,
     p_value   = p_val,
-    Method    = "Analytical"
+    Method    = test_method
   )
   class(result) <- c("mixture_wald", "data.frame")
   return(result)

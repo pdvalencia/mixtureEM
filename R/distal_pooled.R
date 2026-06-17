@@ -66,7 +66,7 @@ m_step.distal_pooled <- function(model_state, X, resp, weights = NULL, ...) {
   Y <- .validate_pooled_Y(X[, 1], "distal_pooled m_step")
   if (is.null(Y)) return(model_state)  # constant outcome - skip
 
-  Z <- impute_covariates(X[, -1, drop = FALSE])
+  Z <- complete_covariates(X[, -1, drop = FALSE])
 
   M     <- model_state$max_val
   K     <- model_state$n_components
@@ -161,7 +161,7 @@ log_likelihood.distal_pooled <- function(model_state, X, ...) {
     return(matrix(0, nrow = nrow(X), ncol = model_state$n_components))
   }
 
-  Z <- impute_covariates(X[, -1, drop = FALSE])
+  Z <- complete_covariates(X[, -1, drop = FALSE])
 
   M     <- model_state$max_val
   K     <- model_state$n_components

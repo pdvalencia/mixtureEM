@@ -76,7 +76,7 @@ m_step.distal_regression <- function(model_state, X, resp, weights = NULL, ...) 
   Y <- .validate_distal_Y(X[, 1], "distal_regression m_step")
   if (is.null(Y)) return(model_state)  # constant outcome - skip
 
-  Z_raw <- impute_covariates(X[, -1, drop = FALSE])
+  Z_raw <- complete_covariates(X[, -1, drop = FALSE])
   Z     <- cbind(1, Z_raw)
 
   M       <- model_state$max_val
@@ -175,7 +175,7 @@ log_likelihood.distal_regression <- function(model_state, X, ...) {
     return(matrix(0, nrow = nrow(X), ncol = model_state$n_components))
   }
 
-  Z_raw <- impute_covariates(X[, -1, drop = FALSE])
+  Z_raw <- complete_covariates(X[, -1, drop = FALSE])
   Z     <- cbind(1, Z_raw)
 
   K     <- model_state$n_components

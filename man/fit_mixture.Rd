@@ -2,14 +2,17 @@
 % Please edit documentation in R/wrapper.R
 \name{fit_mixture}
 \alias{fit_mixture}
-\title{Fit a Latent Mixture Model (LCA / LPA)}
+\title{Fit a Latent Class or Latent Profile Mixture Model}
 \usage{
 fit_mixture(
-  X,
-  Y = NULL,
-  n_components = 2,
+  indicators = NULL,
+  n_classes = 2,
   measurement = "binary",
-  structural = NULL,
+  predictors = NULL,
+  outcome = NULL,
+  outcome_covariates = NULL,
+  outcome_type = c("auto", "continuous", "categorical"),
+  slopes = c("pooled", "class_specific"),
   n_steps = 1,
   correction = "none",
   n_init = 1,
@@ -17,108 +20,96 @@ fit_mixture(
   random_state = NULL,
   order_by_size = TRUE,
   weights = NULL,
+  strata = NULL,
+  cluster = NULL,
   refine = TRUE,
+  X = NULL,
+  Y = NULL,
+  n_components = NULL,
+  structural = NULL,
   ...
 )
 }
 \arguments{
-\item{X}{A numeric matrix or data frame of indicator variables for the
-measurement model. Rows are observations; columns are items or variables.}
+\item{indicators}{Matrix or data frame of measurement items that define the
+latent classes (rows are observations, columns are items).}
 
-\item{Y}{Optional numeric matrix or data frame of outcome or covariate
-variables for the structural model. Must be provided when
-\code{structural} is not \code{NULL}.}
+\item{n_classes}{Number of latent classes/profiles to estimate.}
 
-\item{n_components}{Positive integer. Number of latent classes (or profiles)
-to estimate. Default is \code{2}.}
+\item{measurement}{Either a single type string applied to every indicator
+(\code{"binary"}, \code{"categorical"}, \code{"continuous"},
+\code{"gaussian"}, and \code{"_nan"} missing-data variants), or, for a
+mixed-type model, a named list mapping each type to the indicator columns
+it governs by name or index, e.g.
+\code{list(binary = c("q1","q2"), continuous = "score")}.}
 
-\item{measurement}{Character string or named list specifying the measurement
-model type. Accepted strings: \code{"binary"} / \code{"bernoulli"},
-\code{"binary_nan"} / \code{"bernoulli_nan"} (handles \code{NA}s),
-\code{"categorical"} / \code{"multinoulli"},
-\code{"categorical_nan"} / \code{"multinoulli_nan"},
-\code{"continuous"} / \code{"gaussian_diag"},
-\code{"continuous_nan"} / \code{"gaussian_diag_nan"},
-\code{"gaussian"} / \code{"gaussian_unit"}.
-Pass a named list to specify a mixed (nested) measurement model with
-different variable types. Default is \code{"binary"}.}
+\item{predictors}{Optional covariates that predict latent class membership.
+Supplying this fits a class-membership regression (the "predict class"
+structural model). Mutually exclusive with \code{outcome}.}
 
-\item{structural}{Character string specifying the structural model type.
-One of \code{"covariate"}, \code{"distal_regression"},
-\code{"distal_pooled"}, \code{"distal_continuous"},
-\code{"distal_continuous_regression"}. Requires \code{Y}. Default is
-\code{NULL} (measurement model only).}
+\item{outcome}{Optional distal outcome caused by the latent classes.
+Mutually exclusive with \code{predictors}.}
 
-\item{n_steps}{Integer. Estimation approach: \code{1} for simultaneous
-1-step, \code{2} for 2-step, or \code{3} for bias-corrected 3-step.
-Default is \code{1}.}
+\item{outcome_covariates}{Optional covariates that adjust the distal
+\code{outcome}.}
 
-\item{correction}{Character. Bias correction for 3-step estimation.
-One of \code{"none"}, \code{"BCH"}, or \code{"ML"}. Ignored when
-\code{n_steps} is not \code{3}. Default is \code{"none"}.}
+\item{outcome_type}{One of \code{"auto"}, \code{"continuous"}, or
+\code{"categorical"}. With \code{"auto"} (default) the type is inferred
+from \code{outcome}.}
 
-\item{n_init}{Positive integer. Number of random restarts. The solution
-with the highest log-likelihood is retained. Default is \code{1}.}
+\item{slopes}{When \code{outcome_covariates} are supplied, whether their
+effect is \code{"pooled"} (one slope shared across classes) or
+\code{"class_specific"} (a separate slope per class).}
 
-\item{max_iter}{Positive integer. Maximum EM iterations per restart.
-Default is \code{1000}.}
+\item{n_steps}{Estimation strategy: 1 (simultaneous), 2, or 3 (recommended
+when a structural model is present). Defaults to 3 when \code{predictors}
+or \code{outcome} is supplied and left unset, otherwise 1.}
 
-\item{random_state}{Optional integer seed for reproducibility. Default is
-\code{NULL}.}
+\item{correction}{Bias correction for 3-step estimation: \code{"none"},
+\code{"ML"}, or \code{"BCH"}. When left unset for a 3-step structural
+model, a recommended default is chosen (ML for predictors and categorical
+outcomes, BCH for continuous outcomes).}
 
-\item{order_by_size}{Logical. If \code{TRUE} (default), classes are sorted
-from largest to smallest after fitting.}
+\item{n_init, max_iter, random_state, order_by_size, refine}{Estimation
+controls: number of random starts, maximum EM iterations, RNG seed,
+whether to order classes by size, and whether to run L-BFGS refinement.}
 
-\item{weights}{Optional numeric vector of length \code{nrow(X)} for survey
-or case weights. Default is \code{NULL} (equal weights of 1).}
+\item{weights, strata, cluster}{Optional survey design: sampling
+\code{weights}, and \code{strata}/\code{cluster} identifiers enabling
+design-based (linearization) standard errors.}
 
-\item{refine}{Logical. If \code{TRUE} (default), applies L-BFGS refinement
-after EM convergence to optimize the penalized maximum likelihood.}
+\item{X, Y, n_components, structural}{Deprecated legacy arguments retained for
+backward compatibility; prefer \code{indicators}, \code{n_classes},
+\code{predictors}, and \code{outcome}.}
 
-\item{...}{Additional arguments passed to the measurement or structural
-model constructors (e.g., \code{max_val} for multinoulli models).}
+\item{...}{Passed through to the measurement-model constructors.}
 }
 \value{
-An object of class \code{mixture_model}, a list with:
-\itemize{
-\item \code{n_components} Number of latent classes.
-\item \code{weights} Numeric vector of estimated class proportions.
-\item \code{mm} Fitted measurement model state object.
-\item \code{sm} Fitted structural model state object, or \code{NULL}.
-\item \code{metrics} Named list: \code{ll} (log-likelihood), \code{aic}, \code{bic}, \code{sabic},
-\code{n_params}, and \code{entropy} (relative entropy, 0-1 scale).
-\item \code{log_resp} Matrix of log posterior class probabilities (n x K).
-Use \code{exp(fit$log_resp)} to obtain posterior probabilities.
-\item \code{converged} Logical. Whether the EM algorithm converged.
-\item \code{n_iter} Integer. Number of EM iterations run.
-\item \code{step1_metrics} Named list of Step-1 fit indices (only when
-\code{n_steps = 3}).
-}
+A fitted \code{mixture_model} object.
 }
 \description{
-The core estimation function. Fits a latent class analysis (LCA) or latent
-profile analysis (LPA) model using the EM algorithm. Optionally fits a
-structural model (covariates or distal outcomes) using 1-, 2-, or 3-step
-estimation with optional bias correction.
+Fits a finite mixture (latent class / latent profile) model. The latent
+classes are defined by a set of measurement \code{indicators}; optionally, a
+structural model relates the classes to external variables — either as
+\code{predictors} of class membership, or as a distal \code{outcome} caused
+by the classes.
 }
 \examples{
-# Binary LCA with 3 classes and 5 random restarts
 set.seed(1)
 X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
-fit <- fit_mixture(X, n_components = 3, measurement = "binary", n_init = 5)
-print(fit)
-summary(fit)
-measurement_summary(fit)
+fit <- fit_mixture(X, n_classes = 2, measurement = "binary")
 
-# Continuous LPA (2 classes)
-X_cont <- matrix(rnorm(300), nrow = 100)
-fit_lpa <- fit_mixture(X_cont, n_components = 2, measurement = "continuous")
+\dontrun{
+# Class membership predicted by a covariate (3-step, ML by default)
+fit_mixture(X, n_classes = 2, predictors = age)
 
-# 3-step LCA with a covariate and ML correction
-Z <- matrix(rnorm(100), nrow = 100)
-fit_cov <- fit_mixture(X, Y = Z, n_components = 2, measurement = "binary",
-                       structural = "covariate",
-                       n_steps = 3, correction = "ML", n_init = 5)
-summary(fit_cov)
+# Distal outcome with a class-specific covariate slope
+fit_mixture(X, n_classes = 2, outcome = bmi,
+            outcome_covariates = age, slopes = "class_specific")
+
+# Mixed-type indicators
+fit_mixture(items, n_classes = 3,
+            measurement = list(binary = 1:5, continuous = 6:8))
+}
 
 }

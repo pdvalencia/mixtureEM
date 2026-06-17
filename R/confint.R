@@ -83,11 +83,16 @@ confint.mixture_model <- function(object, parm = NULL, level = 0.95,
     se <- apply(boot_recentered, c(2, 3), sd)
 
   } else {
-    method <- "Analytical (Hessian)"
-    H <- object$sm$parameters$hessian
-    if (is.null(H)) stop("Hessian missing. Refit model.")
-
-    Sigma <- pinv(-H)
+    V_robust <- object$sm$parameters$V_robust
+    if (!is.null(V_robust)) {
+      method <- "Survey-robust (linearization)"
+      Sigma  <- V_robust
+    } else {
+      method <- "Analytical (Hessian)"
+      H <- object$sm$parameters$hessian
+      if (is.null(H)) stop("Hessian missing. Refit model.")
+      Sigma <- pinv(-H)
+    }
     se    <- matrix(0, nrow = K, ncol = D)
     for (c in seq_len(K)) {
       for (v in seq_len(D)) {

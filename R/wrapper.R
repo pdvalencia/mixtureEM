@@ -54,6 +54,14 @@ sort_model_classes <- function(model_state) {
           idx_map <- as.vector(sapply(new_order, function(k) ((k-1)*D + 1):(k*D)))
           sm$parameters$hessian <- H[idx_map, idx_map, drop = FALSE]
         }
+        # The survey-robust covariance is blocked by class in the same layout
+        # as the Hessian, so it is permuted with the identical index map.
+        if (!is.null(sm$parameters[["V_robust"]])) {
+          Vr      <- sm$parameters$V_robust
+          D       <- ncol(sm$parameters$beta)
+          idx_map <- as.vector(sapply(new_order, function(k) ((k-1)*D + 1):(k*D)))
+          sm$parameters$V_robust <- Vr[idx_map, idx_map, drop = FALSE]
+        }
       }
       if (!is.null(sm$parameters[["pis"]])) {
         sm$parameters$pis <- sm$parameters$pis[new_order, , drop = FALSE]
@@ -169,22 +177,26 @@ measurement_summary <- function(object) {
 
     if (is.null(item_names)) {
       if (!is.null(sub_model) && !is.null(sub_model$max_val)) {
-        M <- sub_model$max_val
+        M       <- sub_model$max_val
         n_items <- ncol(mat) / M
-        item_names <- paste0("Poly_Item_", rep(1:n_items, each = M),
-                             " (Cat ", 1:M, ")")
+        base    <- sub_model$item_names
+        if (is.null(base) || length(base) != n_items)
+          base <- paste0("Poly_Item_", seq_len(n_items))
+        item_names <- paste0(rep(base, each = M),
+                             " (Cat ", rep(seq_len(M), times = n_items), ")")
       } else {
         item_names <- paste0("Item_", 1:ncol(mat))
       }
     }
 
-    cat(sprintf("%-20s", "Indicator"))
+    label_w <- max(20L, max(nchar(item_names)))
+    cat(sprintf("%-*s", label_w, "Indicator"))
     for (k in 1:K) cat(sprintf(" | Class %d", k))
     cat("\n")
-    cat(paste0(rep("-", 20 + K * 10), collapse = ""), "\n")
+    cat(paste0(rep("-", label_w + K * 10), collapse = ""), "\n")
 
     for (j in 1:ncol(mat)) {
-      cat(sprintf("%-20s", item_names[j]))
+      cat(sprintf("%-*s", label_w, item_names[j]))
       for (k in 1:K) cat(sprintf(" | %7.3f", mat[k, j]))
       cat("\n")
     }
@@ -206,6 +218,13 @@ measurement_summary <- function(object) {
       print_item_matrix(mm$parameters$pis, "CATEGORICAL PROBABILITIES", mm)
     if (!is.null(mm$parameters$means))
       print_item_matrix(mm$parameters$means, "CONTINUOUS MEANS", mm)
+  }
+  if (!is.null(object$missing_data) && isTRUE(object$missing_data$any_missing)) {
+    md <- object$missing_data
+    cat(sprintf("\nMissing data: %d of %d cells (%.1f%%) across %d item%s, handled via %s.\n",
+                md$n_missing, md$n_cells, 100 * md$prop_missing,
+                md$n_items_affected, if (md$n_items_affected == 1L) "" else "s",
+                md$handled_by))
   }
   cat("=========================================================\n")
 }
@@ -418,7 +437,8 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     betas     <- sm_sub$parameters$beta
     D         <- ncol(betas)
     var_names <- if (!is.null(colnames(betas))) colnames(betas) else paste0("V", 1:D)
-    Sigma     <- pinv(-sm_sub$parameters$hessian)
+    Sigma     <- if (!is.null(sm_sub$parameters$V_robust))
+      sm_sub$parameters$V_robust else pinv(-sm_sub$parameters$hessian)
 
     for (c in setdiff(1:K, ref_class)) {
       cat(sprintf("\nClass %d ON\n", c))
@@ -872,14 +892,20 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   to estimate. Default is \code{2}.
 #' @param measurement Character string or named list specifying the measurement
 #'   model type. Accepted strings: \code{"binary"} / \code{"bernoulli"},
-#'   \code{"binary_nan"} / \code{"bernoulli_nan"} (handles \code{NA}s),
 #'   \code{"categorical"} / \code{"multinoulli"},
-#'   \code{"categorical_nan"} / \code{"multinoulli_nan"},
 #'   \code{"continuous"} / \code{"gaussian_diag"},
-#'   \code{"continuous_nan"} / \code{"gaussian_diag_nan"},
 #'   \code{"gaussian"} / \code{"gaussian_unit"}.
+#'   Missing values are handled automatically: any indicator column containing
+#'   \code{NA} is estimated with a full-information (FIML) variant that masks the
+#'   missing cells under a missing-at-random assumption, while complete columns
+#'   use the faster complete-data estimator. A single specification (e.g.
+#'   \code{"binary"}) therefore covers both complete and incomplete data, and the
+#'   fitted object reports any missingness it found. The explicit \code{"*_nan"}
+#'   forms (e.g. \code{"binary_nan"}, \code{"continuous_nan"}) remain accepted as
+#'   aliases that force the missing-data variant.
 #'   Pass a named list to specify a mixed (nested) measurement model with
-#'   different variable types. Default is \code{"binary"}.
+#'   different variable types; each block's missing-data handling is resolved
+#'   from the columns it governs. Default is \code{"binary"}.
 #' @param structural Character string specifying the structural model type.
 #'   One of \code{"covariate"}, \code{"distal_regression"},
 #'   \code{"distal_pooled"}, \code{"distal_continuous"},
@@ -943,12 +969,13 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #' @export
 #' @importFrom stats complete.cases cov dnorm optim pchisq plogis pnorm qlogis qnorm rbinom rnorm runif sd var
 #' @importFrom utils setTxtProgressBar txtProgressBar
-fit_mixture <- function(X, Y = NULL, n_components = 2,
-                        measurement = "binary", structural = NULL,
-                        n_steps = 1, correction = "none", n_init = 1,
-                        max_iter = 1000, random_state = NULL,
-                        order_by_size = TRUE, weights = NULL,
-                        refine = TRUE, ...) {
+fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
+                                 measurement = "binary", structural = NULL,
+                                 n_steps = 1, correction = "none", n_init = 1,
+                                 max_iter = 1000, random_state = NULL,
+                                 order_by_size = TRUE, weights = NULL,
+                                 strata = NULL, cluster = NULL,
+                                 refine = TRUE, ...) {
 
   if (is.data.frame(X)) X <- as.matrix(X)
   # Convert Y through prepare_covariates() so that:
@@ -982,18 +1009,44 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
       correction, paste(valid_corrections, collapse = ", ")
     ))
 
-  # Warn when X contains NAs but a non-NaN measurement family is used.
-  if (anyNA(X) && is.character(measurement)) {
-    nan_variants <- c("bernoulli_nan", "binary_nan",
-                      "multinoulli_nan", "categorical_nan",
-                      "gaussian_diag_nan", "continuous_nan")
-    if (!measurement %in% nan_variants)
-      warning(sprintf(
-        paste0("X contains NA values but measurement = '%s' does not handle missing data. ",
-               "Did you mean '%s_nan'? Proceeding, but results may contain NAs."),
-        measurement, measurement
-      ))
-  }
+  # Missing values in the indicator matrix are handled automatically. The
+  # measurement descriptor is resolved against the data so complete columns keep
+  # the fast complete-data estimator while columns containing NA switch to the
+  # FIML variant that masks missing cells (MAR assumption). The user-facing
+  # specification (e.g. "binary") therefore covers both complete and incomplete
+  # data; explicit "*_nan" strings remain accepted as aliases.
+  measurement_engine <- .resolve_emission_descriptor(measurement, X)
+
+  # Summarise missingness so it can be reported in the fitted object's print and
+  # measurement summaries, and so the estimator used is explicit downstream.
+  item_missing <- colSums(is.na(X))
+
+  # Structural-side missingness (covariates / distal outcomes in Y). Covariates
+  # are completed under the class-invariant Gaussian marginal
+  # (endogenous-constrained-x; Sterba, 2014); a missing distal outcome is
+  # handled by FIML inside the structural likelihood.
+  y_any_missing <- !is.null(Y) && anyNA(Y)
+  y_n_missing   <- if (!is.null(Y)) sum(is.na(Y)) else 0L
+  struct_handled <- if (y_any_missing) {
+    if (!is.null(structural) && structural %in%
+        c("covariate", "predict_class"))
+      "endogenous-constrained-x (Sterba, 2014)"
+    else
+      "endogenous-constrained-x covariates; FIML outcome"
+  } else NA_character_
+
+  missing_data <- list(
+    any_missing      = anyNA(X) || y_any_missing,
+    n_missing        = sum(is.na(X)),
+    n_cells          = length(X),
+    prop_missing     = if (length(X) > 0) mean(is.na(X)) else 0,
+    per_item         = item_missing,
+    n_items_affected = sum(item_missing > 0),
+    handled_by       = if (anyNA(X)) "FIML (MAR assumption)" else NA_character_,
+    y_any_missing    = y_any_missing,
+    y_n_missing      = y_n_missing,
+    structural_handled_by = struct_handled
+  )
 
   # Validate binary data when a Bernoulli family is requested.
   if (is.character(measurement) &&
@@ -1016,6 +1069,16 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
       stop("Length of weights must match rows of X.")
   }
 
+  # Survey design variables, when supplied, must align with the rows of X.
+  # A design is considered present if either strata or cluster is given; the
+  # other defaults so that every observation forms its own PSU or single
+  # stratum, which leaves the linearization variance well defined.
+  if (!is.null(strata) && length(strata) != n_samples)
+    stop("Length of strata must match rows of X.")
+  if (!is.null(cluster) && length(cluster) != n_samples)
+    stop("Length of cluster must match rows of X.")
+  has_survey_design <- !is.null(strata) || !is.null(cluster)
+
   # Structural model requires Y. Without this guard the SM is built but never
   # fitted (m_step_core gates on !is.null(Y)), so parameters$beta stays NULL
   # and every downstream function (coef, confint, wald tests) crashes with a
@@ -1030,18 +1093,39 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
   model_state <- list(
     n_components          = n_components,
     weights               = rep(1 / n_components, n_components),
-    mm                    = build_emission(measurement, n_components = n_components, ...),
+    mm                    = build_emission(measurement_engine, n_components = n_components, ...),
     sm                    = if (!is.null(structural))
       build_emission(structural, n_components = n_components, ...)
     else NULL,
     n_steps               = n_steps,
     correction            = correction,
     sample_weights        = weights,
+    strata                = if (is.null(strata)) rep(1L, n_samples) else strata,
+    cluster               = if (is.null(cluster)) seq_len(n_samples) else cluster,
+    has_survey_design     = has_survey_design,
+    # Retain the indicator matrix so plot() can scale continuous indicators
+    # against their observed range (copy-on-write keeps this cheap).
+    data                  = X,
     # Store the original descriptor so bootstrap.R can re-fit replicates
-    # using the same measurement specification.
-    measurement_descriptor = measurement
+    # using the same measurement specification. Missing-data resolution is
+    # re-applied per replicate, so the stored value is the user's spec, not the
+    # resolved "*_nan" form.
+    measurement_descriptor = measurement,
+    # Record where and how missing data were handled (NA-free fits store a
+    # summary with any_missing = FALSE).
+    missing_data           = missing_data
   )
   class(model_state) <- "mixture_model"
+
+  # Mirror the design onto the structural sub-model so that variance code
+  # running inside m_step methods (which only receive the sub-model) can
+  # reach the strata and cluster vectors. These are kept row-aligned with the
+  # data the sub-model is fit on by any caller that subsets rows.
+  if (!is.null(model_state$sm)) {
+    model_state$sm$strata            <- model_state$strata
+    model_state$sm$cluster           <- model_state$cluster
+    model_state$sm$has_survey_design <- has_survey_design
+  }
 
   if (n_steps == 1) {
     model_state <- fit_em(model_state, X, Y, n_init, max_iter, random_state,
@@ -1173,6 +1257,395 @@ fit_mixture <- function(X, Y = NULL, n_components = 2,
   return(model_state)
 }
 
+# ==============================================================================
+# User-facing front-end for fit_mixture()
+# ==============================================================================
+
+# Measurement families whose complete-data descriptor has a missing-data (FIML)
+# counterpart, mapping each base descriptor to the variant that masks NA during
+# estimation. Descriptors absent from this table (e.g. structural families) have
+# no missing-data variant and pass through resolution unchanged.
+.nan_variant <- c(
+  bernoulli     = "bernoulli_nan",
+  binary        = "binary_nan",
+  multinoulli   = "multinoulli_nan",
+  categorical   = "categorical_nan",
+  gaussian_diag = "gaussian_diag_nan",
+  continuous    = "continuous_nan",
+  gaussian_unit = "gaussian_unit_nan",
+  gaussian      = "gaussian_nan"
+)
+
+# Resolve a measurement descriptor against its data so the estimator matches the
+# data: complete columns keep the fast complete-data form, columns containing NA
+# switch to the FIML variant that masks missing cells. Descriptors that already
+# name a missing-data variant, or that have no variant, are returned unchanged.
+#
+# For a nested (mixed) measurement model each block is resolved against the
+# columns it governs. Blocks are stored in order with consecutive column counts
+# (.normalize_measurement() groups them this way), so a running offset maps each
+# block to its columns.
+.resolve_emission_descriptor <- function(descriptor, X) {
+  nan_strings <- unname(.nan_variant)
+
+  upgrade_one <- function(model, cols_have_na) {
+    if (!cols_have_na) return(model)
+    if (model %in% nan_strings) return(model)          # already a _nan variant
+    variant <- .nan_variant[model]
+    if (is.na(variant)) return(model)                  # no missing-data variant
+    unname(variant)
+  }
+
+  if (is.character(descriptor) && length(descriptor) == 1L)
+    return(upgrade_one(descriptor, anyNA(X)))
+
+  if (is.list(descriptor)) {
+    offset <- 0L
+    for (name in names(descriptor)) {
+      n_cols <- descriptor[[name]]$n_columns
+      cols   <- seq.int(offset + 1L, offset + n_cols)
+      descriptor[[name]]$model <-
+        upgrade_one(descriptor[[name]]$model,
+                    anyNA(X[, cols, drop = FALSE]))
+      offset <- offset + n_cols
+    }
+    return(descriptor)
+  }
+
+  descriptor
+}
+
+# Translate a user measurement specification into the descriptor the fitting
+# engine consumes, returning the (possibly re-grouped) indicator matrix.
+#
+# Accepts either a single type string (every indicator shares that type) or a
+# named list/vector mapping a measurement type to the indicators it governs,
+# for mixed-type models. Indicators may be referenced by column name or index:
+#
+#   measurement = "binary"
+#   measurement = list(binary = c("q1", "q2"), continuous = c("score1"))
+#   measurement = list(binary = 1:3, continuous = 4:5)
+#
+# Columns are grouped in the order given so the engine's block structure lines
+# up; column names are preserved for display.
+.normalize_measurement <- function(measurement, indicators) {
+  indicators <- if (is.data.frame(indicators)) data.matrix(indicators)
+  else as.matrix(indicators)
+
+  if (is.character(measurement) && length(measurement) == 1L)
+    return(list(descriptor = measurement, indicators = indicators))
+
+  if (!is.list(measurement))
+    stop("`measurement` must be a single type string or a named list mapping ",
+         "measurement types to indicator columns.", call. = FALSE)
+
+  parts <- as.list(measurement)
+  if (is.null(names(parts)) || any(names(parts) == ""))
+    stop("For a mixed measurement model, `measurement` must be a named list ",
+         "whose names are measurement types (e.g. \"binary\", \"continuous\").",
+         call. = FALSE)
+
+  col_names <- colnames(indicators)
+  resolve_cols <- function(sel) {
+    if (is.character(sel)) {
+      if (is.null(col_names))
+        stop("Indicator columns were referenced by name, but `indicators` has ",
+             "no column names.", call. = FALSE)
+      idx <- match(sel, col_names)
+      if (anyNA(idx))
+        stop("Unknown indicator column name(s): ",
+             paste(sel[is.na(idx)], collapse = ", "), call. = FALSE)
+      idx
+    } else {
+      idx <- as.integer(sel)
+      if (anyNA(idx) || any(idx < 1L) || any(idx > ncol(indicators)))
+        stop("Indicator column indices in `measurement` are out of range.",
+             call. = FALSE)
+      idx
+    }
+  }
+
+  keys        <- make.unique(names(parts), sep = "_")
+  ordered_idx <- integer(0)
+  descriptor  <- list()
+  for (i in seq_along(parts)) {
+    cols <- resolve_cols(parts[[i]])
+    if (any(cols %in% ordered_idx))
+      stop("An indicator column was assigned to more than one measurement type.",
+           call. = FALSE)
+    ordered_idx        <- c(ordered_idx, cols)
+    descriptor[[keys[i]]] <- list(model = names(parts)[i], n_columns = length(cols))
+  }
+
+  unassigned <- setdiff(seq_len(ncol(indicators)), ordered_idx)
+  if (length(unassigned) > 0)
+    stop("Every indicator column must be assigned a measurement type. ",
+         "Unassigned column(s): ", paste(unassigned, collapse = ", "),
+         call. = FALSE)
+
+  list(descriptor = descriptor,
+       indicators  = indicators[, ordered_idx, drop = FALSE])
+}
+
+# Decide whether a distal outcome is continuous or categorical when the user
+# leaves outcome_type = "auto". Factors, characters, and integer-valued numerics
+# with few distinct values are treated as categorical.
+.resolve_outcome_type <- function(outcome, outcome_type) {
+  if (outcome_type != "auto") return(outcome_type)
+  if (is.factor(outcome) || is.character(outcome)) return("categorical")
+  v <- as.numeric(outcome)
+  v <- v[!is.na(v)]
+  if (length(v) == 0L) return("continuous")
+  if (length(unique(v)) <= 10L && all(abs(v - round(v)) < 1e-8))
+    return("categorical")
+  "continuous"
+}
+
+# Pick a display label for the outcome column.
+.outcome_label <- function(outcome) {
+  if (!is.null(dim(outcome)) && !is.null(colnames(outcome)))
+    return(colnames(outcome)[1])
+  "outcome"
+}
+
+# Best-guess a variable name from the expression a user wrote, covering the
+# common ways a single column is referenced: a bare symbol (age), extraction
+# with `$` (data$age) or `[[` (data[["age"]]), and single-bracket indexing with
+# a character column (data[, "age"]). Returns NULL when no name can be read off
+# the expression (e.g. a positional index or a computed vector).
+.derive_name <- function(expr) {
+  if (is.symbol(expr)) return(as.character(expr))
+  if (is.call(expr)) {
+    op <- as.character(expr[[1]])
+    if (op == "$")  return(as.character(expr[[3]]))
+    if (op == "[[" && is.character(expr[[3]])) return(expr[[3]])
+    if (op == "[") {
+      args <- as.list(expr)
+      for (i in seq_along(args)) {
+        if (i <= 2L) next                 # skip `[` and the indexed object
+        if (is.character(args[[i]])) return(args[[i]])
+      }
+    }
+  }
+  NULL
+}
+
+# Normalise a predictors / outcome_covariates argument so that prepare_covariates
+# always receives something with proper column names. Matrices and data frames
+# pass through unchanged (their names are kept); a single bare vector or factor
+# is wrapped into a one-column data frame named from the user's expression, with
+# `fallback` used only when no name can be inferred.
+.as_named_covariates <- function(value, expr, fallback) {
+  if (is.null(value) || !is.null(dim(value))) return(value)
+  nm  <- .derive_name(expr)
+  if (is.null(nm) || !nzchar(nm)) nm <- fallback
+  out <- data.frame(value, check.names = FALSE, stringsAsFactors = FALSE)
+  names(out) <- nm
+  out
+}
+
+#' Fit a Latent Class or Latent Profile Mixture Model
+#'
+#' @description
+#' Fits a finite mixture (latent class / latent profile) model. The latent
+#' classes are defined by a set of measurement \code{indicators}; optionally, a
+#' structural model relates the classes to external variables — either as
+#' \code{predictors} of class membership, or as a distal \code{outcome} caused
+#' by the classes.
+#'
+#' @param indicators Matrix or data frame of measurement items that define the
+#'   latent classes (rows are observations, columns are items).
+#' @param n_classes Number of latent classes/profiles to estimate.
+#' @param measurement Either a single type string applied to every indicator
+#'   (\code{"binary"}, \code{"categorical"}, \code{"continuous"},
+#'   \code{"gaussian"}, and \code{"_nan"} missing-data variants), or, for a
+#'   mixed-type model, a named list mapping each type to the indicator columns
+#'   it governs by name or index, e.g.
+#'   \code{list(binary = c("q1","q2"), continuous = "score")}.
+#' @param predictors Optional covariates that predict latent class membership.
+#'   Supplying this fits a class-membership regression (the "predict class"
+#'   structural model). Mutually exclusive with \code{outcome}.
+#' @param outcome Optional distal outcome caused by the latent classes.
+#'   Mutually exclusive with \code{predictors}.
+#' @param outcome_covariates Optional covariates that adjust the distal
+#'   \code{outcome}.
+#' @param outcome_type One of \code{"auto"}, \code{"continuous"}, or
+#'   \code{"categorical"}. With \code{"auto"} (default) the type is inferred
+#'   from \code{outcome}.
+#' @param slopes When \code{outcome_covariates} are supplied, whether their
+#'   effect is \code{"pooled"} (one slope shared across classes) or
+#'   \code{"class_specific"} (a separate slope per class).
+#' @param n_steps Estimation strategy: 1 (simultaneous), 2, or 3 (recommended
+#'   when a structural model is present). Defaults to 3 when \code{predictors}
+#'   or \code{outcome} is supplied and left unset, otherwise 1.
+#' @param correction Bias correction for 3-step estimation: \code{"none"},
+#'   \code{"ML"}, or \code{"BCH"}. When left unset for a 3-step structural
+#'   model, a recommended default is chosen (ML for predictors and categorical
+#'   outcomes, BCH for continuous outcomes).
+#' @param weights,strata,cluster Optional survey design: sampling
+#'   \code{weights}, and \code{strata}/\code{cluster} identifiers enabling
+#'   design-based (linearization) standard errors.
+#' @param n_init,max_iter,random_state,order_by_size,refine Estimation
+#'   controls: number of random starts, maximum EM iterations, RNG seed,
+#'   whether to order classes by size, and whether to run L-BFGS refinement.
+#' @param X,Y,n_components,structural Deprecated legacy arguments retained for
+#'   backward compatibility; prefer \code{indicators}, \code{n_classes},
+#'   \code{predictors}, and \code{outcome}.
+#' @param ... Passed through to the measurement-model constructors.
+#'
+#' @return A fitted \code{mixture_model} object.
+#'
+#' @examples
+#' set.seed(1)
+#' X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
+#' fit <- fit_mixture(X, n_classes = 2, measurement = "binary")
+#'
+#' \dontrun{
+#' # Class membership predicted by a covariate (3-step, ML by default)
+#' fit_mixture(X, n_classes = 2, predictors = age)
+#'
+#' # Distal outcome with a class-specific covariate slope
+#' fit_mixture(X, n_classes = 2, outcome = bmi,
+#'             outcome_covariates = age, slopes = "class_specific")
+#'
+#' # Mixed-type indicators
+#' fit_mixture(items, n_classes = 3,
+#'             measurement = list(binary = 1:5, continuous = 6:8))
+#' }
+#'
+#' @export
+fit_mixture <- function(indicators = NULL,
+                        n_classes = 2,
+                        measurement = "binary",
+                        predictors = NULL,
+                        outcome = NULL,
+                        outcome_covariates = NULL,
+                        outcome_type = c("auto", "continuous", "categorical"),
+                        slopes = c("pooled", "class_specific"),
+                        n_steps = 1,
+                        correction = "none",
+                        n_init = 1,
+                        max_iter = 1000,
+                        random_state = NULL,
+                        order_by_size = TRUE,
+                        weights = NULL,
+                        strata = NULL,
+                        cluster = NULL,
+                        refine = TRUE,
+                        X = NULL, Y = NULL, n_components = NULL, structural = NULL,
+                        ...) {
+
+  outcome_type <- match.arg(outcome_type)
+  slopes       <- match.arg(slopes)
+  steps_set    <- !missing(n_steps)
+  corr_set     <- !missing(correction)
+
+  # Capture the unevaluated expressions the user supplied so that a single
+  # covariate passed as a bare vector (e.g. data$age or data[, "age"]) can be
+  # given an informative name; see .as_named_covariates() below.
+  predictors_expr <- substitute(predictors)
+  outcome_cov_expr <- substitute(outcome_covariates)
+
+  # --- Legacy interface bridge ------------------------------------------------
+  legacy <- !is.null(X) || !is.null(Y) || !is.null(n_components) ||
+    !is.null(structural)
+  if (!is.null(X) && is.null(indicators)) indicators <- X
+  if (!is.null(n_components))              n_classes  <- n_components
+
+  if (legacy) {
+    message("Note: `X`, `Y`, `n_components`, and `structural` are the legacy ",
+            "interface. The current arguments are `indicators`, `n_classes`, ",
+            "`predictors`, and `outcome` / `outcome_covariates`.")
+    return(fit_mixture_internal(
+      X = indicators, Y = Y, n_components = n_classes,
+      measurement = measurement, structural = structural,
+      n_steps = n_steps, correction = correction, n_init = n_init,
+      max_iter = max_iter, random_state = random_state,
+      order_by_size = order_by_size, weights = weights,
+      strata = strata, cluster = cluster, refine = refine, ...))
+  }
+
+  if (is.null(indicators))
+    stop("`indicators` is required: the matrix of measurement items that ",
+         "define the latent classes.", call. = FALSE)
+
+  if (!is.null(predictors) && !is.null(outcome))
+    stop("Specify either `predictors` (to model class membership) or ",
+         "`outcome` (a distal outcome), not both in one model.", call. = FALSE)
+  if (!is.null(outcome_covariates) && is.null(outcome))
+    stop("`outcome_covariates` requires an `outcome`.", call. = FALSE)
+
+  # --- Measurement model (single-type or mixed) -------------------------------
+  mm                 <- .normalize_measurement(measurement, indicators)
+  X_use              <- mm$indicators
+  measurement_engine <- mm$descriptor
+
+  # --- Structural model -------------------------------------------------------
+  structural_engine <- NULL
+  Y_use             <- NULL
+
+  if (!is.null(predictors)) {
+    structural_engine <- "predict_class"
+    Y_use             <- prepare_covariates(
+      .as_named_covariates(predictors, predictors_expr, "predictor"))
+
+  } else if (!is.null(outcome)) {
+    otype <- .resolve_outcome_type(outcome, outcome_type)
+    if (outcome_type == "auto")
+      message(sprintf("Outcome treated as %s (set `outcome_type` to override).",
+                      otype))
+
+    has_cov <- !is.null(outcome_covariates)
+    structural_engine <- if (otype == "continuous") {
+      if (!has_cov)                  "continuous_outcome"
+      else if (slopes == "pooled")   "continuous_outcome_adjusted"
+      else                           "continuous_outcome_moderated"
+    } else {
+      if (!has_cov)                  "categorical_outcome"
+      else if (slopes == "pooled")   "categorical_outcome_adjusted"
+      else                           "categorical_outcome_moderated"
+    }
+
+    # Column 1 is always the outcome; covariates follow. The outcome is coerced
+    # to a plain numeric column (categorical outcomes to 1-indexed integer
+    # codes) so it is never dummy-coded as though it were a covariate.
+    if (otype == "categorical") {
+      out_col <- as.integer(as.factor(outcome))
+    } else {
+      out_col <- suppressWarnings(as.numeric(outcome))
+      if (anyNA(out_col) && !anyNA(outcome))
+        stop("A continuous `outcome` must be numeric.", call. = FALSE)
+    }
+    out_mat <- matrix(out_col, ncol = 1L,
+                      dimnames = list(NULL, .outcome_label(outcome)))
+
+    Y_use <- if (has_cov) cbind(out_mat, prepare_covariates(
+      .as_named_covariates(outcome_covariates, outcome_cov_expr, "covariate")))
+    else out_mat
+  }
+
+  # --- Friendly defaults when a structural model is present -------------------
+  if (!is.null(structural_engine) && !steps_set) {
+    n_steps <- 3L
+    message("Using 3-step estimation (set `n_steps` to override).")
+  }
+  if (!is.null(structural_engine) && n_steps == 3L && !corr_set) {
+    correction <- if (identical(structural_engine, "predict_class")) "ML"
+    else if (startsWith(structural_engine, "categorical")) "ML"
+    else "BCH"
+    message(sprintf("Using '%s' bias correction (set `correction` to override).",
+                    correction))
+  }
+
+  fit_mixture_internal(
+    X = X_use, Y = Y_use, n_components = n_classes,
+    measurement = measurement_engine, structural = structural_engine,
+    n_steps = n_steps, correction = correction, n_init = n_init,
+    max_iter = max_iter, random_state = random_state,
+    order_by_size = order_by_size, weights = weights,
+    strata = strata, cluster = cluster, refine = refine, ...)
+}
+
 #' Print a Brief Summary of a Fitted Mixture Model
 #'
 #' @description
@@ -1205,6 +1678,13 @@ print.mixture_model <- function(x, ...) {
   cat(sprintf("Estimation Method  : %d-step\n", x$n_steps))
   if (x$n_steps == 3) cat(sprintf("Correction Method  : %s\n", x$correction))
   cat(sprintf("Converged          : %s (in %d iterations)\n", x$converged, x$n_iter))
+  if (!is.null(x$missing_data) && isTRUE(x$missing_data$any_missing)) {
+    md <- x$missing_data
+    cat(sprintf("Missing Data       : %d / %d cells (%.1f%%) in %d item%s \u2014 %s\n",
+                md$n_missing, md$n_cells, 100 * md$prop_missing,
+                md$n_items_affected, if (md$n_items_affected == 1L) "" else "s",
+                md$handled_by))
+  }
   cat("---------------------------------------------------------\n")
   if (!is.null(x$step1_metrics)) {
     cat(sprintf("  Log-Likelihood (Step 1) : %.2f\n", x$step1_metrics$ll))
@@ -1267,13 +1747,20 @@ compare_mixtures <- function(X, k_range = 1:5, measurement = "binary",
     ))
   cat(sprintf("Running Model Selection across K = %d to %d...\n\n",
               min(k_range), max(k_range)))
+
+  # Resolve a single-type string or a mixed-type named list once, up front, so
+  # every K is fit on the same (possibly re-grouped) indicators and descriptor.
+  mm          <- .normalize_measurement(measurement, X)
+  X           <- mm$indicators
+  measurement <- mm$descriptor
+
   results <- list()
   models  <- list()
   for (k in k_range) {
     cat(sprintf("Fitting %d-class model...\n", k))
-    fit <- fit_mixture(X = X, Y = NULL, n_components = k,
-                       measurement = measurement,
-                       n_steps = n_steps, n_init = n_init, ...)
+    fit <- fit_mixture_internal(X = X, Y = NULL, n_components = k,
+                                measurement = measurement,
+                                n_steps = n_steps, n_init = n_init, ...)
     models[[paste0("K", k)]] <- fit
     results[[k]] <- data.frame(
       Classes = k, LL = fit$metrics$ll, Params = fit$metrics$n_params,

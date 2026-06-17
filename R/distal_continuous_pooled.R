@@ -11,7 +11,7 @@ distal_continuous_pooled_model <- function(n_components, ...) {
 #' @exportS3Method
 init_params.distal_continuous_pooled <- function(model_state, X, resp, ...) {
   Y <- as.numeric(X[, 1])
-  Z <- impute_covariates(X[, -1, drop = FALSE])
+  Z <- complete_covariates(X[, -1, drop = FALSE])
 
   K <- model_state$n_components
   D_cov <- ncol(Z)
@@ -29,7 +29,7 @@ init_params.distal_continuous_pooled <- function(model_state, X, resp, ...) {
 #' @exportS3Method
 m_step.distal_continuous_pooled <- function(model_state, X, resp, weights = NULL, ...) {
   Y <- as.numeric(X[, 1])
-  Z <- impute_covariates(X[, -1, drop = FALSE])
+  Z <- complete_covariates(X[, -1, drop = FALSE])
   valid <- !is.na(Y)
 
   Y_v    <- Y[valid]
@@ -114,7 +114,7 @@ m_step.distal_continuous_pooled <- function(model_state, X, resp, weights = NULL
 #' @exportS3Method
 log_likelihood.distal_continuous_pooled <- function(model_state, X, ...) {
   Y <- as.numeric(X[, 1])
-  Z <- impute_covariates(X[, -1, drop = FALSE])
+  Z <- complete_covariates(X[, -1, drop = FALSE])
 
   K     <- model_state$n_components
   D_cov <- ncol(Z)

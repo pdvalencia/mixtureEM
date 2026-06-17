@@ -178,7 +178,7 @@ bootstrap_covariates <- function(model_state, X, Y, n_reps = 100,
     X_boot <- X[idx, , drop = FALSE]
     Y_boot <- Y[idx, , drop = FALSE]
 
-    b_model <- fit_mixture(
+    b_model <- fit_mixture_internal(
       X = X_boot, Y = Y_boot, n_components = K,
       measurement  = measurement_desc,
       structural   = "covariate",
