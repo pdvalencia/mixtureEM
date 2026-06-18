@@ -125,6 +125,7 @@
 #' fit <- fit_mixture(X, n_classes = 2, measurement = "binary")
 #' plot(fit)
 #'
+#' @importFrom graphics par matplot axis text legend mtext
 #' @export
 plot.mixture_model <- function(x, main = "Latent Class / Profile Plot",
                                class_labels = NULL, colors = NULL, ...) {
@@ -147,8 +148,11 @@ plot.mixture_model <- function(x, main = "Latent Class / Profile Plot",
   my_colors <- if (is.null(colors)) rep(.okabe_ito, length.out = n_classes)
                else rep(colors, length.out = n_classes)
   my_shapes <- rep(15:20, length.out = n_classes)
-  labels    <- if (is.null(class_labels)) paste("Class", seq_len(n_classes))
-               else class_labels
+
+  base_labels <- if (is.null(class_labels)) paste("Class", seq_len(n_classes))
+                 else class_labels
+
+  labels <- sprintf("%s (%.1f%%)", base_labels, x$weights * 100)
 
   old_par <- par(no.readonly = TRUE)
   on.exit(par(old_par))
@@ -182,9 +186,12 @@ plot.mixture_model <- function(x, main = "Latent Class / Profile Plot",
     cex    = 0.9
   )
 
+  x_pos <- par("usr")[2] + 0.1
+  y_pos <- par("usr")[4]
+
   legend(
-    "topright",
-    inset  = c(-0.24, 0),
+    x      = x_pos,
+    y      = y_pos,
     legend = labels,
     col    = my_colors,
     pch    = my_shapes,

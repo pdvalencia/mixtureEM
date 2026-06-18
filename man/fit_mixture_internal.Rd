@@ -80,6 +80,10 @@ from largest to smallest after fitting.}
 \item{weights}{Optional numeric vector of length \code{nrow(X)} for survey
 or case weights. Default is \code{NULL} (equal weights of 1).}
 
+\item{strata}{Optional vector of stratum identifiers for complex survey designs.}
+
+\item{cluster}{Optional vector of cluster identifiers for complex survey designs.}
+
 \item{refine}{Logical. If \code{TRUE} (default), applies L-BFGS refinement
 after EM convergence to optimize the penalized maximum likelihood.}
 

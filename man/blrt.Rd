@@ -54,6 +54,8 @@ Default \code{20}.}
 \code{TRUE}.}
 
 \item{...}{Additional arguments passed to the fitting engine.}
+
+\item{X}{Deprecated alias for \code{indicators}.}
 }
 \value{
 An object of class \code{blrt_test}: a list with \code{p_value},

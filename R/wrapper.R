@@ -927,6 +927,8 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   from largest to smallest after fitting.
 #' @param weights Optional numeric vector of length \code{nrow(X)} for survey
 #'   or case weights. Default is \code{NULL} (equal weights of 1).
+#' @param strata Optional vector of stratum identifiers for complex survey designs.
+#' @param cluster Optional vector of cluster identifiers for complex survey designs.
 #' @param refine Logical. If \code{TRUE} (default), applies L-BFGS refinement
 #'   after EM convergence to optimize the penalized maximum likelihood.
 #' @param ... Additional arguments passed to the measurement or structural
@@ -1067,6 +1069,8 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   } else {
     if (length(weights) != n_samples)
       stop("Length of weights must match rows of X.")
+
+    weights <- (weights / sum(weights, na.rm = TRUE)) * n_samples
   }
 
   # Survey design variables, when supplied, must align with the rows of X.
