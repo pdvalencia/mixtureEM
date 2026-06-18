@@ -88,6 +88,7 @@ generate_synthetic_data <- function(mm, classes, N) {
 #' @param verbose Logical; print progress while bootstrapping. Default
 #'   \code{TRUE}.
 #' @param ... Additional arguments passed to the fitting engine.
+#' @param X Deprecated alias for \code{indicators}.
 #'
 #' @return An object of class \code{blrt_test}: a list with \code{p_value},
 #'   \code{obs_diff} (the observed \eqn{2\,\Delta\ell} statistic),
@@ -208,6 +209,7 @@ print.blrt_test <- function(x, ...) {
   invisible(x)
 }
 
+#' @importFrom graphics hist abline legend
 #' @export
 plot.blrt_test <- function(x, ...) {
   hist(x$null_dist,
