@@ -2,24 +2,40 @@
 % Please edit documentation in R/wrapper.R
 \name{classification_diagnostics}
 \alias{classification_diagnostics}
+\alias{classification_diagnostics.default}
 \title{Print Classification Diagnostics}
 \usage{
-classification_diagnostics(object)
+classification_diagnostics(object, ...)
+
+\method{classification_diagnostics}{default}(object, ...)
 }
 \arguments{
 \item{object}{A fitted \code{mixture_model} object returned by
 \code{\link{fit_mixture}}.}
+
+\item{...}{Passed to methods.}
 }
 \value{
-A K x K numeric matrix of average posterior probabilities,
-returned invisibly. The matrix is also printed to the console.
+Invisibly, a list with \code{ave_pp} (the K x K matrix), \code{table} (the
+classification table) and \code{error} (the classification error). All are also
+printed to the console.
 }
 \description{
-Computes and prints the Average Posterior Probability (AvePP) matrix.
-Each row corresponds to observations modally assigned to a given class;
-each column shows the mean posterior probability for that class. High
-values on the diagonal (and low values off it) indicate well-separated,
-clearly-assigned classes.
+Prints the two tables that describe how cleanly the model assigns cases.
+
+The \strong{Average Posterior Probability (AvePP)} matrix has one row per set of
+observations modally assigned to a class and one column per class, holding
+the mean posterior probability. High values on the diagonal, low values off
+it, indicate well-separated classes.
+
+The \strong{classification table} cross-classifies the probabilistic memberships
+against the modal assignment, and yields the classification error: the
+proportion of cases the modal rule is expected to place in the wrong class.
+See \code{\link[=classification_table]{classification_table()}} for the details, and \code{\link[=absolute_fit]{absolute_fit()}} and
+\code{\link[=bivariate_residuals]{bivariate_residuals()}} for the fit of the model itself rather than the
+quality of its assignments.
+
+Both tables use the case weights when the model was fitted with any.
 }
 \examples{
 set.seed(1)
