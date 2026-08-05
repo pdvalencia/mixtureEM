@@ -100,7 +100,7 @@ after EM convergence to optimize the penalized maximum likelihood.}
 \item{se}{Character. How standard errors for a covariate (class-prediction)
 structural model are computed when \code{n_steps} is \code{2} or \code{3}.
 \code{"corrected"} (default) is the first-order corrected estimator of
-Bakk, Oberski and Vermunt (2014): the step-3 sandwich plus the variance
+Bakk et al. (2014): the step-3 sandwich plus the variance
 propagated from step 1. \code{"robust"} keeps only the sandwich.
 \code{"hessian"} inverts the
 step-3 observed information alone. See \code{\link{covariate_se}} for the

@@ -24,7 +24,7 @@ library(mixtureEM)
 Every latent class analysis starts with the same question: *how many
 classes?* There is no single decisive statistic, so the standard practice
 is to fit a range of solutions and weigh several kinds of evidence
-together (Nylund, Asparouhov, & Muthén, 2007):
+together (Nylund et al., 2007):
 
 1. **Information criteria** (BIC, SABIC, AIC) — lower is better.
 2. **The bootstrap likelihood ratio test (BLRT)** — a formal test of

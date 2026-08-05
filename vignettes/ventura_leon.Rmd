@@ -22,8 +22,7 @@ library(mixtureEM)
 
 ## Background
 
-This vignette walks through Ventura-León, Reyes, Valencia, Tocto-Muñoz,
-Gamboa-Melgar, Ruiz-Castro, and Lino-Cruz (2025), *"Exploring Infidelity
+This vignette walks through Ventura-León et al. (2025), *"Exploring Infidelity
 Behavior Patterns in a Sample of Peruvian Young Adults: A Latent Class
 Analysis,"* using the `ventura_leon` dataset bundled with mixtureEM
 (`?ventura_leon`).
@@ -122,8 +121,7 @@ relationship duration by assigning each respondent to their single most
 likely class (the modal posterior) and then testing associations with
 separate chi-square tests and an ANOVA — a "classify-and-analyze" approach
 that treats class membership as if it were observed without error, which
-biases the association estimates toward the null (Bakk, Oberski, &
-Vermunt, 2014).
+biases the association estimates toward the null (Bakk et al., 2014).
 
 Instead, we hand the chosen model to `add_covariates()`, which runs the
 bias-adjusted three-step analysis (Vermunt, 2010) on the *same* solution we
@@ -139,7 +137,7 @@ results <- summary(fit_cov)
 
 The `Standard errors:` line records which variance estimator produced the
 intervals. The default also carries the uncertainty in the step-1 class
-solution into the step-3 coefficients (Bakk, Oberski, & Vermunt, 2014):
+solution into the step-3 coefficients (Bakk et al., 2014):
 treating the classes as if they had been observed rather than estimated
 makes the intervals too narrow. See `?covariate_se`.
 
@@ -161,14 +159,17 @@ against that reference:
 * **Age.** Older respondents have higher odds of Infidelity relative to
   Fidelity, matching the paper's finding that age was significantly
   related to class membership.
-* **Sexual orientation.** Here the ML-corrected model finds something the
-  paper's classify-and-analyze approach did not: non-heterosexual
-  respondents have significantly higher odds of Sexual desire relative to
-  Fidelity. The paper reported no significant association for sexual
-  orientation at all (its single omnibus chi-square test on the 4-class
-  variable was non-significant); testing the association jointly with the
-  other covariates, and while accounting for classification uncertainty,
-  turns up an effect the cruder approach could not detect.
+* **Sexual orientation.** One row looks like a discovery the paper's
+  classify-and-analyze approach missed: non-heterosexual respondents have
+  higher odds of Sexual desire relative to Fidelity (OR = 2.75,
+  p = .022). But the omnibus test for sexual orientation — the one built
+  to ask whether the covariate distinguishes *any* pair of classes at all
+  — is not significant here either (Wald chi-square = 6.44, df = 3,
+  p = .092), matching the paper's own null result. With three pairwise
+  contrasts tested, a single row below .05 is not strong evidence on its
+  own; read the omnibus row first, and treat an isolated significant
+  contrast beside a non-significant omnibus test as a hypothesis worth a
+  better-powered look, not a confirmed finding.
 * **Relationship duration.** Neither approach finds a significant
   association, consistent with the paper.
 
@@ -183,7 +184,12 @@ Covariates ask "who ends up in which class?". The complementary question —
 "how do the classes differ on some outcome?" — is a *distal outcome*
 analysis, and it reuses the same fitted model through `add_outcome()`.
 Here we describe the classes by their mean age (the BCH correction is the
-default for a continuous outcome; Bakk & Vermunt, 2016):
+default for a continuous outcome; Bakk & Vermunt, 2016). Age already
+entered the model as a covariate above, so treating it as a distal outcome
+too does not answer a substantively new question — we reuse it purely
+because it is a continuous variable already at hand, to keep the example
+self-contained; a real distal-outcome analysis would pick a variable the
+classes are actually expected to predict.
 
 ```{r distal}
 fit_age <- add_outcome(fit, ventura_leon$age)

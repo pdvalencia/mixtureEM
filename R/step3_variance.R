@@ -56,7 +56,7 @@
 #' @details
 #' \describe{
 #'   \item{\code{"corrected"} (default)}{The first-order corrected estimator of
-#'     Bakk, Oberski and Vermunt (2014, eq. 17),
+#'     Bakk et al. (2014, eq. 17),
 #'     \eqn{D_3^* = D_3 + J D_1 J'}, where \eqn{D_3} is the step-3 sandwich
 #'     below, \eqn{D_1} the sampling variance of the step-1 measurement model,
 #'     and \eqn{J = (-H_3)^{-1} \partial^2 L_3 / \partial\theta_3

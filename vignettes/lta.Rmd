@@ -99,7 +99,7 @@ rejected, and the more parsimonious homogeneous model is preferable.
 
 ## A mover-stayer model
 
-A *mover-stayer* model (Blumen, Kogan, & McCarthy, 1955) adds a latent
+A *mover-stayer* model (Vermunt, 2004) adds a latent
 class **above** the chain: one group transitions freely (the movers) while
 the other is locked in place (the stayers). It answers a question a single
 chain cannot: is apparent stability just slow movement, or is there a
@@ -119,9 +119,11 @@ mover-stayer) is the standard way to decide.
 
 ## References
 
-Blumen, I., Kogan, M., & McCarthy, P. J. (1955). *The industrial mobility
-of labor as a probability process*. Cornell University Press.
-
 Collins, L. M., & Lanza, S. T. (2010). *Latent class and latent
 transition analysis: With applications in the social, behavioral, and
 health sciences*. Wiley.
+
+Vermunt, J. K. (2004). Mover-stayer models. In M. S. Lewis-Beck, A.
+Bryman, & T. F. Liao (Eds.), *The SAGE encyclopedia of social science
+research methods* (Vol. 3, p. 666). SAGE Publications.
+<https://doi.org/10.4135/9781412950589.n583>

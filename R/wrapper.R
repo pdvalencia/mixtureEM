@@ -1298,7 +1298,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #' @param se Character. How standard errors for a covariate (class-prediction)
 #'   structural model are computed when \code{n_steps} is \code{2} or \code{3}.
 #'   \code{"corrected"} (default) is the first-order corrected estimator of
-#'   Bakk, Oberski and Vermunt (2014): the step-3 sandwich plus the variance
+#'   Bakk et al. (2014): the step-3 sandwich plus the variance
 #'   propagated from step 1. \code{"robust"} keeps only the sandwich.
 #'   \code{"hessian"} inverts the
 #'   step-3 observed information alone. See \code{\link{covariate_se}} for the
@@ -1881,8 +1881,8 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   whether to order classes by size, and whether to run L-BFGS refinement.
 #' @param se How standard errors for \code{predictors} are computed in a 2- or
 #'   3-step model. \code{"corrected"} (the default) adds the variance carried
-#'   over from step 1 to the step-3 sandwich, following Bakk, Oberski and
-#'   Vermunt (2014); \code{"robust"} reports the sandwich alone;
+#'   over from step 1 to the step-3 sandwich, following Bakk et al.
+#'   (2014); \code{"robust"} reports the sandwich alone;
 #'   \code{"hessian"} inverts the step-3 observed
 #'   information only. See \code{\link{covariate_se}}.
 #' @param X,Y,n_components,structural Deprecated legacy arguments retained for
