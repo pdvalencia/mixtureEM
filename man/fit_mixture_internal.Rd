@@ -17,9 +17,11 @@ fit_mixture_internal(
   random_state = NULL,
   order_by_size = TRUE,
   weights = NULL,
+  weight_type = c("sampling", "frequency"),
   strata = NULL,
   cluster = NULL,
   refine = TRUE,
+  se = c("corrected", "robust", "hessian"),
   ...
 )
 }
@@ -38,13 +40,17 @@ to estimate. Default is \code{2}.}
 model type. Accepted strings: \code{"binary"} / \code{"bernoulli"},
 \code{"categorical"} / \code{"multinoulli"},
 \code{"continuous"} / \code{"gaussian_diag"},
-\code{"gaussian"} / \code{"gaussian_unit"}.
+\code{"gaussian"} / \code{"gaussian_unit"},
+\code{"count"} / \code{"poisson"}.
 Missing values are handled automatically: any indicator column containing
 \code{NA} is estimated with a full-information (FIML) variant that masks the
 missing cells under a missing-at-random assumption, while complete columns
 use the faster complete-data estimator. A single specification (e.g.
 \code{"binary"}) therefore covers both complete and incomplete data, and the
-fitted object reports any missingness it found. The explicit \code{"*_nan"}
+fitted object reports any missingness it found. Cases missing on
+\emph{every} indicator are the exception: they carry no information about
+class membership, so they are deleted before estimation and
+reported by \code{print()} and in \code{$missing_data$n_empty_rows}. The explicit \code{"*_nan"}
 forms (e.g. \code{"binary_nan"}, \code{"continuous_nan"}) remain accepted as
 aliases that force the missing-data variant.
 Pass a named list to specify a mixed (nested) measurement model with
@@ -80,12 +86,26 @@ from largest to smallest after fitting.}
 \item{weights}{Optional numeric vector of length \code{nrow(X)} for survey
 or case weights. Default is \code{NULL} (equal weights of 1).}
 
+\item{weight_type}{Either \code{"sampling"} (default; weights are rescaled to
+sum to the number of cases) or \code{"frequency"} (weights are counts of
+identical cases and set the effective sample size).}
+
 \item{strata}{Optional vector of stratum identifiers for complex survey designs.}
 
 \item{cluster}{Optional vector of cluster identifiers for complex survey designs.}
 
 \item{refine}{Logical. If \code{TRUE} (default), applies L-BFGS refinement
 after EM convergence to optimize the penalized maximum likelihood.}
+
+\item{se}{Character. How standard errors for a covariate (class-prediction)
+structural model are computed when \code{n_steps} is \code{2} or \code{3}.
+\code{"corrected"} (default) is the first-order corrected estimator of
+Bakk, Oberski and Vermunt (2014): the step-3 sandwich plus the variance
+propagated from step 1. \code{"robust"} keeps only the sandwich.
+\code{"hessian"} inverts the
+step-3 observed information alone. See \code{\link{covariate_se}} for the
+differences and when they matter. Ignored for other structural models and
+for \code{n_steps = 1}.}
 
 \item{...}{Additional arguments passed to the measurement or structural
 model constructors (e.g., \code{max_val} for multinoulli models).}

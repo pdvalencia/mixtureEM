@@ -23,12 +23,41 @@ sort_model_classes <- function(model_state) {
     model_state$mm$parameters$covariances <-
       model_state$mm$parameters$covariances[new_order, , drop = FALSE]
   }
+  # Poisson LCA: class-specific rates are indexed by class like pis and means
+  if (!is.null(model_state$mm$parameters[["rates"]])) {
+    model_state$mm$parameters$rates <-
+      model_state$mm$parameters$rates[new_order, , drop = FALSE]
+  }
+  # LCGA: growth coefficients are one row per class, and the gaussian family's
+  # residual variance is one entry per class.
+  if (!is.null(model_state$mm$parameters[["coefs"]])) {
+    model_state$mm$parameters$coefs <-
+      model_state$mm$parameters$coefs[new_order, , drop = FALSE]
+    model_state$mm$parameters$dispersion <-
+      model_state$mm$parameters$dispersion[new_order]
+  }
+  # GMM: growth-factor means are one row per class, residual variances one row
+  # per class, and the growth-factor covariance one matrix per class. All are
+  # stored per class even where a constraint makes the classes share a value, so
+  # all are permuted unconditionally. The growth-factor regressions on
+  # covariates are stored the same way and join them when there are any.
+  if (!is.null(model_state$mm$parameters[["alpha"]])) {
+    model_state$mm$parameters$alpha <-
+      model_state$mm$parameters$alpha[new_order, , drop = FALSE]
+    model_state$mm$parameters$theta <-
+      model_state$mm$parameters$theta[new_order, , drop = FALSE]
+    model_state$mm$parameters$psi <-
+      model_state$mm$parameters$psi[new_order]
+    if (!is.null(model_state$mm$parameters[["gamma"]]))
+      model_state$mm$parameters$gamma <-
+        model_state$mm$parameters$gamma[new_order]
+  }
 
   # --- Sort nested measurement model sub-model parameters ---
   # The flat-parameter block above only touches model_state$mm$parameters, which
   # is empty for nested models.  Sub-model parameters live one level deeper at
   # model_state$mm$models[[name]]$parameters and must be sorted independently.
-  if (inherits(model_state$mm, "nested")) {
+  if (inherits(model_state$mm, c("nested", "blocks"))) {
     for (name in names(model_state$mm$models)) {
       sub <- model_state$mm$models[[name]]
       if (!is.null(sub$parameters[["pis"]]))
@@ -38,6 +67,8 @@ sort_model_classes <- function(model_state) {
       if (!is.null(sub$parameters[["covariances"]]))
         sub$parameters$covariances <-
           sub$parameters$covariances[new_order, , drop = FALSE]
+      if (!is.null(sub$parameters[["rates"]]))
+        sub$parameters$rates <- sub$parameters$rates[new_order, , drop = FALSE]
       model_state$mm$models[[name]] <- sub
     }
   }
@@ -155,25 +186,43 @@ sort_model_classes <- function(model_state) {
 #'
 #' @param object A fitted \code{mixture_model} object returned by
 #'   \code{\link{fit_mixture}}.
+#' @param ... Passed to methods.
 #'
-#' @return Invisibly returns \code{NULL}. Called for its printed side-effect.
+#' @return Invisibly, a data frame in long format with one row per item,
+#'   response category (polytomous items only, \code{NA} otherwise), and
+#'   class: columns \code{block} (sub-model name for mixed measurement
+#'   models, \code{NA} otherwise), \code{parameter} (\code{"probability"},
+#'   \code{"mean"}, or \code{"rate"}), \code{item}, \code{category},
+#'   \code{class}, and \code{estimate}. The same numbers are printed as
+#'   formatted tables.
 #'
 #' @examples
 #' set.seed(1)
 #' X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
 #' fit <- fit_mixture(X, n_components = 2, measurement = "binary")
 #' measurement_summary(fit)
+#' params <- measurement_summary(fit)   # reuse the table programmatically
 #'
 #' @export
-measurement_summary <- function(object) {
+measurement_summary <- function(object, ...) UseMethod("measurement_summary")
+
+#' @rdname measurement_summary
+#' @export
+measurement_summary.default <- function(object, ...) {
   K <- object$n_components
   cat("=========================================================\n")
   cat("             MEASUREMENT MODEL PARAMETERS                \n")
   cat("=========================================================\n")
 
-  print_item_matrix <- function(mat, title, sub_model = NULL) {
+  collected <- list()
+
+  print_item_matrix <- function(mat, title, sub_model = NULL,
+                                parameter = "estimate",
+                                block = NA_character_) {
     cat(sprintf("\n%s\n", title))
     item_names <- colnames(mat)
+    base_items <- NULL
+    categories <- NULL
 
     if (is.null(item_names)) {
       if (!is.null(sub_model) && !is.null(sub_model$max_val)) {
@@ -184,40 +233,71 @@ measurement_summary <- function(object) {
           base <- paste0("Poly_Item_", seq_len(n_items))
         item_names <- paste0(rep(base, each = M),
                              " (Cat ", rep(seq_len(M), times = n_items), ")")
+        base_items <- rep(base, each = M)
+        categories <- rep(seq_len(M), times = n_items)
       } else {
         item_names <- paste0("Item_", 1:ncol(mat))
       }
     }
+    if (is.null(base_items)) base_items <- item_names
+    if (is.null(categories)) categories <- rep(NA_integer_, length(item_names))
 
-    label_w <- max(20L, max(nchar(item_names)))
+    # Long indicator names widen the table only up to the shortening cap;
+    # anything longer is abbreviated with a key printed under the table. The
+    # returned data frame keeps the full names.
+    disp    <- .shorten_labels(item_names, width = 30L)
+    label_w <- max(20L, max(nchar(disp)))
     cat(sprintf("%-*s", label_w, "Indicator"))
     for (k in 1:K) cat(sprintf(" | Class %d", k))
     cat("\n")
     cat(paste0(rep("-", label_w + K * 10), collapse = ""), "\n")
 
     for (j in 1:ncol(mat)) {
-      cat(sprintf("%-*s", label_w, item_names[j]))
+      cat(sprintf("%-*s", label_w, disp[j]))
       for (k in 1:K) cat(sprintf(" | %7.3f", mat[k, j]))
       cat("\n")
     }
+    .cat_label_legend(disp, indent = "")
+
+    # Long-format rows for the returned data frame. as.vector(mat) walks the
+    # K x J matrix column by column, so class varies fastest within each item.
+    J <- ncol(mat)
+    collected[[length(collected) + 1L]] <<- data.frame(
+      block     = rep(block, K * J),
+      parameter = rep(parameter, K * J),
+      item      = rep(base_items, each = K),
+      category  = rep(categories, each = K),
+      class     = rep(seq_len(K), times = J),
+      estimate  = as.vector(mat),
+      stringsAsFactors = FALSE)
   }
 
   mm <- object$mm
-  if (inherits(mm, "nested")) {
+  if (inherits(mm, c("nested", "blocks"))) {
     for (name in names(mm$models)) {
       sub_mm <- mm$models[[name]]
       if (!is.null(sub_mm$parameters$pis))
         print_item_matrix(sub_mm$parameters$pis,
-                          paste("Categorical Probabilities:", toupper(name)), sub_mm)
+                          paste("Categorical Probabilities:", toupper(name)),
+                          sub_mm, "probability", name)
       if (!is.null(sub_mm$parameters$means))
         print_item_matrix(sub_mm$parameters$means,
-                          paste("Continuous Means:", toupper(name)), sub_mm)
+                          paste("Continuous Means:", toupper(name)),
+                          sub_mm, "mean", name)
+      if (!is.null(sub_mm$parameters$rates))
+        print_item_matrix(sub_mm$parameters$rates,
+                          paste("Count Rates:", toupper(name)),
+                          sub_mm, "rate", name)
     }
   } else {
     if (!is.null(mm$parameters$pis))
-      print_item_matrix(mm$parameters$pis, "CATEGORICAL PROBABILITIES", mm)
+      print_item_matrix(mm$parameters$pis, "CATEGORICAL PROBABILITIES", mm,
+                        "probability")
     if (!is.null(mm$parameters$means))
-      print_item_matrix(mm$parameters$means, "CONTINUOUS MEANS", mm)
+      print_item_matrix(mm$parameters$means, "CONTINUOUS MEANS", mm, "mean")
+    if (!is.null(mm$parameters$rates))
+      print_item_matrix(mm$parameters$rates, "COUNT RATES (lambda)", mm,
+                        "rate")
   }
   if (!is.null(object$missing_data) && isTRUE(object$missing_data$any_missing)) {
     md <- object$missing_data
@@ -227,22 +307,35 @@ measurement_summary <- function(object) {
                 md$handled_by))
   }
   cat("=========================================================\n")
+  invisible(do.call(rbind, collected))
 }
 
 #' Print Classification Diagnostics
 #'
 #' @description
-#' Computes and prints the Average Posterior Probability (AvePP) matrix.
-#' Each row corresponds to observations modally assigned to a given class;
-#' each column shows the mean posterior probability for that class. High
-#' values on the diagonal (and low values off it) indicate well-separated,
-#' clearly-assigned classes.
+#' Prints the two tables that describe how cleanly the model assigns cases.
+#'
+#' The **Average Posterior Probability (AvePP)** matrix has one row per set of
+#' observations modally assigned to a class and one column per class, holding
+#' the mean posterior probability. High values on the diagonal, low values off
+#' it, indicate well-separated classes.
+#'
+#' The **classification table** cross-classifies the probabilistic memberships
+#' against the modal assignment, and yields the classification error: the
+#' proportion of cases the modal rule is expected to place in the wrong class.
+#' See [`classification_table()`] for the details, and [`absolute_fit()`] and
+#' [`bivariate_residuals()`] for the fit of the model itself rather than the
+#' quality of its assignments.
+#'
+#' Both tables use the case weights when the model was fitted with any.
 #'
 #' @param object A fitted \code{mixture_model} object returned by
 #'   \code{\link{fit_mixture}}.
+#' @param ... Passed to methods.
 #'
-#' @return A K x K numeric matrix of average posterior probabilities,
-#'   returned invisibly. The matrix is also printed to the console.
+#' @return Invisibly, a list with `ave_pp` (the K x K matrix), `table` (the
+#'   classification table) and `error` (the classification error). All are also
+#'   printed to the console.
 #'
 #' @examples
 #' set.seed(1)
@@ -251,17 +344,17 @@ measurement_summary <- function(object) {
 #' classification_diagnostics(fit)
 #'
 #' @export
-classification_diagnostics <- function(object) {
-  resp       <- exp(object$log_resp)
-  pred_class <- max.col(resp)
-  K          <- object$n_components
+classification_diagnostics <- function(object, ...)
+  UseMethod("classification_diagnostics")
 
-  ave_pp <- matrix(0, nrow = K, ncol = K)
-  for (k in 1:K) {
-    idx <- which(pred_class == k)
-    if (length(idx) > 0)
-      ave_pp[k, ] <- colMeans(resp[idx, , drop = FALSE])
-  }
+#' @rdname classification_diagnostics
+#' @export
+classification_diagnostics.default <- function(object, ...) {
+  resp <- exp(object$log_resp)
+  K    <- object$n_components
+  w    <- object$sample_weights %||% rep(1, nrow(resp))
+
+  ave_pp <- .ave_pp(resp, w, K)
   rownames(ave_pp) <- paste("Assigned Class", 1:K)
   colnames(ave_pp) <- paste("Prob C", 1:K)
 
@@ -271,12 +364,83 @@ classification_diagnostics <- function(object) {
   cat("Rows: Modal Assignment | Columns: Mean Probability\n\n")
   print(round(ave_pp, 3))
   cat("=========================================================\n")
-  invisible(ave_pp)
+
+  cat("\n")
+  tab <- .classification_table(resp, w, K)
+  print(tab)
+
+  invisible(list(ave_pp = ave_pp, table = tab, error = attr(tab, "error")))
+}
+
+#' Class Sizes of a Fitted Mixture Model
+#'
+#' @description
+#' Returns the estimated size of each latent class in the three forms applied
+#' papers report: the model's class proportion, the expected number of cases,
+#' and the number of cases modally assigned to the class. Case weights are
+#' used when the model was fitted with any.
+#'
+#' @param object A fitted \code{mixture_model} object returned by
+#'   \code{\link{fit_mixture}}.
+#' @param ... Passed to methods.
+#'
+#' @return A data frame with one row per class: \code{class},
+#'   \code{proportion} (model-estimated class weight), \code{n_expected}
+#'   (proportion times the analysed sample size), and \code{n_modal} (cases
+#'   assigned by highest posterior probability).
+#'
+#' @examples
+#' set.seed(1)
+#' X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
+#' fit <- fit_mixture(X, n_classes = 2)
+#' class_sizes(fit)
+#'
+#' @export
+class_sizes <- function(object, ...) UseMethod("class_sizes")
+
+#' @rdname class_sizes
+#' @export
+class_sizes.mixture_model <- function(object, ...) {
+  K     <- object$n_components
+  resp  <- exp(object$log_resp)
+  w     <- object$sample_weights %||% rep(1, nrow(resp))
+  modal <- max.col(resp, ties.method = "first")
+  n_tot <- sum(w)
+
+  data.frame(
+    class      = seq_len(K),
+    proportion = as.vector(object$weights),
+    n_expected = as.vector(object$weights) * n_tot,
+    n_modal    = vapply(seq_len(K), function(k) sum(w[modal == k]), numeric(1))
+  )
+}
+
+# Weighted average posterior probability by modal class. The weights matter
+# whenever a case stands for more than one observation, which is the norm for
+# the frequency-weighted pattern files these models are often fitted to.
+.ave_pp <- function(resp, w, K) {
+  modal  <- max.col(resp, ties.method = "first")
+  ave_pp <- matrix(NA_real_, nrow = K, ncol = K)
+  for (k in seq_len(K)) {
+    idx <- modal == k
+    if (any(idx))
+      ave_pp[k, ] <- colSums(resp[idx, , drop = FALSE] * w[idx]) / sum(w[idx])
+  }
+  ave_pp
 }
 
 # ==============================================================================
 # Internal helpers for summary.mixture_model
 # ==============================================================================
+
+# Bind collected table rows into one clean data frame (NULL when empty).
+.rbind_tidy <- function(rows) {
+  rows <- rows[!vapply(rows, is.null, logical(1))]
+  if (!length(rows)) return(NULL)
+  df <- do.call(rbind, rows)
+  rownames(df) <- NULL
+  df
+}
 
 # Format p-values to publication conventions.
 # Values below .001 are shown as "< .001"; NaN/NA appear as a dash.
@@ -286,6 +450,67 @@ classification_diagnostics <- function(object) {
   sprintf("   %5.3f", p)
 }
 
+# Per-covariate omnibus Wald tests, printed under the class-predictor table.
+#
+# The coefficient table above answers "does this covariate distinguish class c
+# from the reference class?" once per contrast. Two things are missing from it,
+# and this table supplies both:
+#
+#   * Multiplicity. A 3-class model with five covariates prints twelve
+#     coefficient tests, and some of them will be significant.
+#   * For a covariate with more than two categories the table contains no test
+#     of the covariate at all — a three-level marital status becomes two dummies
+#     times two class contrasts, and none of those four rows answers "does
+#     marital status predict class membership?", which is the question that was
+#     asked. The omnibus test is the one that does.
+#
+# Nothing is printed when every covariate is a single column and there are only
+# two classes, since each omnibus test is then the square of a z already shown.
+.print_covariate_omnibus <- function(object, sm_sub, ref_class) {
+  params <- sm_sub$parameters
+  if (is.null(params$beta) || ncol(params$beta) == 0L) return(invisible(NULL))
+  K <- object$n_components
+  if (K < 2L) return(invisible(NULL))
+
+  terms <- params$terms
+  if (is.null(terms) || length(terms) != ncol(params$beta))
+    terms <- colnames(params$beta) %||% paste0("V", seq_len(ncol(params$beta)))
+
+  cov_terms <- unique(setdiff(terms, "Intercept"))
+  if (!length(cov_terms)) return(invisible(NULL))
+  if (K == 2L && length(cov_terms) == length(terms) - sum(terms == "Intercept"))
+    return(invisible(NULL))
+
+  rows <- lapply(cov_terms, function(tm) {
+    cols <- which(terms == tm)
+    st   <- tryCatch(.wald_omnibus_core(params, K, ref_class, cols),
+                     error = function(e) NULL)
+    if (is.null(st)) return(NULL)
+    data.frame(term = tm, chi2 = st$W, df = st$df, p = st$p_value,
+               stringsAsFactors = FALSE)
+  })
+  rows <- do.call(rbind, rows[!vapply(rows, is.null, logical(1))])
+  if (is.null(rows) || !nrow(rows)) return(invisible(NULL))
+
+  cat("\nOMNIBUS TEST PER COVARIATE (effect across all classes)\n")
+  cat("---------------------------------------------------------\n")
+  # Same shortening policy as the coefficient table above, so a long variable
+  # name reads identically in both places.
+  disp    <- .shorten_labels(rows$term)
+  label_w <- .label_width(disp, min = 20L)
+  cat(sprintf("  %-*s %11s %4s  %s\n", label_w, "", "Wald Chi2", "df", "P-Value"))
+  for (i in seq_len(nrow(rows)))
+    cat(sprintf("  %-*s %11.3f %4d  %s\n",
+                label_w, disp[i], rows$chi2[i], rows$df[i], .fmt_pval(rows$p[i])))
+  .cat_label_legend(disp)
+  # The Wald statistic is non-monotone in the effect size: a covariate strong
+  # enough to nearly separate a class drives it back towards zero
+  # (Hauck & Donner, 1977). The test gates in one direction only.
+  cat("  Note: a non-significant test beside large coefficients can be the\n")
+  cat("        Hauck-Donner effect; confirm with wald_omnibus_test().\n")
+  invisible(rows)
+}
+
 # Omnibus Wald test for equality of K means (continuous distal outcomes).
 #
 # When Sigma_mu (the full K x K sandwich variance-covariance matrix of the
@@ -293,8 +518,8 @@ classification_diagnostics <- function(object) {
 #   W = c^T V^{-1} c,  where c = R * mu,  V = R * Sigma_mu * R^T
 #   R = contrast matrix [class k vs class 1, k = 2..K]  (df = K-1)
 #
-# This matches LatentGOLD's robust Wald statistic (Bakk, Oberski & Vermunt,
-# 2014) and accounts for the cross-class covariance induced by BCH weights.
+# This is the robust Wald formulation of Bakk, Oberski and Vermunt
+# (2014), accounting for the cross-class covariance induced by BCH weights.
 #
 # Falls back to the diagonal (precision-weighted) approximation when
 # Sigma_mu is not stored (e.g. for non-BCH structural models).
@@ -390,7 +615,13 @@ classification_diagnostics <- function(object) {
 #'   Defaults to the first class (\code{1}).
 #' @param ... Currently unused. Present for S3 method compatibility.
 #'
-#' @return Invisibly returns \code{NULL}. Called for its printed side-effect.
+#' @return Invisibly, a list holding the printed numbers in tidy form, ready
+#'   for further use: \code{$coefficients} (one row per class contrast and
+#'   covariate: estimate, SE, p, odds ratio and its confidence limits),
+#'   \code{$omnibus} (the per-covariate omnibus Wald tests), and, when a
+#'   distal outcome is present, \code{$outcome} (predicted probabilities or
+#'   class means/estimates with their tests). Returns \code{NULL} when the
+#'   model has no structural part.
 #'
 #' @examples
 #' set.seed(1)
@@ -418,6 +649,14 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     return(invisible())
   }
 
+  # Everything printed below is also collected here and returned invisibly,
+  # so vignettes and downstream code can use the numbers without re-deriving
+  # them from the model internals.
+  out <- list(ref_class  = ref_class,
+              n_classes  = K,
+              n_steps    = object$n_steps,
+              correction = object$correction)
+
   cat("=========================================================\n")
   cat("             STRUCTURAL MODEL SUMMARY                    \n")
   cat("=========================================================\n")
@@ -431,15 +670,32 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
   if (!is.null(sm_sub) && !is.null(sm_sub$parameters$hessian)) {
     cat("\nCATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)\n")
     cat(sprintf("Reference Class: %d\n", ref_class))
+    # A covariate standard error can come from any of several estimators that
+    # differ by up to a factor of two, so the printed table names the one used
+    # rather than leaving the reader to guess (Bakk, Oberski & Vermunt, 2014).
+    cat(sprintf("Standard errors: %s\n",
+                sm_sub$parameters$V_method %||%
+                  if (!is.null(sm_sub$parameters$V_robust))
+                    "Survey-robust (linearization)" else "Q-function Hessian"))
     cat("---------------------------------------------------------\n")
-    cat("                     OR       [95% CI]        P-Value\n")
 
     betas     <- sm_sub$parameters$beta
     D         <- ncol(betas)
     var_names <- if (!is.null(colnames(betas))) colnames(betas) else paste0("V", 1:D)
+    # The label column sizes itself to the longest (shortened) predictor name:
+    # a dummy-coded predictor name runs past fifteen characters routinely, and
+    # names past the shortening cap are abbreviated with a key printed under
+    # the table. The data frame returned by summary() keeps the full names.
+    disp      <- .shorten_labels(var_names)
+    label_w   <- .label_width(disp, min = 20L)
     Sigma     <- if (!is.null(sm_sub$parameters$V_robust))
       sm_sub$parameters$V_robust else pinv(-sm_sub$parameters$hessian)
 
+    cat(sprintf("  %-*s %9s  %s  %s\n", label_w,
+                "", "OR", "       [95% CI]       ", "P-Value"))
+
+    cov_rows <- vector("list", (K - 1L) * D)
+    row_i    <- 0L
     for (c in setdiff(1:K, ref_class)) {
       cat(sprintf("\nClass %d ON\n", c))
       for (v in 1:D) {
@@ -451,12 +707,22 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
         se    <- sqrt(max(0, var_diff))
         z_val <- est / se
         p_val <- 2 * (1 - pnorm(abs(z_val)))
-        cat(sprintf("  %-15s %7.3f  [%6.3f, %6.3f]  %s\n",
-                    var_names[v], exp(est),
+        cat(sprintf("  %-*s %9.3f  [%9.3f, %9.3f]  %s\n",
+                    label_w, disp[v], exp(est),
                     exp(est - 1.96 * se), exp(est + 1.96 * se),
                     .fmt_pval(p_val)))
+        row_i <- row_i + 1L
+        cov_rows[[row_i]] <- data.frame(
+          class = c, term = var_names[v], estimate = est, se = se,
+          z = z_val, p = p_val, OR = exp(est),
+          OR_lower = exp(est - 1.96 * se), OR_upper = exp(est + 1.96 * se),
+          stringsAsFactors = FALSE)
       }
     }
+    out$coefficients <- .rbind_tidy(cov_rows[seq_len(row_i)])
+    .cat_label_legend(disp)
+
+    out$omnibus <- .print_covariate_omnibus(object, sm_sub, ref_class)
   }
 
   # B0. Categorical distal outcome with no covariate (distal_categorical).
@@ -496,18 +762,23 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
       }
 
       # --- Predicted probabilities ---
+      pp <- matrix(NA_real_, K_distal, M,
+                   dimnames = list(paste("Class", seq_len(K_distal)),
+                                   paste("Cat", seq_len(M))))
       cat("\nPredicted Probabilities:\n")
       cat(sprintf("  %-12s", ""))
       for (m in seq_len(M)) cat(sprintf(" Cat %-4d", m))
       cat("\n")
       for (k in seq_len(K_distal)) {
         probs <- .pred_probs_pooled(beta_mat, K_distal, D_cov = 0L, k)
+        pp[k, ] <- probs
         cat(sprintf("  Class %-6d", k))
         for (m in seq_len(M)) cat(sprintf("  %6.3f ", probs[m]))
         cat("\n")
       }
 
       # --- Pairwise OR table ---
+      or_rows <- list()
       cat(sprintf("\nPairwise Odds Ratios (Reference: Class %d)\n", ref_class))
       cat("                     OR       [95% CI]        P-Value\n")
       for (m in seq_len(M_minus_1)) {
@@ -525,8 +796,17 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
           cat(sprintf("    Class %d        %7.3f  [%6.3f, %6.3f]  %s\n",
                       c, exp(est), exp(est - 1.96 * se), exp(est + 1.96 * se),
                       .fmt_pval(p_val)))
+          or_rows[[length(or_rows) + 1L]] <- data.frame(
+            category = m + 1L, class = c, estimate = est, se = se, p = p_val,
+            OR = exp(est), OR_lower = exp(est - 1.96 * se),
+            OR_upper = exp(est + 1.96 * se), stringsAsFactors = FALSE)
         }
       }
+      out$outcome <- list(
+        type    = "categorical",
+        omnibus = data.frame(chi2 = omni$stat, df = omni$df, p = omni$p),
+        predicted_probabilities = pp,
+        odds_ratios = .rbind_tidy(or_rows))
     }
   }
 
@@ -564,6 +844,9 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
       }
 
       # --- Predicted probabilities (primary display) ---
+      pp <- matrix(NA_real_, K_distal, M,
+                   dimnames = list(paste("Class", seq_len(K_distal)),
+                                   paste("Cat", seq_len(M))))
       cov_note <- if (D_cov > 0) " (covariates held at zero)" else ""
       cat(sprintf("\nPredicted Probabilities%s:\n", cov_note))
       cat(sprintf("  %-12s", ""))
@@ -571,12 +854,15 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
       cat("\n")
       for (k in seq_len(K_distal)) {
         probs <- .pred_probs_pooled(beta_mat, K_distal, D_cov, k)
+        pp[k, ] <- probs
         cat(sprintf("  Class %-6d", k))
         for (m in seq_len(M)) cat(sprintf("  %6.3f ", probs[m]))
         cat("\n")
       }
 
       # --- Pairwise OR table (secondary) ---
+      or_rows  <- list()
+      cov_rows <- list()
       cat(sprintf("\nPairwise Odds Ratios (Reference: Class %d)\n", ref_class))
       cat("                     OR       [95% CI]        P-Value\n")
       for (m in seq_len(M_minus_1)) {
@@ -594,6 +880,10 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
           cat(sprintf("    Class %d        %7.3f  [%6.3f, %6.3f]  %s\n",
                       c, exp(est), exp(est - 1.96 * se), exp(est + 1.96 * se),
                       .fmt_pval(p_val)))
+          or_rows[[length(or_rows) + 1L]] <- data.frame(
+            category = m + 1L, class = c, estimate = est, se = se, p = p_val,
+            OR = exp(est), OR_lower = exp(est - 1.96 * se),
+            OR_upper = exp(est + 1.96 * se), stringsAsFactors = FALSE)
         }
         if (D_cov > 0) {
           cat("  Covariates (Pooled Slope):\n")
@@ -607,9 +897,19 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
                         var_names[v], exp(est),
                         exp(est - 1.96 * se), exp(est + 1.96 * se),
                         .fmt_pval(p_val)))
+            cov_rows[[length(cov_rows) + 1L]] <- data.frame(
+              category = m + 1L, term = var_names[v], estimate = est, se = se,
+              p = p_val, OR = exp(est), OR_lower = exp(est - 1.96 * se),
+              OR_upper = exp(est + 1.96 * se), stringsAsFactors = FALSE)
           }
         }
       }
+      out$outcome <- list(
+        type    = "categorical",
+        omnibus = data.frame(chi2 = omni$stat, df = omni$df, p = omni$p),
+        predicted_probabilities = pp,
+        odds_ratios = .rbind_tidy(or_rows),
+        covariate_effects = .rbind_tidy(cov_rows))
     }
   }
 
@@ -637,6 +937,9 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
       cov_note  <- if (D_distal > 1L) " (covariates held at zero)" else ""
 
       # --- Predicted probabilities (primary display) ---
+      pp <- matrix(NA_real_, K_distal, M,
+                   dimnames = list(paste("Class", seq_len(K_distal)),
+                                   paste("Cat", seq_len(M))))
       cat(sprintf("\nPredicted Probabilities%s:\n", cov_note))
       cat(sprintf("  %-12s", ""))
       for (m in seq_len(M)) cat(sprintf(" Cat %-4d", m))
@@ -644,12 +947,14 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
       for (k in seq_len(K_distal)) {
         betas_k <- matrix(distal_betas[k, , ], nrow = M_minus_1, ncol = D_distal)
         probs   <- .pred_probs_reg(betas_k, D_distal)
+        pp[k, ] <- probs
         cat(sprintf("  Class %-6d", k))
         for (m in seq_len(M)) cat(sprintf("  %6.3f ", probs[m]))
         cat("\n")
       }
 
       # --- Class-specific OR tables (secondary) ---
+      est_rows <- list()
       cat("\nClass-Specific Estimates\n")
       cat("                     OR       [95% CI]        P-Value\n")
       for (k in seq_len(K_distal)) {
@@ -677,9 +982,17 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
               cat(sprintf("    %-13s %7.3f  [   N/A,    N/A]       N/A\n",
                           var_names[v], exp(est)))
             }
+            est_rows[[length(est_rows) + 1L]] <- data.frame(
+              class = k, category = m + 1L, term = var_names[v],
+              estimate = est, se = if (se > 0) se else NA_real_, p = p_val,
+              OR = exp(est), stringsAsFactors = FALSE)
           }
         }
       }
+      out$outcome <- list(
+        type = "categorical",
+        predicted_probabilities = pp,
+        estimates = .rbind_tidy(est_rows))
     }
   }
 
@@ -713,6 +1026,12 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
       cat(sprintf("  Class %d      %7.3f  [%6.3f, %6.3f]   %7.3f\n",
                   k, mu, mu - 1.96 * se, mu + 1.96 * se, se))
     }
+    out$outcome <- list(
+      type    = "continuous",
+      omnibus = data.frame(chi2 = omni$stat, df = omni$df, p = omni$p),
+      means   = data.frame(class = seq_len(K), mean = means, se = ses,
+                           lower = means - 1.96 * ses,
+                           upper = means + 1.96 * ses))
   }
 
   # E. Continuous distal regression
@@ -731,10 +1050,13 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     D         <- ncol(betas)
     var_names <- if (!is.null(colnames(betas))) colnames(betas) else
       c("Intercept", paste0("Z", seq_len(D - 1L)))
+    disp      <- .shorten_labels(var_names)
+    label_w   <- .label_width(disp, min = 13L)
+    hdr_pad   <- strrep(" ", 17L + label_w - 13L)
 
     # Omnibus Wald test on class intercepts (class-specific means at Z = 0).
     # Uses the model-based SE for each intercept (sigma^2 * B_inv_k[1,1]),
-    # assuming classes are independent - matching LatentGOLD's Wald(=) test.
+    # assuming classes are independent (a Wald test of equality).
     intercepts <- betas[, 1L]
     int_ses    <- ses[, 1L]   # already model-based if fitted with BCH v2
     prec_int   <- 1 / pmax(int_ses^2, 1e-15)
@@ -749,31 +1071,37 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
         cov_note, omni$df, omni$stat, .fmt_pval(omni$p)))
     }
 
+    est_rows <- list()
     cat("\n")
     for (k in seq_len(K)) {
       cat(sprintf("Class %d:\n", k))
-      cat("                 Estimate   [95% CI]        P-Value\n")
+      cat(hdr_pad, "Estimate   [95% CI]        P-Value\n", sep = "")
       for (v in seq_len(D)) {
         est   <- betas[k, v]
         se    <- ses[k, v]
         z_val <- if (se > 0) est / se else NA_real_
         p_val <- if (!is.na(z_val)) 2 * (1 - pnorm(abs(z_val))) else NA_real_
-        cat(sprintf("  %-13s %7.3f  [%6.3f, %6.3f]  %s\n",
-                    var_names[v], est, est - 1.96 * se, est + 1.96 * se,
+        cat(sprintf("  %-*s %7.3f  [%6.3f, %6.3f]  %s\n",
+                    label_w, disp[v], est, est - 1.96 * se, est + 1.96 * se,
                     .fmt_pval(p_val)))
+        est_rows[[length(est_rows) + 1L]] <- data.frame(
+          class = k, term = var_names[v], estimate = est, se = se, p = p_val,
+          lower = est - 1.96 * se, upper = est + 1.96 * se,
+          stringsAsFactors = FALSE)
       }
       cat("\n")
     }
 
     #  Per-covariate Wald(=) tests: H0: slope_k equal across all classes
     # Uses the diagonal independence approximation (separate per-class
-    # regressions), matching LatentGOLD's Wald(=) column.
+    # regressions).
     # Contrast matrix R = [-1 | I_{K-1}], df = K-1.
+    eq_rows <- list()
     if (K > 1L && D > 1L) {
       cat("---------------------------------------------------------\n")
       cat("Wald tests (equality of slopes across classes):\n")
-      cat(sprintf("  %-13s   Wald(%s)%s  P-Value\n",
-                  "", paste0("chi^2(", K - 1L, ")"), ""))
+      cat(sprintf("  %-*s   Wald(%s)%s  P-Value\n",
+                  label_w, "", paste0("chi^2(", K - 1L, ")"), ""))
       R_eq <- cbind(-1, diag(K - 1L))
       for (v in 2L:D) {
         theta_v <- betas[, v]
@@ -785,10 +1113,19 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
           error = function(e) NA_real_)
         p_v     <- if (!is.na(W_v))
           pchisq(W_v, df = K - 1L, lower.tail = FALSE) else NA_real_
-        cat(sprintf("  %-13s   %8.2f          %s\n",
-                    var_names[v], W_v, .fmt_pval(p_v)))
+        cat(sprintf("  %-*s   %8.2f          %s\n",
+                    label_w, disp[v], W_v, .fmt_pval(p_v)))
+        eq_rows[[length(eq_rows) + 1L]] <- data.frame(
+          term = var_names[v], chi2 = W_v, df = K - 1L, p = p_v,
+          stringsAsFactors = FALSE)
       }
     }
+    .cat_label_legend(disp)
+    out$outcome <- list(
+      type      = "continuous",
+      omnibus   = data.frame(chi2 = omni$stat, df = omni$df, p = omni$p),
+      estimates = .rbind_tidy(est_rows),
+      slope_equality = .rbind_tidy(eq_rows))
   }
 
   # F. Continuous distal pooled
@@ -816,7 +1153,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     # Omnibus Wald test on class intercepts
     # When cov_theta is available (BCH step stored it), use the full
     # model-based contrast Wald: H0: int_k = int_1 for all k != 1.
-    # This matches LatentGOLD's omnibus test and accounts for the
+    # This omnibus formulation accounts for the
     # covariance between intercept estimates.
     cov_theta  <- cont_pool_sub$parameters$cov_theta
     intercepts <- theta[seq_len(K_distal)]
@@ -845,6 +1182,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
         cov_note, omni$df, omni$stat, .fmt_pval(omni$p)))
     }
 
+    int_rows <- list()
     cat("\n  Latent Class (Intercepts):\n")
     cat("                 Estimate   [95% CI]        P-Value\n")
     for (k in seq_len(K_distal)) {
@@ -855,24 +1193,43 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
       cat(sprintf("    Class %d      %7.3f  [%6.3f, %6.3f]  %s\n",
                   k, est, est - 1.96 * se, est + 1.96 * se,
                   .fmt_pval(p_val)))
+      int_rows[[length(int_rows) + 1L]] <- data.frame(
+        class = k, estimate = est, se = se, p = p_val,
+        lower = est - 1.96 * se, upper = est + 1.96 * se,
+        stringsAsFactors = FALSE)
     }
 
+    slope_rows <- list()
     if (D_cov > 0) {
+      disp    <- .shorten_labels(var_names)
+      label_w <- .label_width(disp, min = 11L)
       cat("\n  Covariates (Pooled Slopes):\n")
-      cat("                 Estimate   [95% CI]        P-Value\n")
+      cat(strrep(" ", 17L + label_w - 11L),
+          "Estimate   [95% CI]        P-Value\n", sep = "")
       for (v in seq_len(D_cov)) {
         est   <- theta[K_distal + v]
         se    <- ses[K_distal + v]
         z_val <- if (se > 0) est / se else NA_real_
         p_val <- if (!is.na(z_val)) 2 * (1 - pnorm(abs(z_val))) else NA_real_
-        cat(sprintf("    %-11s %7.3f  [%6.3f, %6.3f]  %s\n",
-                    var_names[v], est, est - 1.96 * se, est + 1.96 * se,
+        cat(sprintf("    %-*s %7.3f  [%6.3f, %6.3f]  %s\n",
+                    label_w, disp[v], est, est - 1.96 * se, est + 1.96 * se,
                     .fmt_pval(p_val)))
+        slope_rows[[length(slope_rows) + 1L]] <- data.frame(
+          term = var_names[v], estimate = est, se = se, p = p_val,
+          lower = est - 1.96 * se, upper = est + 1.96 * se,
+          stringsAsFactors = FALSE)
       }
+      .cat_label_legend(disp)
     }
+    out$outcome <- list(
+      type       = "continuous",
+      omnibus    = data.frame(chi2 = omni$stat, df = omni$df, p = omni$p),
+      intercepts = .rbind_tidy(int_rows),
+      covariate_effects = .rbind_tidy(slope_rows))
   }
 
   cat("=========================================================\n")
+  invisible(out)
 }
 
 #' Fit a Latent Mixture Model (LCA / LPA)
@@ -894,13 +1251,17 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   model type. Accepted strings: \code{"binary"} / \code{"bernoulli"},
 #'   \code{"categorical"} / \code{"multinoulli"},
 #'   \code{"continuous"} / \code{"gaussian_diag"},
-#'   \code{"gaussian"} / \code{"gaussian_unit"}.
+#'   \code{"gaussian"} / \code{"gaussian_unit"},
+#'   \code{"count"} / \code{"poisson"}.
 #'   Missing values are handled automatically: any indicator column containing
 #'   \code{NA} is estimated with a full-information (FIML) variant that masks the
 #'   missing cells under a missing-at-random assumption, while complete columns
 #'   use the faster complete-data estimator. A single specification (e.g.
 #'   \code{"binary"}) therefore covers both complete and incomplete data, and the
-#'   fitted object reports any missingness it found. The explicit \code{"*_nan"}
+#'   fitted object reports any missingness it found. Cases missing on
+#'   \emph{every} indicator are the exception: they carry no information about
+#'   class membership, so they are deleted before estimation and
+#'   reported by \code{print()} and in \code{$missing_data$n_empty_rows}. The explicit \code{"*_nan"}
 #'   forms (e.g. \code{"binary_nan"}, \code{"continuous_nan"}) remain accepted as
 #'   aliases that force the missing-data variant.
 #'   Pass a named list to specify a mixed (nested) measurement model with
@@ -927,10 +1288,22 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   from largest to smallest after fitting.
 #' @param weights Optional numeric vector of length \code{nrow(X)} for survey
 #'   or case weights. Default is \code{NULL} (equal weights of 1).
+#' @param weight_type Either \code{"sampling"} (default; weights are rescaled to
+#'   sum to the number of cases) or \code{"frequency"} (weights are counts of
+#'   identical cases and set the effective sample size).
 #' @param strata Optional vector of stratum identifiers for complex survey designs.
 #' @param cluster Optional vector of cluster identifiers for complex survey designs.
 #' @param refine Logical. If \code{TRUE} (default), applies L-BFGS refinement
 #'   after EM convergence to optimize the penalized maximum likelihood.
+#' @param se Character. How standard errors for a covariate (class-prediction)
+#'   structural model are computed when \code{n_steps} is \code{2} or \code{3}.
+#'   \code{"corrected"} (default) is the first-order corrected estimator of
+#'   Bakk, Oberski and Vermunt (2014): the step-3 sandwich plus the variance
+#'   propagated from step 1. \code{"robust"} keeps only the sandwich.
+#'   \code{"hessian"} inverts the
+#'   step-3 observed information alone. See \code{\link{covariate_se}} for the
+#'   differences and when they matter. Ignored for other structural models and
+#'   for \code{n_steps = 1}.
 #' @param ... Additional arguments passed to the measurement or structural
 #'   model constructors (e.g., \code{max_val} for multinoulli models).
 #'
@@ -969,15 +1342,20 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #' summary(fit_cov)
 #'
 #' @export
-#' @importFrom stats complete.cases cov dnorm optim pchisq plogis pnorm qlogis qnorm rbinom rnorm runif sd var
+#' @importFrom stats complete.cases cov dnorm dpois optim pchisq plogis pnorm qlogis qnorm rbinom rnorm rpois runif sd var
 #' @importFrom utils setTxtProgressBar txtProgressBar
 fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
                                  measurement = "binary", structural = NULL,
                                  n_steps = 1, correction = "none", n_init = 1,
                                  max_iter = 1000, random_state = NULL,
                                  order_by_size = TRUE, weights = NULL,
+                                 weight_type = c("sampling", "frequency"),
                                  strata = NULL, cluster = NULL,
-                                 refine = TRUE, ...) {
+                                 refine = TRUE,
+                                 se = c("corrected", "robust", "hessian"), ...) {
+
+  weight_type <- match.arg(weight_type)
+  se          <- match.arg(se)
 
   if (is.data.frame(X)) X <- as.matrix(X)
   # Convert Y through prepare_covariates() so that:
@@ -985,6 +1363,46 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   #   - factor / character columns are dummy-coded (first level = reference)
   #   - column names are always preserved for display in summary()
   if (!is.null(Y)) Y <- prepare_covariates(Y)
+
+  # --- Cases with no observed indicator data ----------------------------------
+  # Dropped before anything else is computed, so that the sample size, the
+  # missingness summary, the entropy, and the modal class counts all describe
+  # the cases actually analysed. See .empty_rows() for why these cases distort
+  # those quantities while contributing nothing to the likelihood.
+  empty_rows <- .empty_rows(X)
+  n_input_rows <- nrow(X)
+
+  if (length(empty_rows) > 0L) {
+    if (length(empty_rows) == n_input_rows)
+      stop("Every case is missing on all indicators, so there are no data to ",
+           "fit. This usually means the indicator columns were not read ",
+           "correctly.", call. = FALSE)
+
+    # Row-aligned arguments are length-checked against the input before any
+    # subsetting: a mis-specified vector must still produce its own clear error
+    # rather than being silently truncated to the retained rows.
+    if (!is.null(weights) && length(weights) != n_input_rows)
+      stop(sprintf("`weights` must have one entry per case (expected %d, got %d).",
+                   n_input_rows, length(weights)), call. = FALSE)
+    if (!is.null(strata) && length(strata) != n_input_rows)
+      stop("Length of strata must match rows of X.", call. = FALSE)
+    if (!is.null(cluster) && length(cluster) != n_input_rows)
+      stop("Length of cluster must match rows of X.", call. = FALSE)
+
+    keep <- setdiff(seq_len(n_input_rows), empty_rows)
+    X    <- X[keep, , drop = FALSE]
+    if (!is.null(Y))       Y       <- Y[keep, , drop = FALSE]
+    if (!is.null(weights)) weights <- weights[keep]
+    if (!is.null(strata))  strata  <- strata[keep]
+    if (!is.null(cluster)) cluster <- cluster[keep]
+
+    warning(sprintf(
+      paste0("%d case%s had no observed value on any indicator and %s removed ",
+             "before estimation (n = %d analysed). Rows: %s."),
+      length(empty_rows), if (length(empty_rows) == 1L) "" else "s",
+      if (length(empty_rows) == 1L) "was" else "were", length(keep),
+      .abbreviate_indices(empty_rows)), call. = FALSE)
+  }
 
   n_samples <- nrow(X)
 
@@ -1047,7 +1465,12 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
     handled_by       = if (anyNA(X)) "FIML (MAR assumption)" else NA_character_,
     y_any_missing    = y_any_missing,
     y_n_missing      = y_n_missing,
-    structural_handled_by = struct_handled
+    structural_handled_by = struct_handled,
+    # Cases removed for having no observed indicator at all. Kept separate from
+    # the FIML summary above, which describes only the analysed cases.
+    n_empty_rows     = length(empty_rows),
+    empty_rows       = empty_rows,
+    n_input_rows     = n_input_rows
   )
 
   # Validate binary data when a Bernoulli family is requested.
@@ -1064,14 +1487,35 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
       ))
   }
 
-  if (is.null(weights)) {
-    weights <- rep(1, n_samples)
-  } else {
-    if (length(weights) != n_samples)
-      stop("Length of weights must match rows of X.")
-
-    weights <- (weights / sum(weights, na.rm = TRUE)) * n_samples
+  # Validate count data when a Poisson family is requested. Negative or
+  # fractional values give dpois() a probability of zero for every class, so the
+  # fit would fail with a log-likelihood of -Inf rather than a usable message.
+  if (is.character(measurement) &&
+      measurement %in% c("count", "poisson", "count_nan", "poisson_nan")) {
+    valid_vals <- X[!is.na(X)]
+    bad <- valid_vals[valid_vals < 0 | abs(valid_vals - round(valid_vals)) > 1e-8]
+    if (length(bad) > 0)
+      stop(sprintf(
+        paste0("measurement = '%s' requires non-negative integer counts. ",
+               "Found values outside this set: %s"),
+        measurement,
+        paste(utils::head(sort(unique(bad)), 5), collapse = ", ")
+      ), call. = FALSE)
   }
+
+  # Weights that are whole numbers adding up to far more than the number of rows
+  # are almost always frequency counts, and treating them as sampling weights
+  # would report a sample size of 31 patterns where the study had 631 people.
+  # Say so rather than silently producing a BIC on the wrong scale.
+  if (weight_type == "sampling" && .looks_like_frequencies(weights, n_samples))
+    message("These weights look like frequency counts (whole numbers summing ",
+            "to ", format(sum(weights)), " across ", n_samples, " rows). ",
+            "They are being treated as sampling weights; use ",
+            "weight_type = \"frequency\" if each row stands for that many cases.")
+
+  wt <- .resolve_weights(weights, n_samples, weight_type)
+  weights <- wt$weights
+  n_eff   <- wt$n_eff
 
   # Survey design variables, when supplied, must align with the rows of X.
   # A design is considered present if either strata or cluster is given; the
@@ -1104,6 +1548,8 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
     n_steps               = n_steps,
     correction            = correction,
     sample_weights        = weights,
+    weight_type           = weight_type,
+    n_eff                 = n_eff,
     strata                = if (is.null(strata)) rep(1L, n_samples) else strata,
     cluster               = if (is.null(cluster)) seq_len(n_samples) else cluster,
     has_survey_design     = has_survey_design,
@@ -1121,142 +1567,29 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   )
   class(model_state) <- "mixture_model"
 
-  # Mirror the design onto the structural sub-model so that variance code
-  # running inside m_step methods (which only receive the sub-model) can
-  # reach the strata and cluster vectors. These are kept row-aligned with the
-  # data the sub-model is fit on by any caller that subsets rows.
-  if (!is.null(model_state$sm)) {
-    model_state$sm$strata            <- model_state$strata
-    model_state$sm$cluster           <- model_state$cluster
-    model_state$sm$has_survey_design <- has_survey_design
-  }
+  # Mirror the survey design onto the structural sub-model (see
+  # .mirror_design_onto_sm in R/stepwise.R).
+  model_state <- .mirror_design_onto_sm(model_state)
 
   if (n_steps == 1) {
     model_state <- fit_em(model_state, X, Y, n_init, max_iter, random_state,
                           refine = refine)
 
-  } else if (n_steps == 2) {
-    model_state <- fit_em(model_state, X, NULL, n_init, max_iter, random_state,
-                          refine = refine)
-    if (!is.null(Y) && !is.null(model_state$sm)) {
-      resp <- exp(model_state$log_resp)
-      model_state$sm <- init_params(model_state$sm, Y, resp)
-      model_state$sm <- m_step(model_state$sm, Y, resp)
-    }
-
-  } else if (n_steps == 3) {
+  } else {
     model_state <- fit_em(model_state, X, NULL, n_init, max_iter, random_state,
                           refine = refine)
 
     # Step 1 metrics (measurement model only)
-    n_params_s1  <- n_parameters(model_state$mm) + (model_state$n_components - 1)
-    ll_s1        <- sum(model_state$sample_weights * model_state$lower_bound)
-    resp_s1      <- exp(model_state$log_resp)
-    abs_ent_s1   <- sum(model_state$sample_weights *
-                          (-resp_s1 * log(resp_s1 + 1e-15)))
-    # Use relative_entropy() to handle the K=1 edge case cleanly.
-    rel_ent_s1   <- relative_entropy(abs_ent_s1,
-                                     sum(model_state$sample_weights),
-                                     model_state$n_components)
+    if (n_steps == 3)
+      model_state$step1_metrics <- .step1_metrics(model_state)
 
-    model_state$step1_metrics <- list(
-      ll       = ll_s1,
-      n_params = n_params_s1,
-      aic      = -2 * ll_s1 + 2 * n_params_s1,
-      bic      = -2 * ll_s1 + log(n_samples) * n_params_s1,
-      sabic    = -2 * ll_s1 + log((n_samples + 2) / 24) * n_params_s1,
-      entropy  = rel_ent_s1
-    )
-
-    if (!is.null(Y) && !is.null(model_state$sm)) {
-      if (correction == "ML") {
-        model_state <- fit_ml(model_state, X, Y, max_iter = max_iter)
-      } else if (correction == "BCH") {
-        model_state <- fit_bch(model_state, X, Y)
-      } else {
-        # correction = "none": plain 2-step update on the structural model.
-        # The measurement model is already frozen at this point; the SM is fit on the
-        # posterior responsibilities from step 1 without any bias correction.
-        resp <- exp(model_state$log_resp)
-        model_state$sm <- init_params(model_state$sm, Y, resp)
-        model_state$sm <- m_step(model_state$sm, Y, resp)
-      }
-    }
+    model_state <- .apply_structural_steps(model_state, X, Y, n_steps,
+                                           correction, max_iter, se)
   }
 
-  if (order_by_size) model_state <- sort_model_classes(model_state)
-
-  # Attach column names.
-  # Guard: only assign colnames to pis when dimensions match (Bernoulli: J cols;
-  # Multinoulli: J*M cols - colnames(X) has length J so would misfire there).
-  if (!is.null(colnames(X)) && !is.null(model_state$mm$parameters$pis) &&
-      ncol(model_state$mm$parameters$pis) == ncol(X))
-    colnames(model_state$mm$parameters$pis) <- colnames(X)
-
-  # Attach column names to betas for distal_continuous_regression.
-  if (!is.null(Y) && !is.null(model_state$sm) &&
-      inherits(model_state$sm, "distal_continuous_regression") &&
-      !is.null(model_state$sm$parameters$betas)) {
-    K_br    <- model_state$n_components
-    y_names <- if (!is.null(colnames(Y))) colnames(Y) else
-      paste0("V", seq_len(ncol(Y)))
-    cov_names_br <- if (ncol(Y) > 1L) y_names[-1L] else character(0L)
-    br_names     <- c("Intercept", cov_names_br)
-    if (length(br_names) == ncol(model_state$sm$parameters$betas))
-      colnames(model_state$sm$parameters$betas) <- br_names
-  }
-
-  # Attach column names to beta_pooled for distal_continuous_pooled so that
-  # summary() displays real variable names instead of Z1, Z2, etc.
-  if (!is.null(Y) && !is.null(model_state$sm) &&
-      inherits(model_state$sm, "distal_continuous_pooled") &&
-      !is.null(model_state$sm$parameters$beta_pooled)) {
-    K_bp    <- model_state$n_components
-    y_names <- if (!is.null(colnames(Y))) colnames(Y) else
-      paste0("V", seq_len(ncol(Y)))
-    # First column of Y is the outcome; remaining are covariates
-    cov_names_bp <- if (ncol(Y) > 1L) y_names[-1L] else character(0L)
-    bp_names     <- c(paste0("Class_", seq_len(K_bp)), cov_names_bp)
-    if (length(bp_names) == ncol(model_state$sm$parameters$beta_pooled))
-      colnames(model_state$sm$parameters$beta_pooled) <- bp_names
-  }
-
-  # Attach covariate names to beta only when the SM has been initialised.
-  # Guards against NULL beta on paths where the SM was not fit.
-  if (!is.null(Y) && !is.null(model_state$sm) &&
-      inherits(model_state$sm, "covariate") &&
-      !is.null(model_state$sm$parameters$beta)) {
-    intercept_flag <- isTRUE(model_state$sm$intercept)
-    expected_D     <- ncol(model_state$sm$parameters$beta)
-
-    y_col_names <- if (!is.null(colnames(Y))) colnames(Y)
-    else paste0("V", seq_len(ncol(Y)))
-    cov_names   <- if (intercept_flag) c("Intercept", y_col_names)
-    else y_col_names
-    if (!is.null(cov_names) && !is.null(expected_D) &&
-        length(cov_names) == expected_D)
-      colnames(model_state$sm$parameters$beta) <- cov_names
-  }
-
-  # Final metrics
-  n_params <- n_parameters(model_state$mm) + (model_state$n_components - 1)
-  if (!is.null(model_state$sm)) n_params <- n_params + n_parameters(model_state$sm)
-  ll       <- sum(model_state$sample_weights * model_state$lower_bound)
-  resp     <- exp(model_state$log_resp)
-  abs_ent  <- sum(model_state$sample_weights * (-resp * log(resp + 1e-15)))
-  # Use relative_entropy() to handle the K=1 edge case cleanly.
-  ent      <- relative_entropy(abs_ent,
-                               sum(model_state$sample_weights),
-                               model_state$n_components)
-
-  model_state$metrics <- list(
-    ll       = ll,
-    n_params = n_params,
-    aic      = -2 * ll + 2 * n_params,
-    bic      = -2 * ll + log(n_samples) * n_params,
-    sabic    = -2 * ll + log((n_samples + 2) / 24) * n_params,
-    entropy  = ent
-  )
+  # Class sorting, display names, and combined-model metrics (see
+  # .finalize_model_state in R/stepwise.R).
+  model_state <- .finalize_model_state(model_state, X, Y, order_by_size)
 
   return(model_state)
 }
@@ -1277,7 +1610,9 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   gaussian_diag = "gaussian_diag_nan",
   continuous    = "continuous_nan",
   gaussian_unit = "gaussian_unit_nan",
-  gaussian      = "gaussian_nan"
+  gaussian      = "gaussian_nan",
+  poisson       = "poisson_nan",
+  count         = "count_nan"
 )
 
 # Resolve a measurement descriptor against its data so the estimator matches the
@@ -1462,10 +1797,15 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #' @param n_classes Number of latent classes/profiles to estimate.
 #' @param measurement Either a single type string applied to every indicator
 #'   (\code{"binary"}, \code{"categorical"}, \code{"continuous"},
-#'   \code{"gaussian"}, and \code{"_nan"} missing-data variants), or, for a
-#'   mixed-type model, a named list mapping each type to the indicator columns
-#'   it governs by name or index, e.g.
+#'   \code{"gaussian"}, \code{"count"}, and \code{"_nan"} missing-data
+#'   variants), or, for a mixed-type model, a named list mapping each type to
+#'   the indicator columns it governs by name or index, e.g.
 #'   \code{list(binary = c("q1","q2"), continuous = "score")}.
+#'
+#'   \code{"count"} fits a Poisson measurement model: each item is
+#'   Poisson-distributed within class with its own rate, reported by
+#'   \code{\link{measurement_summary}} as a rate (lambda) per item and class.
+#'   It requires non-negative integer indicators.
 #' @param predictors Optional covariates that predict latent class membership.
 #'   Supplying this fits a class-membership regression (the "predict class"
 #'   structural model). Mutually exclusive with \code{outcome}.
@@ -1479,6 +1819,45 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #' @param slopes When \code{outcome_covariates} are supplied, whether their
 #'   effect is \code{"pooled"} (one slope shared across classes) or
 #'   \code{"class_specific"} (a separate slope per class).
+#' @param group Optional observed grouping variable for a multiple-group
+#'   model (Collins & Lanza, 2010, sec. 5.7-5.12), e.g. grade or gender.
+#'   Unlike \code{predictors}, which only ever shifts class membership, a
+#'   group can also be allowed to shift the item-response probabilities
+#'   themselves; see \code{group_effects}.
+#' @param group_effects Which parameters \code{group} is allowed to shift.
+#'   \code{"both"} (default) frees both the item-response probabilities and
+#'   the class prevalences across groups, i.e. fits each group's own
+#'   model. \code{"measurement"} frees only the item-response probabilities
+#'   (prevalences stay pooled). \code{"prevalence"} frees only the class
+#'   prevalences, by entering \code{group} as a class-membership covariate
+#'   exactly like \code{predictors} (item-response probabilities stay
+#'   invariant across groups) — this is the same equivalence
+#'   [`fit_rmlca()`] documents for its own \code{predictors}, sec. 6.10.2.
+#'   \code{"none"} ignores \code{group} for estimation. Fit the same data
+#'   under two of these and compare them with [`longitudinal_lrt()`] to get
+#'   Collins & Lanza's measurement-invariance test (sec. 5.8, comparing
+#'   \code{"both"} against \code{"prevalence"}) and prevalence-equivalence
+#'   test (sec. 5.11, comparing \code{"prevalence"} against \code{"none"}).
+#'   Because a multiple-group model like Collins & Lanza's is fit as one
+#'   simultaneous model rather than through the auxiliary-variable 3-step
+#'   approximation, pass \code{n_steps = 1} explicitly to reproduce their
+#'   numbers exactly.
+#'
+#'   With \code{"both"} or \code{"measurement"}, each group's item-response
+#'   probabilities are estimated from that group's cases alone, tied to the
+#'   other groups only by shared initialization — unlike occasions in
+#'   [`fit_rmlca()`], which every case informs simultaneously. A likelihood-
+#'   ratio comparison via [`longitudinal_lrt()`] is unaffected (it only
+#'   compares total log-likelihoods), but the *class labels* a configural fit
+#'   assigns are not guaranteed to line up across groups: "Class 1" in one
+#'   group's profile need not be the same kind of class as "Class 1" in
+#'   another's. Use a larger \code{n_init} and a fixed \code{random_state}
+#'   for configural fits, and when reading per-group profiles, match classes
+#'   by their item-response pattern rather than by position.
+#' @param group_invariant_items Item indices or names held equal across
+#'   groups even when \code{group_effects} frees the measurement model
+#'   (Collins & Lanza's partial-invariance models, sec. 5.9). \code{NULL}
+#'   (the default) leaves every item free, i.e. a fully configural model.
 #' @param n_steps Estimation strategy: 1 (simultaneous), 2, or 3 (recommended
 #'   when a structural model is present). Defaults to 3 when \code{predictors}
 #'   or \code{outcome} is supplied and left unset, otherwise 1.
@@ -1489,9 +1868,23 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #' @param weights,strata,cluster Optional survey design: sampling
 #'   \code{weights}, and \code{strata}/\code{cluster} identifiers enabling
 #'   design-based (linearization) standard errors.
+#' @param weight_type What the numbers in \code{weights} mean.
+#'   \code{"sampling"} (the default) treats them as survey or probability
+#'   weights, saying how much of the population each case represents; only their
+#'   relative sizes matter, so they are rescaled to sum to the number of cases.
+#'   \code{"frequency"} treats them as counts of identical cases, as in a
+#'   response-pattern table where one row stands for many respondents; the
+#'   sample size behind AIC and BIC is then the sum of the counts. Getting this
+#'   wrong changes BIC but not the parameter estimates.
 #' @param n_init,max_iter,random_state,order_by_size,refine Estimation
 #'   controls: number of random starts, maximum EM iterations, RNG seed,
 #'   whether to order classes by size, and whether to run L-BFGS refinement.
+#' @param se How standard errors for \code{predictors} are computed in a 2- or
+#'   3-step model. \code{"corrected"} (the default) adds the variance carried
+#'   over from step 1 to the step-3 sandwich, following Bakk, Oberski and
+#'   Vermunt (2014); \code{"robust"} reports the sandwich alone;
+#'   \code{"hessian"} inverts the step-3 observed
+#'   information only. See \code{\link{covariate_se}}.
 #' @param X,Y,n_components,structural Deprecated legacy arguments retained for
 #'   backward compatibility; prefer \code{indicators}, \code{n_classes},
 #'   \code{predictors}, and \code{outcome}.
@@ -1526,6 +1919,9 @@ fit_mixture <- function(indicators = NULL,
                         outcome_covariates = NULL,
                         outcome_type = c("auto", "continuous", "categorical"),
                         slopes = c("pooled", "class_specific"),
+                        group = NULL,
+                        group_effects = c("both", "measurement", "prevalence", "none"),
+                        group_invariant_items = NULL,
                         n_steps = 1,
                         correction = "none",
                         n_init = 1,
@@ -1533,16 +1929,21 @@ fit_mixture <- function(indicators = NULL,
                         random_state = NULL,
                         order_by_size = TRUE,
                         weights = NULL,
+                        weight_type = c("sampling", "frequency"),
                         strata = NULL,
                         cluster = NULL,
                         refine = TRUE,
+                        se = c("corrected", "robust", "hessian"),
                         X = NULL, Y = NULL, n_components = NULL, structural = NULL,
                         ...) {
 
-  outcome_type <- match.arg(outcome_type)
-  slopes       <- match.arg(slopes)
-  steps_set    <- !missing(n_steps)
-  corr_set     <- !missing(correction)
+  se            <- match.arg(se)
+  outcome_type  <- match.arg(outcome_type)
+  slopes        <- match.arg(slopes)
+  group_effects <- match.arg(group_effects)
+  weight_type   <- match.arg(weight_type)
+  steps_set     <- !missing(n_steps)
+  corr_set      <- !missing(correction)
 
   # Capture the unevaluated expressions the user supplied so that a single
   # covariate passed as a bare vector (e.g. data$age or data[, "age"]) can be
@@ -1566,7 +1967,8 @@ fit_mixture <- function(indicators = NULL,
       n_steps = n_steps, correction = correction, n_init = n_init,
       max_iter = max_iter, random_state = random_state,
       order_by_size = order_by_size, weights = weights,
-      strata = strata, cluster = cluster, refine = refine, ...))
+      weight_type = weight_type,
+      strata = strata, cluster = cluster, refine = refine, se = se, ...))
   }
 
   if (is.null(indicators))
@@ -1575,14 +1977,55 @@ fit_mixture <- function(indicators = NULL,
 
   if (!is.null(predictors) && !is.null(outcome))
     stop("Specify either `predictors` (to model class membership) or ",
-         "`outcome` (a distal outcome), not both in one model.", call. = FALSE)
+         "`outcome` (a distal outcome), not both in one model. To run both ",
+         "analyses from one solution, fit the unconditional model and use ",
+         "add_covariates() and add_outcome() on it.", call. = FALSE)
   if (!is.null(outcome_covariates) && is.null(outcome))
     stop("`outcome_covariates` requires an `outcome`.", call. = FALSE)
+  if (!is.null(group) && group_effects %in% c("both", "prevalence") &&
+      !is.null(outcome))
+    stop("`group` with a prevalence effect (`group_effects = \"both\"` or ",
+         '"prevalence") uses the same structural-model slot as `outcome`; ',
+         "combine `group` with `predictors` instead, or set `group_effects` ",
+         'to "measurement" or "none".', call. = FALSE)
 
   # --- Measurement model (single-type or mixed) -------------------------------
   mm                 <- .normalize_measurement(measurement, indicators)
   X_use              <- mm$indicators
   measurement_engine <- mm$descriptor
+
+  # --- Grouping variable: measurement effect (multiple-group model) ----------
+  # Reuses the time-blocks trick across a group axis instead of a time axis
+  # (R/group_blocks.R): each group gets its own copy of the item block, and a
+  # case's other-group blocks are structurally missing, which FIML already
+  # handles correctly. The prevalence effect is handled below, alongside
+  # `predictors`, since both use the same class-membership regression.
+  group_info       <- NULL
+  group_extra_args <- list()
+  if (!is.null(group)) {
+    group_info <- .lta_group_design(group, nrow(X_use))
+
+    if (group_effects %in% c("both", "measurement")) {
+      item_names <- colnames(X_use) %||% paste0("Item", seq_len(ncol(X_use)))
+      grp_spec <- .resolve_invariance(
+        if (is.null(group_invariant_items)) "none" else "partial",
+        group_invariant_items, item_names, measurement)
+      n_groups <- nlevels(group_info$factor)
+      X_grp  <- .pad_group_blocks(X_use, group_info$factor)
+      engine <- .longitudinal_measurement_spec(measurement, X_grp,
+                                               n_items = ncol(X_use),
+                                               n_times = n_groups)
+      X_use              <- X_grp
+      measurement_engine <- "group_blocks"
+      group_extra_args <- list(
+        n_items         = length(item_names),
+        n_groups        = n_groups,
+        sub_model       = engine$sub_model,
+        invariant_items = grp_spec$invariant_items,
+        max_val         = engine$max_val
+      )
+    }
+  }
 
   # --- Structural model -------------------------------------------------------
   structural_engine <- NULL
@@ -1594,38 +2037,23 @@ fit_mixture <- function(indicators = NULL,
       .as_named_covariates(predictors, predictors_expr, "predictor"))
 
   } else if (!is.null(outcome)) {
-    otype <- .resolve_outcome_type(outcome, outcome_type)
-    if (outcome_type == "auto")
-      message(sprintf("Outcome treated as %s (set `outcome_type` to override).",
-                      otype))
+    outcome_spec      <- .build_outcome_spec(outcome, outcome_covariates,
+                                             outcome_type, slopes,
+                                             outcome_cov_expr)
+    structural_engine <- outcome_spec$engine
+    Y_use             <- outcome_spec$Y
+  }
 
-    has_cov <- !is.null(outcome_covariates)
-    structural_engine <- if (otype == "continuous") {
-      if (!has_cov)                  "continuous_outcome"
-      else if (slopes == "pooled")   "continuous_outcome_adjusted"
-      else                           "continuous_outcome_moderated"
-    } else {
-      if (!has_cov)                  "categorical_outcome"
-      else if (slopes == "pooled")   "categorical_outcome_adjusted"
-      else                           "categorical_outcome_moderated"
-    }
-
-    # Column 1 is always the outcome; covariates follow. The outcome is coerced
-    # to a plain numeric column (categorical outcomes to 1-indexed integer
-    # codes) so it is never dummy-coded as though it were a covariate.
-    if (otype == "categorical") {
-      out_col <- as.integer(as.factor(outcome))
-    } else {
-      out_col <- suppressWarnings(as.numeric(outcome))
-      if (anyNA(out_col) && !anyNA(outcome))
-        stop("A continuous `outcome` must be numeric.", call. = FALSE)
-    }
-    out_mat <- matrix(out_col, ncol = 1L,
-                      dimnames = list(NULL, .outcome_label(outcome)))
-
-    Y_use <- if (has_cov) cbind(out_mat, prepare_covariates(
-      .as_named_covariates(outcome_covariates, outcome_cov_expr, "covariate")))
-    else out_mat
+  # --- Grouping variable: prevalence effect -----------------------------------
+  # Enters `group` as a class-membership covariate, exactly like `predictors`
+  # (and combined with it, if both are given): each group gets its own free
+  # prevalences while the measurement model above is whatever the
+  # `group_effects` "measurement" branch left it (pooled, unless that branch
+  # also ran).
+  if (!is.null(group) && group_effects %in% c("both", "prevalence")) {
+    structural_engine <- "predict_class"
+    Y_use <- if (is.null(Y_use)) group_info$design
+             else .cbind_covariates(Y_use, group_info$design)
   }
 
   # --- Friendly defaults when a structural model is present -------------------
@@ -1641,13 +2069,40 @@ fit_mixture <- function(indicators = NULL,
                     correction))
   }
 
-  fit_mixture_internal(
+  dots <- if (length(group_extra_args)) utils::modifyList(list(...), group_extra_args)
+          else list(...)
+
+  fit <- do.call(fit_mixture_internal, c(list(
     X = X_use, Y = Y_use, n_components = n_classes,
     measurement = measurement_engine, structural = structural_engine,
     n_steps = n_steps, correction = correction, n_init = n_init,
     max_iter = max_iter, random_state = random_state,
     order_by_size = order_by_size, weights = weights,
-    strata = strata, cluster = cluster, refine = refine, ...)
+    weight_type = weight_type,
+    strata = strata, cluster = cluster, refine = refine, se = se), dots))
+
+  if (!is.null(group)) {
+    fit$group_info    <- group_info
+    fit$group_effects <- group_effects
+  }
+
+  # Non-convergence used to be near-impossible to hit and was reported only by
+  # print(), which a user working from summary() or the coefficients never sees.
+  # It became reachable when the emissions L-BFGS does not polish were given a
+  # stopping rule tight enough to be trusted: those models genuinely need
+  # hundreds of iterations, and the default cap is 1000. Silently returning the
+  # iterate EM happened to be on at the cap is the one outcome worth
+  # interrupting for, so say it here rather than leaving it to be noticed.
+  if (isFALSE(fit$converged))
+    warning(sprintf(
+      paste0("EM did not converge within max_iter = %d iterations. The ",
+             "estimates are wherever the algorithm had reached, which need ",
+             "not be a maximum. Refit with a larger `max_iter`; if that does ",
+             "not help, the model is probably weakly identified at this ",
+             "number of classes."),
+      max_iter), call. = FALSE)
+
+  fit
 }
 
 #' Print a Brief Summary of a Fitted Mixture Model
@@ -1682,6 +2137,12 @@ print.mixture_model <- function(x, ...) {
   cat(sprintf("Estimation Method  : %d-step\n", x$n_steps))
   if (x$n_steps == 3) cat(sprintf("Correction Method  : %s\n", x$correction))
   cat(sprintf("Converged          : %s (in %d iterations)\n", x$converged, x$n_iter))
+  # Deleted cases are reported on their own line, ahead of the FIML summary, so
+  # the printed sample size can always be reconciled with the input data.
+  if (isTRUE(x$missing_data$n_empty_rows > 0L))
+    cat(sprintf("Cases Removed      : %d of %d with no observed indicator (n = %d analysed)\n",
+                x$missing_data$n_empty_rows, x$missing_data$n_input_rows,
+                x$missing_data$n_input_rows - x$missing_data$n_empty_rows))
   if (!is.null(x$missing_data) && isTRUE(x$missing_data$any_missing)) {
     md <- x$missing_data
     cat(sprintf("Missing Data       : %d / %d cells (%.1f%%) in %d item%s \u2014 %s\n",
@@ -1689,6 +2150,9 @@ print.mixture_model <- function(x, ...) {
                 md$n_items_affected, if (md$n_items_affected == 1L) "" else "s",
                 md$handled_by))
   }
+  if (identical(x$weight_type, "frequency"))
+    cat(sprintf("Case Weights       : frequency counts (%s cases in %d rows)\n",
+                format(x$n_eff), length(x$sample_weights)))
   cat("---------------------------------------------------------\n")
   if (!is.null(x$step1_metrics)) {
     cat(sprintf("  Log-Likelihood (Step 1) : %.2f\n", x$step1_metrics$ll))

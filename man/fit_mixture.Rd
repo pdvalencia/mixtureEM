@@ -13,6 +13,9 @@ fit_mixture(
   outcome_covariates = NULL,
   outcome_type = c("auto", "continuous", "categorical"),
   slopes = c("pooled", "class_specific"),
+  group = NULL,
+  group_effects = c("both", "measurement", "prevalence", "none"),
+  group_invariant_items = NULL,
   n_steps = 1,
   correction = "none",
   n_init = 1,
@@ -20,9 +23,11 @@ fit_mixture(
   random_state = NULL,
   order_by_size = TRUE,
   weights = NULL,
+  weight_type = c("sampling", "frequency"),
   strata = NULL,
   cluster = NULL,
   refine = TRUE,
+  se = c("corrected", "robust", "hessian"),
   X = NULL,
   Y = NULL,
   n_components = NULL,
@@ -38,10 +43,15 @@ latent classes (rows are observations, columns are items).}
 
 \item{measurement}{Either a single type string applied to every indicator
 (\code{"binary"}, \code{"categorical"}, \code{"continuous"},
-\code{"gaussian"}, and \code{"_nan"} missing-data variants), or, for a
-mixed-type model, a named list mapping each type to the indicator columns
-it governs by name or index, e.g.
-\code{list(binary = c("q1","q2"), continuous = "score")}.}
+\code{"gaussian"}, \code{"count"}, and \code{"_nan"} missing-data
+variants), or, for a mixed-type model, a named list mapping each type to
+the indicator columns it governs by name or index, e.g.
+\code{list(binary = c("q1","q2"), continuous = "score")}.
+
+\code{"count"} fits a Poisson measurement model: each item is
+Poisson-distributed within class with its own rate, reported by
+\code{\link{measurement_summary}} as a rate (lambda) per item and class.
+It requires non-negative integer indicators.}
 
 \item{predictors}{Optional covariates that predict latent class membership.
 Supplying this fits a class-membership regression (the "predict class"
@@ -61,6 +71,48 @@ from \code{outcome}.}
 effect is \code{"pooled"} (one slope shared across classes) or
 \code{"class_specific"} (a separate slope per class).}
 
+\item{group}{Optional observed grouping variable for a multiple-group
+model (Collins & Lanza, 2010, sec. 5.7-5.12), e.g. grade or gender.
+Unlike \code{predictors}, which only ever shifts class membership, a
+group can also be allowed to shift the item-response probabilities
+themselves; see \code{group_effects}.}
+
+\item{group_effects}{Which parameters \code{group} is allowed to shift.
+\code{"both"} (default) frees both the item-response probabilities and
+the class prevalences across groups, i.e. fits each group's own
+model. \code{"measurement"} frees only the item-response probabilities
+(prevalences stay pooled). \code{"prevalence"} frees only the class
+prevalences, by entering \code{group} as a class-membership covariate
+exactly like \code{predictors} (item-response probabilities stay
+invariant across groups) — this is the same equivalence
+\code{\link[=fit_rmlca]{fit_rmlca()}} documents for its own \code{predictors}, sec. 6.10.2.
+\code{"none"} ignores \code{group} for estimation. Fit the same data
+under two of these and compare them with \code{\link[=longitudinal_lrt]{longitudinal_lrt()}} to get
+Collins & Lanza's measurement-invariance test (sec. 5.8, comparing
+\code{"both"} against \code{"prevalence"}) and prevalence-equivalence
+test (sec. 5.11, comparing \code{"prevalence"} against \code{"none"}).
+Because a multiple-group model like Collins & Lanza's is fit as one
+simultaneous model rather than through the auxiliary-variable 3-step
+approximation, pass \code{n_steps = 1} explicitly to reproduce their
+numbers exactly.
+
+With \code{"both"} or \code{"measurement"}, each group's item-response
+probabilities are estimated from that group's cases alone, tied to the
+other groups only by shared initialization — unlike occasions in
+\code{\link[=fit_rmlca]{fit_rmlca()}}, which every case informs simultaneously. A likelihood-
+ratio comparison via \code{\link[=longitudinal_lrt]{longitudinal_lrt()}} is unaffected (it only
+compares total log-likelihoods), but the \emph{class labels} a configural fit
+assigns are not guaranteed to line up across groups: "Class 1" in one
+group's profile need not be the same kind of class as "Class 1" in
+another's. Use a larger \code{n_init} and a fixed \code{random_state}
+for configural fits, and when reading per-group profiles, match classes
+by their item-response pattern rather than by position.}
+
+\item{group_invariant_items}{Item indices or names held equal across
+groups even when \code{group_effects} frees the measurement model
+(Collins & Lanza's partial-invariance models, sec. 5.9). \code{NULL}
+(the default) leaves every item free, i.e. a fully configural model.}
+
 \item{n_steps}{Estimation strategy: 1 (simultaneous), 2, or 3 (recommended
 when a structural model is present). Defaults to 3 when \code{predictors}
 or \code{outcome} is supplied and left unset, otherwise 1.}
@@ -77,6 +129,22 @@ whether to order classes by size, and whether to run L-BFGS refinement.}
 \item{weights, strata, cluster}{Optional survey design: sampling
 \code{weights}, and \code{strata}/\code{cluster} identifiers enabling
 design-based (linearization) standard errors.}
+
+\item{weight_type}{What the numbers in \code{weights} mean.
+\code{"sampling"} (the default) treats them as survey or probability
+weights, saying how much of the population each case represents; only their
+relative sizes matter, so they are rescaled to sum to the number of cases.
+\code{"frequency"} treats them as counts of identical cases, as in a
+response-pattern table where one row stands for many respondents; the
+sample size behind AIC and BIC is then the sum of the counts. Getting this
+wrong changes BIC but not the parameter estimates.}
+
+\item{se}{How standard errors for \code{predictors} are computed in a 2- or
+3-step model. \code{"corrected"} (the default) adds the variance carried
+over from step 1 to the step-3 sandwich, following Bakk, Oberski and
+Vermunt (2014); \code{"robust"} reports the sandwich alone;
+\code{"hessian"} inverts the step-3 observed
+information only. See \code{\link{covariate_se}}.}
 
 \item{X, Y, n_components, structural}{Deprecated legacy arguments retained for
 backward compatibility; prefer \code{indicators}, \code{n_classes},
