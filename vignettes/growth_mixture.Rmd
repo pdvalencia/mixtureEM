@@ -1,0 +1,147 @@
+---
+title: "Trajectory Classes: LCGA and Growth Mixture Models"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Trajectory Classes: LCGA and Growth Mixture Models}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+```{r setup}
+library(mixtureEM)
+```
+
+When a continuous outcome is measured repeatedly, two related models
+classify its *trajectories*:
+
+* **Latent class growth analysis (LCGA)** — each class follows its own
+  polynomial curve, and every case in a class sits on that curve up to
+  occasion-level noise (Nagin, 2005). No within-class variation in the
+  growth factors.
+* **Growth mixture models (GMM)** — the same class-specific curves, but
+  cases also vary *around* their class's curve through random intercepts
+  and slopes (Muthén & Shedden, 1999). LCGA is the special case with the
+  random-effect variances fixed at zero.
+
+The practical difference: LCGA tends to need *more* classes to absorb the
+within-class heterogeneity it cannot model, while a GMM can describe the
+same data with fewer, broader classes.
+
+## Simulated example: five-wave symptom scores
+
+We simulate 700 cases in two known trajectory classes — a stable-low class
+and a declining class — with genuine within-class variation in both
+intercept and slope, i.e. GMM-type data:
+
+```{r simulate}
+set.seed(2026)
+n     <- 700
+cls   <- rbinom(n, 1, 0.4)                       # 1 = Declining (40%)
+icept <- ifelse(cls == 1, 6.0, 2.0) + rnorm(n, 0, 0.9)
+slope <- ifelse(cls == 1, -0.7, 0.05) + rnorm(n, 0, 0.25)
+waves <- 0:4
+Y <- outer(icept, rep(1, 5)) + outer(slope, waves) +
+  matrix(rnorm(n * 5, 0, 0.8), n, 5)
+colnames(Y) <- paste0("score_t", 1:5)
+```
+
+## LCGA first
+
+An LCGA with a linear curve per class:
+
+```{r lcga}
+fit_lcga2 <- fit_lcga(Y, times = 5, n_classes = 2, family = "gaussian",
+                      degree = 1, n_init = 15, random_state = 5)
+fit_lcga2
+```
+
+## The GMM
+
+`fit_gmm()` adds random intercepts and slopes (the default,
+`random_effects = "intercept_slope"`):
+
+```{r gmm, cache = TRUE}
+fit_gmm2 <- fit_gmm(Y, times = 5, n_classes = 2, n_init = 15,
+                    random_state = 5)
+fit_gmm2
+```
+
+Because LCGA is nested in the GMM, the information criteria say directly
+whether the random effects are earning their parameters — here they are,
+by a wide margin, as simulated:
+
+```{r compare}
+data.frame(
+  model = c("LCGA (2 classes)", "GMM (2 classes)"),
+  ll    = c(fit_lcga2$metrics$ll, fit_gmm2$metrics$ll),
+  bic   = c(fit_lcga2$metrics$bic, fit_gmm2$metrics$bic)
+)
+```
+
+`plot()` overlays the observed class means on the estimated curves — the
+check that a class describes a real subgroup rather than an artifact of
+splitting one cloud in half:
+
+```{r plot}
+plot(fit_gmm2, class_labels = c("Stable low", "Declining"))
+```
+
+## Covariates, two different questions
+
+Two kinds of covariate enter a growth mixture model, and they answer
+different questions:
+
+* **Who is in which class?** — class-membership predictors, through the
+  usual stepwise workflow:
+
+```{r membership}
+x_member <- rnorm(n, mean = 0.7 * cls)
+fit_cov  <- add_covariates(fit_gmm2, x_member)
+results  <- summary(fit_cov)
+```
+
+* **Who, within a class, starts higher or declines faster?** — covariates
+  on the growth factors themselves, which are part of the measurement
+  model and therefore supplied to `fit_gmm()` directly:
+
+```{r growth-predictors, cache = TRUE}
+x_growth <- rnorm(n)
+fit_gp   <- fit_gmm(Y, times = 5, n_classes = 2,
+                    growth_predictors = x_growth,
+                    n_init = 15, random_state = 5)
+print(fit_gp)
+```
+
+## Practical cautions
+
+* A GMM whose data cannot support its covariance structure does not fail
+  loudly — it drives a variance to the boundary. mixtureEM warns when a
+  solution sits on the boundary; treat that as a sign to simplify
+  (`psi = "equal"`, `random_effects = "intercept"`, or LCGA).
+* Class enumeration is harder than in cross-sectional LCA: BIC, the
+  plotted trajectories against observed means, and substantive
+  interpretability should all agree before a solution is reported
+  (Nylund, Asparouhov, & Muthén, 2007).
+
+## References
+
+Muthén, B., & Shedden, K. (1999). Finite mixture modeling with mixture
+outcomes using the EM algorithm. *Biometrics*, *55*(2), 463–469.
+<https://doi.org/10.1111/j.0006-341X.1999.00463.x>
+
+Nagin, D. S. (2005). *Group-based modeling of development*. Harvard
+University Press.
+
+Nylund, K. L., Asparouhov, T., & Muthén, B. O. (2007). Deciding on the
+number of classes in latent class analysis and growth mixture modeling: A
+Monte Carlo simulation study. *Structural Equation Modeling*, *14*(4),
+535–569. <https://doi.org/10.1080/10705510701575396>

@@ -1,0 +1,110 @@
+---
+title: "LCA with Complex Survey Data"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{LCA with Complex Survey Data}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+```{r setup}
+library(mixtureEM)
+```
+
+Large public-health and education surveys are almost never simple random
+samples: cases carry *sampling weights* (they stand for different numbers
+of people), and they arrive in *strata* and *clusters* (schools, PSUs)
+whose members resemble each other. Ignoring the weights biases the
+estimates; ignoring the design makes the standard errors too small.
+mixtureEM handles both through the `weights`, `strata`, and `cluster`
+arguments, available in every model.
+
+## The data: 12 health-risk behaviors, YRBS 2005
+
+The bundled `yrbs2005` dataset holds twelve dichotomous risk-behavior
+items for 13,917 U.S. high-school students from the CDC's 2005 Youth Risk
+Behavior Survey, together with the survey's weight, PSU, and stratum
+variables (`?yrbs2005`). Collins and Lanza (2010, ch. 2 and 4) built
+their textbook LCA illustration on these items; we follow their five-class
+solution.
+
+```{r data}
+data(yrbs2005)
+items <- yrbs2005[, 3:14]
+names(items)
+```
+
+The items contain missing responses; mixtureEM switches affected
+indicators to a full-information (FIML) estimator automatically, and a
+handful of cases missing on *every* item are dropped with a warning.
+
+## A design-based five-class LCA
+
+```{r fit, cache = TRUE}
+set.seed(1)
+fit <- suppressWarnings(
+  fit_mixture(items, n_classes = 5, measurement = "binary",
+              weights = yrbs2005$weight,
+              strata  = yrbs2005$stratum,
+              cluster = yrbs2005$psu,
+              n_init = 20, max_iter = 2000)
+)
+fit
+class_sizes(fit)
+```
+
+The five classes reproduce the familiar YRBS typology — a large low-risk
+class, substance-experimentation classes, and a small high-everything
+class:
+
+```{r plot, fig.height = 5.5}
+plot(fit, main = "Health-risk behavior classes (YRBS 2005)")
+```
+
+```{r params}
+params <- measurement_summary(fit)
+```
+
+## Predictors under the survey design
+
+The stored design travels with the fitted model, so the stepwise
+covariate analysis is design-based too: the standard errors below are
+linearized (sandwich) estimates that respect the strata and clusters.
+
+```{r covariates, cache = TRUE}
+fit_cov <- add_covariates(fit, yrbs2005[, c("grade", "sex")])
+results <- summary(fit_cov)
+```
+
+Note the `Standard errors:` line naming the estimator: with a cluster
+sample, a model that ignored the design would report noticeably narrower
+intervals — narrower than the data warrant.
+
+## What the weights do and do not change
+
+Two practical points that trip up survey LCA:
+
+* **Weight scale.** Sampling weights are rescaled internally so that they
+  sum to the number of observed cases; only their *relative* sizes
+  matter, and the effective sample size in BIC stays the number of cases
+  actually collected. Frequency weights (`weight_type = "frequency"`,
+  where one row stands for that many identical cases) are used as-is.
+* **Class enumeration.** Information criteria remain comparable across
+  class counts under a fixed design, so `compare_mixtures()` works
+  unchanged — pass the same `weights`/`strata`/`cluster` to every
+  candidate model.
+
+## References
+
+Collins, L. M., & Lanza, S. T. (2010). *Latent class and latent
+transition analysis: With applications in the social, behavioral, and
+health sciences*. Wiley.

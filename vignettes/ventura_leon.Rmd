@@ -1,0 +1,215 @@
+---
+title: "Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+```{r setup}
+library(mixtureEM)
+```
+
+## Background
+
+This vignette walks through Ventura-León, Reyes, Valencia, Tocto-Muñoz,
+Gamboa-Melgar, Ruiz-Castro, and Lino-Cruz (2025), *"Exploring Infidelity
+Behavior Patterns in a Sample of Peruvian Young Adults: A Latent Class
+Analysis,"* using the `ventura_leon` dataset bundled with mixtureEM
+(`?ventura_leon`).
+
+Four hundred Peruvian young adults (75.3% women, mean age 25.3) answered 16
+binary items from the Multidimensional Infidelity Inventory-S (MII-S), each
+asking whether they had engaged in a particular unfaithful thought or
+behavior. The original study used latent class analysis (LCA) to identify
+subgroups with distinct patterns, then related class membership to sex, age,
+sexual orientation, and relationship duration.
+
+We reproduce the class solution first, then improve on the original
+covariate analysis: the paper assigned each respondent to their single most
+likely class and ran chi-square/ANOVA tests on those labels, which ignores
+classification uncertainty. mixtureEM's `add_covariates()` instead uses a
+bias-corrected multinomial logistic regression (Vermunt, 2010) that
+properly accounts for it.
+
+Data are shared here with permission from the author team (one of whom,
+Pablo D. Valencia, also maintains mixtureEM); see `?ventura_leon` for the
+full source and license note.
+
+## The data
+
+```{r data}
+data(ventura_leon)
+items <- ventura_leon[, 7:22]   # the 16 infidelity items
+names(items)
+```
+
+The 16 items are already binary (0 = never endorsed, 1 = endorsed), with
+short informative names; see `?ventura_leon` for each item's exact wording.
+
+## How many classes?
+
+The paper compared 1- through 10-class solutions by BIC (their Table 2) and
+selected 4 classes. We do the same here.
+
+```{r model-selection, cache = TRUE}
+selection <- compare_mixtures(X = items, measurement = "binary",
+                               k_range = 1:6, n_init = 20)
+```
+
+As in the paper, BIC keeps improving for a few classes past 4 (a common
+pattern in LCA, where the BIC curve is often quite flat near its minimum);
+we follow the paper in choosing 4 classes for interpretability, since it
+recovers a very clean, well-separated typology (see below).
+
+## Fitting the 4-class model
+
+```{r fit4}
+set.seed(1)
+fit <- fit_mixture(items, n_classes = 4, measurement = "binary",
+                    n_init = 30, max_iter = 2000)
+fit
+```
+
+### Comparing to the published solution
+
+The paper's four classes were: *Fidelity* (42.5%, low on everything),
+*Affective interest* (27.2%, moderate on thought/attraction items),
+*Infidelity* (15.7%, high on nearly every item), and *Sexual desire*
+(14.4%, high on desire/attraction items but not overt behavior). Classes
+are sorted by size, so `class_sizes()` lines up with that ordering:
+
+```{r compare-prevalence}
+class_names <- c("Fidelity", "Affective interest", "Infidelity", "Sexual desire")
+class_sizes(fit)
+```
+
+The item-response probabilities per class come from
+`measurement_summary()`, which prints the full table and also returns it as
+a data frame for further use:
+
+```{r compare-profile}
+params <- measurement_summary(fit)
+```
+
+Because the returned table is an ordinary data frame, follow-up questions
+take one line — for example, which behaviors the third-largest class
+endorses with high probability:
+
+```{r profile-followup}
+subset(params, class == 3 & estimate > 0.5)
+```
+
+```{r plot4}
+plot(fit, class_labels = class_names,
+     main = "Infidelity behavior patterns (4-class LCA)")
+```
+
+## Covariates: a stronger analysis than the original paper
+
+The paper related class membership to sex, age, sexual orientation, and
+relationship duration by assigning each respondent to their single most
+likely class (the modal posterior) and then testing associations with
+separate chi-square tests and an ANOVA — a "classify-and-analyze" approach
+that treats class membership as if it were observed without error, which
+biases the association estimates toward the null (Bakk, Oberski, &
+Vermunt, 2014).
+
+Instead, we hand the chosen model to `add_covariates()`, which runs the
+bias-adjusted three-step analysis (Vermunt, 2010) on the *same* solution we
+just inspected — the measurement model is not re-estimated, so the classes
+cannot shift under our feet:
+
+```{r covariates}
+covariates <- ventura_leon[, c("sex", "age", "sexual_orientation",
+                                "relationship_duration")]
+fit_cov <- add_covariates(fit, covariates)
+results <- summary(fit_cov)
+```
+
+The `Standard errors:` line records which variance estimator produced the
+intervals. The default also carries the uncertainty in the step-1 class
+solution into the step-3 coefficients (Bakk, Oberski, & Vermunt, 2014):
+treating the classes as if they had been observed rather than estimated
+makes the intervals too narrow. See `?covariate_se`.
+
+`summary()` also returns its tables invisibly, so the odds ratios are
+available as a data frame:
+
+```{r covariate-table}
+head(results$coefficients)
+```
+
+Reference class 1 is Fidelity (the largest class). Reading the odds ratios
+against that reference:
+
+* **Sex.** Women have higher odds of Affective interest relative to
+  Fidelity, and much lower odds of Infidelity relative to Fidelity — in
+  line with the paper's finding that "men were more likely to belong to the
+  sexual desire class and women to the emotional interest and fidelity
+  classes."
+* **Age.** Older respondents have higher odds of Infidelity relative to
+  Fidelity, matching the paper's finding that age was significantly
+  related to class membership.
+* **Sexual orientation.** Here the ML-corrected model finds something the
+  paper's classify-and-analyze approach did not: non-heterosexual
+  respondents have significantly higher odds of Sexual desire relative to
+  Fidelity. The paper reported no significant association for sexual
+  orientation at all (its single omnibus chi-square test on the 4-class
+  variable was non-significant); testing the association jointly with the
+  other covariates, and while accounting for classification uncertainty,
+  turns up an effect the cruder approach could not detect.
+* **Relationship duration.** Neither approach finds a significant
+  association, consistent with the paper.
+
+This is a good illustration of why mixtureEM applies a bias correction
+whenever classes are related to external variables: the "obvious" approach
+of classifying and then testing is only valid when classification is
+(almost) perfect, which is rarely true in practice.
+
+## A distal outcome: mean age by class
+
+Covariates ask "who ends up in which class?". The complementary question —
+"how do the classes differ on some outcome?" — is a *distal outcome*
+analysis, and it reuses the same fitted model through `add_outcome()`.
+Here we describe the classes by their mean age (the BCH correction is the
+default for a continuous outcome; Bakk & Vermunt, 2016):
+
+```{r distal}
+fit_age <- add_outcome(fit, ventura_leon$age)
+age_results <- summary(fit_age)
+age_results$outcome$means
+```
+
+The omnibus Wald test in the printed output asks whether the class means
+differ at all, before the per-class table is read.
+
+## References
+
+Bakk, Z., Oberski, D. L., & Vermunt, J. K. (2014). Relating latent class
+assignments to external variables: Standard errors for correct inference.
+*Political Analysis*, *22*(4), 520–540. <https://doi.org/10.1093/pan/mpu003>
+
+Bakk, Z., & Vermunt, J. K. (2016). Robustness of stepwise latent class
+modeling with continuous distal outcomes. *Structural Equation Modeling*,
+*23*(1), 20–31. <https://doi.org/10.1080/10705511.2014.955104>
+
+Ventura-León, J., Reyes, A., Valencia, P. D., Tocto-Muñoz, S.,
+Gamboa-Melgar, G., Ruiz-Castro, J., & Lino-Cruz, C. (2025). Exploring
+infidelity behavior patterns in a sample of Peruvian young adults: A latent
+class analysis. *Journal of Marital and Family Therapy*, *51*, e70066.
+<https://doi.org/10.1111/jmft.70066>
+
+Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
+three-step approaches. *Political Analysis*, *18*(4), 450–469.
+<https://doi.org/10.1093/pan/mpq025>

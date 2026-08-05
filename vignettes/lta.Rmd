@@ -1,0 +1,127 @@
+---
+title: "Latent Transition Analysis: Movement Between Statuses"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Latent Transition Analysis: Movement Between Statuses}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+```{r setup}
+library(mixtureEM)
+```
+
+Latent transition analysis (LTA) is the longitudinal extension of LCA in
+which cases can *move*: at each occasion every case occupies a latent
+status, and the model estimates both what the statuses look like
+(measurement) and the probabilities of moving between them from one
+occasion to the next (transitions) (Collins & Lanza, 2010, ch. 7–8).
+
+## Simulated example: depression status across three assessments
+
+We simulate 1,000 adults assessed three times on four binary symptom
+indicators. The truth has two statuses — *Depressed* and *Not depressed* —
+with most people staying where they are between assessments, and remission
+(Depressed → Not depressed) more common than onset:
+
+```{r simulate}
+set.seed(2026)
+n   <- 1000
+rho <- c(Depressed = 0.85, `Not depressed` = 0.15)  # P(symptom | status)
+tau <- matrix(c(0.80, 0.20,    # Depressed    -> (Depressed, Not)
+                0.10, 0.90),   # Not depressed-> (Depressed, Not)
+              2, 2, byrow = TRUE)
+
+status <- matrix(0L, n, 3)
+status[, 1] <- rbinom(n, 1, 0.35) + 1L           # 1 = Depressed, 2 = Not
+for (t in 2:3)
+  status[, t] <- ifelse(runif(n) < tau[status[, t - 1], 1], 1L, 2L)
+
+sym <- matrix(0L, n, 12)
+for (t in 1:3) for (j in 1:4)
+  sym[, (t - 1) * 4 + j] <- rbinom(n, 1, rho[status[, t]])
+colnames(sym) <- paste0("sym", 1:4, "_t", rep(1:3, each = 4))
+```
+
+## Fitting the LTA
+
+`fit_lta()` needs the number of statuses and how the columns divide into
+occasions. By default the item-response probabilities are held equal
+across occasions (`measurement_invariance = "full"`), which is what makes
+"the same status at different times" a meaningful phrase:
+
+```{r fit}
+fit <- fit_lta(sym, n_statuses = 2, times = 3, measurement = "binary",
+               n_init = 20, random_state = 3)
+fit
+```
+
+The two core quantities of an LTA are the status prevalences at each
+occasion and the transition matrices:
+
+```{r extract}
+status_prevalences(fit)
+transition_matrix(fit)
+```
+
+The recovered transitions sit close to the generating matrix: strong
+diagonal (stability), with the Depressed → Not depressed cell larger than
+its mirror image. `plot()` shows both:
+
+```{r plot, fig.height = 4}
+plot(fit, type = "prevalence", status_labels = c("Depressed", "Not depressed"))
+```
+
+## Is the transition process the same at every interval?
+
+`transition_invariance = "full"` forces one transition matrix for all
+intervals; comparing it against the unrestricted model is a likelihood-
+ratio test of a time-homogeneous process:
+
+```{r invariance}
+fit_hom <- fit_lta(sym, n_statuses = 2, times = 3, measurement = "binary",
+                   transition_invariance = "full", n_init = 20,
+                   random_state = 3)
+longitudinal_lrt(fit_hom, fit)
+```
+
+As simulated (one matrix generated both intervals), the restriction is not
+rejected, and the more parsimonious homogeneous model is preferable.
+
+## A mover-stayer model
+
+A *mover-stayer* model (Blumen, Kogan, & McCarthy, 1955) adds a latent
+class **above** the chain: one group transitions freely (the movers) while
+the other is locked in place (the stayers). It answers a question a single
+chain cannot: is apparent stability just slow movement, or is there a
+genuinely immobile group?
+
+```{r mover-stayer, cache = TRUE}
+fit_ms <- fit_lta(sym, n_statuses = 2, times = 3, measurement = "binary",
+                  mover_stayer = TRUE, n_init = 20, random_state = 3,
+                  max_iter = 2000)
+fit_ms
+```
+
+On these data the mover-stayer model offers no improvement — the data were
+generated from a single chain, and the fitted stayer class is essentially
+redundant. On real data, comparing the two BICs (single chain vs.
+mover-stayer) is the standard way to decide.
+
+## References
+
+Blumen, I., Kogan, M., & McCarthy, P. J. (1955). *The industrial mobility
+of labor as a probability process*. Cornell University Press.
+
+Collins, L. M., & Lanza, S. T. (2010). *Latent class and latent
+transition analysis: With applications in the social, behavioral, and
+health sciences*. Wiley.

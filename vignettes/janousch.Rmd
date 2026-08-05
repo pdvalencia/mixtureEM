@@ -1,0 +1,187 @@
+---
+title: "Resilience Profiles Across Countries: Multi-Group LPA and Measurement Invariance"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Resilience Profiles Across Countries: Multi-Group LPA and Measurement Invariance}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+```{r setup}
+library(mixtureEM)
+```
+
+## Background
+
+This vignette walks through Janousch, Anyan, Kassis, Morote, Hjemdal,
+Sidler, Graf, Rietz, Chouvati, & Govaris (2022), *"Resilience Profiles
+Across Context: A Latent Profile Analysis in a German, Greek, and Swiss
+Sample of Adolescents,"* PLOS ONE, 17(1):e0263089
+(<https://doi.org/10.1371/journal.pone.0263089>), using the `janousch`
+dataset bundled with mixtureEM (`?janousch`; CC BY 4.0, figshare).
+
+The study measured 1,160 seventh-graders from Germany, Greece, and
+Switzerland on two symptom indicators (anxiety, depression) and five
+protective-factor subscales from the Resilience Scale for Adolescents
+(personal competence, social competence, structured style, social
+resources, family cohesion). It then asked two questions we replicate
+here: (1) how many resilience profiles best describe each country's data,
+and (2) are those profiles *measurement-invariant* across countries — that
+is, do the same profile labels mean the same thing (the same underlying
+symptom/protective-factor levels) in each country?
+
+The original analysis handled the substantial item-level missingness with
+Mplus's full-information ML estimator (MLR), rather than deleting
+incomplete cases; we do the same here using `fit_mixture()`'s
+`"continuous_nan"` measurement type, which models missing continuous
+indicators directly rather than requiring complete cases.
+
+## The data
+
+```{r data}
+data(janousch)
+str(janousch)
+```
+
+```{r items}
+items <- c("anxiety", "depression", "personal_competence", "social_competence",
+           "structured_style", "social_resources", "family_cohesion")
+```
+
+## Per-country profiles
+
+The paper fit a separate LPA for each country and selected, by BIC and
+interpretability, 3 profiles for Switzerland and 4 for Germany and Greece.
+Finding the best solution in a model with missing continuous indicators
+benefits from many random restarts (the paper itself used up to 2,000);
+we use a more modest `n_init` here for speed, but recommend increasing it
+for a real analysis.
+
+```{r fit-switzerland}
+set.seed(1)
+fit_ch <- fit_mixture(janousch[janousch$country == "Switzerland", items],
+                       n_classes = 3, measurement = "continuous_nan",
+                       n_init = 30, max_iter = 2000)
+class_sizes(fit_ch)
+```
+
+This closely recovers the paper's Swiss solution (Non-Resilient 22.1%,
+Moderately Resilient 42.9%, Untroubled 34.9%). What the profiles *mean*
+comes from the class-specific indicator means, which
+`measurement_summary()` prints and also returns as a data frame:
+
+```{r profile-ch}
+profile_ch <- measurement_summary(fit_ch)
+```
+
+```{r fit-germany}
+set.seed(1)
+fit_de <- fit_mixture(janousch[janousch$country == "Germany", items],
+                       n_classes = 4, measurement = "continuous_nan",
+                       n_init = 30, max_iter = 2000)
+class_sizes(fit_de)
+```
+
+This closely recovers the paper's German solution (Non-Resilient 15.7%,
+Moderately Resilient 44.2%, Untroubled 27.3%, Resilient 12.7%).
+
+```{r fit-greece}
+set.seed(1)
+fit_gr <- fit_mixture(janousch[janousch$country == "Greece", items],
+                       n_classes = 4, measurement = "continuous_nan",
+                       n_init = 30, max_iter = 2000)
+class_sizes(fit_gr)
+```
+
+For Greece, our solution's class sizes differ more noticeably from the
+paper's (Non-Resilient 21.0%, Moderately Resilient 30.8%, Untroubled 24.9%,
+Resilient 23.3%). The Greek sample had the lowest entropy in the original
+study (.788, vs. .81-.84 for the other two countries), meaning its classes
+are less well separated — exactly the situation where an LPA's likelihood
+surface has multiple close local optima and different software (or
+different random starts) can land on distinct, similarly-plausible
+solutions. This is a useful reminder that LPA/LCA solutions, especially
+lower-entropy ones, should be treated as one reasonable answer rather than
+*the* answer, and checked for stability across many random starts.
+
+## Testing measurement invariance across countries
+
+Rather than three separate models, mixtureEM can fit all three countries
+*jointly* as a multiple-group model. Fitting the same number of classes
+(4, following the paper's own supplementary invariance analysis, which
+tested the four-profile solution across all three countries) with
+`group_effects = "both"` gives each country's own fully separate
+item-response profile (a "configural" model); `group_effects =
+"measurement"` instead holds the item-response means equal across
+countries, only letting class *sizes* differ. Comparing the two with a
+likelihood-ratio test is a direct test of measurement invariance.
+
+```{r invariance, cache = TRUE}
+set.seed(1)
+fit_configural <- fit_mixture(janousch[items], n_classes = 4,
+                               measurement = "continuous_nan",
+                               group = janousch$country,
+                               group_effects = "both",
+                               n_steps = 1, n_init = 50, max_iter = 2000)
+
+set.seed(1)
+fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
+                              measurement = "continuous_nan",
+                              group = janousch$country,
+                              group_effects = "measurement",
+                              n_steps = 1, n_init = 50, max_iter = 2000)
+
+longitudinal_lrt(fit_invariant, fit_configural)
+```
+
+The restriction is rejected: forcing the same profile means across
+countries fits significantly worse than letting each country have its own.
+This matches the paper's own conclusion ("Measurement invariance did not
+hold across the three countries") — the same four profile *labels*
+(Non-Resilient, Moderately Resilient, Untroubled, Resilient) do not
+correspond to the same underlying levels of symptoms and protective
+factors in each country, so cross-country comparisons of these profiles
+should be made cautiously.
+
+## Covariates: gender and migration background
+
+The paper related class membership to gender and migration background
+using Mplus's R3STEP procedure — itself already a 3-step, classification-
+uncertainty-aware approach (equivalent to mixtureEM's `correction = "ML"`),
+so unlike the Ventura-León vignette, there is no weaker baseline to
+improve on here. We reproduce the same kind of analysis for Switzerland,
+where the paper reported no significant covariate effects, as a check:
+
+The Swiss model was already fit above, so `add_covariates()` runs the
+three-step analysis on that exact solution — no re-specification and no
+re-estimation of the measurement model:
+
+```{r covariates}
+ch <- janousch[janousch$country == "Switzerland", ]
+fit_ch_cov <- add_covariates(fit_ch, ch[, c("gender", "migration_background")])
+summary(fit_ch_cov)
+```
+
+One detail worth noticing: the full dataset codes `gender` with three
+levels, but no Swiss adolescent chose "Other", so after subsetting that
+level is empty. mixtureEM drops empty levels automatically (with a
+message) rather than printing a degenerate coefficient row for a category
+with no data — and it warns when an *observed* level rests on only a
+handful of cases, whose odds ratio would be unstable.
+
+## References
+
+Janousch, C., Anyan, F., Kassis, W., Morote, R., Hjemdal, O., Sidler, P.,
+Graf, U., Rietz, C., Chouvati, R., & Govaris, C. (2022). Resilience
+profiles across context: A latent profile analysis in a German, Greek, and
+Swiss sample of adolescents. *PLOS ONE*, *17*(1), e0263089.
+<https://doi.org/10.1371/journal.pone.0263089>

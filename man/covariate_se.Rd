@@ -94,7 +94,7 @@ Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
 three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450-469.
 
 Gong, G., & Samaniego, F. J. (1981). Pseudo maximum likelihood estimation:
-Theory and applications. \emph{The Annals of Statistics}, 9(4), 861-869.
+Theory and applications. \emph{The Annals of Statistics}, \emph{9}(4), 861-869.
 }
 \seealso{
 \code{\link{fit_mixture}}, \code{\link{bootstrap_covariates}},

@@ -1,0 +1,127 @@
+---
+title: "Repeated-Measures LCA: Patterns of Change Over Time"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Repeated-Measures LCA: Patterns of Change Over Time}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+```{r setup}
+library(mixtureEM)
+```
+
+Repeated-measures latent class analysis (RMLCA) treats the *whole
+trajectory* of a repeated item as the thing to classify: each latent class
+is a typical pattern of responses over time, with no growth-curve shape
+imposed (Collins & Lanza, 2010, ch. 7). It is the natural first
+longitudinal model when you suspect qualitatively different pathways —
+say, "persistent", "declining", and "rare" — rather than variation around
+one common curve.
+
+## Simulated example: weekly drinking across four school years
+
+We simulate a cohort of 900 students reporting weekly alcohol use (yes/no)
+in each of four school years, generated from three known trajectory
+classes so the model has a truth to recover:
+
+* **Rare** (50%): low probability of use at every wave;
+* **Escalating** (30%): probability rising steeply across waves;
+* **Persistent** (20%): high probability throughout.
+
+```{r simulate}
+set.seed(2026)
+n   <- 900
+cls <- sample(1:3, n, replace = TRUE, prob = c(0.5, 0.3, 0.2))
+p   <- rbind(
+  c(0.08, 0.10, 0.12, 0.12),   # Rare
+  c(0.15, 0.35, 0.60, 0.80),   # Escalating
+  c(0.85, 0.85, 0.90, 0.90)    # Persistent
+)
+drink <- sapply(1:4, function(t) rbinom(n, 1, p[cls, t]))
+colnames(drink) <- paste0("drink_y", 1:4)
+head(drink)
+```
+
+## How many trajectory classes?
+
+`compare_longitudinal()` fits a range of class counts (an RMLCA is fitted
+via `fit_rmlca()`, which needs to know how the columns map to occasions —
+here four waves of one item):
+
+```{r enumerate, cache = TRUE}
+selection <- compare_longitudinal(drink, k_range = 2:4, model = "rmlca",
+                                  times = 4, n_init = 10, verbose = FALSE)
+selection
+```
+
+BIC correctly picks the three classes we generated.
+
+## The three-class solution
+
+```{r fit}
+fit <- fit_rmlca(drink, n_classes = 3, times = 4, n_init = 20,
+                 random_state = 7)
+fit
+class_sizes(fit)
+```
+
+The item-response probabilities per wave — the trajectories themselves —
+come from `measurement_summary()`, and `plot()` draws them:
+
+```{r summary}
+params <- measurement_summary(fit)
+```
+
+```{r plot}
+plot(fit, class_labels = c("Rare", "Escalating", "Persistent"),
+     main = "Weekly drinking across four school years")
+```
+
+The recovered curves match the generating probabilities well: a flat low
+class, a steeply rising class, and a flat high class, with sizes close to
+the simulated 50/30/20 split.
+
+## Who follows which pathway?
+
+Predictors of trajectory-class membership use the same stepwise workflow
+as any other mixtureEM model: hand the fitted model to
+`add_covariates()`. We simulate a covariate that genuinely raises the odds
+of the Escalating pathway:
+
+```{r covariates}
+risk <- rnorm(n, mean = ifelse(cls == 2, 0.8, 0))
+fit_cov <- add_covariates(fit, risk)
+results <- summary(fit_cov)
+```
+
+The escalating class shows the elevated odds ratio for `risk`, as
+simulated; the persistent class does not.
+
+## RMLCA or LTA?
+
+RMLCA classifies whole trajectories; latent *transition* analysis (LTA)
+instead models wave-to-wave movement between statuses. If your question
+is "what pathways exist?", RMLCA answers it directly; if it is "who moves,
+when, and toward what?", see the latent transition analysis vignette
+(`vignette("lta", package = "mixtureEM")`).
+
+## References
+
+Collins, L. M., & Lanza, S. T. (2010). *Latent class and latent
+transition analysis: With applications in the social, behavioral, and
+health sciences*. Wiley.
+
+Lanza, S. T., & Collins, L. M. (2006). A mixture model of discontinuous
+development in heavy drinking from ages 18 to 30: The role of college
+enrollment. *Journal of Studies on Alcohol*, *67*(4), 552–561.
+<https://doi.org/10.15288/jsa.2006.67.552>
