@@ -1,6 +1,11 @@
-^unmixR\.Rproj$
-^\.Rproj\.user$
+^\.[a-zA-Z]
 ^README\.Rmd$
 ^LICENSE\.md$
-^\.github$
 ^mixtureEM\.Rproj$
+^doc$
+^Meta$
+^data-raw$
+^scratch.*\.R$
+^internal$
+^vignettes/.*_cache$
+^README\.html$

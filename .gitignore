@@ -4,3 +4,11 @@
 .httr-oauth
 .DS_Store
 .quarto
+/doc/
+/Meta/
+vignettes/*_cache/
+scratch_*.R
+/internal/
+README.html
+mixtureEM.Rcheck/
+mixtureEM_*.tar.gz
