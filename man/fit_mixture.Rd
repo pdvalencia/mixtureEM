@@ -141,8 +141,8 @@ wrong changes BIC but not the parameter estimates.}
 
 \item{se}{How standard errors for \code{predictors} are computed in a 2- or
 3-step model. \code{"corrected"} (the default) adds the variance carried
-over from step 1 to the step-3 sandwich, following Bakk, Oberski and
-Vermunt (2014); \code{"robust"} reports the sandwich alone;
+over from step 1 to the step-3 sandwich, following Bakk et al.
+(2014); \code{"robust"} reports the sandwich alone;
 \code{"hessian"} inverts the step-3 observed
 information only. See \code{\link{covariate_se}}.}
 

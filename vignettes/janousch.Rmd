@@ -22,8 +22,7 @@ library(mixtureEM)
 
 ## Background
 
-This vignette walks through Janousch, Anyan, Kassis, Morote, Hjemdal,
-Sidler, Graf, Rietz, Chouvati, & Govaris (2022), *"Resilience Profiles
+This vignette walks through Janousch et al. (2022), *"Resilience Profiles
 Across Context: A Latent Profile Analysis in a German, Greek, and Swiss
 Sample of Adolescents,"* PLOS ONE, 17(1):e0263089
 (<https://doi.org/10.1371/journal.pone.0263089>), using the `janousch`
@@ -125,15 +124,22 @@ item-response profile (a "configural" model); `group_effects =
 countries, only letting class *sizes* differ. Comparing the two with a
 likelihood-ratio test is a direct test of measurement invariance.
 
+"both" frees a much larger parameter space (separate item means/variances
+per country per class) than "measurement" does, so its random-restart
+search is more prone to landing on a local optimum worse than the nested
+model's — which is possible with EM regardless of how many restarts are
+used, and would show up as a negative statistic below (see
+`?longitudinal_lrt`):
+
 ```{r invariance, cache = TRUE}
-set.seed(1)
+set.seed(2)
 fit_configural <- fit_mixture(janousch[items], n_classes = 4,
                                measurement = "continuous_nan",
                                group = janousch$country,
                                group_effects = "both",
                                n_steps = 1, n_init = 50, max_iter = 2000)
 
-set.seed(1)
+set.seed(2)
 fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
                               measurement = "continuous_nan",
                               group = janousch$country,
@@ -156,9 +162,8 @@ should be made cautiously.
 
 The paper related class membership to gender and migration background
 using Mplus's R3STEP procedure — itself already a 3-step, classification-
-uncertainty-aware approach (equivalent to mixtureEM's `correction = "ML"`),
-so unlike the Ventura-León vignette, there is no weaker baseline to
-improve on here. We reproduce the same kind of analysis for Switzerland,
+uncertainty-aware approach (equivalent to mixtureEM's `correction = "ML"`).
+We reproduce the same kind of analysis for Switzerland,
 where the paper reported no significant covariate effects, as a check:
 
 The Swiss model was already fit above, so `add_covariates()` runs the

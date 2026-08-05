@@ -20,21 +20,23 @@ knitr::opts_chunk$set(
 library(mixtureEM)
 ```
 
-When a continuous outcome is measured repeatedly, two related models
-classify its *trajectories*:
+When a continuous outcome is measured repeatedly, two related models group
+cases by the *shape* of their trajectory over time, rather than by a
+single score:
 
-* **Latent class growth analysis (LCGA)** — each class follows its own
-  polynomial curve, and every case in a class sits on that curve up to
-  occasion-level noise (Nagin, 2005). No within-class variation in the
-  growth factors.
-* **Growth mixture models (GMM)** — the same class-specific curves, but
-  cases also vary *around* their class's curve through random intercepts
-  and slopes (Muthén & Shedden, 1999). LCGA is the special case with the
-  random-effect variances fixed at zero.
+* **Latent class growth analysis (LCGA)** sorts cases into classes that
+  each follow one shared curve — everyone in a class is assumed to follow
+  essentially the same trajectory, give or take measurement noise (Jung &
+  Wickrama, 2008).
+* **Growth mixture models (GMM)** relax that assumption: cases still
+  belong to a class with its own typical curve, but each person is
+  allowed to start a bit higher or lower, and rise or fall a bit faster or
+  slower, than their class's average (Muthén & Shedden, 1999). LCGA is the
+  special case where that person-to-person wiggle room is fixed at zero.
 
-The practical difference: LCGA tends to need *more* classes to absorb the
-within-class heterogeneity it cannot model, while a GMM can describe the
-same data with fewer, broader classes.
+The practical difference: because LCGA has no other way to absorb
+within-class differences, it tends to need *more*, narrower classes to
+fit the same data; a GMM can often describe it with fewer, broader ones.
 
 ## Simulated example: five-wave symptom scores
 
@@ -130,16 +132,18 @@ print(fit_gp)
 * Class enumeration is harder than in cross-sectional LCA: BIC, the
   plotted trajectories against observed means, and substantive
   interpretability should all agree before a solution is reported
-  (Nylund, Asparouhov, & Muthén, 2007).
+  (Nylund et al., 2007).
 
 ## References
+
+Jung, T., & Wickrama, K. A. S. (2008). An introduction to latent class
+growth analysis and growth mixture modeling. *Social and Personality
+Psychology Compass*, *2*(1), 302–317.
+<https://doi.org/10.1111/j.1751-9004.2007.00054.x>
 
 Muthén, B., & Shedden, K. (1999). Finite mixture modeling with mixture
 outcomes using the EM algorithm. *Biometrics*, *55*(2), 463–469.
 <https://doi.org/10.1111/j.0006-341X.1999.00463.x>
-
-Nagin, D. S. (2005). *Group-based modeling of development*. Harvard
-University Press.
 
 Nylund, K. L., Asparouhov, T., & Muthén, B. O. (2007). Deciding on the
 number of classes in latent class analysis and growth mixture modeling: A

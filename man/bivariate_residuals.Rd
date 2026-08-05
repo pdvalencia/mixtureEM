@@ -25,7 +25,7 @@ Where \code{\link[=absolute_fit]{absolute_fit()}} says whether the model fits, t
 fails: a large value flags the specific pair of items whose association the
 latent classes do not reproduce, which is the conditional-independence
 assumption showing its seams. This is the classic local-dependence
-diagnostic (Oberski, van Kollenburg & Vermunt, 2013), and what the usual
+diagnostic (Oberski et al., 2013), and what the usual
 referee question about local dependence asks for.
 
 Unlike the absolute-fit statistics, bivariate residuals do not require the

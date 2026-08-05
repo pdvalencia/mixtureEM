@@ -13,7 +13,7 @@
   ```
 
   Both verbs run only steps 2–3 of the bias-adjusted three-step approach
-  (Vermunt, 2010; Bakk, Oberski, & Vermunt, 2014) on the stored step-1
+  (Bakk et al., 2014; Vermunt, 2010) on the stored step-1
   solution, so the classes you inspected are exactly the classes the
   structural model describes — same solution, same class order, and no risk
   of a re-run landing in a different optimum. `fit_mixture(predictors = )`
@@ -99,7 +99,7 @@
   each class gets its own initial distribution and its own transition
   matrices while they share one measurement model. `mover_stayer = TRUE`
   restricts the last class to the identity transition matrix — a group with
-  zero probability of change (Blumen, Kogan, & McCarthy, 1955). It answers a
+  zero probability of change (Vermunt, 2004). It answers a
   question a single chain cannot: is this one process, or a mobile group
   alongside a stable one?
 
@@ -116,7 +116,7 @@
   `bivariate_residuals()` is the local counterpart: the Pearson chi-square of
   each *pair* of items against the model-implied two-way table, divided by
   its degrees of freedom — the conditional-independence assumption showing
-  its seams (Oberski, van Kollenburg, & Vermunt, 2013). `plot()` draws them
+  its seams (Oberski et al., 2013). `plot()` draws them
   as a heat table anchored at 1. `classification_table()` yields the
   classification error that the bias-adjusted 3-step estimators exist to
   undo, and `classification_diagnostics()` prints it alongside the AvePP

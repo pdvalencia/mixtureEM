@@ -90,8 +90,8 @@ converge on the same chain are warned about.}
 
 \item{mover_stayer}{Restrict the \strong{last} latent class to the identity
 transition matrix: a "stayer" class with zero probability of change, the
-remaining classes being "movers" (Blumen, Kogan & McCarthy, 1955; Vermunt,
-\emph{Mover-Stayer Models}). Implies \code{n_classes = 2} unless more are asked for,
+remaining classes being "movers" (Vermunt, 2004). Implies \code{n_classes = 2}
+unless more are asked for,
 in which case only the last class is a stayer. The restricted rows cost no
 parameters, so the model is nested in the unrestricted mixture and
 \code{\link[=longitudinal_lrt]{longitudinal_lrt()}} tests it.}
