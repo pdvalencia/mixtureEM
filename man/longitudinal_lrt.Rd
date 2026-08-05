@@ -33,4 +33,10 @@ groups against one that frees them.
 The models must be nested and fitted to the same data. That is not checked
 beyond the parameter counts and sample size, so it remains the analyst's
 responsibility.
+
+Because \code{full} strictly nests \code{restricted}, its log-likelihood can never
+be genuinely lower — if it comes out that way here, the \code{full} model's
+random-restart search landed on a worse local optimum than the
+\code{restricted} model's did, not a real result. A warning is issued in that
+case; refitting \code{full} with a larger \code{n_init} is the usual fix.
 }
