@@ -15,7 +15,8 @@ get_modal_resp <- function(resp) {
 
 # Apply the BCH Correction
 #
-# Implementation follows Vermunt (2010) and LatentGOLD's proportional BCH:
+# Implementation follows the proportional BCH correction of Vermunt (2010)
+# and Bakk, Tekle & Vermunt (2013):
 #
 #   Step 1: Build the classification error matrix C from proportional assignment.
 #           C[k,j] = sum_i resp[i,k] * resp[i,j] / sum_i resp[i,j]
@@ -136,7 +137,8 @@ fit_bch <- function(model_state, X, Y) {
 #
 # W sums to 1 per row and is passed to m_step as classification weights.
 # Convergence LL = sum_i w_i * sum_k resp1[i,k] * log Z_mat[i,k].
-fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10, rel_tol = 1e-10) {
+fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
+                   rel_tol = 1e-10, se = "corrected") {
 
   if (inherits(model_state$sm, c("distal_continuous", "distal_continuous_regression"))) {
     warning(paste(
@@ -238,7 +240,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10, rel_tol 
   }
 
   # ============================================================================
-  # Variance estimation for discrete structural models under ML step-3.
+  # Variance estimation for structural models under ML step-3.
   #
   # The Q-function Hessian stored by m_step reflects only the expected
   # complete-data curvature, not the marginal LL curvature, which leads to
@@ -247,9 +249,14 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10, rel_tol 
   #
   #   V = B^{-1} M B^{-1}
   #
-  # where B = -H_marg is the numerical Hessian of the marginal log-likelihood
+  # where B = -H_marg is the Hessian of the marginal log-likelihood
   #   L(theta) = sum_i sum_k resp1[i,k] * log Z_mat[i,k]
   # and M = sum_i s_i s_i^T is the outer product of person-level scores.
+  #
+  # The covariate case is delegated to R/step3_variance.R, which computes B and
+  # the scores in closed form rather than by numerical differentiation and adds
+  # the second variance component the two distal branches below still omit: the
+  # uncertainty carried over from step 1, which is estimated and not known.
   #
   # For distal_pooled the parameters form one joint vector and the corrected
   # variance is stored in $hessian (singular), which is where downstream
@@ -260,6 +267,26 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10, rel_tol 
   # computed independently for each class k and stored in $hessians[[k]]
   # (plural list), which is where downstream inference reads from.
   # ============================================================================
+
+  # --- covariate (class-membership regression) --------------------------------
+  #
+  # Downstream inference reads $V_robust in preference to $hessian, so attaching
+  # it here is enough.
+  if (inherits(model_state$sm, "covariate")) {
+    model_state <- .attach_step3_covariate_vcov(
+      model_state, X_clean, Y_clean, resp_step1, C_row_norm, w_clean, se = se)
+  }
+
+  # A covariate block inside a nested structural model shares its step-three
+  # likelihood with the distal block, so the single-block formulas above do not
+  # apply. The naive Hessian stands, but it is labelled as such rather than
+  # reported as though it were the corrected variance.
+  if (inherits(model_state$sm, "nested") &&
+      !is.null(model_state$sm$models[["predictor"]]) &&
+      inherits(model_state$sm$models$predictor, "covariate")) {
+    model_state$sm$models$predictor$parameters$V_method <-
+      "Q-function Hessian (uncorrected; covariate combined with a distal outcome)"
+  }
 
   # --- distal_pooled (joint parameter vector, one shared Hessian) -------------
 

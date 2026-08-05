@@ -30,17 +30,18 @@
 # all class-specific information contributes to the alignment.
 # ------------------------------------------------------------------------------
 get_mm_alignment_matrix <- function(mm) {
-  if (inherits(mm, "nested")) {
+  if (inherits(mm, c("nested", "blocks"))) {
     # Combine every sub-model's alignment matrix column-wise.
     parts <- lapply(mm$models, get_mm_alignment_matrix)
     return(do.call(cbind, parts))
   }
   if (!is.null(mm$parameters[["pis"]]))   return(mm$parameters$pis)
   if (!is.null(mm$parameters[["means"]])) return(mm$parameters$means)
+  if (!is.null(mm$parameters[["rates"]])) return(mm$parameters$rates)
   stop(paste(
     "Cannot determine alignment matrix: measurement model of class",
     paste(class(mm), collapse = "/"),
-    "has neither $pis nor $means parameters."
+    "has none of $pis, $means, or $rates parameters."
   ))
 }
 
@@ -178,6 +179,9 @@ bootstrap_covariates <- function(model_state, X, Y, n_reps = 100,
     X_boot <- X[idx, , drop = FALSE]
     Y_boot <- Y[idx, , drop = FALSE]
 
+    # se = "hessian": a replicate contributes only its coefficients, and the
+    # bootstrap is itself the variance estimator, so computing the analytic
+    # correction here would be paid for n_reps times and thrown away each time.
     b_model <- fit_mixture_internal(
       X = X_boot, Y = Y_boot, n_components = K,
       measurement  = measurement_desc,
@@ -185,7 +189,8 @@ bootstrap_covariates <- function(model_state, X, Y, n_reps = 100,
       n_steps      = 3,
       correction   = "ML",
       n_init       = 1,
-      order_by_size = FALSE
+      order_by_size = FALSE,
+      se           = "hessian"
     )
 
     boot_align_mat <- get_mm_alignment_matrix(b_model$mm)
@@ -241,9 +246,12 @@ print.mixture_bootstrap <- function(x, ...) {
   cat("---------------------------------------------------------\n")
   cat("P-Values\n\n")
 
-  # Header
+  # Header. Covariate names act as column headers here, so long ones are
+  # shortened harder than in the row-label tables; the key is printed below.
+  disp  <- .shorten_labels(cov_names, width = 14L)
+  col_w <- .label_width(disp, min = 10L)
   cat(sprintf("  %-16s", ""))
-  for (nm in cov_names) cat(sprintf("  %-10s", nm))
+  for (nm in disp) cat(sprintf("  %-*s", col_w, nm))
   cat("\n")
 
   for (k in seq_len(K)) {
@@ -251,15 +259,16 @@ print.mixture_bootstrap <- function(x, ...) {
     for (v in seq_len(D)) {
       p <- x$p_values[k, v]
       if (is.na(p)) {
-        cat(sprintf("  %-10s", "(Ref)"))
+        cat(sprintf("  %-*s", col_w, "(Ref)"))
       } else if (p < 0.001) {
-        cat(sprintf("  %-10s", "< .001"))
+        cat(sprintf("  %-*s", col_w, "< .001"))
       } else {
-        cat(sprintf("  %-10s", sprintf("%.3f", p)))
+        cat(sprintf("  %-*s", col_w, sprintf("%.3f", p)))
       }
     }
     cat("\n")
   }
+  .cat_label_legend(disp)
   cat("=========================================================\n")
   invisible(x)
 }

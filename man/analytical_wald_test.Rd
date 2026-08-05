@@ -10,26 +10,39 @@ analytical_wald_test(model, term_name, ref_class = 1)
 \item{model}{A fitted \code{mixture_model} object with a covariate
 structural model (fitted with \code{structural = "covariate"}).}
 
-\item{term_name}{Character string. The name of the covariate to test.
-Matched as a substring against the column names of the model's beta
-matrix (i.e., \code{grep} is used internally), so partial matches work.}
+\item{term_name}{Character string. The name of the covariate to test, as
+supplied to the model. For a factor this is the variable, not one of its
+dummy columns: naming a three-level \code{Marital} tests both of its
+contrasts jointly, which is the point of the omnibus test. Naming a single
+column (\code{"Marital.Single"}) tests that column alone. Models fitted
+before the term grouping was recorded fall back to substring matching
+against the column names, with a warning when that is ambiguous.}
 
 \item{ref_class}{Integer. The reference latent class. Default is \code{1}.}
 }
 \value{
 A single-row data frame with columns \code{Covariate}, \code{Wald_Chi2},
-\code{df}, \code{p_value}, and \code{Method} (always \code{"Analytical"}).
+\code{df}, \code{p_value}, and \code{Method}, the name of the variance estimator behind
+the statistic.
 }
 \description{
 Performs an omnibus Wald chi-squared test for the effect of a single
-covariate on latent class membership, using standard errors derived
-analytically from the observed information matrix (Hessian). The null
-hypothesis is that the covariate has no effect on class membership across
-all non-reference classes simultaneously.
+covariate on latent class membership. The null hypothesis is that the
+covariate has no effect on class membership across all non-reference classes
+simultaneously; the degrees of freedom are
+(classes - 1) x (covariate columns), the conventional df for this test.
 
-For small samples or poorly conditioned Hessians, consider
+The test uses whichever analytical variance the model was fitted with (see
+\code{\link{covariate_se}}) and names it in the returned \code{Method}
+column. For small samples or poorly conditioned Hessians, consider
 \code{\link{wald_omnibus_test}} instead, which uses bootstrapped standard
 errors from \code{\link{bootstrap_covariates}}.
+
+A caveat that applies to any Wald test of a strong effect: under the
+Hauck-Donner phenomenon a coefficient large enough to nearly separate a
+class drives the Wald statistic back towards zero. A non-significant omnibus
+test standing beside large coefficients is therefore a warning, not a green
+light; a likelihood-ratio or bootstrap test settles it.
 }
 \examples{
 \dontrun{

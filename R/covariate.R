@@ -9,6 +9,91 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   return(state)
 }
 
+# ==============================================================================
+# Weighted multinomial logistic regression (shared fitter)
+# ==============================================================================
+#
+# Fits P(class = k | z) by maximising  Σ_i w_i Σ_k resp_ik log p_k(z_i)  with the
+# last class anchored at zero. Used for the covariate structural model and, in
+# latent transition models, for the regressions on the initial latent status and
+# on each row of the transition matrix.
+#
+# `Z` must already contain any intercept column. `resp` is n x K and is treated
+# as rows summing to one; callers whose responsibilities carry their own mass
+# (e.g. the pairwise posteriors ξ of a latent Markov model, whose rows sum to
+# γ rather than to 1) should normalise the rows and fold that mass into
+# `weights`. The two are algebraically equivalent, and folding the mass into the
+# weights keeps this fitter free of special cases.
+#
+# Estimation uses data augmentation: one "ghost" observation per class placed at
+# the column means with weight 0.01, which makes complete separation impossible
+# during optimisation. The Hessian is then recomputed on the original data only
+# so that standard errors are not artificially shrunk by the pseudo-data.
+#
+# Returns the K x D coefficient matrix (last row zero), the ((K-1)D)^2 Hessian on
+# the free parameters, and the fitted n x K probabilities.
+#
+# `start` warm-starts the optimiser from a previous coefficient matrix. Inside an
+# EM loop successive M-steps move the coefficients very little, so starting from
+# the last iteration's values cuts the work sharply without changing the optimum.
+.fit_mnl <- function(Z, resp, weights = NULL, augment = TRUE, start = NULL) {
+  K <- ncol(resp)
+  D <- ncol(Z)
+  w_vec <- if (!is.null(weights)) weights else rep(1, nrow(Z))
+
+  probs_for <- function(B, M) softmax_rows(M %*% t(B))
+
+  if (K < 2L || D < 1L) {
+    return(list(beta = matrix(0, K, D), hessian = matrix(0, 0, 0),
+                prob = matrix(1 / max(K, 1L), nrow(Z), K)))
+  }
+
+  if (isTRUE(augment)) {
+    Z_aug    <- rbind(Z, matrix(colMeans(Z), nrow = K, ncol = D, byrow = TRUE))
+    resp_aug <- rbind(resp, diag(K))
+    w_aug    <- c(w_vec, rep(0.01, K))
+  } else {
+    Z_aug <- Z; resp_aug <- resp; w_aug <- w_vec
+  }
+
+  nll_func <- function(pars) {
+    B    <- rbind(matrix(pars, K - 1, D, byrow = TRUE), 0)
+    prob <- probs_for(B, Z_aug)
+    -sum(w_aug * rowSums(resp_aug * log(prob + 1e-15)))
+  }
+
+  # Analytical gradient of nll_func wrt pars.
+  # For multinomial logistic regression:
+  #   ∂nll/∂B[k,d] = Σ_i w_i (prob[i,k] - resp[i,k]) * Z[i,d]  for k < K
+  # Vectorised: grad[k, :] = t(Z_aug) %*% (w_aug * (prob[,k] - resp_aug[,k]))
+  nll_grad <- function(pars) {
+    B     <- rbind(matrix(pars, K - 1, D, byrow = TRUE), 0)
+    prob  <- probs_for(B, Z_aug)
+    resid <- sweep(prob[, seq_len(K - 1), drop = FALSE] -
+                     resp_aug[, seq_len(K - 1), drop = FALSE], 1, w_aug, "*")
+    as.vector(t(Z_aug) %*% resid)   # D × (K-1), flattened row-major
+  }
+
+  par0 <- if (!is.null(start) && identical(dim(start), c(K, D)))
+    as.vector(t(start[seq_len(K - 1), , drop = FALSE])) else rep(0, (K - 1) * D)
+
+  fit  <- optim(par = par0, fn = nll_func, gr = nll_grad, method = "BFGS")
+  beta <- rbind(matrix(fit$par, K - 1, D, byrow = TRUE), 0)
+
+  prob <- probs_for(beta, Z)
+
+  H <- matrix(0, (K - 1) * D, (K - 1) * D)
+  for (k in seq_len(K - 1)) {
+    for (j in seq_len(K - 1)) {
+      W    <- prob[, k] * ((if (k == j) 1 else 0) - prob[, j]) * w_vec
+      H_kj <- -t(Z) %*% sweep(Z, 1, W, "*")
+      H[((k - 1) * D + 1):(k * D), ((j - 1) * D + 1):(j * D)] <- H_kj
+    }
+  }
+
+  list(beta = beta, hessian = H, prob = prob)
+}
+
 #' @exportS3Method
 m_step.covariate <- function(model_state, X, resp, weights = NULL, ...) {
   # Missing covariates are completed under the class-invariant Gaussian marginal
@@ -21,68 +106,10 @@ m_step.covariate <- function(model_state, X, resp, weights = NULL, ...) {
   D <- ncol(X_mat)
   w_vec <- if(!is.null(weights)) weights else rep(1, nrow(X_mat))
 
-  # ============================================================================
-  # 1. ESTIMATION PASS (Data Augmentation)
-  # ============================================================================
-  # We add a tiny "ghost" observation to every class at the mean of X.
-  # This makes Complete Separation mathematically impossible during optimization.
-  pseudo_X <- matrix(colMeans(X_mat), nrow = K, ncol = D, byrow = TRUE)
-  pseudo_resp <- diag(K)
-  pseudo_w <- rep(0.01, K)
-
-  X_aug <- rbind(X_mat, pseudo_X)
-  resp_aug <- rbind(resp, pseudo_resp)
-  w_aug <- c(w_vec, pseudo_w)
-
-  nll_func <- function(pars) {
-    B <- rbind(matrix(pars, K-1, D, byrow=TRUE), 0)
-    logits <- X_aug %*% t(B)
-    logits <- pmax(pmin(logits, 50), -50)
-    max_l <- apply(logits, 1, max)
-    prob <- exp(logits - max_l) / rowSums(exp(logits - max_l))
-    -sum(w_aug * rowSums(resp_aug * log(prob + 1e-15)))
-  }
-
-  # Analytical gradient of nll_func wrt pars.
-  # For multinomial logistic regression:
-  #   ∂nll/∂B[k,d] = Σ_i w_i (prob[i,k] - resp[i,k]) * X[i,d]  for k < K
-  # Vectorised: grad[k, :] = t(X_aug) %*% (w_aug * (prob[,k] - resp_aug[,k]))
-  nll_grad <- function(pars) {
-    B <- rbind(matrix(pars, K-1, D, byrow=TRUE), 0)
-    logits <- X_aug %*% t(B)
-    logits <- pmax(pmin(logits, 50), -50)
-    max_l <- apply(logits, 1, max)
-    prob <- exp(logits - max_l) / rowSums(exp(logits - max_l))
-    # residual: (prob - resp_aug) weighted by w_aug, for free classes k = 1..K-1
-    resid <- sweep(prob[, seq_len(K-1), drop=FALSE] -
-                     resp_aug[, seq_len(K-1), drop=FALSE], 1, w_aug, "*")
-    as.vector(t(X_aug) %*% resid)   # D × (K-1), flattened row-major
-  }
-
-  fit <- optim(par = rep(0, (K-1)*D), fn = nll_func, gr = nll_grad,
-               method = "BFGS")
-  beta_final <- rbind(matrix(fit$par, K-1, D, byrow=TRUE), 0)
-
-  # ============================================================================
-  # 2. INFERENCE PASS (Original Data Only)
-  # ============================================================================
-  # We throw away the pseudo-data and calculate the Hessian strictly on the
-  # original X_mat and w_vec to ensure Standard Errors are not artificially shrunk.
-  logits <- X_mat %*% t(beta_final)
-  logits <- pmax(pmin(logits, 50), -50)
-  max_l <- apply(logits, 1, max)
-  prob <- exp(logits - max_l) / rowSums(exp(logits - max_l))
-
-  H <- matrix(0, (K-1)*D, (K-1)*D)
-
-  for(k in seq_len(K-1)) {
-    for(j in seq_len(K-1)) {
-      W <- prob[,k] * ((if(k==j) 1 else 0) - prob[,j]) * w_vec
-      H_kj <- -t(X_mat) %*% sweep(X_mat, 1, W, "*")
-
-      H[((k-1)*D+1):(k*D), ((j-1)*D+1):(j*D)] <- H_kj
-    }
-  }
+  mnl        <- .fit_mnl(X_mat, resp, weights = w_vec, augment = TRUE)
+  beta_final <- mnl$beta
+  prob       <- mnl$prob
+  H          <- mnl$hessian
 
   # Pad with zeros for the anchor class (identifiability constraint)
   H_full <- matrix(0, K*D, K*D)
@@ -127,6 +154,7 @@ m_step.covariate <- function(model_state, X, resp, weights = NULL, ...) {
     V_full <- matrix(0, K*D, K*D)
     V_full[1:((K-1)*D), 1:((K-1)*D)] <- V_robust
     model_state$parameters$V_robust <- V_full
+    model_state$parameters$V_method <- "Survey-robust (linearization)"
   }
 
   return(model_state)

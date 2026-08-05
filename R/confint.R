@@ -2,11 +2,13 @@
 #'
 #' @description
 #' Computes confidence intervals for the odds ratios of covariate effects on
-#' latent class membership. By default, analytical standard errors derived
-#' from the observed information matrix (Hessian) are used. Bootstrapped
-#' standard errors from \code{\link{bootstrap_covariates}} can be supplied
-#' instead, which is recommended in small samples or when the Hessian is
-#' poorly conditioned.
+#' latent class membership, using whichever analytical variance the model was
+#' fitted with — see the \code{se} argument of \code{\link{fit_mixture}} and
+#' \code{\link{covariate_se}}. The estimator used is named in the printed
+#' output and carried in the \code{method} attribute of the result.
+#' Bootstrapped standard errors from \code{\link{bootstrap_covariates}} can be
+#' supplied instead, which is worth doing in small samples, when classes
+#' overlap heavily, or as a check on the analytical intervals.
 #'
 #' @param object A fitted \code{mixture_model} object with a covariate
 #'   structural model (fitted with \code{structural = "covariate"}).
@@ -15,8 +17,8 @@
 #' @param level Numeric. The confidence level. Default is \code{0.95}.
 #' @param boot_results Optional. A list returned by
 #'   \code{\link{bootstrap_covariates}}. When provided, bootstrapped standard
-#'   errors are used. When \code{NULL} (default), analytical SEs derived from
-#'   the Hessian are used.
+#'   errors are used. When \code{NULL} (default), the analytical variance
+#'   stored on the fitted model is used.
 #' @param ref_class Integer. The reference latent class. Odds ratios for all
 #'   other classes are expressed relative to this class. Default is \code{1}.
 #' @param ... Currently unused. Present for S3 method compatibility.
@@ -85,10 +87,10 @@ confint.mixture_model <- function(object, parm = NULL, level = 0.95,
   } else {
     V_robust <- object$sm$parameters$V_robust
     if (!is.null(V_robust)) {
-      method <- "Survey-robust (linearization)"
+      method <- object$sm$parameters$V_method %||% "Survey-robust (linearization)"
       Sigma  <- V_robust
     } else {
-      method <- "Analytical (Hessian)"
+      method <- object$sm$parameters$V_method %||% "Q-function Hessian"
       H <- object$sm$parameters$hessian
       if (is.null(H)) stop("Hessian missing. Refit model.")
       Sigma <- pinv(-H)
