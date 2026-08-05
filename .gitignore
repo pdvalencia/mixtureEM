@@ -12,3 +12,4 @@ scratch_*.R
 README.html
 mixtureEM.Rcheck/
 mixtureEM_*.tar.gz
+/docs/
