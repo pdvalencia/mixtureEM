@@ -59,18 +59,84 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = 1.0) {
   K <- model_state$n_components
   prior_obs <- alpha / K
 
-  nk <- colSums(resp)
+  # Sampling / frequency weights must enter the M-step, not only the reported
+  # log-likelihood: a case carrying weight w contributes w times to every
+  # sufficient statistic. refine_lbfgs() already weighted correctly, so on the
+  # default binary/Gaussian path this only moves the starting point it is handed
+  # and the fitted values barely shift. It matters where that refinement does not
+  # run: polytomous and mixed measurement models, which are outside its
+  # whitelist, and refine = FALSE, which is the path BLRT replicates take.
+  # Passed through only when the weights are non-trivial, so unweighted fits keep
+  # their exact previous numerical behaviour.
+  w <- model_state$sample_weights
+  weighted <- !is.null(w) && length(w) == nrow(resp) && any(w != 1)
+
+  nk <- if (weighted) colSums(sweep(resp, 1, w, "*")) else colSums(resp)
   nk_prior <- nk + prior_obs
   model_state$weights <- nk_prior / sum(nk_prior)
 
-  model_state$mm <- m_step(model_state$mm, X, resp)
+  if (weighted) {
+    model_state$mm <- m_step(model_state$mm, X, resp, weights = w)
+  } else {
+    model_state$mm <- m_step(model_state$mm, X, resp)
+  }
 
   if (!is.null(Y) && !is.null(model_state$sm)) {
-    model_state$sm <- m_step(model_state$sm, Y, resp)
+    if (weighted) {
+      model_state$sm <- m_step(model_state$sm, Y, resp, weights = w)
+    } else {
+      model_state$sm <- m_step(model_state$sm, Y, resp)
+    }
   }
 
   return(model_state)
 }
+
+# The emissions refine_lbfgs() knows how to polish, kept in one place because
+# two separate decisions read it: whether to run the refinement at all, and how
+# tightly EM itself must converge. Those two were previously decided
+# independently, which is how the second one came to be wrong for every emission
+# outside this list.
+.refine_supported <- c("bernoulli", "bernoulli_nan",
+                       "gaussian_diag", "gaussian_diag_nan",
+                       "gaussian_unit", "gaussian_unit_nan")
+
+# Would refine_lbfgs() climb from wherever EM stops to the penalised optimum for
+# this emission? A block model is refinable when its sub-model is (the flat view
+# maps the blocks onto one wide parameter matrix); a nested model never is,
+# because its sub-models are heterogeneous and there is no single packing.
+.is_refinable <- function(mm) {
+  if (inherits(mm, "nested")) return(FALSE)
+  view <- .refine_time_block_view(mm) %||% list(mm = mm)
+  class(view$mm)[1] %in% .refine_supported
+}
+
+# The EM stopping rule for an emission that L-BFGS will not polish.
+#
+# The package default stops once the log-likelihood moves less than a thousandth
+# of *itself*, which is deliberately loose: for the emissions the refinement
+# covers, EM only has to reach the right neighbourhood and L-BFGS does the rest.
+# Applied to an emission with no second stage it stops after a handful of
+# iterations and that is the answer the user gets. Measured against a rule tight
+# enough to be at the optimum, on simulated data with n_init = 5:
+#
+#   count LCA, K=3, n=800, 6 items        6 iterations,  7.0 of log-likelihood short
+#   count LCA, K=4, n=2000, 8 items       6 iterations, 27.5 short
+#   polytomous LCA, K=3, n=800            7 iterations,  5.1 short
+#   mixed binary/continuous/count        --             8.1 short
+#
+# and those are not harmless decimals: a Poisson rate came back 2.8 off its
+# converged value and a response probability 0.56 off, which is a different
+# class profile, not a rounding difference.
+#
+# The value is chosen from the accuracy/cost curve rather than by taking the
+# tightest rule available. At abs = 1e-4 all four models above land within 0.006
+# of their maximum; tightening to 1e-8 buys the remaining 0.006 for three to
+# four times the iterations. The relative term is kept only as a safety valve so
+# that a very large sample cannot iterate indefinitely; at 1e-8 it does not bind
+# until the log-likelihood is in the tens of thousands, and even there it is
+# four orders of magnitude tighter than the default.
+.em_tol_unpolished <- list(abs = 1e-4, rel = 1e-8)
 
 # L-BFGS refinement after EM convergence — Penalised Maximum Likelihood (PM).
 #
@@ -103,12 +169,18 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = 1.0) {
 #   gaussian_unit : means [K×J] + log-ratio weights [K-1]
 #
 refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
-  mm_type <- class(model_state$mm)[1]
-  supported <- c("bernoulli", "bernoulli_nan",
-                 "gaussian_diag", "gaussian_diag_nan",
-                 "gaussian_unit", "gaussian_unit_nan")
-  if (!mm_type %in% supported) return(model_state)
-  if (inherits(model_state$mm, "nested")) return(model_state)
+  # A time-block (repeated-measures) model is refined on the same footing as a
+  # flat one: its per-occasion parameter blocks are viewed as one wide matrix,
+  # and `col_map` records which stacked column draws on which free column. Items
+  # held equal across occasions therefore share a single free column, so L-BFGS
+  # optimises the constrained parameterisation directly. For every other model
+  # `col_map` is the identity and this reduces to the original code path.
+  tb   <- .refine_time_block_view(model_state$mm)
+  view <- tb %||% list(mm = model_state$mm, col_map = NULL)
+
+  mm_type <- class(view$mm)[1]
+  if (!mm_type %in% .refine_supported) return(model_state)
+  if (inherits(view$mm, "nested")) return(model_state)
   # K=1 has no weight parameters; the M-step already gives the exact analytic
   # solution (item marginals), so L-BFGS is a no-op and the K-2 index arithmetic
   # below produces an out-of-bounds sequence that triggers a sweep() warning.
@@ -125,26 +197,59 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
   J  <- ncol(X)
   sw <- model_state$sample_weights
 
+  col_map <- view$col_map %||% seq_len(J)
+  if (length(col_map) != J) return(model_state)
+  P <- max(col_map)                       # number of free parameter columns
+  tied <- P < J
+  # Index sets used to fold the full-column gradient onto the free columns.
+  # factor() with explicit levels keeps the groups in free-column order; a bare
+  # split() on integers would order them as strings (1, 10, 2, ...).
+  map_groups <- if (tied)
+    split(seq_len(J), factor(col_map, levels = seq_len(P))) else NULL
+
+  # Sum the columns of a K x J gradient within each tie group -> K x P.
+  fold_cols <- function(g)
+    matrix(vapply(map_groups, function(gi) rowSums(g[, gi, drop = FALSE]),
+                  numeric(K)), nrow = K, ncol = P)
+
   # Observed marginal probabilities — the "conservative null model"
-  # as the centre of the Dirichlet prior for binary items.
-  marginal <- colMeans(X, na.rm = TRUE)
+  # as the centre of the Dirichlet prior for binary items. Under an equality
+  # constraint the tied columns share one prior, centred on their pooled
+  # marginal, matching the prior the constrained M-step applies.
+  #
+  # The marginal is weighted, as in m_step.bernoulli. An unweighted mean would
+  # centre the prior on a different point from the one EM used, so the same data
+  # supplied as a response-pattern table with frequency weights and as expanded
+  # case-level rows would not give the same answer.
+  X0     <- replace(X, is.na(X), 0)
+  obs_w  <- (!is.na(X)) * sw
+  marginal <- colSums(X0 * sw) / pmax(colSums(obs_w), 1e-12)
+  if (tied)
+    marginal <- vapply(map_groups, function(g) mean(marginal[g]), numeric(1))
   marginal <- pmax(pmin(marginal, 1 - 1e-7), 1e-7)
 
   # ── Pack initial parameters ────────────────────────────────────────────────
   wts <- pmax(model_state$weights, 1e-15)
   log_ratio_w <- log(wts[-K] / wts[K])   # K-1 free weight params (last anchored = 0)
 
+  # Free-column view of the starting values (identical to the full matrix when
+  # nothing is tied; one representative column per group otherwise).
+  free_cols <- if (tied) vapply(map_groups, function(g) g[1L], integer(1)) else
+    seq_len(J)
+
   if (fam == "bernoulli") {
-    pis  <- pmax(pmin(model_state$mm$parameters$pis, 1 - 1e-7), 1e-7)
-    par0 <- c(qlogis(as.vector(pis)), log_ratio_w)   # K*J + K-1
+    pis  <- pmax(pmin(view$mm$parameters$pis[, free_cols, drop = FALSE],
+                      1 - 1e-7), 1e-7)
+    par0 <- c(qlogis(as.vector(pis)), log_ratio_w)   # K*P + K-1
 
   } else if (fam == "gaussian_diag") {
-    means <- as.vector(model_state$mm$parameters$means)
-    sds   <- sqrt(as.vector(model_state$mm$parameters$covariances))
-    par0  <- c(means, log(pmax(sds, 1e-7)), log_ratio_w)   # 2*K*J + K-1
+    means <- as.vector(view$mm$parameters$means[, free_cols, drop = FALSE])
+    sds   <- sqrt(as.vector(view$mm$parameters$covariances[, free_cols, drop = FALSE]))
+    par0  <- c(means, log(pmax(sds, 1e-7)), log_ratio_w)   # 2*K*P + K-1
 
   } else {  # gaussian_unit
-    par0 <- c(as.vector(model_state$mm$parameters$means), log_ratio_w)   # K*J + K-1
+    par0 <- c(as.vector(view$mm$parameters$means[, free_cols, drop = FALSE]),
+              log_ratio_w)                                  # K*P + K-1
   }
 
   n_obs <- sum(sw)   # effective sample size (supports survey weights)
@@ -176,8 +281,14 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
     w_vec <- exp(log_w)
 
     # ── Decode measurement model ─────────────────────────────────────────────
+    # Parameters are carried on the free columns and expanded to all stacked
+    # columns through col_map, which is the identity unless items are tied.
+    expand <- function(m) if (tied) m[, col_map, drop = FALSE] else m
+
     if (fam == "bernoulli") {
-      pis_p <- pmax(pmin(matrix(plogis(par[seq_len(K * J)]), K, J), 1-1e-15), 1e-15)
+      pis_free <- pmax(pmin(matrix(plogis(par[seq_len(K * P)]), K, P),
+                            1 - 1e-15), 1e-15)
+      pis_p    <- expand(pis_free)
       if (has_na) {
         # Per-component sum with missing cells dropped (FIML). Slower than the
         # matrix multiply but the only NA-safe form.
@@ -193,9 +304,10 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
       }
 
     } else if (fam == "gaussian_diag") {
-      means_p <- matrix(par[seq_len(K * J)],           K, J)
-      sds_p   <- matrix(exp(par[(K*J+1):(2*K*J)]),     K, J)
-      sds_p   <- pmax(sds_p, 1e-7)
+      means_free <- matrix(par[seq_len(K * P)],             K, P)
+      sds_free   <- pmax(matrix(exp(par[(K*P+1):(2*K*P)]),  K, P), 1e-7)
+      means_p <- expand(means_free)
+      sds_p   <- expand(sds_free)
       log_lik <- matrix(0, nrow(X), K)
       for (k in seq_len(K))
         log_lik[, k] <- rowSums(
@@ -204,7 +316,8 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
           na.rm = TRUE)
 
     } else {  # gaussian_unit
-      means_p <- matrix(par[seq_len(K * J)], K, J)
+      means_free <- matrix(par[seq_len(K * P)], K, P)
+      means_p    <- expand(means_free)
       log_lik <- matrix(0, nrow(X), K)
       for (k in seq_len(K))
         log_lik[, k] <- rowSums(
@@ -224,7 +337,8 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
     # ── Priors (also normalised by n_obs) ─────────────────────────────────────
     log_prior_w <- (1 / K) * sum(log_w) / n_obs
     log_prior_pis <- if (fam == "bernoulli")
-      sum((marginal / K) %*% t(log(pis_p)) + ((1 - marginal) / K) %*% t(log(1 - pis_p))) / n_obs
+      sum((marginal / K) %*% t(log(pis_free)) +
+            ((1 - marginal) / K) %*% t(log(1 - pis_free))) / n_obs
     else 0
 
     val <- -(obs_ll + log_prior_w + log_prior_pis)
@@ -235,6 +349,9 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
 
     grad <- numeric(length(par))
 
+    # The data part of each gradient is computed on all stacked columns and then
+    # folded onto the free columns; tied columns therefore accumulate the score
+    # from every occasion they cover. The prior is added once per free column.
     if (fam == "bernoulli") {
       if (has_na) {
         # Missing cells inform neither item j's score nor its effective count,
@@ -244,14 +361,13 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
         obs    <- !is.na(X)
         X0     <- X; X0[!obs] <- 0
         nk_obs <- t(swR) %*% obs
-        g_pis  <- t(swR) %*% X0 - pis_p * nk_obs +
-          (matrix(marginal, K, J, byrow = TRUE) - pis_p) / K
+        g_data <- t(swR) %*% X0 - pis_p * nk_obs
       } else {
-        g_pis <- t(swR) %*% X -
-          sweep(pis_p, 1, nk, "*") +
-          (matrix(marginal, K, J, byrow = TRUE) - pis_p) / K
+        g_data <- t(swR) %*% X - sweep(pis_p, 1, nk, "*")
       }
-      grad[seq_len(K * J)] <- as.vector(-g_pis) / n_obs
+      if (tied) g_data <- fold_cols(g_data)
+      g_pis <- g_data + (matrix(marginal, K, P, byrow = TRUE) - pis_free) / K
+      grad[seq_len(K * P)] <- as.vector(-g_pis) / n_obs
 
     } else if (fam == "gaussian_diag") {
       g_mu  <- matrix(0, K, J)
@@ -263,14 +379,16 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
                              na.rm = has_na)
         g_lsd[k,] <- colSums(swR[,k] * (z2 - 1), na.rm = has_na)
       }
-      grad[seq_len(K * J)]  <- as.vector(-g_mu)  / n_obs
-      grad[(K*J+1):(2*K*J)] <- as.vector(-g_lsd) / n_obs
+      if (tied) { g_mu <- fold_cols(g_mu); g_lsd <- fold_cols(g_lsd) }
+      grad[seq_len(K * P)]  <- as.vector(-g_mu)  / n_obs
+      grad[(K*P+1):(2*K*P)] <- as.vector(-g_lsd) / n_obs
 
     } else {  # gaussian_unit
       g_mu <- matrix(0, K, J)
       for (k in seq_len(K))
         g_mu[k,] <- colSums(swR[,k] * sweep(X, 2, means_p[k,], "-"), na.rm = has_na)
-      grad[seq_len(K * J)] <- as.vector(-g_mu) / n_obs
+      if (tied) g_mu <- fold_cols(g_mu)
+      grad[seq_len(K * P)] <- as.vector(-g_mu) / n_obs
     }
 
     g_w <- nk[seq_len(n_w)] - n_obs * w_vec[seq_len(n_w)] +
@@ -301,16 +419,27 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
   lr   <- lr - (max(lr) + log(sum(exp(lr - max(lr)))))
   model_state$weights <- exp(lr)
 
+  expand_out <- function(m) if (tied) m[, col_map, drop = FALSE] else m
+  refined <- list()
+
   if (fam == "bernoulli") {
-    model_state$mm$parameters$pis <-
-      pmax(pmin(matrix(plogis(par[1:(K*J)]), nrow=K, ncol=J), 1-1e-7), 1e-7)
+    refined$pis <- expand_out(
+      pmax(pmin(matrix(plogis(par[1:(K*P)]), nrow = K, ncol = P), 1-1e-7), 1e-7))
 
   } else if (fam == "gaussian_diag") {
-    model_state$mm$parameters$means       <- matrix(par[1:(K*J)],          nrow=K, ncol=J)
-    model_state$mm$parameters$covariances <- matrix(exp(par[(K*J+1):(2*K*J)]), nrow=K, ncol=J)^2
+    refined$means       <- expand_out(matrix(par[1:(K*P)], nrow = K, ncol = P))
+    refined$covariances <- expand_out(
+      matrix(exp(par[(K*P+1):(2*K*P)]), nrow = K, ncol = P)^2)
 
   } else {  # gaussian_unit
-    model_state$mm$parameters$means <- matrix(par[1:(K*J)], nrow=K, ncol=J)
+    refined$means <- expand_out(matrix(par[1:(K*P)], nrow = K, ncol = P))
+  }
+
+  if (is.null(tb)) {
+    for (nm in names(refined)) model_state$mm$parameters[[nm]] <- refined[[nm]]
+  } else {
+    # Scatter the wide refined matrix back into the per-occasion sub-models.
+    model_state$mm <- .refine_time_block_write(model_state$mm, refined)
   }
 
   # Re-run E-step with the refined parameters so log_resp and lower_bound
@@ -322,17 +451,44 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
   return(model_state)
 }
 
-# Run the EM loop for a single random initialization
+# Run the EM loop for a single random initialization.
+#
+# `init_state` resumes from a state some earlier call already produced instead
+# of drawing fresh starting values, which is what makes the two-stage search in
+# fit_em() possible: a short first pass ranks the starts, and only the survivors
+# are run on to convergence from exactly where they stopped.
 fit_single_init <- function(model_state, X, Y, max_iter = 1000,
-                            abs_tol = 1e-3, rel_tol = 1e-3, refine = TRUE) {
+                            abs_tol = 1e-3, rel_tol = 1e-3, refine = TRUE,
+                            init_state = NULL) {
   n_samples <- nrow(X)
 
-  model_state$weights <- rep(1 / model_state$n_components, model_state$n_components)
+  # The default stopping rule is deliberately loose because the emissions it was
+  # written for are polished afterwards by refine_lbfgs(), which climbs from
+  # wherever EM stopped to the penalised optimum. An emission outside that
+  # whitelist has no such second stage, so where EM stops is the answer, and it
+  # gets the tighter rule automatically. An emission may still name its own rule
+  # by carrying `em_tol`, which takes precedence over both.
+  em_tol <- model_state$mm$em_tol
+  if (is.null(em_tol) && !.is_refinable(model_state$mm))
+    em_tol <- .em_tol_unpolished
+  if (!is.null(em_tol)) {
+    abs_tol <- em_tol$abs
+    rel_tol <- em_tol$rel
+  }
 
-  # Initialize parameters directly
-  model_state$mm <- init_params(model_state$mm, X, NULL)
-  if (!is.null(Y) && !is.null(model_state$sm)) {
-    model_state$sm <- init_params(model_state$sm, Y, NULL)
+  if (is.null(init_state)) {
+    model_state$weights <- rep(1 / model_state$n_components,
+                               model_state$n_components)
+
+    # Initialize parameters directly
+    model_state$mm <- init_params(model_state$mm, X, NULL)
+    if (!is.null(Y) && !is.null(model_state$sm)) {
+      model_state$sm <- init_params(model_state$sm, Y, NULL)
+    }
+  } else {
+    model_state$weights <- init_state$weights
+    model_state$mm      <- init_state$mm
+    if (!is.null(init_state$sm)) model_state$sm <- init_state$sm
   }
 
   # Initialize scalar trackers for convergence
@@ -386,8 +542,64 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
 }
 
 # Multi-start EM
+#
+# An emission whose EM is slow may ask for a two-stage search by carrying
+# `em_stage1`, and for a higher iteration ceiling by carrying `em_max_iter`.
+# Both are opt-in: an emission that declares neither runs exactly the loop it
+# always did.
 fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
                    random_state = NULL, refine = TRUE) {
+
+  # An emission may raise the ceiling on itself, but never lower one the caller
+  # asked for: `max_iter` is a documented argument of fit_mixture().
+  em_max <- model_state$mm$em_max_iter
+  if (!is.null(em_max)) max_iter <- max(max_iter, em_max)
+
+  run_from <- function(state)
+    fit_single_init(model_state, X, Y, max_iter = max_iter, refine = refine,
+                    init_state = state)
+
+  ll_of <- function(s) sum(s$sample_weights * s$lower_bound)
+
+  stage <- model_state$mm$em_stage1
+  if (!is.null(stage) && n_init > 1L) {
+    # Stage 1 — rank the starting values cheaply.
+    #
+    # Where each iteration is expensive and hundreds are needed, running every
+    # restart to convergence spends nearly all of its time climbing hills that
+    # are then discarded. A short pass separates the promising basins from the
+    # hopeless ones for a fraction of the cost, and only the survivors are run
+    # on. This is the standard two-stage multi-start scheme, used for exactly the
+    # same reason, and the survivors resume from where stage 1 left them rather
+    # than restarting, so nothing is thrown away.
+    candidates <- vector("list", n_init)
+    for (init in seq_len(n_init)) {
+      if (!is.null(random_state)) set.seed(random_state + init)
+      candidates[[init]] <- fit_single_init(model_state, X, Y,
+                                            max_iter = stage$iter,
+                                            refine = FALSE)
+    }
+    lls  <- vapply(candidates, ll_of, numeric(1))
+    keep <- order(lls, decreasing = TRUE)[
+      seq_len(min(n_init, max(stage$min_keep, ceiling(stage$frac * n_init))))]
+
+    best_model <- NULL
+    best_total_ll <- -Inf
+    for (i in keep) {
+      # The seed is restored so that the second stage of a given start draws the
+      # same random numbers it would have drawn in a single-stage run; nothing
+      # below uses them today, but a stochastic M-step later would.
+      if (!is.null(random_state)) set.seed(random_state + i)
+      fitted_state <- run_from(candidates[[i]])
+      current_ll   <- ll_of(fitted_state)
+      if (is.null(best_model) || current_ll > best_total_ll) {
+        best_total_ll <- current_ll
+        best_model    <- fitted_state
+      }
+    }
+    return(best_model)
+  }
+
   best_model <- NULL
   best_total_ll <- -Inf
 
@@ -398,7 +610,7 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     fitted_state <- fit_single_init(model_state, X, Y, max_iter = max_iter,
                                     refine = refine)
 
-    current_ll <- sum(fitted_state$sample_weights * fitted_state$lower_bound)
+    current_ll <- ll_of(fitted_state)
     if (is.null(best_model) || current_ll > best_total_ll) {
       best_total_ll <- current_ll
       best_model    <- fitted_state

@@ -7,7 +7,20 @@
 # (Uses "Duck Typing" to perfectly handle any S3 class name)
 # ------------------------------------------------------------------------------
 generate_synthetic_data <- function(mm, classes, N) {
-  if (inherits(mm, "nested")) {
+  # A time-block model is a column-partitioned model just like `nested`: each
+  # occasion's sub-model generates its own block and the blocks are laid out
+  # time-major, which reproduces the original column order exactly.
+  #
+  # Deliberately NOT widened to also cover `group_blocks`: unlike time blocks,
+  # a group-blocks row is structurally missing everywhere but its own group's
+  # block, and this generator has no group label to reproduce that pattern, so
+  # naively generating fully-observed data for every group would not resemble
+  # the real design the null distribution is supposed to approximate. A
+  # `group_blocks` model falls through to the `stop()` below until that's
+  # built; use `blrt()`/`compare_mixtures()` on the pooled (non-grouped) data
+  # to choose the number of classes, as Collins & Lanza do (sec. 5.7.1),
+  # before fitting the multiple-group model.
+  if (inherits(mm, c("nested", "time_blocks"))) {
     res <- list()
     for (name in names(mm$models)) {
       res[[name]] <- generate_synthetic_data(mm$models[[name]], classes, N)
@@ -15,11 +28,79 @@ generate_synthetic_data <- function(mm, classes, N) {
     return(do.call(cbind, res))
   }
 
-  is_cont <- !is.null(mm$parameters$means)
-  is_poly <- !is.null(mm$max_val)
-  is_bin  <- !is.null(mm$parameters$pis) && is.null(mm$max_val)
+  is_cont   <- !is.null(mm$parameters$means)
+  is_poly   <- !is.null(mm$max_val)
+  is_bin    <- !is.null(mm$parameters$pis) && is.null(mm$max_val)
+  is_count  <- !is.null(mm$parameters$rates)
+  is_growth <- !is.null(mm$parameters$coefs)
+  is_gmm    <- !is.null(mm$parameters$alpha)
 
-  if (is_cont) {
+  # A growth mixture model draws a whole T-vector at once rather than one value
+  # per occasion independently: the within-class random effects are exactly what
+  # makes a case's occasions correlated, so generating them occasion by occasion
+  # would produce a null distribution for a model nobody fitted. The class's
+  # implied covariance is the structured Sigma, and a multivariate normal draw
+  # from it is a Cholesky factor times a standard normal vector.
+  if (is_gmm) {
+    Tn    <- nrow(mm$design)
+    X_gen <- matrix(0, nrow = N, ncol = Tn)
+    chols <- lapply(seq_len(mm$n_components),
+                    function(k) .sn_chol(.sn_sigma(mm, k)))
+
+    # With covariates on the growth factors the class mean is a case-level
+    # quantity, so the replicate is generated *conditional on the observed x* --
+    # the covariates are exogenous and are not resampled, which is what makes
+    # the null distribution the one for the model that was fitted. That requires
+    # the replicate to have as many cases as the original.
+    has_x <- !is.null(mm$xmat)
+    if (has_x && N != nrow(mm$xmat))
+      stop(sprintf(
+        paste0("A growth mixture model with covariates on the growth factors ",
+               "generates replicates conditional on the observed covariates, ",
+               "so a replicate must have one case per original case (%d ",
+               "requested, %d available)."), N, nrow(mm$xmat)), call. = FALSE)
+    mu <- if (has_x) lapply(seq_len(mm$n_components), function(k) .sn_mu(mm, k))
+          else NULL
+    fitted <- if (has_x) NULL else .sn_fitted(mm)      # K x T
+
+    for (i in seq_len(N)) {
+      k   <- classes[i]
+      m_i <- if (has_x) mu[[k]][i, ] else fitted[k, ]
+      X_gen[i, ] <- m_i + as.vector(crossprod(chols[[k]], rnorm(Tn)))
+    }
+    return(X_gen)
+  }
+
+  # A growth model's class parameters are coefficients rather than one value per
+  # column, so the trajectory has to be evaluated before anything can be drawn;
+  # after that it generates exactly like the flat model of the same family, one
+  # draw per occasion. Class enumeration matters more here than almost anywhere
+  # else in the package — how many trajectory groups there are is usually the
+  # research question — so the BLRT has to reach this model.
+  if (is_growth) {
+    mu <- .lcga_fitted(mm)                    # K x T on the response scale
+    Tn <- ncol(mu)
+    X_gen <- matrix(0, nrow = N, ncol = Tn)
+    for (i in seq_len(N)) {
+      m_i <- mu[classes[i], ]
+      X_gen[i, ] <- switch(
+        mm$fam$name,
+        binomial = rbinom(Tn, 1, prob = m_i),
+        poisson  = rpois(Tn, lambda = m_i),
+        gaussian = rnorm(Tn, mean = m_i,
+                         sd = sqrt(mm$parameters$dispersion[classes[i]])))
+    }
+    return(X_gen)
+
+  } else if (is_count) {
+    rates <- mm$parameters$rates
+    D     <- ncol(rates)
+    X_gen <- matrix(0L, nrow = N, ncol = D)
+    for (i in 1:N)
+      X_gen[i, ] <- rpois(D, lambda = rates[classes[i], ])
+    return(X_gen)
+
+  } else if (is_cont) {
     D <- ncol(mm$parameters$means)
     X_gen <- matrix(0, nrow = N, ncol = D)
     for (i in 1:N) {
