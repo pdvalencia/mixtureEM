@@ -9,3 +9,6 @@
 ^internal$
 ^vignettes/.*_cache$
 ^README\.html$
+^docs$
+^_pkgdown\.yml$
+^\.Rproj\.user$

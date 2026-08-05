@@ -1,0 +1,16 @@
+url: https://pdvalencia.github.io/mixtureEM/
+
+template:
+  bootstrap: 5
+
+articles:
+- title: Worked examples
+  navbar: ~
+  contents:
+  - ventura_leon
+  - janousch
+  - class_enumeration
+  - rmlca
+  - lta
+  - growth_mixture
+  - survey_lca

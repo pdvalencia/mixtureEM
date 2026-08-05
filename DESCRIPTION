@@ -25,7 +25,7 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
-URL: https://github.com/pdvalencia/mixtureEM
+URL: https://pdvalencia.github.io/mixtureEM/, https://github.com/pdvalencia/mixtureEM
 BugReports: https://github.com/pdvalencia/mixtureEM/issues
 Imports:
     grDevices,

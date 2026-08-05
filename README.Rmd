@@ -18,22 +18,26 @@ knitr::opts_chunk$set(
 [![R-CMD-check](https://github.com/pdvalencia/mixtureEM/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/pdvalencia/mixtureEM/actions/workflows/R-CMD-check.yaml)
 
 **mixtureEM** is latent class and latent profile analysis for applied
-researchers: find the hidden subgroups in your data, describe them, and
-relate them to other variables — with methodologically sound defaults at
-every step, in pure base R with no dependencies.
+researchers: find the hidden subgroups in your data, describe them
+(Collins & Lanza, 2010).
 
 If you have ever run an LCA, assigned everyone to their most likely class,
 and then run chi-squares on the labels, this package exists for you: the
 step that is easiest to get wrong (relating classes to external variables)
 is the one mixtureEM automates correctly, using the bias-adjusted
-three-step estimators from the methodological literature (Vermunt, 2010;
-Bakk, Oberski, & Vermunt, 2014).
+three-step estimators from the methodological literature (Bakk et al.,
+2014; Vermunt, 2010).
+
+And if you have never run an LCA, this package exists for you too: every
+step ships with a sensible default and output that reads like the table
+you would put in a paper, so you do not need the estimation theory
+memorized to get correct answers out.
 
 ## Installation
 
 ```r
-# install.packages("remotes")
-remotes::install_github("pdvalencia/mixtureEM")
+# install.packages("pak")
+pak::pkg_install("pdvalencia/mixtureEM")
 ```
 
 ## A complete analysis in a handful of calls
@@ -45,23 +49,8 @@ Using the bundled `ventura_leon` data — 16 yes/no infidelity items from
 library(mixtureEM)
 
 items <- ventura_leon[, 7:22]   # the 16 infidelity items
-
-# 1. How many classes? Fit a range and compare.
-selection <- compare_mixtures(items, k_range = 1:5, n_init = 10)
-
-# 2. Fit the chosen model and look at it. BIC keeps creeping down past 4
-#    classes, as it often does in LCA; we keep 4 on conceptual grounds,
-#    following the original study's well-interpretable typology.
 fit <- fit_mixture(items, n_classes = 4, n_init = 20, random_state = 1)
 class_sizes(fit)
-```
-
-The item-class conditional probabilities — the table applied papers
-report — come from `measurement_summary()`, which prints them and also
-returns them as a data frame:
-
-```{r example-params}
-params <- measurement_summary(fit)
 ```
 
 ```{r example-plot, fig.height = 5}
@@ -69,34 +58,26 @@ plot(fit, class_labels = c("Fidelity", "Affective interest",
                            "Infidelity", "Sexual desire"))
 ```
 
-```{r example-covariates}
-# 3. Who ends up in which class? Bias-adjusted 3-step, on this exact fit.
-fit_cov <- add_covariates(fit, ventura_leon[, c("sex", "age")])
-summary(fit_cov)
-```
-
-(A reading note for the table above: a covariate can be significant on
-its omnibus test while none of its printed rows are — the omnibus asks
-whether the covariate distinguishes *any* pair of classes, while each row
-only compares one class against the chosen reference class. Re-reference
-with `summary(fit_cov, ref_class = 2)` to see the remaining contrasts.)
-
-`add_outcome(fit, y)` asks the complementary question — how the classes
-differ on an outcome.
+Choosing how many classes to keep, reading the full item-response table,
+relating classes to covariates with a bias correction, and describing
+them by a distal outcome are each one function call away — the
+[`ventura_leon` worked
+example](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html)
+walks through all of it on this exact fit.
 
 ## What it covers
 
 | Analysis | Function | Worked example |
 |---|---|---|
-| Latent class analysis (binary / categorical / count items) | `fit_mixture()` | `vignette("ventura_leon")` |
-| Latent profile analysis (continuous items), missing data, multiple groups | `fit_mixture()` | `vignette("janousch")` |
-| Choosing the number of classes (ICs, BLRT, fit diagnostics) | `compare_mixtures()`, `blrt()` | `vignette("class_enumeration")` |
-| Predictors of class membership (3-step ML) | `add_covariates()` | `vignette("ventura_leon")` |
-| Distal outcomes (BCH / ML) | `add_outcome()` | `vignette("ventura_leon")` |
-| Repeated-measures LCA (trajectory classes) | `fit_rmlca()` | `vignette("rmlca")` |
-| Latent transition analysis, mover-stayer models | `fit_lta()` | `vignette("lta")` |
-| Latent class growth analysis, growth mixture models | `fit_lcga()`, `fit_gmm()` | `vignette("growth_mixture")` |
-| Complex survey designs (weights, strata, clusters) | every model | `vignette("survey_lca")` |
+| Latent class analysis (binary / categorical / count items) | `fit_mixture()` | [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html) |
+| Latent profile analysis (continuous items), missing data, multiple groups | `fit_mixture()` | [`janousch`](https://pdvalencia.github.io/mixtureEM/articles/janousch.html) |
+| Choosing the number of classes (ICs, BLRT, fit diagnostics) | `compare_mixtures()`, `blrt()` | [`class_enumeration`](https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.html) |
+| Predictors of class membership (3-step ML) | `add_covariates()` | [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html) |
+| Distal outcomes (BCH / ML) | `add_outcome()` | [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html) |
+| Repeated-measures LCA (trajectory classes) | `fit_rmlca()` | [`rmlca`](https://pdvalencia.github.io/mixtureEM/articles/rmlca.html) |
+| Latent transition analysis, mover-stayer models | `fit_lta()` | [`lta`](https://pdvalencia.github.io/mixtureEM/articles/lta.html) |
+| Latent class growth analysis, growth mixture models | `fit_lcga()`, `fit_gmm()` | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |
+| Complex survey designs (weights, strata, clusters) | every model | [`survey_lca`](https://pdvalencia.github.io/mixtureEM/articles/survey_lca.html) |
 
 Also included: mixed measurement models (binary + continuous + count
 indicators in one model), full-information missing-data handling
@@ -147,6 +128,16 @@ also consider citing the StepMix paper:
 Bakk, Z., Oberski, D. L., & Vermunt, J. K. (2014). Relating latent class
 assignments to external variables: Standard errors for correct inference.
 *Political Analysis*, *22*(4), 520–540. <https://doi.org/10.1093/pan/mpu003>
+
+Collins, L. M., & Lanza, S. T. (2010). *Latent class and latent transition
+analysis: With applications in the social, behavioral, and health
+sciences*. Wiley.
+
+Ventura-León, J., Reyes, A., Valencia, P. D., Tocto-Muñoz, S.,
+Gamboa-Melgar, G., Ruiz-Castro, J., & Lino-Cruz, C. (2025). Exploring
+infidelity behavior patterns in a sample of Peruvian young adults: A
+latent class analysis. *Journal of Marital and Family Therapy*, *51*(4),
+e70066. <https://doi.org/10.1111/jmft.70066>
 
 Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
 three-step approaches. *Political Analysis*, *18*(4), 450–469.
