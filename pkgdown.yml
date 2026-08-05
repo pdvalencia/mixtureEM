@@ -1,0 +1,15 @@
+pandoc: 3.8.3
+pkgdown: 2.2.1
+pkgdown_sha: ~
+articles:
+  class_enumeration: class_enumeration.html
+  growth_mixture: growth_mixture.html
+  janousch: janousch.html
+  lta: lta.html
+  rmlca: rmlca.html
+  survey_lca: survey_lca.html
+  ventura_leon: ventura_leon.html
+last_built: 2026-08-05T22:32Z
+urls:
+  reference: https://pdvalencia.github.io/mixtureEM/reference
+  article: https://pdvalencia.github.io/mixtureEM/articles
