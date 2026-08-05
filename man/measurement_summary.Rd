@@ -2,16 +2,27 @@
 % Please edit documentation in R/wrapper.R
 \name{measurement_summary}
 \alias{measurement_summary}
+\alias{measurement_summary.default}
 \title{Print Measurement Model Parameters}
 \usage{
-measurement_summary(object)
+measurement_summary(object, ...)
+
+\method{measurement_summary}{default}(object, ...)
 }
 \arguments{
 \item{object}{A fitted \code{mixture_model} object returned by
 \code{\link{fit_mixture}}.}
+
+\item{...}{Passed to methods.}
 }
 \value{
-Invisibly returns \code{NULL}. Called for its printed side-effect.
+Invisibly, a data frame in long format with one row per item,
+response category (polytomous items only, \code{NA} otherwise), and
+class: columns \code{block} (sub-model name for mixed measurement
+models, \code{NA} otherwise), \code{parameter} (\code{"probability"},
+\code{"mean"}, or \code{"rate"}), \code{item}, \code{category},
+\code{class}, and \code{estimate}. The same numbers are printed as
+formatted tables.
 }
 \description{
 Prints a formatted table of the fitted measurement model parameters:
@@ -24,5 +35,6 @@ set.seed(1)
 X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
 fit <- fit_mixture(X, n_components = 2, measurement = "binary")
 measurement_summary(fit)
+params <- measurement_summary(fit)   # reuse the table programmatically
 
 }

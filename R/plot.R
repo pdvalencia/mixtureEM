@@ -26,11 +26,21 @@
   "#000000"  # black
 )
 
-# Does a (possibly nested) measurement model contain any continuous block?
+# Legend labels for class trajectories/profiles: the user's label (capped so a
+# verbose one cannot push the legend off the device) plus the class share.
+# Shared by every plot method that draws one line per class.
+.class_plot_labels <- function(base_labels, weights, max_chars = 24L) {
+  base <- .shorten_labels(as.character(base_labels), width = max_chars)
+  sprintf("%s (%.1f%%)", as.vector(base), weights * 100)
+}
+
+# Does a (possibly nested) measurement model contain any block plotted on the
+# observed data range? Continuous means and Poisson rates are both rescaled
+# against the raw indicators, so both need the raw data to be available.
 .has_continuous <- function(mm) {
-  if (inherits(mm, "nested"))
+  if (inherits(mm, c("nested", "blocks")))
     return(any(vapply(mm$models, .has_continuous, logical(1))))
-  !is.null(mm$parameters$means)
+  !is.null(mm$parameters$means) || !is.null(mm$parameters$rates)
 }
 
 # Build a [classes x items] matrix of values on a common [0, 1] scale.
@@ -38,14 +48,15 @@
 # (mixed-type) models the blocks are concatenated in submodel order.
 .prepare_profile_data <- function(mm, indicators = NULL) {
 
-  if (inherits(mm, "nested")) {
+  if (inherits(mm, c("nested", "blocks"))) {
     blocks <- lapply(mm$models, .prepare_profile_data, indicators = indicators)
     return(do.call(cbind, blocks))
   }
 
-  is_cont <- !is.null(mm$parameters$means)
-  is_poly <- !is.null(mm$max_val)
-  is_bin  <- !is.null(mm$parameters$pis) && is.null(mm$max_val)
+  is_cont  <- !is.null(mm$parameters$means)
+  is_poly  <- !is.null(mm$max_val)
+  is_bin   <- !is.null(mm$parameters$pis) && is.null(mm$max_val)
+  is_count <- !is.null(mm$parameters$rates)
 
   plot_data  <- list()
 
@@ -75,6 +86,26 @@
     cols <- colnames(pis) %||% paste0("Bin_", seq_len(ncol(pis)))
     for (j in seq_len(ncol(pis)))
       plot_data[[cols[j]]] <- pis[, j]
+  }
+
+  # --- Count: rates share the continuous treatment (min-max to [0, 1]) ------
+  # Rates live on the data's own scale, like continuous means, so the same
+  # rescaling puts them on the common profile axis.
+  if (is_count) {
+    rates <- mm$parameters$rates
+    cols  <- colnames(rates) %||% paste0("Count_", seq_len(ncol(rates)))
+
+    for (j in seq_len(ncol(rates))) {
+      have_obs <- !is.null(indicators) && cols[j] %in% colnames(indicators)
+      if (have_obs) {
+        col_min <- min(indicators[, cols[j]], na.rm = TRUE)
+        col_max <- max(indicators[, cols[j]], na.rm = TRUE)
+      } else {
+        col_min <- min(rates[, j]); col_max <- max(rates[, j])
+      }
+      denom <- if (col_max == col_min) 1 else (col_max - col_min)
+      plot_data[[paste0(cols[j], "*")]] <- (rates[, j] - col_min) / denom
+    }
   }
 
   # --- Polytomous (ordinal): expected category, scaled to [0, 1] ------------
@@ -152,11 +183,20 @@ plot.mixture_model <- function(x, main = "Latent Class / Profile Plot",
   base_labels <- if (is.null(class_labels)) paste("Class", seq_len(n_classes))
                  else class_labels
 
-  labels <- sprintf("%s (%.1f%%)", base_labels, x$weights * 100)
+  labels <- .class_plot_labels(base_labels, x$weights)
 
   old_par <- par(no.readonly = TRUE)
   on.exit(par(old_par))
-  par(mar = c(6, 4, 4, 9), xpd = TRUE)
+  # Margins sized from the labels that actually go in them: the right margin
+  # holds the legend (whose labels are already capped by .class_plot_labels),
+  # the bottom margin the 45-degree item names. A fixed margin either clips
+  # long labels or wastes space on short ones.
+  mar_right  <- min(3 + 0.45 * max(nchar(labels)), 18)
+  mar_bottom <- max(6, min(3.5 + 0.4 * max(nchar(colnames(plot_mat))), 12))
+  # The first item's rotated label leans left of the axis, so the left margin
+  # grows with it too (the y-axis title needs the 4-line floor regardless).
+  mar_left   <- max(4, min(2 + 0.25 * nchar(colnames(plot_mat)[1]), 8))
+  par(mar = c(mar_bottom, mar_left, 4, mar_right), xpd = TRUE)
 
   matplot(
     x    = seq_len(n_items),
@@ -186,7 +226,10 @@ plot.mixture_model <- function(x, main = "Latent Class / Profile Plot",
     cex    = 0.9
   )
 
-  x_pos <- par("usr")[2] + 0.1
+  # Offset in a fixed fraction of the x-range, not a fixed data-unit amount:
+  # 0.1 data units is a different physical distance for a 4-item plot than for
+  # a 30-item one, which used to push the legend off the device.
+  x_pos <- par("usr")[2] + 0.02 * diff(par("usr")[1:2])
   y_pos <- par("usr")[4]
 
   legend(
@@ -198,13 +241,15 @@ plot.mixture_model <- function(x, main = "Latent Class / Profile Plot",
     lty    = 1,
     lwd    = 2,
     bty    = "n",
+    cex    = 0.9,
     title  = "Class"
   )
 
   if (any(grepl("\\*", colnames(plot_mat))))
     mtext(
       "* Continuous items min-max scaled; ordinal items shown as scaled expected category.",
-      side = 1, line = 4.5, adj = 0, cex = 0.8, font = 3, col = "grey30"
+      side = 1, line = mar_bottom - 1.2, adj = 0, cex = 0.8, font = 3,
+      col = "grey30"
     )
 
   invisible(x)

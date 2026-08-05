@@ -1,0 +1,225 @@
+# ==============================================================================
+# Shared stepwise-estimation internals
+#
+# These helpers factor the step-wise portions of fit_mixture_internal() into
+# reusable pieces so that add_covariates() / add_outcome() can run steps 2-3 on
+# an already-fitted measurement model without repeating step 1. Both entry
+# points must produce byte-identical model states for the same inputs, so any
+# change here affects the fit_mixture() path too.
+# ==============================================================================
+
+# Measurement-only fit metrics, computed after step 1 and before any structural
+# model touches the state. The pooled class weights contribute K - 1 free
+# parameters here even when a covariate model will later replace them, because
+# at step 1 they are still estimated.
+.step1_metrics <- function(model_state) {
+  n_params_s1  <- n_parameters(model_state$mm) + (model_state$n_components - 1)
+  ll_s1        <- sum(model_state$sample_weights * model_state$lower_bound)
+  resp_s1      <- exp(model_state$log_resp)
+  abs_ent_s1   <- sum(model_state$sample_weights *
+                        (-resp_s1 * log(resp_s1 + 1e-15)))
+  # Use relative_entropy() to handle the K=1 edge case cleanly.
+  rel_ent_s1   <- relative_entropy(abs_ent_s1,
+                                   sum(model_state$sample_weights),
+                                   model_state$n_components)
+  n_eff <- model_state$n_eff
+
+  list(
+    ll       = ll_s1,
+    n_params = n_params_s1,
+    aic      = -2 * ll_s1 + 2 * n_params_s1,
+    bic      = -2 * ll_s1 + log(n_eff) * n_params_s1,
+    sabic    = -2 * ll_s1 + log((n_eff + 2) / 24) * n_params_s1,
+    entropy  = rel_ent_s1
+  )
+}
+
+# Mirror the design onto the structural sub-model so that variance code
+# running inside m_step methods (which only receive the sub-model) can
+# reach the strata and cluster vectors. These are kept row-aligned with the
+# data the sub-model is fit on by any caller that subsets rows.
+.mirror_design_onto_sm <- function(model_state) {
+  if (!is.null(model_state$sm)) {
+    model_state$sm$strata            <- model_state$strata
+    model_state$sm$cluster           <- model_state$cluster
+    model_state$sm$has_survey_design <- model_state$has_survey_design
+  }
+  model_state
+}
+
+# Fit the structural model on top of a completed step-1 state. The measurement
+# model is frozen at this point; only $sm (and, for the ML correction, the
+# joint posteriors) change. Callers are responsible for having run fit_em()
+# with Y = NULL first so $log_resp holds measurement-only posteriors.
+.apply_structural_steps <- function(model_state, X, Y, n_steps, correction,
+                                    max_iter, se) {
+  if (is.null(Y) || is.null(model_state$sm)) return(model_state)
+
+  if (n_steps == 2) {
+    resp <- exp(model_state$log_resp)
+    model_state$sm <- init_params(model_state$sm, Y, resp)
+    model_state$sm <- m_step(model_state$sm, Y, resp)
+    # Two-step estimation is an unadjusted third step: the posteriors act as
+    # K weighted records per case, so the variance needs the same treatment
+    # as the ML-adjusted path, with no classification table to correct for.
+    model_state <- .attach_step3_covariate_vcov(
+      model_state, X, Y, resp, NULL, model_state$sample_weights, se = se)
+
+  } else if (n_steps == 3) {
+    if (correction == "ML") {
+      model_state <- fit_ml(model_state, X, Y, max_iter = max_iter, se = se)
+    } else if (correction == "BCH") {
+      model_state <- fit_bch(model_state, X, Y)
+    } else {
+      # correction = "none": plain 2-step update on the structural model.
+      # The measurement model is already frozen at this point; the SM is fit on
+      # the posterior responsibilities from step 1 without any bias correction.
+      resp <- exp(model_state$log_resp)
+      model_state$sm <- init_params(model_state$sm, Y, resp)
+      model_state$sm <- m_step(model_state$sm, Y, resp)
+      model_state <- .attach_step3_covariate_vcov(
+        model_state, X, Y, resp, NULL, model_state$sample_weights, se = se)
+    }
+  }
+
+  model_state
+}
+
+# Post-fit finishing shared by every estimation path: optional class sorting,
+# display names on the fitted parameter blocks, and the combined-model metrics.
+.finalize_model_state <- function(model_state, X, Y, order_by_size) {
+  if (order_by_size) model_state <- sort_model_classes(model_state)
+
+  # Attach column names.
+  # Guard: only assign colnames to pis when dimensions match (Bernoulli: J cols;
+  # Multinoulli: J*M cols - colnames(X) has length J so would misfire there).
+  if (!is.null(colnames(X)) && !is.null(model_state$mm$parameters$pis) &&
+      ncol(model_state$mm$parameters$pis) == ncol(X))
+    colnames(model_state$mm$parameters$pis) <- colnames(X)
+
+  # Attach column names to betas for distal_continuous_regression.
+  if (!is.null(Y) && !is.null(model_state$sm) &&
+      inherits(model_state$sm, "distal_continuous_regression") &&
+      !is.null(model_state$sm$parameters$betas)) {
+    K_br    <- model_state$n_components
+    y_names <- if (!is.null(colnames(Y))) colnames(Y) else
+      paste0("V", seq_len(ncol(Y)))
+    cov_names_br <- if (ncol(Y) > 1L) y_names[-1L] else character(0L)
+    br_names     <- c("Intercept", cov_names_br)
+    if (length(br_names) == ncol(model_state$sm$parameters$betas))
+      colnames(model_state$sm$parameters$betas) <- br_names
+  }
+
+  # Attach column names to beta_pooled for distal_continuous_pooled so that
+  # summary() displays real variable names instead of Z1, Z2, etc.
+  if (!is.null(Y) && !is.null(model_state$sm) &&
+      inherits(model_state$sm, "distal_continuous_pooled") &&
+      !is.null(model_state$sm$parameters$beta_pooled)) {
+    K_bp    <- model_state$n_components
+    y_names <- if (!is.null(colnames(Y))) colnames(Y) else
+      paste0("V", seq_len(ncol(Y)))
+    # First column of Y is the outcome; remaining are covariates
+    cov_names_bp <- if (ncol(Y) > 1L) y_names[-1L] else character(0L)
+    bp_names     <- c(paste0("Class_", seq_len(K_bp)), cov_names_bp)
+    if (length(bp_names) == ncol(model_state$sm$parameters$beta_pooled))
+      colnames(model_state$sm$parameters$beta_pooled) <- bp_names
+  }
+
+  # Attach covariate names to beta only when the SM has been initialised.
+  # Guards against NULL beta on paths where the SM was not fit.
+  if (!is.null(Y) && !is.null(model_state$sm) &&
+      inherits(model_state$sm, "covariate") &&
+      !is.null(model_state$sm$parameters$beta)) {
+    intercept_flag <- isTRUE(model_state$sm$intercept)
+    expected_D     <- ncol(model_state$sm$parameters$beta)
+
+    y_col_names <- if (!is.null(colnames(Y))) colnames(Y)
+    else paste0("V", seq_len(ncol(Y)))
+    cov_names   <- if (intercept_flag) c("Intercept", y_col_names)
+    else y_col_names
+    if (!is.null(cov_names) && !is.null(expected_D) &&
+        length(cov_names) == expected_D)
+      colnames(model_state$sm$parameters$beta) <- cov_names
+
+    # Which original variable each beta column belongs to. Stored alongside the
+    # coefficients rather than re-derived from their names, because the k-1
+    # dummies of a k-level factor are one term and no naming convention makes
+    # that recoverable unambiguously. The intercept is its own term and is
+    # never a candidate for an omnibus test.
+    y_terms   <- .covariate_terms(Y)
+    cov_terms <- if (intercept_flag) c("Intercept", y_terms) else y_terms
+    if (length(cov_terms) == expected_D)
+      model_state$sm$parameters$terms <- cov_terms
+  }
+
+  # Final metrics
+  # When a covariate structural model is active it replaces the pooled class
+  # weights in the likelihood entirely (see `covariate_active` in
+  # `e_step()`), and `n_parameters.covariate()` already counts the full
+  # (K-1)*D free regression parameters, intercepts included. Adding the
+  # pooled-weights `K-1` term on top of that would double-count.
+  n_params <- n_parameters(model_state$mm)
+  if (!has_covariate(model_state$sm)) n_params <- n_params + (model_state$n_components - 1)
+  if (!is.null(model_state$sm)) n_params <- n_params + n_parameters(model_state$sm)
+  ll       <- sum(model_state$sample_weights * model_state$lower_bound)
+  resp     <- exp(model_state$log_resp)
+  abs_ent  <- sum(model_state$sample_weights * (-resp * log(resp + 1e-15)))
+  # Use relative_entropy() to handle the K=1 edge case cleanly.
+  ent      <- relative_entropy(abs_ent,
+                               sum(model_state$sample_weights),
+                               model_state$n_components)
+  n_eff    <- model_state$n_eff
+
+  model_state$metrics <- list(
+    ll       = ll,
+    n_params = n_params,
+    aic      = -2 * ll + 2 * n_params,
+    bic      = -2 * ll + log(n_eff) * n_params,
+    sabic    = -2 * ll + log((n_eff + 2) / 24) * n_params,
+    entropy  = ent
+  )
+
+  model_state
+}
+
+# Translate a distal-outcome specification into the structural engine string
+# and the Y matrix the fitting engine consumes. Column 1 of Y is always the
+# outcome; covariates follow. Shared by fit_mixture() and add_outcome() so the
+# two paths cannot drift apart.
+.build_outcome_spec <- function(outcome, outcome_covariates, outcome_type,
+                                slopes, cov_expr) {
+  otype <- .resolve_outcome_type(outcome, outcome_type)
+  if (outcome_type == "auto")
+    message(sprintf("Outcome treated as %s (set `outcome_type` to override).",
+                    otype))
+
+  has_cov <- !is.null(outcome_covariates)
+  engine  <- if (otype == "continuous") {
+    if (!has_cov)                  "continuous_outcome"
+    else if (slopes == "pooled")   "continuous_outcome_adjusted"
+    else                           "continuous_outcome_moderated"
+  } else {
+    if (!has_cov)                  "categorical_outcome"
+    else if (slopes == "pooled")   "categorical_outcome_adjusted"
+    else                           "categorical_outcome_moderated"
+  }
+
+  # The outcome is coerced to a plain numeric column (categorical outcomes to
+  # 1-indexed integer codes) so it is never dummy-coded as though it were a
+  # covariate.
+  if (otype == "categorical") {
+    out_col <- as.integer(as.factor(outcome))
+  } else {
+    out_col <- suppressWarnings(as.numeric(outcome))
+    if (anyNA(out_col) && !anyNA(outcome))
+      stop("A continuous `outcome` must be numeric.", call. = FALSE)
+  }
+  out_mat <- matrix(out_col, ncol = 1L,
+                    dimnames = list(NULL, .outcome_label(outcome)))
+
+  Y <- if (has_cov) .cbind_covariates(out_mat, prepare_covariates(
+    .as_named_covariates(outcome_covariates, cov_expr, "covariate")))
+  else out_mat
+
+  list(engine = engine, Y = Y, otype = otype)
+}

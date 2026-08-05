@@ -16,7 +16,13 @@ Defaults to the first class (\code{1}).}
 \item{...}{Currently unused. Present for S3 method compatibility.}
 }
 \value{
-Invisibly returns \code{NULL}. Called for its printed side-effect.
+Invisibly, a list holding the printed numbers in tidy form, ready
+for further use: \code{$coefficients} (one row per class contrast and
+covariate: estimate, SE, p, odds ratio and its confidence limits),
+\code{$omnibus} (the per-covariate omnibus Wald tests), and, when a
+distal outcome is present, \code{$outcome} (predicted probabilities or
+class means/estimates with their tests). Returns \code{NULL} when the
+model has no structural part.
 }
 \description{
 Prints a detailed summary of the structural model parameters. Depending on

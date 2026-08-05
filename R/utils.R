@@ -13,7 +13,12 @@ logsumexp <- function(x, MARGIN = 1) {
     if (max_x == -Inf) return(-Inf)
     return(max_x + log(sum(exp(x - max_x))))
   } else {
-    max_x <- apply(x, MARGIN, max)
+    # Row maxima via max.col() rather than apply(): the row-wise form is the
+    # inner loop of the forward-backward recursion in latent transition models
+    # and apply() dominates the runtime there.
+    max_x <- if (MARGIN == 1)
+      x[cbind(seq_len(nrow(x)), max.col(x, ties.method = "first"))]
+    else apply(x, MARGIN, max)
     max_x[max_x == -Inf] <- 0
     if (MARGIN == 1) {
       res <- max_x + log(rowSums(exp(x - max_x)))
@@ -22,6 +27,154 @@ logsumexp <- function(x, MARGIN = 1) {
     }
     return(res)
   }
+}
+
+# Row indices of cases with no observed value on any measurement indicator.
+#
+# Such a case carries no information about class membership: under FIML every
+# item drops out of its likelihood, so its posterior is exactly the class prior
+# and its log-likelihood contribution is exactly zero. It is not free, though —
+# it still counts toward the sample size in BIC/SABIC, is assigned modally to
+# the largest class, and enters the entropy calculation as a maximally uncertain
+# case, which drags relative entropy down. The convention is to delete these
+# cases before estimation, and the package follows it.
+#
+# The pattern is almost always an import artifact (a trailing blank line, a
+# mis-parsed delimiter, a merge that did not match) rather than a substantive
+# missing-data pattern, which is why the count is reported separately from
+# item-level missingness rather than folded into the FIML summary.
+.empty_rows <- function(X) {
+  if (is.null(X) || nrow(X) == 0L) return(integer(0))
+  which(rowSums(!is.na(X)) == 0L)
+}
+
+# Subset the cases of a row-aligned argument, whatever shape it arrived in.
+# User-supplied covariates and grouping variables may be vectors, factors,
+# matrices, or data frames; NULL passes through so callers can apply this
+# unconditionally to optional arguments.
+.subset_cases <- function(v, keep) {
+  if (is.null(v)) return(NULL)
+  if (is.null(dim(v))) return(v[keep])
+  v[keep, , drop = FALSE]
+}
+
+# Render a vector of row indices for a message, keeping it short enough to read.
+# Reporting which rows were dropped is what lets a user trace the problem back
+# to the file they imported, so the first few are always named.
+.abbreviate_indices <- function(idx, max_show = 6L) {
+  if (length(idx) <= max_show) return(paste(idx, collapse = ", "))
+  paste0(paste(idx[seq_len(max_show)], collapse = ", "),
+         ", ... (", length(idx) - max_show, " more)")
+}
+
+# Shorten display labels that would not fit a printed table column. Labels at
+# or under `width` characters pass through unchanged; longer ones are
+# abbreviated to `width` (with a strtrim fallback for non-ASCII text, which
+# abbreviate() refuses) and disambiguated when the abbreviation collides.
+# The mapping from shortened to full label is attached as attr(, "legend") so
+# the caller can print a key; .cat_label_legend() does exactly that.
+# Data frames returned to the user always carry the full names — shortening
+# is a display concern only.
+.shorten_labels <- function(x, width = 28L) {
+  x <- as.character(x)
+  too_long <- !is.na(x) & nchar(x) > width
+  if (!any(too_long)) return(x)
+
+  short <- vapply(x[too_long], function(s) {
+    if (grepl("[^\x01-\x7F]", s)) paste0(strtrim(s, width - 1L), "~")
+    else abbreviate(s, minlength = width, strict = TRUE, dot = FALSE)
+  }, character(1), USE.NAMES = FALSE)
+
+  # Uniqueness against both the unchanged labels and each other; make.unique
+  # can push a label a couple of characters past `width`, which beats showing
+  # two identical rows for different variables.
+  short <- make.unique(c(x[!too_long], short), sep = "~")
+  short <- short[(sum(!too_long) + 1L):length(x)]
+
+  out <- x
+  out[too_long] <- short
+  attr(out, "legend") <- stats::setNames(x[too_long], short)
+  out
+}
+
+# Width of the label column for a printed table: wide enough for the longest
+# (already shortened) label, never narrower than `min`.
+.label_width <- function(x, min = 13L) {
+  if (!length(x)) return(as.integer(min))
+  max(as.integer(min), max(nchar(x), 0L, na.rm = TRUE))
+}
+
+# Print the key for labels shortened by .shorten_labels(), one per line.
+# Prints nothing when no label was shortened.
+.cat_label_legend <- function(labels, indent = "  ") {
+  legend <- attr(labels, "legend")
+  if (is.null(legend) || !length(legend)) return(invisible(NULL))
+  cat(sprintf("%sAbbreviated names:\n", indent))
+  for (i in seq_along(legend))
+    cat(sprintf("%s  %s = %s\n", indent, names(legend)[i], legend[[i]]))
+  invisible(NULL)
+}
+
+# Resolve case weights and the effective sample size used by BIC and SABIC.
+#
+# Two kinds of weight mean different things:
+#
+#   "sampling"  -- probability or design weights, saying how much of the
+#                  population each case stands for. Only their relative sizes
+#                  carry information, so they are rescaled to sum to the number
+#                  of observed cases. This keeps the effective sample size equal
+#                  to the number of cases actually collected, which is what
+#                  stops BIC from being inflated by an arbitrary weight scale.
+#
+#   "frequency" -- counts of identical cases, as in a response-pattern table
+#                  where one row stands for many respondents. Here the total
+#                  really is the sample size, so the weights are used unchanged
+#                  and the effective sample size is their sum.
+.resolve_weights <- function(weights, n_samples, weight_type = "sampling",
+                             label = "weights") {
+  weight_type <- match.arg(weight_type, c("sampling", "frequency"))
+
+  if (is.null(weights))
+    return(list(weights = rep(1, n_samples), n_eff = n_samples,
+                type = weight_type))
+
+  weights <- as.numeric(weights)
+  if (length(weights) != n_samples)
+    stop(sprintf("`%s` must have one entry per case (expected %d, got %d).",
+                 label, n_samples, length(weights)), call. = FALSE)
+  if (anyNA(weights) || any(!is.finite(weights)) || any(weights < 0))
+    stop(sprintf("`%s` must be finite and non-negative.", label), call. = FALSE)
+  if (sum(weights) <= 0)
+    stop(sprintf("`%s` must include at least one positive value.", label),
+         call. = FALSE)
+
+  if (weight_type == "frequency")
+    return(list(weights = weights, n_eff = sum(weights), type = "frequency"))
+
+  list(weights = weights / sum(weights) * n_samples,
+       n_eff = n_samples, type = "sampling")
+}
+
+# Do the supplied weights look like frequency counts rather than sampling
+# weights? Whole numbers that add up to far more than the number of rows are the
+# signature of a response-pattern table. Used only to point out a likely
+# mis-specification, never to override what was asked for.
+.looks_like_frequencies <- function(weights, n_samples) {
+  if (is.null(weights)) return(FALSE)
+  w <- as.numeric(weights)
+  if (anyNA(w) || any(!is.finite(w))) return(FALSE)
+  all(abs(w - round(w)) < 1e-8) && all(w >= 1) && sum(w) > 1.5 * n_samples
+}
+
+# Row-wise softmax of a matrix of logits, stabilised by the row maximum.
+# max.col() rather than apply() because this sits inside the inner loop of the
+# multinomial-logit fitter, which an EM algorithm calls once per iteration.
+softmax_rows <- function(logits, clamp = 50) {
+  logits <- pmax(pmin(logits, clamp), -clamp)
+  max_l  <- logits[cbind(seq_len(nrow(logits)),
+                         max.col(logits, ties.method = "first"))]
+  e <- exp(logits - max_l)
+  e / rowSums(e)
 }
 
 # Input validation: Check if positive
@@ -309,9 +462,18 @@ distal_forward <- function(Z, beta_matrix) {
 #
 # Column names are always preserved / generated, so downstream summary
 # functions can display real variable names instead of Z1, Z2, etc.
+#
+# The result also carries a "covariate_terms" attribute: one entry per column
+# naming the *original* variable it came from, so that the k-1 dummies of a
+# k-level factor can be recognised as one term. Column names alone cannot do
+# this — recovering the grouping from "Marital.Single" by pattern matching is
+# ambiguous the moment two variables share a prefix (Age and Age_Decades) — and
+# the grouping is what an omnibus test of a multi-category covariate needs.
 # ==============================================================================
-prepare_covariates <- function(Y) {
-  # Plain numeric matrix — nothing to do
+prepare_covariates <- function(Y, min_level_n = 5L) {
+  # Plain numeric matrix — nothing to do. An already-prepared matrix passes
+  # through here on its way into fit_mixture_internal(), so returning it
+  # untouched is also what preserves the terms attribute set below.
   if (is.matrix(Y) && is.numeric(Y)) return(Y)
 
   # Bare numeric vector — wrap in single-column matrix
@@ -321,6 +483,7 @@ prepare_covariates <- function(Y) {
 
   df <- as.data.frame(Y)
   out_cols <- vector("list", ncol(df))
+  out_terms <- vector("list", ncol(df))
   idx <- 0L
 
   for (nm in names(df)) {
@@ -331,12 +494,25 @@ prepare_covariates <- function(Y) {
       idx <- idx + 1L
       m   <- matrix(as.numeric(col), ncol = 1L,
                     dimnames = list(NULL, nm))
-      out_cols[[idx]] <- m
+      out_cols[[idx]]  <- m
+      out_terms[[idx]] <- nm
       next
     }
 
     # ── factor / character: dummy-code ───────────────────────────────────────
     if (!is.factor(col)) col <- factor(col)
+
+    # Levels with no observations get no dummy. They typically appear when the
+    # data were subset (e.g. one country from a pooled file) without
+    # droplevels(); keeping them would print a degenerate OR = 1.00 [1, 1]
+    # row that reads like a result but is an artifact of the empty column.
+    n_unused <- sum(table(col) == 0L)
+    if (n_unused > 0L) {
+      col <- droplevels(col)
+      message(sprintf(
+        "prepare_covariates: dropped %d unused level%s of '%s'.",
+        n_unused, if (n_unused == 1L) "" else "s", nm))
+    }
     lvls <- levels(col)
 
     if (length(lvls) < 2L) {
@@ -346,6 +522,22 @@ prepare_covariates <- function(Y) {
       next
     }
 
+    # A level observed a handful of times still gets its dummy — dropping
+    # observed data silently would be worse — but its coefficient rests on
+    # almost no information, so say so before the summary prints an enormous
+    # confidence interval without explanation.
+    counts <- table(col)
+    small  <- counts[counts < min_level_n]
+    if (length(small))
+      warning(sprintf(
+        paste0("Covariate '%s': level%s %s ha%s fewer than %d observations; ",
+               "the corresponding coefficients will be unstable. Consider ",
+               "merging sparse categories."),
+        nm, if (length(small) == 1L) "" else "s",
+        paste0("'", names(small), "' (n = ", small, ")", collapse = ", "),
+        if (length(small) == 1L) "s" else "ve", min_level_n),
+        call. = FALSE)
+
     other <- lvls[-1L]   # reference = first level
 
     if (length(other) == 1L) {
@@ -354,6 +546,7 @@ prepare_covariates <- function(Y) {
       out_cols[[idx]] <- matrix(as.integer(col == other),
                                 ncol = 1L,
                                 dimnames = list(NULL, paste0(nm, ".", other)))
+      out_terms[[idx]] <- nm
     } else {
       # Multicategorical: k-1 columns named "var.levelX"
       idx <- idx + 1L
@@ -361,9 +554,43 @@ prepare_covariates <- function(Y) {
                     dimnames = list(NULL, paste0(nm, ".", other)))
       for (j in seq_along(other))
         m[, j] <- as.integer(col == other[j])
-      out_cols[[idx]] <- m
+      out_cols[[idx]]  <- m
+      out_terms[[idx]] <- rep(nm, length(other))
     }
   }
 
-  do.call(cbind, out_cols[seq_len(idx)])
+  out <- do.call(cbind, out_cols[seq_len(idx)])
+  attr(out, "covariate_terms") <- unlist(out_terms[seq_len(idx)], use.names = FALSE)
+  out
+}
+
+# ==============================================================================
+# Term grouping for a prepared covariate matrix
+# ==============================================================================
+#
+# `.covariate_terms()` answers "which original variable did each column come
+# from?". It reads the attribute prepare_covariates() sets, and falls back to
+# the column names when there is none — which is the right answer for a plain
+# numeric matrix the user supplied directly, where every column is its own term.
+#
+# `.cbind_covariates()` is cbind() that carries the grouping across, since
+# cbind() drops attributes; the covariate matrix is assembled in pieces when an
+# outcome column or a grouping variable's design is bound alongside it.
+.covariate_terms <- function(M) {
+  if (is.null(M)) return(NULL)
+  tm <- attr(M, "covariate_terms")
+  if (!is.null(tm) && length(tm) == ncol(M)) return(as.character(tm))
+  nms <- colnames(M)
+  if (!is.null(nms)) return(as.character(nms))
+  paste0("V", seq_len(ncol(M)))
+}
+
+.cbind_covariates <- function(...) {
+  parts <- list(...)
+  parts <- parts[!vapply(parts, is.null, logical(1))]
+  if (!length(parts)) return(NULL)
+  terms <- unlist(lapply(parts, .covariate_terms), use.names = FALSE)
+  out   <- do.call(cbind, parts)
+  attr(out, "covariate_terms") <- terms
+  out
 }
