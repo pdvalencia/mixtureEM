@@ -1,0 +1,87 @@
+
+=== n = 500, rho = 0.80, 250 usable reps, mean entropy R2 = 0.643 ===
+bias: b12 +0.167  b13 +0.036  b22 -0.088  b23 -0.006  b32 -0.003  b33 -0.005 
+
+estimator  par           sd mean se   se/sd  coverage
+q_hessian  b12        0.506   0.203    0.40     0.544
+q_hessian  b13        0.219   0.136    0.62     0.768
+q_hessian  b22        0.274   0.142    0.52     0.684
+q_hessian  b23        0.139   0.107    0.77     0.852
+q_hessian  b32        0.168   0.113    0.68     0.820
+q_hessian  b33        0.124   0.098    0.80     0.880
+hessian    b12        0.506   0.604    1.19     0.904
+hessian    b13        0.219   0.246    1.12     0.992
+hessian    b22        0.274   0.340    1.24     0.924
+hessian    b23        0.139   0.152    1.09     0.988
+hessian    b32        0.168   0.228    1.36     0.996
+hessian    b33        0.124   0.139    1.12     0.988
+robust     b12        0.506   0.489    0.97     0.832
+robust     b13        0.219   0.211    0.96     0.948
+robust     b22        0.274   0.274    1.00     0.872
+robust     b23        0.139   0.133    0.95     0.940
+robust     b32        0.168   0.180    1.08     0.980
+robust     b33        0.124   0.121    0.98     0.980
+corrected  b12        0.506   0.610    1.21     0.920
+corrected  b13        0.219   0.233    1.06     0.984
+corrected  b22        0.274   0.323    1.18     0.932
+corrected  b23        0.139   0.139    1.00     0.968
+corrected  b32        0.168   0.191    1.14     0.984
+corrected  b33        0.124   0.124    1.00     0.984
+
+=== n = 500, rho = 0.90, 250 usable reps, mean entropy R2 = 0.882 ===
+bias: b12 -0.061  b13 +0.036  b22 +0.019  b23 +0.000  b32 +0.012  b33 +0.002 
+
+estimator  par           sd mean se   se/sd  coverage
+q_hessian  b12        0.296   0.221    0.75     0.872
+q_hessian  b13        0.183   0.139    0.76     0.876
+q_hessian  b22        0.181   0.152    0.84     0.912
+q_hessian  b23        0.124   0.109    0.88     0.912
+q_hessian  b32        0.148   0.117    0.79     0.884
+q_hessian  b33        0.109   0.099    0.90     0.936
+hessian    b12        0.296   0.368    1.24     0.988
+hessian    b13        0.183   0.183    1.00     0.960
+hessian    b22        0.181   0.214    1.18     0.988
+hessian    b23        0.124   0.119    0.96     0.936
+hessian    b32        0.148   0.151    1.02     0.952
+hessian    b33        0.109   0.109    1.00     0.964
+robust     b12        0.296   0.336    1.13     0.980
+robust     b13        0.183   0.176    0.96     0.952
+robust     b22        0.181   0.197    1.09     0.968
+robust     b23        0.124   0.115    0.93     0.936
+robust     b32        0.148   0.140    0.95     0.940
+robust     b33        0.109   0.106    0.97     0.956
+corrected  b12        0.296   0.343    1.16     0.980
+corrected  b13        0.183   0.178    0.97     0.956
+corrected  b22        0.181   0.200    1.10     0.972
+corrected  b23        0.124   0.116    0.93     0.936
+corrected  b32        0.148   0.141    0.96     0.940
+corrected  b33        0.109   0.106    0.97     0.960
+
+=== n = 2000, rho = 0.90, 250 usable reps, mean entropy R2 = 0.879 ===
+bias: b12 -0.001  b13 +0.002  b22 +0.003  b23 -0.006  b32 -0.006  b33 -0.001 
+
+estimator  par           sd mean se   se/sd  coverage
+q_hessian  b12        0.147   0.115    0.78     0.872
+q_hessian  b13        0.086   0.078    0.90     0.924
+q_hessian  b22        0.093   0.075    0.80     0.888
+q_hessian  b23        0.057   0.054    0.95     0.948
+q_hessian  b32        0.063   0.060    0.95     0.920
+q_hessian  b33        0.050   0.050    0.99     0.940
+hessian    b12        0.147   0.175    1.19     0.980
+hessian    b13        0.086   0.089    1.04     0.956
+hessian    b22        0.093   0.104    1.12     0.968
+hessian    b23        0.057   0.058    1.03     0.960
+hessian    b32        0.063   0.074    1.18     0.984
+hessian    b33        0.050   0.054    1.06     0.956
+robust     b12        0.147   0.153    1.04     0.948
+robust     b13        0.086   0.085    0.99     0.940
+robust     b22        0.093   0.093    1.00     0.948
+robust     b23        0.057   0.056    0.99     0.952
+robust     b32        0.063   0.068    1.08     0.972
+robust     b33        0.050   0.052    1.03     0.948
+corrected  b12        0.147   0.155    1.05     0.952
+corrected  b13        0.086   0.086    1.00     0.940
+corrected  b22        0.093   0.094    1.00     0.952
+corrected  b23        0.057   0.056    0.99     0.952
+corrected  b32        0.063   0.068    1.08     0.972
+corrected  b33        0.050   0.052    1.03     0.948

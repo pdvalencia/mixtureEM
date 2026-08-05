@@ -24,8 +24,8 @@ intervals. Currently ignored (intervals are returned for all covariate parameter
 
 \item{boot_results}{Optional. A list returned by
 \code{\link{bootstrap_covariates}}. When provided, bootstrapped standard
-errors are used. When \code{NULL} (default), analytical SEs derived from
-the Hessian are used.}
+errors are used. When \code{NULL} (default), the analytical variance
+stored on the fitted model is used.}
 
 \item{ref_class}{Integer. The reference latent class. Odds ratios for all
 other classes are expressed relative to this class. Default is \code{1}.}
@@ -40,11 +40,13 @@ are rounded to three decimal places.
 }
 \description{
 Computes confidence intervals for the odds ratios of covariate effects on
-latent class membership. By default, analytical standard errors derived
-from the observed information matrix (Hessian) are used. Bootstrapped
-standard errors from \code{\link{bootstrap_covariates}} can be supplied
-instead, which is recommended in small samples or when the Hessian is
-poorly conditioned.
+latent class membership, using whichever analytical variance the model was
+fitted with — see the \code{se} argument of \code{\link{fit_mixture}} and
+\code{\link{covariate_se}}. The estimator used is named in the printed
+output and carried in the \code{method} attribute of the result.
+Bootstrapped standard errors from \code{\link{bootstrap_covariates}} can be
+supplied instead, which is worth doing in small samples, when classes
+overlap heavily, or as a check on the analytical intervals.
 }
 \examples{
 set.seed(1)

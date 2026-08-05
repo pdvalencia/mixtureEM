@@ -31,9 +31,11 @@ from \code{\link{bootstrap_covariates}}. Tests the joint null hypothesis
 that the covariate has no effect across all non-reference classes
 simultaneously.
 
-Compared to \code{\link{analytical_wald_test}}, this test does not rely on
-Hessian-based standard errors and is therefore more robust in small samples
-or when classes overlap substantially.
+Compared to \code{\link{analytical_wald_test}}, this test rests on no
+asymptotic variance approximation at all, and carries the step-1
+variability the analytical estimators approximate to first order (see
+\code{\link{covariate_se}}), so it is worth the wait in small samples or
+when classes overlap substantially.
 }
 \examples{
 \dontrun{
