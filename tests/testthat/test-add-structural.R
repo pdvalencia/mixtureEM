@@ -36,8 +36,11 @@ test_that("add_covariates reproduces the one-call 3-step ML fit exactly", {
 
   # The raw beta parameterization may anchor a different class (the one-call
   # path applies the correction before class sorting), but every user-visible
-  # quantity must match: odds ratios, and the full printed summary.
-  expect_equal(coef(fitA), coef(fitB), tolerance = 1e-10)
+  # quantity must match: odds ratios, and the full printed summary. The two
+  # paths re-run the step-3 correction independently, so their linear algebra
+  # is not guaranteed bit-identical across BLAS/LAPACK implementations; 1e-6
+  # is tight enough to catch a real discrepancy while tolerating that noise.
+  expect_equal(coef(fitA), coef(fitB), tolerance = 1e-6)
   expect_identical(capture.output(suppressMessages(summary(fitA))),
                    capture.output(suppressMessages(summary(fitB))))
 

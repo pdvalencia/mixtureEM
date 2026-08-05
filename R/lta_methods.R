@@ -280,6 +280,12 @@ compare_longitudinal <- function(indicators, k_range = 2:4,
 #' beyond the parameter counts and sample size, so it remains the analyst's
 #' responsibility.
 #'
+#' Because `full` strictly nests `restricted`, its log-likelihood can never
+#' be genuinely lower — if it comes out that way here, the `full` model's
+#' random-restart search landed on a worse local optimum than the
+#' `restricted` model's did, not a real result. A warning is issued in that
+#' case; refitting `full` with a larger `n_init` is the usual fix.
+#'
 #' @param restricted The more constrained model (fewer parameters).
 #' @param full The less constrained model.
 #' @return A list of class `"longitudinal_lrt"`.
@@ -294,6 +300,13 @@ longitudinal_lrt <- function(restricted, full) {
   if (length(a$weights) != length(b$weights))
     stop("The two models were fitted to different numbers of cases.",
          call. = FALSE)
+
+  if (b$ll < a$ll)
+    warning("`full` has a lower log-likelihood than `restricted`, even ",
+            "though it nests it; this can only mean `full`'s optimizer ",
+            "missed the better solution `restricted` already found. The ",
+            "resulting statistic is not a valid test -- refit `full` with ",
+            "a larger n_init.", call. = FALSE)
 
   stat <- -2 * (a$ll - b$ll)
   df   <- b$n_params - a$n_params
