@@ -21,6 +21,7 @@ fit_mixture_internal(
   strata = NULL,
   cluster = NULL,
   refine = TRUE,
+  bayes_constants = NULL,
   se = c("corrected", "robust", "hessian"),
   ...
 )
@@ -96,6 +97,10 @@ identical cases and set the effective sample size).}
 
 \item{refine}{Logical. If \code{TRUE} (default), applies L-BFGS refinement
 after EM convergence to optimize the penalized maximum likelihood.}
+
+\item{bayes_constants}{Optional named list of prior strengths
+(\code{latent}, \code{categorical}, \code{poisson}, \code{variances}), each
+defaulting to \code{1}. See \code{\link{fit_mixture}}.}
 
 \item{se}{Character. How standard errors for a covariate (class-prediction)
 structural model are computed when \code{n_steps} is \code{2} or \code{3}.

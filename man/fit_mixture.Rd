@@ -27,6 +27,7 @@ fit_mixture(
   strata = NULL,
   cluster = NULL,
   refine = TRUE,
+  bayes_constants = NULL,
   se = c("corrected", "robust", "hessian"),
   X = NULL,
   Y = NULL,
@@ -138,6 +139,31 @@ relative sizes matter, so they are rescaled to sum to the number of cases.
 response-pattern table where one row stands for many respondents; the
 sample size behind AIC and BIC is then the sum of the counts. Getting this
 wrong changes BIC but not the parameter estimates.}
+
+\item{bayes_constants}{Optional list adjusting the strength of the weak
+priors the estimator places on each block of parameters. Named
+\code{latent} (class weights and, in the transition models, the initial
+and transition probabilities), \code{categorical} (item-response
+probabilities), \code{poisson} (count rates), and \code{variances}
+(class-specific variances of continuous indicators); all default to
+\code{1}. Each is a number of pseudo-observations spread over the classes,
+so its influence shrinks as the sample grows.
+
+Two uses. \strong{Reproducing an unregularized fit:} setting a constant to
+\code{0} removes that prior and gives plain maximum likelihood for that
+block. This is an escape hatch for matching a reference analysis, not a
+recommended setting — the unpenalised mixture likelihood is unbounded, and
+maximum likelihood for a mixture of normals is known to be inconsistent
+without some such restriction (Kiefer & Wolfowitz, 1956).
+\strong{Rescuing a collapsed fit:} if a fit warns that a class variance has
+collapsed, \code{bayes_constants = list(variances = 5)} is the recommended
+remedy. That value is empirical — calibrated on continuous indicators
+scored on a five-point scale — rather than derived, so check that it has
+not moved the parameters you care about.
+
+This is not a tuning menu. The defaults are the intended settings, and
+\code{n_init} with \code{random_state} remains the way to search harder for
+a solution.}
 
 \item{se}{How standard errors for \code{predictors} are computed in a 2- or
 3-step model. \code{"corrected"} (the default) adds the variance carried

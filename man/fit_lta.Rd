@@ -37,6 +37,7 @@ fit_lta(
   transition_effects = c("common", "by_origin"),
   group = NULL,
   group_effects = c("both", "initial", "transitions", "none"),
+  bayes_constants = NULL,
   ...
 )
 }
@@ -163,6 +164,11 @@ stays invariant across groups.}
 shift: \code{"both"} (default), \code{"initial"}, \code{"transitions"} or \code{"none"}.
 Fitting the same data under two of these and comparing them with
 \code{\link[=longitudinal_lrt]{longitudinal_lrt()}} gives the group-difference tests of sec. 8.6-8.8.}
+
+\item{bayes_constants}{Optional named list of prior strengths for the
+\emph{measurement} model (\code{categorical}, \code{poisson}, \code{variances}); see
+\code{\link[=fit_mixture]{fit_mixture()}}. The status and transition probabilities are governed by
+\code{smoothing} instead, so \code{latent} is not read here.}
 
 \item{...}{Ignored.}
 }

@@ -40,7 +40,8 @@ init_params.bernoulli <- function(model_state, X, resp, random_state = NULL, ...
 }
 
 #' @exportS3Method
-m_step.bernoulli <- function(model_state, X, resp, weights = NULL, alpha = 1.0, ...) {
+m_step.bernoulli <- function(model_state, X, resp, weights = NULL, alpha = NULL, ...) {
+  alpha <- alpha %||% .bayes_alpha(model_state, "categorical")
   if (!is.null(weights)) {
     resp <- sweep(resp, 1, weights, "*")
     marginal_prob <- colSums(sweep(X, 1, weights, "*"), na.rm = TRUE) / sum(weights)
@@ -92,7 +93,8 @@ init_params.bernoulli_nan <- init_params.bernoulli
 n_parameters.bernoulli_nan <- n_parameters.bernoulli
 
 #' @exportS3Method
-m_step.bernoulli_nan <- function(model_state, X, resp, weights = NULL, alpha = 1.0, ...) {
+m_step.bernoulli_nan <- function(model_state, X, resp, weights = NULL, alpha = NULL, ...) {
+  alpha <- alpha %||% .bayes_alpha(model_state, "categorical")
   if (!is.null(weights)) {
     resp <- sweep(resp, 1, weights, "*")
   }
@@ -195,7 +197,8 @@ init_params.multinoulli <- function(model_state, X, resp, random_state = NULL, .
 }
 
 #' @exportS3Method
-m_step.multinoulli <- function(model_state, X, resp, weights = NULL, alpha = 1.0, ...) {
+m_step.multinoulli <- function(model_state, X, resp, weights = NULL, alpha = NULL, ...) {
+  alpha <- alpha %||% .bayes_alpha(model_state, "categorical")
   if (!is.null(weights)) {
     resp <- sweep(resp, 1, weights, "*")
   }

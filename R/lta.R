@@ -106,6 +106,10 @@
 #'   otherwise collapse onto probabilities of exactly zero, which are awkward to
 #'   interpret and to test. The default of `1` is negligible at any realistic
 #'   sample size; set it to `0` for unsmoothed maximum likelihood.
+#' @param bayes_constants Optional named list of prior strengths for the
+#'   *measurement* model (`categorical`, `poisson`, `variances`); see
+#'   [`fit_mixture()`]. The status and transition probabilities are governed by
+#'   `smoothing` instead, so `latent` is not read here.
 #' @param random_state Optional seed for reproducible starts.
 #' @param order_by_size Relabel the statuses from most to least prevalent at the
 #'   first occasion. Ignored whenever the labels already carry meaning, which is
@@ -179,6 +183,7 @@ fit_lta <- function(indicators,
                     transition_effects = c("common", "by_origin"),
                     group = NULL,
                     group_effects = c("both", "initial", "transitions", "none"),
+                    bayes_constants = NULL,
                     ...) {
 
   measurement_invariance <- match.arg(measurement_invariance)
@@ -187,6 +192,7 @@ fit_lta <- function(indicators,
   transition_effects     <- match.arg(transition_effects)
   group_effects          <- match.arg(group_effects)
   weight_type            <- match.arg(weight_type)
+  bayes_constants        <- .resolve_bayes_constants(bayes_constants)
 
   time_invariance <- measurement_invariance
   tau_homogeneous <- transition_invariance == "full"
@@ -337,11 +343,20 @@ fit_lta <- function(indicators,
     transition_effects = transition_effects,
     group_info      = group_info,
     group_effects   = if (is.null(group)) NULL else group_effects,
+    bayes_constants = bayes_constants,
     mm              = time_blocks_model(K, prep$n_items, Tn,
                                         sub_model       = engine$sub_model,
                                         invariant_items = spec$invariant_items,
                                         max_val         = engine$max_val)
   )
+
+  # The measurement M-steps read their prior strengths off the emission. LTA has
+  # its own EM driver, so the constants are pushed down here rather than by
+  # fit_mixture_internal(). `smoothing` continues to govern the status and
+  # transition probabilities and is passed separately as `alpha`; a continuous
+  # indicator's variance prior comes from `bayes_constants$variances`, which is
+  # why the two are not the same knob.
+  state$mm <- .attach_bayes_constants(state$mm, bayes_constants)
 
   # A mixture over chains converges much more slowly than a single chain, and
   # the shared stopping rule is a *relative* one, so on a log-likelihood of
@@ -443,6 +458,11 @@ fit_lta <- function(indicators,
       if (nrow(collapsed) == 1L) "es" else "es",
       paste(apply(collapsed, 1, paste, collapse = " and "), collapse = "; ")),
       call. = FALSE)
+
+  # Continuous indicators are checked here too: LTA runs its own EM driver, so
+  # it does not pass through fit_mixture_internal() where this normally happens.
+  # See R/gaussian_boundary.R.
+  best <- .check_gaussian_degeneracy(best, X)
 
   best
 }

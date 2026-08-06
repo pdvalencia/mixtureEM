@@ -52,11 +52,15 @@ e_step <- function(model_state, X, Y = NULL) {
 }
 
 # M-step: Update model parameters
-m_step_core <- function(model_state, X, Y, log_resp, alpha = 1.0) {
+m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
   resp <- exp(log_resp)
 
   # --- BAYESIAN PRIOR (Class Weights) ---
+  # An explicit `alpha` still wins — fit_lta() passes its `smoothing` argument
+  # down this path — but with none supplied the strength comes from the model's
+  # own `bayes_constants`, which is also where the emission M-steps read theirs.
   K <- model_state$n_components
+  alpha <- alpha %||% .bayes_alpha(model_state, "latent")
   prior_obs <- alpha / K
 
   # Sampling / frequency weights must enter the M-step, not only the reported
@@ -145,12 +149,22 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = 1.0) {
 #
 # The objective uses a penalized maximum likelihood (PM) formulation:
 #   log P(ϑ) = log L(X; ϑ) + log p(ϑ)
-# where the Dirichlet priors (Bayes constants α1 = α2 = 1) are:
-#   Weights  : (α1/K)   · Σ_k  log π_k
-#   Bernoulli: (α2/K)   · Σ_k Σ_j  [ π̂_j · log π_kj + (1-π̂_j) · log(1-π_kj) ]
-# with π̂_j the observed marginal probability of item j ("conservative null
-# model"). Gaussian models carry no Dirichlet prior in the EM M-step (gaussian_diag
-# uses a hard-floor regularisation instead), so only the weight prior is added.
+# where the priors (Bayes constants, all defaulting to 1 — see
+# R/bayes_constants.R) are:
+#   Weights  : (α_latent/K)    · Σ_k  log π_k
+#   Bernoulli: (α_categorical/K) · Σ_k Σ_j [ π̂_j·log π_kj + (1-π̂_j)·log(1-π_kj) ]
+#   Variances: −(α_variances/2K) · Σ_k Σ_j [ log σ²_kj + s²_j / σ²_kj ]
+# with π̂_j the observed marginal probability of item j and s²_j its observed
+# marginal variance ("conservative null model" in both cases).
+#
+# The variance term is not optional bookkeeping: it is what makes this objective
+# *bounded*. Without it, L-BFGS re-optimises log(sd) with no constraint, and a
+# class that has latched onto a few near-identical cases can drive one variance
+# towards zero and the likelihood towards +Inf — walking straight through the
+# M-step's regularisation, which is why that regularisation is now a matching
+# prior rather than a floor (see m_step.gaussian_diag()). The term here and the
+# one in the M-step read the same stored constant so the two stages cannot
+# disagree about what is being maximised.
 #
 # Using the prior instead of box constraints is the correct approach: it lets
 # the gradient pull parameters freely while the prior provides soft penalisation
@@ -168,7 +182,15 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = 1.0) {
 #   gaussian_diag : means [K×J] + log(sd) [K×J] + log-ratio weights [K-1]
 #   gaussian_unit : means [K×J] + log-ratio weights [K-1]
 #
-refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
+# `.objective_only` is an internal hook, not part of the fitting path: it returns
+# the packed starting values together with the value and gradient closures
+# instead of running the optimiser. It exists so the analytical gradient can be
+# checked against a finite-difference one directly, on the real objective rather
+# than on a re-derivation of it — a wrong sign or a missing prior term still
+# produces a fit that converges, so the only way to catch one is to differentiate
+# the function the optimiser actually sees.
+refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
+                         .objective_only = FALSE) {
   # A time-block (repeated-measures) model is refined on the same footing as a
   # flat one: its per-occasion parameter blocks are viewed as one wide matrix,
   # and `col_map` records which stacked column draws on which free column. Items
@@ -227,6 +249,33 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
   if (tied)
     marginal <- vapply(map_groups, function(g) mean(marginal[g]), numeric(1))
   marginal <- pmax(pmin(marginal, 1 - 1e-7), 1e-7)
+
+  # Observed marginal *variance* per free column — the centre of the prior on
+  # the Gaussian class variances, and the exact counterpart of `marginal` above.
+  #
+  # Under a tie group this pools the way the constrained M-step pools: it is the
+  # variance of the *stacked* data around the *stacked* mean, not the mean of
+  # the per-column variances. The two coincide only when the tied columns share
+  # a mean, and where they differ, taking the average would give the polish a
+  # different prior from the one EM applied — which is the same class of bug
+  # this whole term exists to fix, one level down. (m_step.blocks() estimates an
+  # invariant item by stacking the blocks and calling the sub-model's M-step
+  # once, so the marginal it computes is the stacked one by construction.)
+  alpha_var <- .bayes_alpha(view$mm, "variances")
+  s2_free <- if (fam == "gaussian_diag") {
+    sum_w   <- colSums(obs_w)
+    sum_wx  <- colSums(X0 * sw)
+    sum_wx2 <- colSums(X0^2 * sw)
+    pool <- function(cols) {
+      swt <- sum(sum_w[cols])
+      if (!is.finite(swt) || swt <= 0) return(1)
+      mu <- sum(sum_wx[cols]) / swt
+      v  <- sum(sum_wx2[cols]) / swt - mu^2
+      if (!is.finite(v) || v <= 0) 1 else v
+    }
+    if (tied) vapply(map_groups, pool, numeric(1))
+    else      vapply(seq_len(J), pool, numeric(1))
+  } else NULL
 
   # ── Pack initial parameters ────────────────────────────────────────────────
   wts <- pmax(model_state$weights, 1e-15)
@@ -341,7 +390,16 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
             ((1 - marginal) / K) %*% t(log(1 - pis_free))) / n_obs
     else 0
 
-    val <- -(obs_ll + log_prior_w + log_prior_pis)
+    # Truncated inverse-Wishart on the class variances (see the header). Written
+    # on the free columns, so a tied item contributes its prior once — matching
+    # the constrained M-step, which estimates it once from the stacked blocks.
+    log_prior_var <- if (fam == "gaussian_diag" && alpha_var > 0) {
+      var_free <- sds_free^2
+      -0.5 * (alpha_var / K) *
+        sum(log(var_free) + sweep(1 / var_free, 2, s2_free, "*")) / n_obs
+    } else 0
+
+    val <- -(obs_ll + log_prior_w + log_prior_pis + log_prior_var)
 
     # ── Analytical gradient ───────────────────────────────────────────────────
     swR <- sweep(R, 1, sw, "*")          # sw_i * R_ik,  n × K
@@ -380,6 +438,12 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
         g_lsd[k,] <- colSums(swR[,k] * (z2 - 1), na.rm = has_na)
       }
       if (tied) { g_mu <- fold_cols(g_mu); g_lsd <- fold_cols(g_lsd) }
+      # Prior score, added once per free column (the data score above is summed
+      # over every stacked column the free column covers; the prior is not).
+      #   ∂/∂log σ_kj of −(α/2K)[log σ²_kj + s²_j/σ²_kj] = (α/K)(s²_j/σ²_kj − 1)
+      if (alpha_var > 0)
+        g_lsd <- g_lsd + (alpha_var / K) *
+          (sweep(1 / sds_free^2, 2, s2_free, "*") - 1)
       grad[seq_len(K * P)]  <- as.vector(-g_mu)  / n_obs
       grad[(K*P+1):(2*K*P)] <- as.vector(-g_lsd) / n_obs
 
@@ -402,6 +466,10 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500) {
   neg_pm_val  <- function(par) neg_pm_and_grad(par)$val
   # Wrapper returning just gradient (for optim gr=)
   neg_pm_grad <- function(par) neg_pm_and_grad(par)$grad
+
+  if (isTRUE(.objective_only))
+    return(list(par0 = par0, fn = neg_pm_val, gr = neg_pm_grad, fam = fam,
+                K = K, P = P, tied = tied))
 
   # ── Run L-BFGS with analytical gradient (unconstrained) ────────────────────
   fit <- tryCatch(

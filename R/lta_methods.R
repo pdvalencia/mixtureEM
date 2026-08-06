@@ -301,12 +301,33 @@ longitudinal_lrt <- function(restricted, full) {
     stop("The two models were fitted to different numbers of cases.",
          call. = FALSE)
 
+  # A collapsed class variance in either fit invalidates the test in both
+  # directions, so it is checked before the sign of the statistic is even looked
+  # at. A degenerate fit's log-likelihood is not on the same scale as an
+  # admissible one -- it is a spurious optimum sitting on a spike in the
+  # likelihood -- so neither a large statistic nor a small one means anything.
+  # See R/gaussian_boundary.R.
+  degenerate <- c(if (!is.null(restricted$degenerate)) "restricted",
+                  if (!is.null(full$degenerate))       "full")
+  if (length(degenerate))
+    warning(sprintf(
+      paste0("The %s model carries a collapsed class variance, so this test ",
+             "is not interpretable in either direction: a degenerate fit's ",
+             "log-likelihood reflects a spike in the likelihood rather than ",
+             "fit to the data. Refit with ",
+             "bayes_constants = list(variances = 5) and test again."),
+      paste(degenerate, collapse = " and ")), call. = FALSE)
+
   if (b$ll < a$ll)
     warning("`full` has a lower log-likelihood than `restricted`, even ",
-            "though it nests it; this can only mean `full`'s optimizer ",
-            "missed the better solution `restricted` already found. The ",
-            "resulting statistic is not a valid test -- refit `full` with ",
-            "a larger n_init.", call. = FALSE)
+            "though it nests it, so the statistic below is negative and is ",
+            "not a valid test. It means one of two things. Either `full`'s ",
+            "optimizer missed the better solution `restricted` already found, ",
+            "in which case refit `full` with a larger n_init; or `restricted` ",
+            "has converged on a degenerate solution that outscores the full ",
+            "model without describing the data better, in which case inspect ",
+            "the fitted variances of both models for a class variance close ",
+            "to zero.", call. = FALSE)
 
   stat <- -2 * (a$ll - b$ll)
   df   <- b$n_params - a$n_params

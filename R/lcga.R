@@ -137,6 +137,12 @@ init_params.lcga <- function(model_state, X, resp, random_state = NULL, ...) {
 
 # M-step: one posterior-weighted GLM per class.
 #' @exportS3Method
+# The separation-guarding prior here is deliberately NOT wired to
+# `bayes_constants`: it is a prior on GLM coefficients on a link scale, shared by
+# the binomial, Poisson and Gaussian families, and none of the four named
+# constants describes it. Giving it one of their names would let a user who
+# turned off, say, the categorical prior silently change a Gaussian trajectory
+# model too. It stays at 1 until it gets a name of its own.
 m_step.lcga <- function(model_state, X, resp, weights = NULL, alpha = 1.0, ...) {
   if (!is.null(weights)) resp <- sweep(resp, 1, weights, "*")
 
