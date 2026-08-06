@@ -556,7 +556,16 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
   } else {
     model_state$weights <- init_state$weights
     model_state$mm      <- init_state$mm
-    if (!is.null(init_state$sm)) model_state$sm <- init_state$sm
+    if (!is.null(init_state$sm)) {
+      model_state$sm <- init_state$sm
+    } else if (!is.null(Y) && !is.null(model_state$sm)) {
+      # A resumed state produced by the two-stage search always carries its own
+      # structural model, but a warm start built from a measurement-only fit
+      # (see `warm_start` in fit_em()) has nothing to say about it, and an
+      # emission that never saw init_params() has no parameters for m_step_core
+      # to update.
+      model_state$sm <- init_params(model_state$sm, Y, NULL)
+    }
   }
 
   # Initialize scalar trackers for convergence
@@ -615,8 +624,17 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
 # `em_stage1`, and for a higher iteration ceiling by carrying `em_max_iter`.
 # Both are opt-in: an emission that declares neither runs exactly the loop it
 # always did.
+#
+# `warm_start` is a function of (model_state, X, Y) returning a state to run as
+# one extra restart alongside the random ones, or NULL to add none. Random
+# starts search the whole parameter space uniformly, which is the wrong prior
+# for a model whose parameters are split into per-group blocks that only mean
+# the same thing when their classes are aligned; a start built from a fitted
+# restriction of the model is in the aligned basin by construction. It competes
+# on log-likelihood like any other restart, so a warm start that turns out to be
+# a poor one costs a restart and changes nothing else.
 fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
-                   random_state = NULL, refine = TRUE) {
+                   random_state = NULL, refine = TRUE, warm_start = NULL) {
 
   # An emission may raise the ceiling on itself, but never lower one the caller
   # asked for: `max_iter` is a documented argument of fit_mixture().
@@ -627,7 +645,39 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     fit_single_init(model_state, X, Y, max_iter = max_iter, refine = refine,
                     init_state = state)
 
+  # The warm start gets the tight (absolute) rule even where the emission is one
+  # L-BFGS polishes. The default rule is *relative to the log-likelihood's own
+  # magnitude*, so in the thousands it fires at a change of several units, and
+  # the warm start has several *hundred* units of climbing to do along a ridge —
+  # measured on the multi-country validation model it stopped after 6 iterations,
+  # 7 units short, and the polish then converged to the nearest local optimum
+  # rather than following the ridge. A random start does not have this problem
+  # because it begins near nothing in particular.
+  #
+  # This is not a quirk of one model. Biernacki, Celeux and Govaert (2003,
+  # p. 568), setting up the standard comparison of EM initialisation strategies:
+  # "We do not use stopping criteria based on the relative change of the
+  # estimates or loglikelihood because the slow convergence of the EM makes such
+  # criteria hazardous." Their own short runs stop on progress relative to
+  # progress *made so far*, (L^q - L^{q-1}) / (L^q - L^0) — scale-free in the way
+  # that matters, where a rule relative to |L| is not. An absolute rule is the
+  # cheaper fix and is what `.em_tol_unpolished` already provides.
+  #
+  # An emission that names its own `em_tol` still overrides this inside
+  # fit_single_init().
+  run_warm <- function(state)
+    fit_single_init(model_state, X, Y, max_iter = max_iter, refine = refine,
+                    init_state = state,
+                    abs_tol = .em_tol_unpolished$abs,
+                    rel_tol = .em_tol_unpolished$rel)
+
   ll_of <- function(s) sum(s$sample_weights * s$lower_bound)
+
+  # Built once, before either search below, so that a failure to build one is
+  # reported (and tolerated) in a single place. The warm start is deterministic,
+  # so it is unaffected by the seed handling in the loops.
+  warm <- NULL
+  if (is.function(warm_start)) warm <- warm_start(model_state, X, Y)
 
   stage <- model_state$mm$em_stage1
   if (!is.null(stage) && n_init > 1L) {
@@ -665,6 +715,13 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
         best_model    <- fitted_state
       }
     }
+    # The warm start skips stage 1: ranking it against random starts on a short
+    # pass would defeat its purpose, since the basin it seeds is the one a short
+    # pass is worst at recognising (the GMM measurements in the roadmap).
+    if (!is.null(warm)) {
+      fitted_state <- run_warm(warm)
+      if (ll_of(fitted_state) > best_total_ll) best_model <- fitted_state
+    }
     return(best_model)
   }
 
@@ -683,6 +740,12 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
       best_total_ll <- current_ll
       best_model    <- fitted_state
     }
+  }
+
+  if (!is.null(warm)) {
+    fitted_state <- run_warm(warm)
+    if (is.null(best_model) || ll_of(fitted_state) > best_total_ll)
+      best_model <- fitted_state
   }
 
   return(best_model)

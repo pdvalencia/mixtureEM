@@ -124,3 +124,73 @@ test_that("group_effects='both' recovers each group's true class-membership prob
     expect_equal(p_hi, unname(truth[[level]]["high"]), tolerance = 0.1)
   }
 })
+
+# ------------------------------------------------------------------------------
+# Warm-starting the configural search
+# ------------------------------------------------------------------------------
+#
+# A group-varying measurement model ties its per-group blocks together only
+# through the class labels, and random starting values give each block its own
+# arbitrary labelling, so the search can settle below the restriction nested
+# inside it -- which is impossible at the optimum and makes the invariance test
+# a lower bound. `group_effects = "both"`/`"measurement"` therefore runs one
+# extra restart built from fitted values rather than drawn: each group's own
+# fit, with its classes permuted to match the pooled solution. See
+# R/group_blocks.R.
+
+test_that("a group-varying measurement model never scores below its own restriction", {
+  d <- .make_group_data()
+
+  restricted <- fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                            group = d$grp, group_effects = "prevalence",
+                            n_steps = 1, n_init = 5, random_state = 1)
+  full       <- fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                            group = d$grp, group_effects = "both",
+                            n_steps = 1, n_init = 5, random_state = 1)
+
+  # The nesting the invariance LRT rests on. Without the warm start this held
+  # only by luck of the draw.
+  expect_gt(full$metrics$ll, restricted$metrics$ll)
+
+  test <- longitudinal_lrt(restricted, full)
+  expect_gt(test$statistic, 0)
+  expect_equal(test$df,
+               full$metrics$n_params - restricted$metrics$n_params)
+})
+
+test_that("the warm start recovers the per-group generating parameters", {
+  # The data are generated with genuinely different item probabilities by group
+  # (.1/.9 in A, .2/.8 in B), which is the case the configural model exists to
+  # detect and the one a mis-aligned search blurs into a single pooled answer.
+  d   <- .make_group_data()
+  fit <- fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                     group = d$grp, group_effects = "both",
+                     n_steps = 1, n_init = 5, random_state = 1)
+
+  pis <- lapply(fit$mm$models, function(m) m$parameters$pis)
+  expect_length(pis, 2L)
+
+  # Order the classes by their first item so the comparison does not depend on
+  # which class the sorting happened to put first.
+  low  <- vapply(pis, function(p) min(p[, 1]), numeric(1))
+  high <- vapply(pis, function(p) max(p[, 1]), numeric(1))
+
+  expect_lt(max(abs(low  - c(.1, .2))), 0.08)
+  expect_lt(max(abs(high - c(.9, .8))), 0.08)
+})
+
+test_that("the warm start is skipped, not fatal, when a group is too small", {
+  d <- .make_group_data()
+  # One group with fewer cases than 2 * n_classes: its own fit is not attempted
+  # and the block falls back to the pooled parameters.
+  grp <- as.character(d$grp)
+  grp[seq_len(3L)] <- "C"
+  grp[-seq_len(3L)] <- "A"
+  grp <- factor(grp)
+
+  expect_no_error(
+    fit <- fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                       group = grp, group_effects = "measurement",
+                       n_steps = 1, n_init = 3, random_state = 1))
+  expect_equal(fit$mm$n_blocks, 2L)
+})

@@ -1361,6 +1361,7 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
                                  strata = NULL, cluster = NULL,
                                  refine = TRUE,
                                  bayes_constants = NULL,
+                                 warm_start = NULL,
                                  se = c("corrected", "robust", "hessian"), ...) {
 
   weight_type <- match.arg(weight_type)
@@ -1593,11 +1594,11 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 
   if (n_steps == 1) {
     model_state <- fit_em(model_state, X, Y, n_init, max_iter, random_state,
-                          refine = refine)
+                          refine = refine, warm_start = warm_start)
 
   } else {
     model_state <- fit_em(model_state, X, NULL, n_init, max_iter, random_state,
-                          refine = refine)
+                          refine = refine, warm_start = warm_start)
 
     # Step 1 metrics (measurement model only)
     if (n_steps == 3)
@@ -2052,10 +2053,53 @@ fit_mixture <- function(indicators = NULL,
   # `predictors`, since both use the same class-membership regression.
   group_info       <- NULL
   group_extra_args <- list()
+  group_warm_start <- NULL
   if (!is.null(group)) {
     group_info <- .lta_group_design(group, nrow(X_use))
 
     if (group_effects %in% c("both", "measurement")) {
+      # Warm start (see R/group_blocks.R). The pooled measurement model is fitted
+      # first, on the unpadded data, and replicated into every group block as one
+      # extra restart of the group-varying search. It is the same model the
+      # invariance test compares against, so this is what makes the comparison a
+      # test rather than a lower bound. Fitted before X_use is padded and
+      # `measurement_engine` is overwritten below, since both are needed as they
+      # stand here.
+      .sub_fit <- function(rows) {
+        args <- c(list(X = if (is.null(rows)) X_use else X_use[rows, , drop = FALSE],
+                       Y = NULL, n_components = n_classes,
+                       measurement = measurement_engine, structural = NULL,
+                       n_steps = 1, correction = "none", n_init = n_init,
+                       max_iter = max_iter, random_state = random_state,
+                       order_by_size = order_by_size,
+                       weights = if (is.null(rows)) weights else weights[rows],
+                       weight_type = weight_type,
+                       strata  = if (is.null(rows)) strata  else strata[rows],
+                       cluster = if (is.null(rows)) cluster else cluster[rows],
+                       refine = refine, bayes_constants = bayes_constants,
+                       se = se),
+                  list(...))
+        out <- try(suppressWarnings(suppressMessages(
+          do.call(fit_mixture_internal, args))), silent = TRUE)
+        if (inherits(out, "try-error")) NULL else out
+      }
+
+      pooled_fit <- .sub_fit(NULL)
+      # A failure here costs the warm start and nothing else: the group model is
+      # still fitted from random starts exactly as before.
+      if (!is.null(pooled_fit)) {
+        g_idx     <- as.integer(group_info$factor)
+        group_mms <- lapply(seq_len(nlevels(group_info$factor)), function(g) {
+          rows <- which(g_idx == g)
+          # A group too small to identify K classes on its own is left to the
+          # pooled parameters rather than fitted badly.
+          if (length(rows) < 2L * n_classes) return(NULL)
+          one <- .sub_fit(rows)
+          if (is.null(one)) NULL else .align_to_pooled(one$mm, pooled_fit$mm)
+        })
+        group_warm_start <- .group_blocks_warm_start(pooled_fit, group_mms)
+      }
+
       item_names <- colnames(X_use) %||% paste0("Item", seq_len(ncol(X_use)))
       grp_spec <- .resolve_invariance(
         if (is.null(group_invariant_items)) "none" else "partial",
@@ -2130,7 +2174,8 @@ fit_mixture <- function(indicators = NULL,
     order_by_size = order_by_size, weights = weights,
     weight_type = weight_type,
     strata = strata, cluster = cluster, refine = refine,
-    bayes_constants = bayes_constants, se = se), dots))
+    bayes_constants = bayes_constants, warm_start = group_warm_start,
+    se = se), dots))
 
   if (!is.null(group)) {
     fit$group_info    <- group_info
