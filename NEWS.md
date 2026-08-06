@@ -1,5 +1,30 @@
 # mixtureEM (development version)
 
+## Improved: the search for a group-varying measurement model
+
+* **`group_effects = "both"` and `"measurement"` no longer rely on random
+  starting values alone.** A group-varying measurement model holds one set of
+  item parameters per group, tied together only through the class labels, which
+  are shared. Random starts give each group its own arbitrary labelling, so
+  class 1 in one group and class 1 in another begin as unrelated things and EM
+  has no way to bring them into correspondence — and more restarts do not help,
+  since every restart draws from the same badly aligned prior. The visible
+  symptom was a model that could score *below* the more restricted model nested
+  inside it, which is impossible at the optimum and left
+  `longitudinal_lrt()` reporting a lower bound instead of a test.
+
+  These models now fit each group on its own data first, permute its classes to
+  match the pooled solution, and run one extra restart from there. On the
+  `janousch` example the configural fit improves by 15 log-likelihood units and
+  the measurement-invariance statistic rises from 251 to 282 on 112 degrees of
+  freedom; the substantive conclusion is unchanged, but the number no longer
+  depends on the draw. The extra fits make these models roughly a third slower.
+
+  Everything about it degrades gracefully: a group with fewer than
+  `2 * n_classes` cases is not fitted on its own, and any sub-fit that fails
+  falls back to the pooled parameters, so the worst case is the search as it was
+  before.
+
 ## Fixed: collapsed class variances in continuous-indicator models
 
 * **A class variance that has collapsed towards zero is now detected and
