@@ -1,3 +1,63 @@
+# mixtureEM (development version)
+
+## Fixed: collapsed class variances in continuous-indicator models
+
+* **A class variance that has collapsed towards zero is now detected and
+  reported.** A mixture of normals with freely estimated variances has an
+  unbounded likelihood: a class whose variance on one item is driven to zero,
+  with its mean on a few cases sharing a value, produces a likelihood that grows
+  without limit while describing nothing. Such a solution previously won the
+  restart competition, was returned as the best fit, and gave no warning. It now
+  raises one naming the item, the class and the group, and reporting whether the
+  class mean sits at a data boundary. The flagged cells are stored on the fitted
+  object as `$degenerate` and repeated by `print()` and `summary()`, so a saved
+  fit still shows the problem months later.
+
+  **This changes results.** A model that previously reported a collapsed
+  solution as converged will now warn, and its estimates will differ, because
+  the regularisation it is fitted under has changed (see below). The
+  `janousch` vignette's measurement-invariance section is the worked example and
+  its numbers have changed accordingly.
+
+* **The Gaussian M-step now carries a prior on the variances instead of a hard
+  floor.** `gaussian_diag` and `gaussian_diag_nan` previously added `1e-6` to
+  each variance after maximising. That is a constant in the units of the data —
+  invisible on a five-point scale, enormous on one measured in thousands — and,
+  being applied after the fact, did nothing to stop the L-BFGS refinement from
+  re-optimising straight through it. The regularisation is now part of the
+  objective: a truncated inverse-Wishart prior centred on the item's observed
+  marginal variance, expressed as pseudo-observations, applied identically in
+  the M-step and in the refinement so the two cannot disagree about what is
+  being maximised. On healthy fits the difference is negligible.
+
+* **New `bayes_constants` argument** on `fit_mixture()`, `fit_lta()` and the
+  wrappers that delegate to them, exposing the strength of each of the
+  estimator's priors — `latent`, `categorical`, `poisson`, `variances` — all
+  defaulting to `1`, the value the first three were already hard-coded to.
+  `bayes_constants = list(variances = 5)` is the remedy the collapsed-variance
+  warning recommends; setting a constant to `0` removes that prior and recovers
+  plain maximum likelihood for that block, which is an escape hatch for
+  reproducing an unregularized reference analysis rather than a recommended
+  setting.
+
+* **`longitudinal_lrt()` refuses to interpret a degenerate fit.** It warns when
+  either input carries the flag — the statistic is meaningless in either
+  direction, since a degenerate log-likelihood reflects a spike in the
+  likelihood rather than fit to the data. Its existing warning for a negative
+  statistic now names both things that can cause one: a failed search on the
+  full model, or a degenerate restricted model outscoring it.
+
+* **The `janousch` measurement-invariance comparison was testing the wrong
+  restriction.** Measurement invariance is the hypothesis that the item
+  parameters are equal across groups, which is `group_effects = "prevalence"`
+  (measurement pooled, prevalences free) against `"both"`. The vignette and test
+  compared `"measurement"` against `"both"`, which frees the item parameters and
+  pools the prevalences — the opposite restriction. Both have been rewritten.
+
+  This supersedes the note in the 0.2.0-era commit that introduced a fixed seed
+  for that comparison: the seed was pinning a degenerate configural solution
+  rather than curing a search failure, and it has been removed.
+
 # mixtureEM 0.2.0
 
 ## New: stepwise analyses on a fitted model

@@ -644,6 +644,11 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
       K, ref_class
     ))
 
+  # Repeated ahead of everything else: a structural result read off a fit whose
+  # measurement model has a collapsed class is not worth interpreting, so the
+  # note has to come before the coefficients rather than after them.
+  .print_degenerate_note(object)
+
   if (is.null(object$sm)) {
     cat("Notice: No structural model found. Use measurement_summary() for item parameters.\n")
     return(invisible())
@@ -1293,6 +1298,9 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   identical cases and set the effective sample size).
 #' @param strata Optional vector of stratum identifiers for complex survey designs.
 #' @param cluster Optional vector of cluster identifiers for complex survey designs.
+#' @param bayes_constants Optional named list of prior strengths
+#'   (\code{latent}, \code{categorical}, \code{poisson}, \code{variances}), each
+#'   defaulting to \code{1}. See \code{\link{fit_mixture}}.
 #' @param refine Logical. If \code{TRUE} (default), applies L-BFGS refinement
 #'   after EM convergence to optimize the penalized maximum likelihood.
 #' @param se Character. How standard errors for a covariate (class-prediction)
@@ -1352,10 +1360,12 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
                                  weight_type = c("sampling", "frequency"),
                                  strata = NULL, cluster = NULL,
                                  refine = TRUE,
+                                 bayes_constants = NULL,
                                  se = c("corrected", "robust", "hessian"), ...) {
 
   weight_type <- match.arg(weight_type)
   se          <- match.arg(se)
+  bayes_constants <- .resolve_bayes_constants(bayes_constants)
 
   if (is.data.frame(X)) X <- as.matrix(X)
   # Convert Y through prepare_covariates() so that:
@@ -1563,9 +1573,19 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
     measurement_descriptor = measurement,
     # Record where and how missing data were handled (NA-free fits store a
     # summary with any_missing = FALSE).
-    missing_data           = missing_data
+    missing_data           = missing_data,
+    # Prior strengths (see R/bayes_constants.R). Stored on the fit so that
+    # print()/summary() can report a non-default choice and bootstrap replicates
+    # inherit it.
+    bayes_constants        = bayes_constants
   )
   class(model_state) <- "mixture_model"
+
+  # Push the constants down onto the emissions, recursively, so that every
+  # M-step and refine_lbfgs() read one object rather than each holding its own
+  # copy of a default.
+  model_state$mm <- .attach_bayes_constants(model_state$mm, bayes_constants)
+  model_state$sm <- .attach_bayes_constants(model_state$sm, bayes_constants)
 
   # Mirror the survey design onto the structural sub-model (see
   # .mirror_design_onto_sm in R/stepwise.R).
@@ -1590,6 +1610,10 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   # Class sorting, display names, and combined-model metrics (see
   # .finalize_model_state in R/stepwise.R).
   model_state <- .finalize_model_state(model_state, X, Y, order_by_size)
+
+  # Collapsed-variance check, after sorting so the class numbers it reports are
+  # the ones the user will see. See R/gaussian_boundary.R.
+  model_state <- .check_gaussian_degeneracy(model_state, X)
 
   return(model_state)
 }
@@ -1879,6 +1903,30 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #' @param n_init,max_iter,random_state,order_by_size,refine Estimation
 #'   controls: number of random starts, maximum EM iterations, RNG seed,
 #'   whether to order classes by size, and whether to run L-BFGS refinement.
+#' @param bayes_constants Optional list adjusting the strength of the weak
+#'   priors the estimator places on each block of parameters. Named
+#'   \code{latent} (class weights and, in the transition models, the initial
+#'   and transition probabilities), \code{categorical} (item-response
+#'   probabilities), \code{poisson} (count rates), and \code{variances}
+#'   (class-specific variances of continuous indicators); all default to
+#'   \code{1}. Each is a number of pseudo-observations spread over the classes,
+#'   so its influence shrinks as the sample grows.
+#'
+#'   Two uses. \strong{Reproducing an unregularized fit:} setting a constant to
+#'   \code{0} removes that prior and gives plain maximum likelihood for that
+#'   block. This is an escape hatch for matching a reference analysis, not a
+#'   recommended setting — the unpenalised mixture likelihood is unbounded, and
+#'   maximum likelihood for a mixture of normals is known to be inconsistent
+#'   without some such restriction (Kiefer & Wolfowitz, 1956).
+#'   \strong{Rescuing a collapsed fit:} if a fit warns that a class variance has
+#'   collapsed, \code{bayes_constants = list(variances = 5)} is the recommended
+#'   remedy. That value is empirical — calibrated on continuous indicators
+#'   scored on a five-point scale — rather than derived, so check that it has
+#'   not moved the parameters you care about.
+#'
+#'   This is not a tuning menu. The defaults are the intended settings, and
+#'   \code{n_init} with \code{random_state} remains the way to search harder for
+#'   a solution.
 #' @param se How standard errors for \code{predictors} are computed in a 2- or
 #'   3-step model. \code{"corrected"} (the default) adds the variance carried
 #'   over from step 1 to the step-3 sandwich, following Bakk et al.
@@ -1933,6 +1981,7 @@ fit_mixture <- function(indicators = NULL,
                         strata = NULL,
                         cluster = NULL,
                         refine = TRUE,
+                        bayes_constants = NULL,
                         se = c("corrected", "robust", "hessian"),
                         X = NULL, Y = NULL, n_components = NULL, structural = NULL,
                         ...) {
@@ -1968,7 +2017,8 @@ fit_mixture <- function(indicators = NULL,
       max_iter = max_iter, random_state = random_state,
       order_by_size = order_by_size, weights = weights,
       weight_type = weight_type,
-      strata = strata, cluster = cluster, refine = refine, se = se, ...))
+      strata = strata, cluster = cluster, refine = refine,
+      bayes_constants = bayes_constants, se = se, ...))
   }
 
   if (is.null(indicators))
@@ -2079,7 +2129,8 @@ fit_mixture <- function(indicators = NULL,
     max_iter = max_iter, random_state = random_state,
     order_by_size = order_by_size, weights = weights,
     weight_type = weight_type,
-    strata = strata, cluster = cluster, refine = refine, se = se), dots))
+    strata = strata, cluster = cluster, refine = refine,
+    bayes_constants = bayes_constants, se = se), dots))
 
   if (!is.null(group)) {
     fit$group_info    <- group_info
@@ -2166,6 +2217,9 @@ print.mixture_model <- function(x, ...) {
   for (i in seq_along(x$weights))
     cat(sprintf("  Class %d: %.2f%%\n", i, x$weights[i] * 100))
   cat("=========================================================\n")
+  # A warning is transient; someone opening a saved fit months later should
+  # still see that its variances collapsed. See R/gaussian_boundary.R.
+  .print_degenerate_note(x)
   cat("Type summary(model) for structural parameters or measurement_summary(model) for item parameters.\n")
 }
 

@@ -54,7 +54,8 @@ init_params.poisson <- function(model_state, X, resp, random_state = NULL, ...) 
 # that empties out during EM drives a rate to exactly zero, and dpois(x, 0) is
 # -Inf for any x > 0 — an absorbing state that no later iteration can leave.
 #' @exportS3Method
-m_step.poisson <- function(model_state, X, resp, weights = NULL, alpha = 1.0, ...) {
+m_step.poisson <- function(model_state, X, resp, weights = NULL, alpha = NULL, ...) {
+  alpha <- alpha %||% .bayes_alpha(model_state, "poisson")
   if (!is.null(weights)) {
     resp <- sweep(resp, 1, weights, "*")
     marginal <- colSums(sweep(X, 1, weights, "*"), na.rm = TRUE) / sum(weights)
@@ -102,7 +103,8 @@ init_params.poisson_nan <- init_params.poisson
 n_parameters.poisson_nan <- n_parameters.poisson
 
 #' @exportS3Method
-m_step.poisson_nan <- function(model_state, X, resp, weights = NULL, alpha = 1.0, ...) {
+m_step.poisson_nan <- function(model_state, X, resp, weights = NULL, alpha = NULL, ...) {
+  alpha <- alpha %||% .bayes_alpha(model_state, "poisson")
   if (!is.null(weights)) resp <- sweep(resp, 1, weights, "*")
 
   K         <- model_state$n_components

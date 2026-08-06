@@ -117,46 +117,86 @@ lower-entropy ones, should be treated as one reasonable answer rather than
 Rather than three separate models, mixtureEM can fit all three countries
 *jointly* as a multiple-group model. Fitting the same number of classes
 (4, following the paper's own supplementary invariance analysis, which
-tested the four-profile solution across all three countries) with
-`group_effects = "both"` gives each country's own fully separate
-item-response profile (a "configural" model); `group_effects =
-"measurement"` instead holds the item-response means equal across
-countries, only letting class *sizes* differ. Comparing the two with a
-likelihood-ratio test is a direct test of measurement invariance.
+tested the four-profile solution across all three countries), measurement
+invariance is the restriction that the item means and variances are the
+same in every country. That is `group_effects = "prevalence"`: the
+measurement model is pooled, and only the class *sizes* are free to differ
+by country. Freeing it is `group_effects = "both"`, which gives each
+country its own profile means and variances — the "configural" model.
+Comparing the two with a likelihood-ratio test is a direct test of
+measurement invariance.
 
-"both" frees a much larger parameter space (separate item means/variances
-per country per class) than "measurement" does, so its random-restart
-search is more prone to landing on a local optimum worse than the nested
-model's — which is possible with EM regardless of how many restarts are
-used, and would show up as a negative statistic below (see
-`?longitudinal_lrt`):
+Let us fit the restricted model first, exactly as one would by default:
+
+```{r invariance-default, cache = TRUE}
+fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
+                             measurement = "continuous_nan",
+                             group = janousch$country,
+                             group_effects = "prevalence",
+                             n_steps = 1, n_init = 50, max_iter = 2000,
+                             random_state = 11)
+```
+
+That fit raises a warning: one class's variance on `social_resources` has
+**collapsed** towards zero, with the class mean sitting exactly at the top
+of the scale.
+
+This is worth understanding rather than working around, because it is a
+property of the model and not a bug in the data. A mixture of normals with
+freely estimated variances has an *unbounded* likelihood: take any class,
+shrink its variance on one item towards zero, and put its mean on a few
+cases that happen to share a value, and the density at those cases — and
+so the likelihood — grows without limit. Such a solution can score better
+than any meaningful one while describing nothing but a clump of identical
+answers. Here, enough adolescents report the maximum on `social_resources`
+that a class can form on the ceiling alone.
+
+mixtureEM guards against this with a weak prior that holds variances away
+from zero, and the default strength is deliberately mild — mild enough to
+leave the per-country solutions above exactly where the paper found them.
+Its job is not to prevent every collapse but to keep it finite and
+*visible*, so the warning can name the item and the class, which it does.
+The remedy it recommends is a stronger prior:
 
 ```{r invariance, cache = TRUE}
-set.seed(2)
-fit_configural <- fit_mixture(janousch[items], n_classes = 4,
-                               measurement = "continuous_nan",
-                               group = janousch$country,
-                               group_effects = "both",
-                               n_steps = 1, n_init = 50, max_iter = 2000)
-
-set.seed(2)
 fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
+                             measurement = "continuous_nan",
+                             group = janousch$country,
+                             group_effects = "prevalence",
+                             n_steps = 1, n_init = 50, max_iter = 2000,
+                             random_state = 11,
+                             bayes_constants = list(variances = 5))
+
+fit_configural <- fit_mixture(janousch[items], n_classes = 4,
                               measurement = "continuous_nan",
                               group = janousch$country,
-                              group_effects = "measurement",
-                              n_steps = 1, n_init = 50, max_iter = 2000)
+                              group_effects = "both",
+                              n_steps = 1, n_init = 50, max_iter = 2000,
+                              random_state = 11,
+                              bayes_constants = list(variances = 5))
 
 longitudinal_lrt(fit_invariant, fit_configural)
 ```
 
-The restriction is rejected: forcing the same profile means across
-countries fits significantly worse than letting each country have its own.
-This matches the paper's own conclusion ("Measurement invariance did not
-hold across the three countries") — the same four profile *labels*
-(Non-Resilient, Moderately Resilient, Untroubled, Resilient) do not
-correspond to the same underlying levels of symptoms and protective
-factors in each country, so cross-country comparisons of these profiles
-should be made cautiously.
+Both fits are now clean — no collapsed variances in either — and the
+restriction is decisively rejected: forcing the same profile means and
+variances across countries fits significantly worse than letting each
+country have its own. This matches the paper's own conclusion
+("Measurement invariance did not hold across the three countries") — the
+same four profile *labels* (Non-Resilient, Moderately Resilient,
+Untroubled, Resilient) do not correspond to the same underlying levels of
+symptoms and protective factors in each country, so cross-country
+comparisons of these profiles should be made cautiously.
+
+Two cautions about this comparison. First, `bayes_constants` was raised on
+*both* models, which is what makes them comparable; a likelihood-ratio
+test between two fits estimated under different priors is not a test of
+anything. Second, the configural model has 177 parameters spread across
+three country-specific blocks that random starting values struggle to
+align, so its search is the harder of the two: a larger `n_init` may still
+improve it, which would make the statistic larger and the rejection
+stronger, not weaker. `longitudinal_lrt()` warns if the search has gone
+badly enough to make the full model score *below* the restricted one.
 
 ## Covariates: gender and migration background
 
