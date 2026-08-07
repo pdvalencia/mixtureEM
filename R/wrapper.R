@@ -1883,6 +1883,27 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   groups even when \code{group_effects} frees the measurement model
 #'   (Collins & Lanza's partial-invariance models, sec. 5.9). \code{NULL}
 #'   (the default) leaves every item free, i.e. a fully configural model.
+#' @param group_invariant_params For continuous indicators, which \emph{kind}
+#'   of parameter is held equal across groups when \code{group_effects} frees
+#'   the measurement model: \code{"means"}, \code{"covariances"}, or both.
+#'   \code{NULL} (the default) frees everything. Where
+#'   \code{group_invariant_items} shares whole items, this shares one parameter
+#'   matrix for every item — which is the model the latent-profile invariance
+#'   literature actually fits: Olivera-Aguilar and Rikoon's (2018)
+#'   "unconstrained" model frees the class means across groups while holding the
+#'   indicator variances invariant, i.e.
+#'   \code{group_invariant_params = "covariances"}, and it is that model, not
+#'   the fully heterogeneous one, that their invariance test compares against.
+#'   The two are alternatives, not combinable. Categorical indicators have a
+#'   single kind of parameter, so for them this constraint and
+#'   \code{group_invariant_items} coincide and only the latter is offered.
+#' @param variances_equal Logical, for continuous indicators only: hold each
+#'   item's variance equal across the classes, so the classes differ in location
+#'   only. This is the homoscedastic latent profile model and the default
+#'   parameterisation of several commercial programs, and it combines with
+#'   \code{group_invariant_params} to give a variance that is free across groups
+#'   but shared by the classes within each. Passed through to the measurement
+#'   model, so it is also available on an ordinary single-group fit.
 #' @param n_steps Estimation strategy: 1 (simultaneous), 2, or 3 (recommended
 #'   when a structural model is present). Defaults to 3 when \code{predictors}
 #'   or \code{outcome} is supplied and left unset, otherwise 1.
@@ -1971,6 +1992,8 @@ fit_mixture <- function(indicators = NULL,
                         group = NULL,
                         group_effects = c("both", "measurement", "prevalence", "none"),
                         group_invariant_items = NULL,
+                        group_invariant_params = NULL,
+                        variances_equal = FALSE,
                         n_steps = 1,
                         correction = "none",
                         n_init = 1,
@@ -2040,6 +2063,20 @@ fit_mixture <- function(indicators = NULL,
          "combine `group` with `predictors` instead, or set `group_effects` ",
          'to "measurement" or "none".', call. = FALSE)
 
+  if (!is.null(group_invariant_params) &&
+      !group_effects %in% c("both", "measurement"))
+    stop("`group_invariant_params` constrains the measurement model across ",
+         "groups, which only `group_effects = \"both\"` or \"measurement\" ",
+         "frees in the first place.", call. = FALSE)
+  if (isTRUE(variances_equal) &&
+      !(is.character(measurement) && length(measurement) == 1L &&
+        measurement %in% c("continuous", "continuous_nan",
+                           "gaussian_diag", "gaussian_diag_nan")))
+    stop("`variances_equal` constrains the class variances of continuous ",
+         "indicators; it has no meaning for `measurement = ",
+         deparse1(measurement), "`. For a mixed measurement model, pass the ",
+         "constraint in the measurement descriptor itself.", call. = FALSE)
+
   # --- Measurement model (single-type or mixed) -------------------------------
   mm                 <- .normalize_measurement(measurement, indicators)
   X_use              <- mm$indicators
@@ -2077,7 +2114,7 @@ fit_mixture <- function(indicators = NULL,
                        strata  = if (is.null(rows)) strata  else strata[rows],
                        cluster = if (is.null(rows)) cluster else cluster[rows],
                        refine = refine, bayes_constants = bayes_constants,
-                       se = se),
+                       se = se, variances_equal = isTRUE(variances_equal)),
                   list(...))
         out <- try(suppressWarnings(suppressMessages(
           do.call(fit_mixture_internal, args))), silent = TRUE)
@@ -2112,11 +2149,12 @@ fit_mixture <- function(indicators = NULL,
       X_use              <- X_grp
       measurement_engine <- "group_blocks"
       group_extra_args <- list(
-        n_items         = length(item_names),
-        n_groups        = n_groups,
-        sub_model       = engine$sub_model,
-        invariant_items = grp_spec$invariant_items,
-        max_val         = engine$max_val
+        n_items          = length(item_names),
+        n_groups         = n_groups,
+        sub_model        = engine$sub_model,
+        invariant_items  = grp_spec$invariant_items,
+        invariant_params = group_invariant_params %||% character(0),
+        max_val          = engine$max_val
       )
     }
   }
@@ -2163,8 +2201,8 @@ fit_mixture <- function(indicators = NULL,
                     correction))
   }
 
-  dots <- if (length(group_extra_args)) utils::modifyList(list(...), group_extra_args)
-          else list(...)
+  dots <- c(list(...), list(variances_equal = isTRUE(variances_equal)))
+  if (length(group_extra_args)) dots <- utils::modifyList(dots, group_extra_args)
 
   fit <- do.call(fit_mixture_internal, c(list(
     X = X_use, Y = Y_use, n_components = n_classes,

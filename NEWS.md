@@ -1,5 +1,43 @@
 # mixtureEM (development version)
 
+## New: measurement invariance one parameter at a time
+
+* **New `group_invariant_params` argument on `fit_mixture()`**, for continuous
+  indicators. `group_invariant_items` holds whole *items* equal across groups,
+  which is the natural constraint when an item has one kind of parameter, as a
+  categorical indicator does. A continuous indicator has two — a class mean and
+  a variance — and the latent-profile invariance literature routinely frees one
+  and holds the other. That model could not be written down before: an item was
+  either wholly free across groups or wholly shared.
+
+  `group_invariant_params = "covariances"` frees the class means across groups
+  while holding the indicator variances invariant. This is the model
+  Olivera-Aguilar and Rikoon (2018) call *unconstrained* and note is the default
+  most software fits, and it is the one their invariance test compares against —
+  so it is the comparison an applied analysis usually wants, and it is smaller
+  and better identified than the fully heterogeneous alternative.
+  `group_invariant_params = "means"` is the mirror constraint. The two axes are
+  alternatives: pass either `group_invariant_items` or
+  `group_invariant_params`, not both.
+
+* **New `variances_equal` argument on `fit_mixture()`**, also for continuous
+  indicators: hold each item's variance equal across the classes, so the classes
+  differ in location only. This is the homoscedastic latent profile model, and
+  the parameterisation several commercial programs estimate by default. It
+  applies to an ordinary single-group fit as well, and composes with
+  `group_invariant_params` to give a variance shared by the classes but free
+  across groups.
+
+  The constrained variance is still stored once per class, so profiles, plots,
+  class alignment and the degeneracy check are unchanged; the constraint lives
+  in the M-step and in the parameter count.
+
+  A model carrying either constraint is fitted by EM alone. The L-BFGS
+  refinement packs one parameter per class-item cell and has no way to express
+  an equality across cells, so it would step off the constraint surface; these
+  models instead run EM to the tighter stopping rule the unpolished emissions
+  already use.
+
 ## Improved: the search for a group-varying measurement model
 
 * **`group_effects = "both"` and `"measurement"` no longer rely on random

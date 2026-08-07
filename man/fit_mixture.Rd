@@ -16,6 +16,8 @@ fit_mixture(
   group = NULL,
   group_effects = c("both", "measurement", "prevalence", "none"),
   group_invariant_items = NULL,
+  group_invariant_params = NULL,
+  variances_equal = FALSE,
   n_steps = 1,
   correction = "none",
   n_init = 1,
@@ -113,6 +115,29 @@ by their item-response pattern rather than by position.}
 groups even when \code{group_effects} frees the measurement model
 (Collins & Lanza's partial-invariance models, sec. 5.9). \code{NULL}
 (the default) leaves every item free, i.e. a fully configural model.}
+
+\item{group_invariant_params}{For continuous indicators, which \emph{kind}
+of parameter is held equal across groups when \code{group_effects} frees
+the measurement model: \code{"means"}, \code{"covariances"}, or both.
+\code{NULL} (the default) frees everything. Where
+\code{group_invariant_items} shares whole items, this shares one parameter
+matrix for every item — which is the model the latent-profile invariance
+literature actually fits: Olivera-Aguilar and Rikoon's (2018)
+"unconstrained" model frees the class means across groups while holding the
+indicator variances invariant, i.e.
+\code{group_invariant_params = "covariances"}, and it is that model, not
+the fully heterogeneous one, that their invariance test compares against.
+The two are alternatives, not combinable. Categorical indicators have a
+single kind of parameter, so for them this constraint and
+\code{group_invariant_items} coincide and only the latter is offered.}
+
+\item{variances_equal}{Logical, for continuous indicators only: hold each
+item's variance equal across the classes, so the classes differ in location
+only. This is the homoscedastic latent profile model and the default
+parameterisation of several commercial programs, and it combines with
+\code{group_invariant_params} to give a variance that is free across groups
+but shared by the classes within each. Passed through to the measurement
+model, so it is also available on an ordinary single-group fit.}
 
 \item{n_steps}{Estimation strategy: 1 (simultaneous), 2, or 3 (recommended
 when a structural model is present). Defaults to 3 when \code{predictors}

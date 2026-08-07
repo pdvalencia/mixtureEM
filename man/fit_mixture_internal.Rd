@@ -22,6 +22,7 @@ fit_mixture_internal(
   cluster = NULL,
   refine = TRUE,
   bayes_constants = NULL,
+  warm_start = NULL,
   se = c("corrected", "robust", "hessian"),
   ...
 )

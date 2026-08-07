@@ -112,6 +112,11 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 .is_refinable <- function(mm) {
   if (inherits(mm, "nested")) return(FALSE)
   view <- .refine_time_block_view(mm) %||% list(mm = mm)
+  # An across-class equality constraint on the variances has no expression in
+  # the refinement's parameterisation, which packs one log(sd) per class-item
+  # cell; polishing such a model would walk straight off the constraint surface.
+  # `col_map` ties columns together but says nothing about rows.
+  if (isTRUE(view$mm$variances_equal)) return(FALSE)
   class(view$mm)[1] %in% .refine_supported
 }
 
@@ -202,6 +207,7 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
 
   mm_type <- class(view$mm)[1]
   if (!mm_type %in% .refine_supported) return(model_state)
+  if (isTRUE(view$mm$variances_equal)) return(model_state)   # see .is_refinable()
   if (inherits(view$mm, "nested")) return(model_state)
   # K=1 has no weight parameters; the M-step already gives the exact analytic
   # solution (item marginals), so L-BFGS is a no-op and the K-2 index arithmetic
