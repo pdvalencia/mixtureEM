@@ -306,8 +306,53 @@ measurement_summary.default <- function(object, ...) {
                 md$n_items_affected, if (md$n_items_affected == 1L) "" else "s",
                 md$handled_by))
   }
+  .print_recode_note(object$binary_recode)
+  .print_boundary_note(do.call(rbind, collected))
   cat("=========================================================\n")
   invisible(do.call(rbind, collected))
+}
+
+# Say which level each reported probability belongs to, for items that were not
+# supplied as 0/1. Without this the table is ambiguous in the one way that
+# matters: "0.87" means nothing until you know 0.87 of what.
+.print_recode_note <- function(map) {
+  if (is.null(map) || !length(map)) return(invisible(NULL))
+  pairs <- vapply(map, function(m) sprintf("%s = %s", m$item, m$one),
+                  character(1))
+  cat("\nProbabilities are of: ", paste(pairs, collapse = ", "),
+      " (recoded to 0/1 on input).\n", sep = "")
+  invisible(NULL)
+}
+
+# Name the probabilities that have run to 0 or 1.
+#
+# Two things follow for the reader, and neither is obvious from the table. The
+# class is defined partly by an item that nobody in it endorses (or that
+# everybody does), which is a substantive fact about the data worth checking.
+# And the standard error there is not interpretable: at the boundary the
+# information matrix loses rank, so confidence intervals and significance tests
+# for that parameter mean nothing (Galindo Garre & Vermunt, 2006). The weak
+# Dirichlet prior keeps estimates strictly inside the interval, so a value this
+# close to the edge means the likelihood was pushing hard against it.
+.print_boundary_note <- function(df, tol = 1e-3) {
+  if (is.null(df) || !nrow(df) || !"parameter" %in% names(df)) return(invisible(NULL))
+  keep <- df$parameter == "probability" & is.finite(df$estimate) &
+    (df$estimate <= tol | df$estimate >= 1 - tol)
+  keep[is.na(keep)] <- FALSE
+  if (!any(keep)) return(invisible(NULL))
+
+  hit <- df[keep, , drop = FALSE]
+  lab <- sprintf("%s in class %s", hit$item, hit$class)
+  if (!all(is.na(hit$block))) lab <- sprintf("%s (%s)", lab, hit$block)
+  show <- utils::head(lab, 5L)
+  cat(sprintf(
+    paste0("\nAt the boundary: %s%s. These probabilities have run to 0 or 1, ",
+           "so the class is defined partly by an item every case in it gives ",
+           "the same answer to, and their standard errors are not ",
+           "interpretable.\n"),
+    paste(show, collapse = "; "),
+    if (length(lab) > 5L) sprintf(" and %d more", length(lab) - 5L) else ""))
+  invisible(NULL)
 }
 
 #' Print Classification Diagnostics
@@ -341,6 +386,14 @@ measurement_summary.default <- function(object, ...) {
 #' set.seed(1)
 #' X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
 #' fit <- fit_mixture(X, n_components = 2, measurement = "binary")
+#' @references
+#' Celeux, G., & Soromenho, G. (1996). An entropy criterion for assessing the
+#' number of clusters in a mixture model. \emph{Journal of Classification},
+#' \emph{13}(2), 195-212. \doi{10.1007/BF01246098}
+#'
+#' Nagin, D. S. (2005). \emph{Group-Based Modeling of Development}. Harvard
+#' University Press.
+#'
 #' classification_diagnostics(fit)
 #'
 #' @export
@@ -1284,7 +1337,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   One of \code{"none"}, \code{"BCH"}, or \code{"ML"}. Ignored when
 #'   \code{n_steps} is not \code{3}. Default is \code{"none"}.
 #' @param n_init Positive integer. Number of random restarts. The solution
-#'   with the highest log-likelihood is retained. Default is \code{1}.
+#'   with the highest log-likelihood is retained. Default is \code{20}.
 #' @param max_iter Positive integer. Maximum EM iterations per restart.
 #'   Default is \code{1000}.
 #' @param random_state Optional integer seed for reproducibility. Default is
@@ -1354,7 +1407,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #' @importFrom utils setTxtProgressBar txtProgressBar
 fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
                                  measurement = "binary", structural = NULL,
-                                 n_steps = 1, correction = "none", n_init = 1,
+                                 n_steps = 1, correction = "none", n_init = 20,
                                  max_iter = 1000, random_state = NULL,
                                  order_by_size = TRUE, weights = NULL,
                                  weight_type = c("sampling", "frequency"),
@@ -1487,13 +1540,24 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   # Validate binary data when a Bernoulli family is requested.
   if (is.character(measurement) &&
       measurement %in% c("binary", "bernoulli", "binary_nan", "bernoulli_nan")) {
+    # Two-valued indicators of any coding are converted on the way in (see
+    # .recode_binary()), so anything reaching here has three or more distinct
+    # values and is not dichotomous at all. The right move is a different
+    # measurement model, which the message now says.
     valid_vals <- X[!is.na(X)]
     if (length(valid_vals) > 0 && !all(valid_vals %in% c(0, 1)))
       stop(sprintf(
-        paste0("measurement = '%s' requires X values in {0, 1}. ",
-               "Found values outside this set: %s"),
+        paste0("measurement = '%s' needs indicators with two values, and at ",
+               "least one has more. Two-valued items are converted to 0/1 ",
+               "automatically whatever their coding, so this is not a coding ",
+               "problem: use measurement = \"categorical\" for ordered or ",
+               "nominal items with three or more categories, or \"continuous\" ",
+               "for a scale. Values found beyond {0, 1}: %s"),
         measurement,
-        paste(sort(unique(valid_vals[!valid_vals %in% c(0, 1)]))[1:min(5, sum(!valid_vals %in% c(0,1)))],
+        # head() rather than [1:5]: the old form indexed by the *count* of
+        # offending cells, not the number of distinct offending values, so a
+        # column with two bad values repeated many times printed "2, 3, NA, NA".
+        paste(utils::head(sort(unique(valid_vals[!valid_vals %in% c(0, 1)])), 5L),
               collapse = ", ")
       ))
   }
@@ -1693,11 +1757,21 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 # Columns are grouped in the order given so the engine's block structure lines
 # up; column names are preserved for display.
 .normalize_measurement <- function(measurement, indicators) {
+  # Level labels are read before data.matrix() destroys them: it maps a factor
+  # or character column to 1-based integer codes, so by the next line there is no
+  # way to tell the user which of their categories became the "1" whose
+  # probability gets reported.
+  labels <- .indicator_level_labels(indicators)
+
   indicators <- if (is.data.frame(indicators)) data.matrix(indicators)
   else as.matrix(indicators)
 
-  if (is.character(measurement) && length(measurement) == 1L)
-    return(list(descriptor = measurement, indicators = indicators))
+  if (is.character(measurement) && length(measurement) == 1L) {
+    rec <- .recode_binary(measurement, indicators, seq_len(ncol(indicators)),
+                          labels)
+    return(list(descriptor = measurement, indicators = rec$indicators,
+                recode = rec$map))
+  }
 
   if (!is.list(measurement))
     stop("`measurement` must be a single type string or a named list mapping ",
@@ -1732,11 +1806,19 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   keys        <- make.unique(names(parts), sep = "_")
   ordered_idx <- integer(0)
   descriptor  <- list()
+  recode      <- list()
   for (i in seq_along(parts)) {
     cols <- resolve_cols(parts[[i]])
     if (any(cols %in% ordered_idx))
       stop("An indicator column was assigned to more than one measurement type.",
            call. = FALSE)
+    # Recoding is applied per block, so a mixed model's binary items are covered
+    # too. The single-string branch above used to be the only path with any 0/1
+    # handling at all, which left a 1/2-coded item in a list spec reaching the
+    # Bernoulli likelihood and producing a silently wrong answer.
+    rec <- .recode_binary(names(parts)[i], indicators, cols, labels)
+    indicators <- rec$indicators
+    recode     <- c(recode, rec$map)
     ordered_idx        <- c(ordered_idx, cols)
     descriptor[[keys[i]]] <- list(model = names(parts)[i], n_columns = length(cols))
   }
@@ -1748,7 +1830,78 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
          call. = FALSE)
 
   list(descriptor = descriptor,
-       indicators  = indicators[, ordered_idx, drop = FALSE])
+       indicators  = indicators[, ordered_idx, drop = FALSE],
+       recode      = recode)
+}
+
+# Level labels for every column of the user's indicators, so a recoded item can
+# say which of the original categories is the one whose probability is reported.
+# NULL for a numeric column, whose values speak for themselves.
+.indicator_level_labels <- function(indicators) {
+  if (!is.data.frame(indicators)) {
+    if (is.character(indicators) || is.factor(indicators))
+      indicators <- as.data.frame(indicators, stringsAsFactors = FALSE)
+    else return(NULL)
+  }
+  lab <- lapply(indicators, function(v) {
+    if (is.factor(v))    return(levels(v))
+    if (is.character(v)) return(sort(unique(v[!is.na(v)])))
+    if (is.logical(v))   return(c("FALSE", "TRUE"))
+    NULL
+  })
+  names(lab) <- names(indicators)
+  lab
+}
+
+.binary_families <- c("binary", "bernoulli", "binary_nan", "bernoulli_nan")
+
+# Put binary indicators on the 0/1 scale the Bernoulli emission requires.
+#
+# The emission is arithmetic, not a lookup -- it computes x*log(p) +
+# (1-x)*log(1-p) -- so it needs literal zeros and ones. Everything else an
+# applied researcher plausibly has is accepted and converted here: a two-level
+# factor or character (first level 0, second 1), a logical, and any numeric pair
+# whatever its values, the lower becoming 0. Data already in {0, 1} is untouched
+# and silent. Three or more distinct values are left alone for the validator
+# downstream to reject, since the right advice there is to use "categorical",
+# not to guess at a dichotomy.
+#
+# The mapping is returned as well as applied. Which level became the 1 decides
+# what every reported probability means, and after data.matrix() there is no way
+# for the user to recover it from the fit.
+.recode_binary <- function(family, indicators, cols, labels = NULL) {
+  if (!is.character(family) || length(family) != 1L ||
+      !family %in% .binary_families)
+    return(list(indicators = indicators, map = list()))
+
+  nms <- colnames(indicators)
+  map <- list()
+  for (j in cols) {
+    v   <- indicators[, j]
+    obs <- v[!is.na(v)]
+    if (!length(obs)) next
+    vals <- sort(unique(obs))
+    if (length(vals) != 2L || all(vals == c(0, 1))) next
+
+    nm  <- nms[j] %||% paste0("column ", j)
+    lev <- if (!is.null(labels)) labels[[nm]] else NULL
+    # data.matrix() codes a factor's levels 1..M in order, so the two observed
+    # codes index straight into the recorded labels.
+    shown <- if (!is.null(lev) && all(vals %in% seq_along(lev))) lev[vals]
+             else format(vals)
+
+    indicators[, j] <- as.numeric(v == vals[2L])
+    map[[nm]] <- list(item = nm, zero = shown[1L], one = shown[2L])
+  }
+
+  if (length(map)) {
+    pairs <- vapply(map, function(m) sprintf("%s (%s -> 0, %s -> 1)",
+                                             m$item, m$zero, m$one), character(1))
+    message("Recoded binary indicators to 0/1: ",
+            paste(pairs, collapse = "; "),
+            ". Reported probabilities are of the value shown as 1.")
+  }
+  list(indicators = indicators, map = map)
 }
 
 # Decide whether a distal outcome is continuous or categorical when the user
@@ -1820,17 +1973,28 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #' @param indicators Matrix or data frame of measurement items that define the
 #'   latent classes (rows are observations, columns are items).
 #' @param n_classes Number of latent classes/profiles to estimate.
-#' @param measurement Either a single type string applied to every indicator
-#'   (\code{"binary"}, \code{"categorical"}, \code{"continuous"},
-#'   \code{"gaussian"}, \code{"count"}, and \code{"_nan"} missing-data
-#'   variants), or, for a mixed-type model, a named list mapping each type to
-#'   the indicator columns it governs by name or index, e.g.
+#' @param measurement What kind of variables the indicators are. Either one type
+#'   string for all of them — \code{"binary"}, \code{"categorical"},
+#'   \code{"continuous"}, \code{"gaussian"}, \code{"count"} — or, for a
+#'   mixed-type model, a named list mapping each type to the columns it governs
+#'   by name or index, e.g.
 #'   \code{list(binary = c("q1","q2"), continuous = "score")}.
 #'
-#'   \code{"count"} fits a Poisson measurement model: each item is
-#'   Poisson-distributed within class with its own rate, reported by
-#'   \code{\link{measurement_summary}} as a rate (lambda) per item and class.
-#'   It requires non-negative integer indicators.
+#'   \strong{Missing values need no special handling.} Any indicator containing
+#'   \code{NA} is estimated by full-information maximum likelihood under the
+#'   usual missing-at-random assumption, chosen automatically; cases missing on
+#'   every indicator are dropped, with a warning saying how many. There is
+#'   nothing to switch on. (The \code{"*_nan"} spellings are still accepted, and
+#'   force the same estimator, but they are a leftover and you do not need them.)
+#'
+#'   \strong{Binary items need not be coded 0/1.} A two-level factor or
+#'   character, a logical, or any pair of numbers — 1/2 is the commonest — is
+#'   converted for you, with a message saying which level became the 1, since
+#'   that is what the reported probabilities refer to.
+#'
+#'   \code{"categorical"} expects integer codes running 1, 2, 3, ...; add 1 to a
+#'   0-based item. \code{"count"} fits a Poisson model, one rate per item and
+#'   class, and needs non-negative integers.
 #' @param predictors Optional covariates that predict latent class membership.
 #'   Supplying this fits a class-membership regression (the "predict class"
 #'   structural model). Mutually exclusive with \code{outcome}.
@@ -1849,36 +2013,50 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   Unlike \code{predictors}, which only ever shifts class membership, a
 #'   group can also be allowed to shift the item-response probabilities
 #'   themselves; see \code{group_effects}.
-#' @param group_effects Which parameters \code{group} is allowed to shift.
-#'   \code{"both"} (default) frees both the item-response probabilities and
-#'   the class prevalences across groups, i.e. fits each group's own
-#'   model. \code{"measurement"} frees only the item-response probabilities
-#'   (prevalences stay pooled). \code{"prevalence"} frees only the class
-#'   prevalences, by entering \code{group} as a class-membership covariate
-#'   exactly like \code{predictors} (item-response probabilities stay
-#'   invariant across groups) — this is the same equivalence
-#'   [`fit_rmlca()`] documents for its own \code{predictors}, sec. 6.10.2.
-#'   \code{"none"} ignores \code{group} for estimation. Fit the same data
-#'   under two of these and compare them with [`longitudinal_lrt()`] to get
-#'   Collins & Lanza's measurement-invariance test (sec. 5.8, comparing
-#'   \code{"both"} against \code{"prevalence"}) and prevalence-equivalence
-#'   test (sec. 5.11, comparing \code{"prevalence"} against \code{"none"}).
-#'   Because a multiple-group model like Collins & Lanza's is fit as one
-#'   simultaneous model rather than through the auxiliary-variable 3-step
-#'   approximation, pass \code{n_steps = 1} explicitly to reproduce their
-#'   numbers exactly.
+#' @param group_effects What you are allowing the groups to differ in. Pick by
+#'   the question you are asking:
 #'
-#'   With \code{"both"} or \code{"measurement"}, each group's item-response
-#'   probabilities are estimated from that group's cases alone, tied to the
-#'   other groups only by shared initialization — unlike occasions in
-#'   [`fit_rmlca()`], which every case informs simultaneously. A likelihood-
-#'   ratio comparison via [`longitudinal_lrt()`] is unaffected (it only
-#'   compares total log-likelihoods), but the *class labels* a configural fit
-#'   assigns are not guaranteed to line up across groups: "Class 1" in one
-#'   group's profile need not be the same kind of class as "Class 1" in
-#'   another's. Use a larger \code{n_init} and a fixed \code{random_state}
-#'   for configural fits, and when reading per-group profiles, match classes
-#'   by their item-response pattern rather than by position.
+#'   \describe{
+#'     \item{\code{"prevalence"}}{Do the groups differ in \emph{how many} people
+#'       fall in each class? The classes themselves mean the same thing in every
+#'       group; only their sizes move. This is the model most applied analyses
+#'       want.}
+#'     \item{\code{"both"} (default)}{Does each group need its \emph{own} class
+#'       solution? Both the class sizes and what the classes look like are free
+#'       to differ — the configural model.}
+#'     \item{\code{"none"}}{Ignore the grouping variable when estimating.}
+#'   }
+#'
+#'   \strong{The usual workflow} is to fit \code{"prevalence"} and \code{"both"}
+#'   and compare them with [`lr_test()`]. That is the test of measurement
+#'   invariance (Collins & Lanza, 2010, sec. 5.8): it asks whether letting the
+#'   classes mean different things in different groups buys a significantly
+#'   better fit. If it does not — the common outcome, and the one you want — keep
+#'   \code{"prevalence"} and report the group differences in class sizes, which
+#'   are then comparable across groups because the classes are. Comparing
+#'   \code{"none"} against \code{"prevalence"} tests whether the sizes differ at
+#'   all (sec. 5.11). Pass \code{n_steps = 1} for both fits.
+#'
+#'   There is a fourth setting, \code{"measurement"}, which frees the item
+#'   parameters while holding the class sizes pooled. It answers an unusual
+#'   question and is rarely what is wanted; \code{"both"} is the configural model
+#'   the invariance literature actually compares against.
+#' @section Multiple-group models:
+#' Under \code{group_effects = "both"} or \code{"measurement"} each group's item
+#' parameters are estimated from that group's own cases, so the \emph{class
+#' labels} need not line up across groups: "Class 1" in one group's profile is
+#' not guaranteed to be the same kind of class as "Class 1" in another's. Read
+#' the per-group profiles by their item patterns rather than by position. The
+#' likelihood-ratio comparison is unaffected, since it only differences total
+#' log-likelihoods.
+#'
+#' The log-likelihood is that of the indicators \emph{given} the group; the
+#' grouping variable's own distribution is not modelled and its proportions are
+#' not counted as parameters. Software that treats a known grouping variable as
+#' a latent class variable observed without error adds both. For
+#' comparison with such output, a \code{group} fit also carries
+#' \code{metrics$ll_knownclass} and \code{metrics$n_params_knownclass}; the
+#' difference is a fixed constant and cancels in [`lr_test()`].
 #' @param group_invariant_items Item indices or names held equal across
 #'   groups even when \code{group_effects} frees the measurement model
 #'   (Collins & Lanza's partial-invariance models, sec. 5.9). \code{NULL}
@@ -1923,8 +2101,15 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   sample size behind AIC and BIC is then the sum of the counts. Getting this
 #'   wrong changes BIC but not the parameter estimates.
 #' @param n_init,max_iter,random_state,order_by_size,refine Estimation
-#'   controls: number of random starts, maximum EM iterations, RNG seed,
-#'   whether to order classes by size, and whether to run L-BFGS refinement.
+#'   controls: number of random starts (default 20), maximum EM iterations, RNG
+#'   seed, whether to order classes by size, and whether to run L-BFGS
+#'   refinement.
+#'
+#'   A mixture likelihood usually has several local maxima, so a single start is
+#'   a coin toss rather than an estimate; the fit reports how many of the starts
+#'   reached the solution it kept. If that count is 1, raise \code{n_init} and
+#'   refit — a maximum found once may simply be the best of a small sample of
+#'   the surface. Set \code{random_state} to make the search reproducible.
 #' @param bayes_constants Optional list adjusting the strength of the weak
 #'   priors the estimator places on each block of parameters. Named
 #'   \code{latent} (class weights and, in the transition models, the initial
@@ -1940,15 +2125,36 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   recommended setting — the unpenalised mixture likelihood is unbounded, and
 #'   maximum likelihood for a mixture of normals is known to be inconsistent
 #'   without some such restriction (Kiefer & Wolfowitz, 1956).
-#'   \strong{Rescuing a collapsed fit:} if a fit warns that a class variance has
-#'   collapsed, \code{bayes_constants = list(variances = 5)} is the recommended
-#'   remedy. That value is empirical — calibrated on continuous indicators
-#'   scored on a five-point scale — rather than derived, so check that it has
-#'   not moved the parameters you care about.
 #'
-#'   This is not a tuning menu. The defaults are the intended settings, and
-#'   \code{n_init} with \code{random_state} remains the way to search harder for
-#'   a solution.
+#'   \strong{Rescuing a collapsed fit:} if a fit warns that a class variance has
+#'   collapsed, the prior is one of three remedies, and not the first to reach
+#'   for. Constraining the variances to be equal across classes
+#'   (\code{variances_equal = TRUE}) bounds the likelihood so the problem cannot
+#'   arise at all; fitting fewer classes often removes the class that was
+#'   describing a spike. Where neither is acceptable substantively, raise
+#'   \code{variances}. A useful starting point is \strong{one artificial
+#'   observation per class}, i.e. \code{variances = n_classes}, doubling it if
+#'   the warning persists. State it that way rather than as a bare number: the
+#'   constant is divided among the classes, so a fixed value is a different
+#'   amount of prior at every \code{n_classes}. Then check the result rather
+#'   than just that the warning stopped — the flagged variance should no longer
+#'   be far below the others in the model, and its class mean should have come
+#'   off the floor or ceiling of the response scale.
+#'
+#'   Raising \code{n_init} is \emph{not} a remedy here. A collapsed variance is
+#'   not a convergence failure but a property of the likelihood, which really is
+#'   unbounded in that direction, so a longer search can find a taller spike and
+#'   report a better log-likelihood for a worse solution. For the same reason a
+#'   flagged fit's BIC is not comparable with a clean fit's.
+#'
+#'   The theory behind the prior settles its form and not its size: a penalty
+#'   that diverges as a variance approaches zero and grows more slowly than the
+#'   sample yields a consistent estimator whatever its constant (Chen, Tan, &
+#'   Zhang, 2008). The choice of constant is therefore a finite-sample judgement,
+#'   which is why the default is deliberately weak and the guidance above is a
+#'   rule with a check rather than a magic value.
+#'
+#'   This is not a tuning menu. The defaults are the intended settings.
 #' @param se How standard errors for \code{predictors} are computed in a 2- or
 #'   3-step model. \code{"corrected"} (the default) adds the variance carried
 #'   over from step 1 to the step-3 sandwich, following Bakk et al.
@@ -1961,6 +2167,35 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #' @param ... Passed through to the measurement-model constructors.
 #'
 #' @return A fitted \code{mixture_model} object.
+#'
+#' @references
+#' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
+#' Transition Analysis: With Applications in the Social, Behavioral, and Health
+#' Sciences}. Wiley.
+#'
+#' Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
+#' T. D. Little (Ed.), \emph{The Oxford Handbook of Quantitative Methods}
+#' (Vol. 2, pp. 551-611). Oxford University Press.
+#'
+#' Vermunt, J. K., & Magidson, J. (2002). Latent class cluster analysis. In
+#' J. A. Hagenaars & A. L. McCutcheon (Eds.), \emph{Applied Latent Class
+#' Analysis} (pp. 89-106). Cambridge University Press.
+#'
+#' Galindo Garre, F., & Vermunt, J. K. (2006). Avoiding boundary estimates in
+#' latent class analysis by Bayesian posterior mode estimation.
+#' \emph{Behaviormetrika}, \emph{33}(1), 43-59. \doi{10.2333/bhmk.33.43}
+#' (the priors behind \code{bayes_constants}).
+#'
+#' Kiefer, J., & Wolfowitz, J. (1956). Consistency of the maximum likelihood
+#' estimator in the presence of infinitely many incidental parameters.
+#' \emph{The Annals of Mathematical Statistics}, \emph{27}(4), 887-906.
+#'
+#' McLachlan, G. J., & Peel, D. (2000). \emph{Finite Mixture Models}. Wiley
+#' (on the unbounded likelihood and spurious solutions).
+#'
+#' Olivera-Aguilar, M., & Rikoon, S. H. (2018). Assessing measurement invariance
+#' in multiple-group latent profile analysis. \emph{Structural Equation
+#' Modeling}, \emph{25}(3), 439-452. \doi{10.1080/10705511.2017.1408015}
 #'
 #' @examples
 #' set.seed(1)
@@ -1996,7 +2231,7 @@ fit_mixture <- function(indicators = NULL,
                         variances_equal = FALSE,
                         n_steps = 1,
                         correction = "none",
-                        n_init = 1,
+                        n_init = 20,
                         max_iter = 1000,
                         random_state = NULL,
                         order_by_size = TRUE,
@@ -2091,6 +2326,11 @@ fit_mixture <- function(indicators = NULL,
   group_info       <- NULL
   group_extra_args <- list()
   group_warm_start <- NULL
+  # The indicator matrix as the user supplied it, kept because
+  # .pad_group_blocks() below replaces X_use with a matrix that is two-thirds
+  # structurally empty by construction. Everything reported about *missing data*
+  # has to describe this one. See .fix_group_block_reporting().
+  X_unpadded <- X_use
   if (!is.null(group)) {
     group_info <- .lta_group_design(group, nrow(X_use))
 
@@ -2215,9 +2455,13 @@ fit_mixture <- function(indicators = NULL,
     bayes_constants = bayes_constants, warm_start = group_warm_start,
     se = se), dots))
 
+  if (length(mm$recode)) fit$binary_recode <- mm$recode
+
   if (!is.null(group)) {
     fit$group_info    <- group_info
     fit$group_effects <- group_effects
+    fit <- .fix_group_block_reporting(fit, X_unpadded, group_info)
+    fit <- .add_knownclass_scale(fit, group_info)
   }
 
   # Non-convergence used to be near-impossible to hit and was reported only by
@@ -2277,6 +2521,14 @@ print.mixture_model <- function(x, ...) {
     cat(sprintf("Cases Removed      : %d of %d with no observed indicator (n = %d analysed)\n",
                 x$missing_data$n_empty_rows, x$missing_data$n_input_rows,
                 x$missing_data$n_input_rows - x$missing_data$n_empty_rows))
+  # A group-varying measurement model is estimated as one block per group. That
+  # is a fact about the model, and is stated as one; it is not missingness, even
+  # though the estimator reaches it through the same FIML machinery.
+  if (!is.null(x$missing_data$group_blocks)) {
+    gb <- x$missing_data$group_blocks
+    cat(sprintf("Measurement Model  : group-varying, %d groups x %d items\n",
+                gb$n_groups, gb$n_items))
+  }
   if (!is.null(x$missing_data) && isTRUE(x$missing_data$any_missing)) {
     md <- x$missing_data
     cat(sprintf("Missing Data       : %d / %d cells (%.1f%%) in %d item%s \u2014 %s\n",
@@ -2295,6 +2547,7 @@ print.mixture_model <- function(x, ...) {
     cat(sprintf("  Log-Likelihood : %.2f\n", x$metrics$ll))
     cat(sprintf("  Rel. Entropy   : %.4f\n", x$metrics$entropy))
   }
+  .print_replication_note(x)
   cat("---------------------------------------------------------\n")
   cat("Class Weights (Sizes):\n")
   for (i in seq_along(x$weights))
@@ -2339,6 +2592,16 @@ print.mixture_model <- function(x, ...) {
 #'                            n_init = 5)
 #' result$fit_table
 #' result$best_k
+#'
+#' @references
+#' Nylund, K. L., Asparouhov, T., & Muthen, B. O. (2007). Deciding on the number
+#' of classes in latent class analysis and growth mixture modeling: A Monte
+#' Carlo simulation study. \emph{Structural Equation Modeling}, \emph{14}(4),
+#' 535-569. \doi{10.1080/10705510701575396}
+#'
+#' Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
+#' T. D. Little (Ed.), \emph{The Oxford Handbook of Quantitative Methods}
+#' (Vol. 2, pp. 551-611). Oxford University Press.
 #'
 #' @export
 compare_mixtures <- function(X, k_range = 1:5, measurement = "binary",

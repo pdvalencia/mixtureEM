@@ -164,7 +164,7 @@ lta_g2 <- function(object) {
 # Uniform accessor over the model classes that can have a contingency table.
 # `conditional` marks a fit whose case-level probabilities depend on covariates,
 # for which no single model-implied table exists.
-.longitudinal_fit_info <- function(object) {
+.nested_fit_info <- function(object) {
   if (inherits(object, "lta_model"))
     return(list(ll = object$loglik, n_params = object$n_params,
                 data = object$data, mm = object$mm,
@@ -258,22 +258,25 @@ compare_longitudinal <- function(indicators, k_range = 2:4,
 # Nested-model tests
 # ------------------------------------------------------------------------------
 
-#' Likelihood-Ratio Test for Nested Longitudinal Models
+#' Likelihood-Ratio Test for Two Nested Models
 #'
 #' @description
 #' Compares two nested models by the likelihood-ratio difference test,
-#' \eqn{-2(\ell_0 - \ell_1)} on \eqn{P_1 - P_0} degrees of freedom. This is the
-#' test Collins and Lanza use throughout chapters 7 and 8, and it answers the
-#' questions those chapters pose:
+#' \eqn{-2(\ell_0 - \ell_1)} on \eqn{P_1 - P_0} degrees of freedom. It accepts
+#' any pair of fits from [`fit_mixture()`], [`fit_rmlca()`] or [`fit_lta()`],
+#' and answers questions of the form "does freeing these parameters buy a
+#' significantly better fit?"
 #'
 #' \itemize{
-#'   \item **Measurement invariance across time** (sec. 7.11): fit with
-#'     `time_invariance = "full"` and `"none"` and compare.
-#'   \item **Invariance of the transition matrix across time** (sec. 7.14): fit
-#'     with `tau_homogeneous = TRUE` and `FALSE` and compare.
-#'   \item **Group differences in prevalences or transitions** (sec. 8.7, 8.8):
-#'     compare a model with the relevant parameters constrained equal across
-#'     groups against one that frees them.
+#'   \item **Measurement invariance across groups** (Collins & Lanza, 2010, sec.
+#'     5.8): fit [`fit_mixture()`] with `group_effects = "prevalence"` and with
+#'     `"both"`, and compare. This is a cross-sectional test.
+#'   \item **Equal prevalences across groups** (sec. 5.11): compare
+#'     `group_effects = "none"` against `"prevalence"`.
+#'   \item **Measurement invariance across time** (sec. 7.11): fit [`fit_lta()`]
+#'     with `measurement_invariance = "full"` and `"none"` and compare.
+#'   \item **A time-homogeneous transition matrix** (sec. 7.14): fit
+#'     [`fit_lta()`] with `transition_invariance = "full"` and `"none"`.
 #' }
 #'
 #' The models must be nested and fitted to the same data. That is not checked
@@ -288,11 +291,15 @@ compare_longitudinal <- function(indicators, k_range = 2:4,
 #'
 #' @param restricted The more constrained model (fewer parameters).
 #' @param full The less constrained model.
-#' @return A list of class `"longitudinal_lrt"`.
+#' @return A list of class `"lr_test"`.
+#' @references
+#' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
+#' Transition Analysis: With Applications in the Social, Behavioral, and Health
+#' Sciences}. Wiley.
 #' @export
-longitudinal_lrt <- function(restricted, full) {
-  a <- .longitudinal_fit_info(restricted)
-  b <- .longitudinal_fit_info(full)
+lr_test <- function(restricted, full) {
+  a <- .nested_fit_info(restricted)
+  b <- .nested_fit_info(full)
 
   if (a$n_params > b$n_params)
     stop("`restricted` has more parameters than `full`; the arguments look ",
@@ -314,8 +321,11 @@ longitudinal_lrt <- function(restricted, full) {
       paste0("The %s model carries a collapsed class variance, so this test ",
              "is not interpretable in either direction: a degenerate fit's ",
              "log-likelihood reflects a spike in the likelihood rather than ",
-             "fit to the data. Refit with ",
-             "bayes_constants = list(variances = 5) and test again."),
+             "fit to the data. Refit it cleanly and test again -- the fit's ",
+             "own warning names the remedies. Whichever you choose, apply it ",
+             "to both models: a likelihood-ratio test between two fits ",
+             "estimated under different constraints is not a test of ",
+             "anything."),
       paste(degenerate, collapse = " and ")), call. = FALSE)
 
   if (b$ll < a$ll)
@@ -337,13 +347,30 @@ longitudinal_lrt <- function(restricted, full) {
     ll_restricted = a$ll, ll_full = b$ll,
     params_restricted = a$n_params, params_full = b$n_params
   )
-  class(out) <- "longitudinal_lrt"
+  class(out) <- "lr_test"
   out
 }
 
+#' Likelihood-Ratio Test for Two Nested Models (deprecated name)
+#'
+#' @description
+#' Deprecated. The test was never specific to longitudinal models — it accepts
+#' any pair of nested fits, and most uses of it in this package are
+#' cross-sectional multiple-group invariance tests. Use [`lr_test()`].
+#'
+#' @param restricted The more constrained model (fewer parameters).
+#' @param full The less constrained model.
+#' @return A list of class `"lr_test"`.
+#' @seealso [`lr_test()`]
 #' @export
-print.longitudinal_lrt <- function(x, ...) {
-  cat("\nLikelihood-ratio test for nested longitudinal models\n")
+longitudinal_lrt <- function(restricted, full) {
+  .Deprecated("lr_test")
+  lr_test(restricted, full)
+}
+
+#' @export
+print.lr_test <- function(x, ...) {
+  cat("\nLikelihood-ratio test for nested models\n")
   cat("---------------------------------------------------------\n")
   cat(sprintf("  Restricted : LL = %12.4f   parameters = %d\n",
               x$ll_restricted, x$params_restricted))

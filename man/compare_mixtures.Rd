@@ -55,3 +55,13 @@ result$fit_table
 result$best_k
 
 }
+\references{
+Nylund, K. L., Asparouhov, T., & Muthen, B. O. (2007). Deciding on the number
+of classes in latent class analysis and growth mixture modeling: A Monte
+Carlo simulation study. \emph{Structural Equation Modeling}, \emph{14}(4),
+535-569. \doi{10.1080/10705510701575396}
+
+Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
+T. D. Little (Ed.), \emph{The Oxford Handbook of Quantitative Methods}
+(Vol. 2, pp. 551-611). Oxford University Press.
+}

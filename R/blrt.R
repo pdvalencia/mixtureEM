@@ -186,6 +186,16 @@ generate_synthetic_data <- function(mm, classes, N) {
 #' res$p_value
 #' }
 #'
+#' @references
+#' McLachlan, G. J. (1987). On bootstrapping the likelihood ratio test statistic
+#' for the number of components in a normal mixture. \emph{Applied Statistics},
+#' \emph{36}(3), 318-324. \doi{10.2307/2347790}
+#'
+#' Nylund, K. L., Asparouhov, T., & Muthen, B. O. (2007). Deciding on the number
+#' of classes in latent class analysis and growth mixture modeling: A Monte
+#' Carlo simulation study. \emph{Structural Equation Modeling}, \emph{14}(4),
+#' 535-569. \doi{10.1080/10705510701575396}
+#'
 #' @export
 blrt <- function(indicators, k_small, k_large, measurement = "binary",
                  n_reps = 100, n_init_base = 20, n_init_boot = 10,

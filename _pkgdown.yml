@@ -14,3 +14,7 @@ articles:
   - lta
   - growth_mixture
   - survey_lca
+- title: Reference
+  navbar: ~
+  contents:
+  - estimation

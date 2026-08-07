@@ -32,7 +32,7 @@
 #' cannot be told apart. Holding the item parameters equal across occasions
 #' removes that ambiguity, and is the usual practice (Collins & Lanza,
 #' sec. 7.11). It is a testable restriction: fit the model both ways and compare
-#' them with [`longitudinal_lrt()`].
+#' them with [`lr_test()`].
 #'
 #' @param indicators The repeated indicators, in any format accepted by
 #'   [`fit_rmlca()`]: a wide matrix, a three-dimensional array, or a long data
@@ -52,7 +52,7 @@
 #'   for each pair of adjacent occasions; `"full"` shares one matrix throughout.
 #'   Whether change happens at a constant rate is usually a substantive question
 #'   rather than an assumption, and the two models are nested, so
-#'   [`longitudinal_lrt()`] tests it (Collins & Lanza, sec. 7.14).
+#'   [`lr_test()`] tests it (Collins & Lanza, sec. 7.14).
 #' @param forbidden_transitions Transitions that are impossible by design, as in
 #'   a stage-sequential process where people cannot move backwards. Give a
 #'   \eqn{K \times K} logical or 0/1 matrix, with `TRUE`/`1` marking a forbidden
@@ -78,7 +78,7 @@
 #'   unless more are asked for,
 #'   in which case only the last class is a stayer. The restricted rows cost no
 #'   parameters, so the model is nested in the unrestricted mixture and
-#'   [`longitudinal_lrt()`] tests it.
+#'   [`lr_test()`] tests it.
 #' @param layout,id,time,items,item_names,time_labels Data-shape arguments,
 #'   passed through as in [`fit_rmlca()`].
 #' @param weights Optional case weights.
@@ -135,7 +135,7 @@
 #' @param group_effects Which parameters the grouping variable is allowed to
 #'   shift: `"both"` (default), `"initial"`, `"transitions"` or `"none"`.
 #'   Fitting the same data under two of these and comparing them with
-#'   [`longitudinal_lrt()`] gives the group-difference tests of sec. 8.6-8.8.
+#'   [`lr_test()`] gives the group-difference tests of sec. 8.6-8.8.
 #' @param ... Ignored.
 #'
 #' @return An object of class `"lta_model"` with components including `delta`,
@@ -151,8 +151,18 @@
 #'   [`transition_matrix()`] take a `class` argument to reach them. Standard
 #'   errors are not available for a mixture over chains and `se` is `NULL`.
 #'
+#' @references
+#' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
+#' Transition Analysis: With Applications in the Social, Behavioral, and Health
+#' Sciences}. Wiley (chapters 7-8).
+#'
+#' Nylund-Gibson, K., Grimm, R., Quirk, M., & Furlong, M. (2014). A latent
+#' transition mixture model using the three-step specification.
+#' \emph{Structural Equation Modeling}, \emph{21}(3), 439-454.
+#' \doi{10.1080/10705511.2014.915375}
+#'
 #' @seealso [`transition_matrix()`], [`status_prevalences()`],
-#'   [`longitudinal_lrt()`], [`lta_g2()`], [`fit_rmlca()`].
+#'   [`lr_test()`], [`lta_g2()`], [`fit_rmlca()`].
 #' @export
 fit_lta <- function(indicators,
                     n_statuses = 2,

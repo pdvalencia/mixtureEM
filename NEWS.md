@@ -1,5 +1,91 @@
 # mixtureEM (development version)
 
+## Fixed: two estimation bugs that cost log-likelihood on every affected fit
+
+* **EM now converges before it stops.** Emissions that L-BFGS refines
+  afterwards — the binary and Gaussian families — used a much looser stopping
+  rule than the others, on the reasoning that the refinement would climb the
+  rest of the way. It does not. On a validated four-class binary LCA the loose
+  rule stopped 1.27 log-likelihood units short and the refinement recovered
+  0.14 of that. The rule also stopped EM at an absolute change of roughly two
+  units on a log-likelihood in the thousands, which is far too coarse to *rank*
+  restarts, so it was quietly degrading the multi-start search as well. Every
+  emission now uses the tight rule, and the refinement starts from a converged
+  fit instead of substituting for one. Fits will change, generally for the
+  better, and will take more iterations.
+
+* **`bayes_constants` now reaches the L-BFGS refinement.** The refinement read
+  `variances` but had `latent` and `categorical` hard-coded at `1`, so setting
+  either to `0` switched the prior off in the M-step and left it on in the
+  polish. The two stages then optimised different objectives and the polish
+  pulled the fit off the maximum-likelihood optimum it had been asked for. The
+  documented escape hatch for reproducing an unregularized reference analysis
+  now works. The analytical gradient is verified against a finite-difference one
+  to 1e-10 for complete data and under FIML, at three prior settings.
+
+* **The L-BFGS refinement no longer runs when class membership is modelled by a
+  regression.** Its parameterisation packs a single pooled vector of class
+  weights and has no slot for `P(class | covariates)`, so with `predictors` or a
+  `group` on the prevalences it was maximising a different model from the one
+  being fitted and then writing its measurement parameters back. The damage was
+  large and had been invisible: a multiple-group configural model is *separable*,
+  so its log-likelihood must equal the sum of the per-group fits, and the polish
+  left it 1.10 units short. Removing it closes that to 0.0005 and takes the
+  number of restarts reaching the best solution from 1 of 6 to 4 of 6 — it had
+  been perturbing every restart away from the optimum, not just the winner.
+
+Together these close a 3.5-unit gap against an external reference on a
+three-group latent class model — 5.1 units on the configural model — both now
+matched to within 0.001.
+
+## New: binary indicators are recoded to 0/1 for you
+
+* **`measurement = "binary"` now accepts any two-valued item.** A two-level
+  factor or character, a logical, and any numeric pair — 1/2, 2/5, whatever the
+  source data used — are converted on the way in, and the fit is identical to
+  the one hand-coded 0/1 data would have given. Only the mapping is announced,
+  once, and `measurement_summary()` then names the level each probability
+  belongs to, so "0.87" is never ambiguous. Data already in 0/1 is untouched and
+  silent.
+
+* **Two silent-wrong-answer bugs closed on the way.** The old `{0, 1}` check was
+  reachable only through a single-string `measurement`, so a 1/2-coded item
+  inside a mixed `list()` specification reached the Bernoulli likelihood
+  unchecked and returned a wrong log-likelihood with no error. And a *categorical*
+  item coded from 0 indexed the previous item's last category rather than its
+  own — no error, wrong likelihood. Both are now caught, the second with a
+  message saying to add 1.
+
+* An item with three or more values is still refused, but the message now points
+  at `"categorical"` or `"continuous"` instead of asking for 0/1 coding that
+  would not have helped.
+
+## Renamed: `longitudinal_lrt()` is now `lr_test()`
+
+* The test was never specific to longitudinal models. It takes any two nested
+  fits and differences their log-likelihoods and parameter counts, and most uses
+  of it — including the multiple-group measurement-invariance test — are
+  cross-sectional. `longitudinal_lrt()` still works and warns.
+
+## Changed: what the collapsed-variance warning tells you to do
+
+* The warning used to lead with `bayes_constants = list(variances = 5)`. That
+  number was calibrated on one dataset and does not transfer, because the
+  constant is divided among the classes: the same value is a different amount of
+  prior at every `n_classes`. The warning now leads with
+  `variances_equal = TRUE`, which bounds the likelihood so the degeneracy cannot
+  arise, then fewer classes, and only then the prior — stated as roughly one
+  artificial observation per class and printed as the concrete number for the
+  model in hand.
+
+* It also now says two things it should have said before: raising `n_init` is
+  **not** a remedy and can make matters worse, since the likelihood really is
+  unbounded in that direction and a longer search finds a taller spike; and a
+  flagged fit's BIC must not be compared with a clean fit's, because it is
+  inflated by the spike. Finally, it asks for a substantive check — that the
+  flagged variance is no longer far below the others and that its class mean has
+  come off the floor or ceiling — rather than just that the warning stopped.
+
 ## New: measurement invariance one parameter at a time
 
 * **New `group_invariant_params` argument on `fit_mixture()`**, for continuous
@@ -97,11 +183,10 @@
   wrappers that delegate to them, exposing the strength of each of the
   estimator's priors — `latent`, `categorical`, `poisson`, `variances` — all
   defaulting to `1`, the value the first three were already hard-coded to.
-  `bayes_constants = list(variances = 5)` is the remedy the collapsed-variance
-  warning recommends; setting a constant to `0` removes that prior and recovers
-  plain maximum likelihood for that block, which is an escape hatch for
-  reproducing an unregularized reference analysis rather than a recommended
-  setting.
+  Raising `variances` is one of the remedies the collapsed-variance warning
+  offers; setting a constant to `0` removes that prior and recovers plain
+  maximum likelihood for that block, which is an escape hatch for reproducing an
+  unregularized reference analysis rather than a recommended setting.
 
 * **`longitudinal_lrt()` refuses to interpret a degenerate fit.** It warns when
   either input carries the flag — the statistic is meaningless in either

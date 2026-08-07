@@ -176,10 +176,28 @@
     aic      = -2 * ll + 2 * n_params,
     bic      = -2 * ll + log(n_eff) * n_params,
     sabic    = -2 * ll + log((n_eff + 2) / 24) * n_params,
-    entropy  = ent
+    entropy  = ent,
+    # How many restarts found this solution, out of how many were run. Carried
+    # up from fit_em(); absent on a state that did not come through it.
+    n_starts     = model_state$n_starts,
+    n_replicated = model_state$n_replicated
   )
 
   model_state
+}
+
+# How many restarts reached the reported solution, printed under the
+# log-likelihood. A maximum found once is weaker evidence than the same maximum
+# found repeatedly, and the difference is the main thing a user can act on: if
+# it was found once, raise n_init and see whether anything better turns up.
+# Silent for a single-start fit, where there is nothing to replicate.
+.print_replication_note <- function(x) {
+  n  <- x$metrics$n_starts
+  nr <- x$metrics$n_replicated
+  if (is.null(n) || is.null(nr) || !is.finite(n) || n < 2L) return(invisible(NULL))
+  cat(sprintf("  Best solution  : found by %d of %d starts%s\n", nr, n,
+              if (nr == 1L) " - raise n_init to check it" else ""))
+  invisible(NULL)
 }
 
 # Translate a distal-outcome specification into the structural engine string

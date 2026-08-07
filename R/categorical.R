@@ -101,7 +101,8 @@ m_step.bernoulli_nan <- function(model_state, X, resp, weights = NULL, alpha = N
 
   K <- model_state$n_components
   prior_obs <- alpha / K
-  pis <- matrix(0, nrow = K, ncol = ncol(X))
+  pis <- matrix(0, nrow = K, ncol = ncol(X),
+                dimnames = list(NULL, colnames(X)))
 
   for (j in seq_len(ncol(X))) {
     valid <- !is.na(X[, j])
@@ -162,6 +163,17 @@ one_hot <- function(X, max_val) {
         "Categorical items must be integer-valued (e.g. 1L, 2L, 3L).",
         "Did you forget to round or convert to integer?"
       ))
+    # And against out-of-range codes, which were far worse than non-integers
+    # because nothing caught them. Category 0 in item j indexes column
+    # (j-1)*max_val, which for j = 1 is column 0 and is dropped by matrix
+    # indexing, and for every later item is the *last category of the previous
+    # item* -- so a 0-based coding produced no error and a wrong likelihood.
+    if (min(valid_vals) < 1 || max(valid_vals) > max_val)
+      stop(sprintf(paste(
+        "one_hot: categorical codes must run 1..%d, but values from %g to %g",
+        "were found. Categories are 1-based here: recode a 0-based item by",
+        "adding 1 (X + 1), and make sure the codes are contiguous."),
+        max_val, min(valid_vals), max(valid_vals)))
   }
 
   if (any(valid)) {

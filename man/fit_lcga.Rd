@@ -110,6 +110,15 @@ fit <- fit_lcga(y, times = 4, n_classes = 2, n_init = 5, random_state = 1)
 fit
 }
 }
+\references{
+Nagin, D. S. (1999). Analyzing developmental trajectories: A semiparametric,
+group-based approach. \emph{Psychological Methods}, \emph{4}(2), 139-157.
+\doi{10.1037/1082-989X.4.2.139}
+
+Nagin, D. S., & Odgers, C. L. (2010). Group-based trajectory modeling in
+clinical research. \emph{Annual Review of Clinical Psychology}, \emph{6},
+109-138. \doi{10.1146/annurev.clinpsy.121208.131413}
+}
 \seealso{
 \code{\link[=fit_rmlca]{fit_rmlca()}} for unconstrained trajectory classes and
 \code{\link[=fit_lta]{fit_lta()}} for a model in which class membership itself changes.

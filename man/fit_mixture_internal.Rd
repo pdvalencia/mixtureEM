@@ -12,7 +12,7 @@ fit_mixture_internal(
   structural = NULL,
   n_steps = 1,
   correction = "none",
-  n_init = 1,
+  n_init = 20,
   max_iter = 1000,
   random_state = NULL,
   order_by_size = TRUE,
@@ -74,7 +74,7 @@ One of \code{"none"}, \code{"BCH"}, or \code{"ML"}. Ignored when
 \code{n_steps} is not \code{3}. Default is \code{"none"}.}
 
 \item{n_init}{Positive integer. Number of random restarts. The solution
-with the highest log-likelihood is retained. Default is \code{1}.}
+with the highest log-likelihood is retained. Default is \code{20}.}
 
 \item{max_iter}{Positive integer. Maximum EM iterations per restart.
 Default is \code{1000}.}

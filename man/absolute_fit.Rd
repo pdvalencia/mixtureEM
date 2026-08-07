@@ -35,6 +35,13 @@ with fewer classes without relying on that reference distribution.
 set.seed(1)
 X <- matrix(rbinom(600, 1, 0.5), ncol = 6)
 fit <- fit_mixture(X, n_components = 2, measurement = "binary")
+}
+\references{
+Langeheine, R., Pannekoek, J., & van de Pol, F. (1996). Bootstrapping
+goodness-of-fit measures in categorical data analysis. \emph{Sociological
+Methods & Research}, \emph{24}(4), 492-516.
+\doi{10.1177/0049124196024004004}
+
 absolute_fit(fit)
 }
 \seealso{

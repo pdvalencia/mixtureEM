@@ -68,7 +68,7 @@ test_that("n_params accounting matches hand-derived formulas for each group_effe
                K * (n_inv + (J - n_inv) * G) + (K - 1) * G)
 })
 
-test_that("longitudinal_lrt() rejects both false null hypotheses with correct df", {
+test_that("lr_test() rejects both false null hypotheses with correct df", {
   d <- .make_group_data()
   K <- d$K; J <- d$J; G <- 2L
 
@@ -84,13 +84,13 @@ test_that("longitudinal_lrt() rejects both false null hypotheses with correct df
 
   # Measurement-invariance test (sec. 5.8): item-response probabilities
   # genuinely differ by group in the generating model, so this must reject.
-  inv_test <- longitudinal_lrt(fit_prev, fit_both)
+  inv_test <- lr_test(fit_prev, fit_both)
   expect_equal(inv_test$df, K * J * (G - 1))
   expect_lt(inv_test$p_value, 0.001)
 
   # Prevalence-equivalence test (sec. 5.11): prevalences genuinely differ by
   # group too, so this must also reject.
-  prev_test <- longitudinal_lrt(fit_none, fit_prev)
+  prev_test <- lr_test(fit_none, fit_prev)
   expect_equal(prev_test$df, K - 1)
   expect_lt(prev_test$p_value, 0.001)
 })
@@ -152,7 +152,7 @@ test_that("a group-varying measurement model never scores below its own restrict
   # only by luck of the draw.
   expect_gt(full$metrics$ll, restricted$metrics$ll)
 
-  test <- longitudinal_lrt(restricted, full)
+  test <- lr_test(restricted, full)
   expect_gt(test$statistic, 0)
   expect_equal(test$df,
                full$metrics$n_params - restricted$metrics$n_params)
@@ -193,4 +193,51 @@ test_that("the warm start is skipped, not fatal, when a group is too small", {
                        group = grp, group_effects = "measurement",
                        n_steps = 1, n_init = 3, random_state = 1))
   expect_equal(fit$mm$n_blocks, 2L)
+})
+
+test_that("longitudinal_lrt() still works but is deprecated", {
+  d <- .make_group_data()
+  fit_prev <- fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                          group = d$grp, group_effects = "prevalence",
+                          n_steps = 1, n_init = 3, random_state = 1)
+  fit_both <- fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                          group = d$grp, group_effects = "both",
+                          n_steps = 1, n_init = 3, random_state = 1)
+
+  expect_warning(old <- longitudinal_lrt(fit_prev, fit_both), "deprecated")
+  new <- lr_test(fit_prev, fit_both)
+  expect_s3_class(old, "lr_test")
+  expect_equal(old$statistic, new$statistic)
+  expect_equal(old$df, new$df)
+})
+
+test_that("a configural fit is not worse than the sum of its separable parts", {
+  # With measurement AND prevalences free by group, nothing is shared across
+  # groups, so the joint log-likelihood is exactly the sum of each group's own
+  # K-class LCA. A joint fit scoring below that sum is a search or estimator
+  # failure, not a modelling result. This caught the L-BFGS refinement running
+  # on a model whose class priors come from a regression it cannot represent.
+  set.seed(21)
+  mk <- function(n, p, mix) {
+    z <- sample(seq_len(nrow(p)), n, TRUE, prob = mix)
+    matrix(rbinom(n * ncol(p), 1, p[z, ]), n, ncol(p))
+  }
+  pA <- matrix(c(.9, .85, .8, .15,  .1, .2, .15, .9), 2, 4, byrow = TRUE)
+  pB <- matrix(c(.7, .2, .9, .25,   .2, .8, .1, .75), 2, 4, byrow = TRUE)
+  XA <- mk(300, pA, c(.8, .2))
+  XB <- mk(300, pB, c(.25, .75))
+  X  <- rbind(XA, XB)
+  colnames(X) <- paste0("i", seq_len(4))
+  g  <- factor(rep(c("A", "B"), each = 300))
+
+  per_group <- sum(vapply(list(XA, XB), function(z)
+    fit_mixture(z, n_classes = 2, measurement = "binary", n_init = 10,
+                random_state = 5)$metrics$ll, numeric(1)))
+  joint <- fit_mixture(X, n_classes = 2, measurement = "binary", group = g,
+                       group_effects = "both", n_steps = 1, n_init = 10,
+                       random_state = 5)
+
+  # Tolerance absorbs EM's own stopping rule on each of the three fits, not a
+  # difference in what they converge to.
+  expect_gt(joint$metrics$ll, per_group - 0.01)
 })
