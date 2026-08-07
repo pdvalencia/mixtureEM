@@ -59,10 +59,14 @@
 group_blocks_model <- function(n_components, n_items, n_groups,
                                sub_model = "bernoulli",
                                invariant_items = integer(0),
+                               invariant_params = character(0),
+                               variances_equal = FALSE,
                                max_val = NULL, ...) {
   .blocks_model(n_components, n_items, n_blocks = n_groups,
                sub_model = sub_model,
                invariant_items = invariant_items,
+               invariant_params = invariant_params,
+               variances_equal = variances_equal,
                max_val = max_val, prefix = "G",
                extra_class = "group_blocks")
 }
@@ -230,6 +234,11 @@ group_blocks_model <- function(n_components, n_items, n_groups,
       for (b in seq_len(mm$n_blocks))
         mm$models[[b]] <- .copy_item_params(mm$models[[b]], pooled$mm,
                                             mm$invariant_items)
+
+    # Same argument for a parameter-wise constraint, and it binds whether or not
+    # the per-group fits were used: the pooled fit's own parameters are the
+    # group-invariant estimate of exactly the matrices being shared.
+    mm <- .project_invariant_params(mm, src = pooled$mm)
 
     list(weights = pooled$weights, mm = mm)
   }

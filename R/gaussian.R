@@ -10,13 +10,23 @@
 #'
 #' @param n_components Integer. The number of latent classes/components to estimate.
 #' @param type Character. The specific variance structure, e.g., "gaussian_diag" or "gaussian_unit".
+#' @param variances_equal Logical. Hold each item's variance equal across the
+#'   classes, so the classes differ in location only (the homoscedastic latent
+#'   profile model, and the default parameterisation of several commercial
+#'   programs). Ignored by the unit-variance types, which have no variances to
+#'   estimate. The estimated variance is still stored once per class — a
+#'   \code{K x J} matrix with identical rows — so every reader of the parameters
+#'   (likelihood, plotting, alignment, boundary checks) is unchanged; the
+#'   constraint lives in the M-step and in \code{n_parameters()}.
 #'
 #' @return A list object containing the model state.
 #' @export
-gaussian_model <- function(n_components, type = "gaussian_unit") {
+gaussian_model <- function(n_components, type = "gaussian_unit",
+                           variances_equal = FALSE) {
   state <- list(
-    n_components = n_components,
-    parameters = list()
+    n_components    = n_components,
+    variances_equal = isTRUE(variances_equal),
+    parameters      = list()
   )
   class(state) <- c(type, "emission")
   return(state)
@@ -143,6 +153,32 @@ init_params.gaussian_diag <- function(model_state, X, resp, random_state = NULL,
 # constant) falls back to 1. Such a column carries no information about any
 # class anyway; the fallback exists so the prior stays finite rather than to
 # say anything substantive.
+# Turn class-wise sums of squares into the class variances, applying the
+# homoscedastic constraint if the emission carries one.
+#
+# `ss` and `n` are K x J (or K-vectors recycled over the columns): the weighted
+# sum of squares about each class's own mean, and the weight behind it.
+# `prior_obs` is the alpha/K pseudo-observations at the marginal `s2` that the
+# free update already used.
+#
+# Under `variances_equal` the J parameters are shared by the K classes, so the
+# constrained optimum sums both the data and the prior over the classes: each
+# class still contributes its own alpha/K pseudo-observations to the objective,
+# and they now all bear on one parameter, which is K * (alpha/K) = alpha in
+# total. Writing the result back into all K rows keeps the stored shape
+# rectangular, which is what lets every other method ignore the constraint.
+.pool_variances_over_classes <- function(ss, n, prior_obs, s2, variances_equal) {
+  K <- nrow(ss)
+  n <- if (is.matrix(n)) n else matrix(n, nrow = K, ncol = ncol(ss))
+  if (!isTRUE(variances_equal)) {
+    out <- (ss + prior_obs * rep(s2, each = K)) / (n + prior_obs)
+  } else {
+    pooled <- (colSums(ss) + K * prior_obs * s2) / (colSums(n) + K * prior_obs)
+    out <- matrix(pooled, nrow = K, ncol = ncol(ss), byrow = TRUE)
+  }
+  out
+}
+
 .marginal_var <- function(X, weights = NULL) {
   w <- if (is.null(weights)) rep(1, nrow(X)) else weights
   vapply(seq_len(ncol(X)), function(j) {
@@ -196,12 +232,13 @@ m_step.gaussian_diag <- function(model_state, X, resp, weights = NULL, ...) {
   prior_obs <- alpha / model_state$n_components
   s2        <- .marginal_var(X, weights)
 
-  covariances <- matrix(0, nrow = model_state$n_components, ncol = ncol(X))
+  ss <- matrix(0, nrow = model_state$n_components, ncol = ncol(X))
   for (c in seq_len(model_state$n_components)) {
     diff_sq <- sweep(X, 2, means[c, ], "-")^2
-    covariances[c, ] <- (colSums(resp[, c] * diff_sq) + prior_obs * s2) /
-      (sum_resp[c] + prior_obs)
+    ss[c, ] <- colSums(resp[, c] * diff_sq)
   }
+  covariances <- .pool_variances_over_classes(ss, sum_resp, prior_obs, s2,
+                                              model_state$variances_equal)
   # Numerical guard only, and reachable only at alpha = 0, where the user has
   # asked for exactly this behaviour. It stops an exactly-zero variance from
   # producing a non-finite density; it is not a statistical regularisation and
@@ -226,7 +263,11 @@ log_likelihood.gaussian_diag <- function(model_state, X, ...) {
 
 #' @exportS3Method
 n_parameters.gaussian_diag <- function(model_state, ...) {
-  return(length(model_state$parameters$means) + length(model_state$parameters$covariances))
+  n_var <- length(model_state$parameters$covariances)
+  # Stored per class even when shared by them; only the free ones are counted.
+  if (isTRUE(model_state$variances_equal))
+    n_var <- n_var / model_state$n_components
+  return(length(model_state$parameters$means) + n_var)
 }
 
 # ------------------------------------------------------------------------------
@@ -256,30 +297,34 @@ m_step.gaussian_diag_nan <- function(model_state, X, resp, weights = NULL, ...) 
   prior_obs <- alpha / model_state$n_components
   s2        <- .marginal_var(X, weights)
 
-  means <- matrix(0, nrow = model_state$n_components, ncol = ncol(X))
-  covariances <- matrix(0, nrow = model_state$n_components, ncol = ncol(X))
+  K <- model_state$n_components
+  means <- matrix(0, nrow = K, ncol = ncol(X))
+  ss    <- matrix(0, nrow = K, ncol = ncol(X))
+  nk    <- matrix(0, nrow = K, ncol = ncol(X))
+  empty <- logical(ncol(X))
 
   for (j in seq_len(ncol(X))) {
     valid <- !is.na(X[, j])
     if (any(valid)) {
       resp_valid <- resp[valid, , drop=FALSE]
       sum_resp <- colSums(resp_valid)
+      nk[, j] <- sum_resp
 
       # Means
       means[, j] <- t(resp_valid) %*% X[valid, j] / sum_resp
 
-      # Variances
-      for (c in seq_len(model_state$n_components)) {
-        diff_sq <- (X[valid, j] - means[c, j])^2
-        covariances[c, j] <- (sum(resp_valid[, c] * diff_sq) + prior_obs * s2[j]) /
-          (sum_resp[c] + prior_obs)
-      }
+      # Sums of squares about each class's own mean
+      for (c in seq_len(K))
+        ss[c, j] <- sum(resp_valid[, c] * (X[valid, j] - means[c, j])^2)
     } else {
       # No observed cell for this item: the data say nothing, so the prior is
       # the whole of the posterior and the update returns its centre.
-      covariances[, j] <- s2[j]
+      empty[j] <- TRUE
     }
   }
+  covariances <- .pool_variances_over_classes(ss, nk, prior_obs, s2,
+                                              model_state$variances_equal)
+  if (any(empty)) covariances[, empty] <- rep(s2[empty], each = K)
   model_state$parameters$means <- means
   model_state$parameters$covariances <- pmax(covariances, 1e-12)
   return(model_state)

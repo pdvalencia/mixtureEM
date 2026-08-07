@@ -35,6 +35,8 @@
 .blocks_model <- function(n_components, n_items, n_blocks,
                           sub_model = "bernoulli",
                           invariant_items = integer(0),
+                          invariant_params = character(0),
+                          variances_equal = FALSE,
                           max_val = NULL, prefix = "B", extra_class = "blocks") {
   n_items  <- as.integer(n_items)
   n_blocks <- as.integer(n_blocks)
@@ -43,18 +45,30 @@
       (min(invariant_items) < 1L || max(invariant_items) > n_items))
     stop("`invariant_items` must index items in 1:n_items.", call. = FALSE)
 
+  # See R/blocks_constraints.R for why the item-wise and parameter-wise axes are
+  # offered separately and not crossed.
+  invariant_params <- .check_invariant_params(invariant_params, sub_model)
+  if (length(invariant_items) && length(invariant_params))
+    stop("Use either `invariant_items` (whole items held equal across groups) ",
+         "or `invariant_params` (one kind of parameter held equal, for every ",
+         "item), not both.", call. = FALSE)
+
   state <- list(
-    n_components    = n_components,
-    n_items         = n_items,
-    n_blocks        = n_blocks,
-    sub_model       = sub_model,
-    invariant_items = invariant_items,
-    max_val         = NULL,          # kept NULL: this model is not itself polytomous
-    models          = list()
+    n_components     = n_components,
+    n_items          = n_items,
+    n_blocks         = n_blocks,
+    sub_model        = sub_model,
+    invariant_items  = invariant_items,
+    invariant_params = invariant_params,
+    max_val          = NULL,         # kept NULL: this model is not itself polytomous
+    models           = list()
   )
   # max_val is meaningful only for the polytomous family; the Gaussian
-  # constructors take no such argument and would reject it.
-  sub_args <- list(descriptor = sub_model, n_components = n_components)
+  # constructors take no such argument and would reject it. `variances_equal`
+  # travels the other way, and .construct_emission() drops it where it does not
+  # apply.
+  sub_args <- list(descriptor = sub_model, n_components = n_components,
+                   variances_equal = isTRUE(variances_equal))
   if (!is.null(max_val)) sub_args$max_val <- max_val
 
   for (b in seq_len(n_blocks))
@@ -70,10 +84,14 @@
 time_blocks_model <- function(n_components, n_items, n_times,
                               sub_model = "bernoulli",
                               invariant_items = integer(0),
+                              invariant_params = character(0),
+                              variances_equal = FALSE,
                               max_val = NULL, ...) {
   state <- .blocks_model(n_components, n_items, n_blocks = n_times,
                          sub_model = sub_model,
                          invariant_items = invariant_items,
+                         invariant_params = invariant_params,
+                         variances_equal = variances_equal,
                          max_val = max_val, prefix = "T",
                          extra_class = "time_blocks")
   state$n_times <- state$n_blocks
@@ -124,11 +142,17 @@ init_params.blocks <- function(model_state, X, resp, random_state = NULL, ...) {
       model_state$models[[b]] <-
         .copy_item_params(model_state$models[[b]], model_state$models[[1]], inv)
   }
-  model_state
+  .project_invariant_params(model_state)
 }
 
 #' @exportS3Method
 m_step.blocks <- function(model_state, X, resp, weights = NULL, ...) {
+  # A parameter-wise constraint needs its own conditional-maximisation step; the
+  # stacked update below is exact only when a shared item shares every one of
+  # its parameters. See R/blocks_constraints.R.
+  if (length(model_state$invariant_params))
+    return(.blocks_gaussian_ecm(model_state, X, resp, weights = weights, ...))
+
   J   <- model_state$n_items
   Bn  <- model_state$n_blocks
   inv <- model_state$invariant_items
@@ -189,6 +213,11 @@ log_likelihood.blocks <- function(model_state, X, ...) {
 # which case refine_lbfgs() leaves the fit as EM produced it.
 .refine_time_block_view <- function(mm) {
   if (!inherits(mm, "blocks")) return(NULL)
+  # `col_map` can tie two stacked columns to one free column, which is exactly
+  # an item held equal across blocks. A parameter held equal is a constraint on
+  # part of a column and has no expression here, so such a model is left as EM
+  # produced it (and EM therefore runs to the tight stopping rule).
+  if (length(mm$invariant_params)) return(NULL)
 
   sub1 <- mm$models[[1]]
   if (!class(sub1)[1] %in% .refine_supported) return(NULL)
@@ -234,7 +263,26 @@ log_likelihood.blocks <- function(model_state, X, ...) {
 
 #' @exportS3Method
 n_parameters.blocks <- function(model_state, ...) {
-  J        <- model_state$n_items
+  J  <- model_state$n_items
+  Bn <- model_state$n_blocks
+
+  # Parameter-wise invariance: count each parameter matrix once if it is shared
+  # across the blocks and B times if it is not. The per-matrix sizes come from
+  # the sub-model, so an across-class variance constraint inside a block is
+  # already reflected in the `covariances` count.
+  inv_p <- model_state$invariant_params
+  if (length(inv_p)) {
+    sub <- model_state$models[[1]]
+    K   <- model_state$n_components
+    sizes <- c(means = length(sub$parameters$means),
+               covariances = if (isTRUE(sub$variances_equal))
+                 length(sub$parameters$covariances) / K
+               else length(sub$parameters$covariances))
+    sizes <- sizes[!is.na(sizes) & sizes > 0]
+    return(sum(vapply(names(sizes), function(nm)
+      sizes[[nm]] * (if (nm %in% inv_p) 1L else Bn), numeric(1))))
+  }
+
   n_inv    <- length(model_state$invariant_items)
   per_item <- n_parameters(model_state$models[[1]]) / J
   per_item * (n_inv + (J - n_inv) * model_state$n_blocks)
