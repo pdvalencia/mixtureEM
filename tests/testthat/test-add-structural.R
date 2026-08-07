@@ -41,8 +41,20 @@ test_that("add_covariates reproduces the one-call 3-step ML fit exactly", {
   # is not guaranteed bit-identical across BLAS/LAPACK implementations; 1e-6
   # is tight enough to catch a real discrepancy while tolerating that noise.
   expect_equal(coef(fitA), coef(fitB), tolerance = 1e-6)
-  expect_identical(capture.output(suppressMessages(summary(fitA))),
-                   capture.output(suppressMessages(summary(fitB))))
+
+  # The summary is checked on the numbers it is built from, at the same
+  # tolerance as coef() above, rather than on its rendered text. Comparing the
+  # printed output byte for byte contradicted the tolerance granted one line
+  # earlier: a difference far below 1e-6 still lands on a rounding boundary
+  # every so often and flips a printed digit (0.614 against 0.613), which says
+  # nothing about whether the two paths agree.
+  sumA <- suppressMessages(capture.output(rowsA <- summary(fitA)))
+  sumB <- suppressMessages(capture.output(rowsB <- summary(fitB)))
+  expect_equal(rowsA, rowsB, tolerance = 1e-6)
+  # The rendered summaries must still have the same shape and labels; only the
+  # rounded digits are allowed to differ.
+  expect_identical(length(sumA), length(sumB))
+  expect_identical(gsub("[0-9]", "", sumA), gsub("[0-9]", "", sumB))
 
   # Term grouping for the omnibus Wald test survives the add path.
   expect_identical(fitA$sm$parameters$terms, fitB$sm$parameters$terms)

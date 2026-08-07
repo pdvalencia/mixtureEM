@@ -120,14 +120,16 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
   class(view$mm)[1] %in% .refine_supported
 }
 
-# The EM stopping rule for an emission that L-BFGS will not polish.
+# The EM stopping rule. Applied to every emission since 0.3.0; the name is kept
+# because it is referenced from R/lcga.R and R/structured_normal.R.
 #
-# The package default stops once the log-likelihood moves less than a thousandth
-# of *itself*, which is deliberately loose: for the emissions the refinement
-# covers, EM only has to reach the right neighbourhood and L-BFGS does the rest.
-# Applied to an emission with no second stage it stops after a handful of
-# iterations and that is the answer the user gets. Measured against a rule tight
-# enough to be at the optimum, on simulated data with n_init = 5:
+# It replaced a rule that stopped once the log-likelihood moved less than a
+# thousandth of *itself*. That rule was meant to be loose only where L-BFGS
+# polishes afterwards, but it was never worth its cost even there — see the
+# measurements in fit_single_init(). Applied to an emission with no second stage
+# it stopped after a handful of iterations and that was the answer the user got.
+# Measured against a rule tight enough to be at the optimum, on simulated data
+# with n_init = 5:
 #
 #   count LCA, K=3, n=800, 6 items        6 iterations,  7.0 of log-likelihood short
 #   count LCA, K=4, n=2000, 8 items       6 iterations, 27.5 short
@@ -209,6 +211,17 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
   if (!mm_type %in% .refine_supported) return(model_state)
   if (isTRUE(view$mm$variances_equal)) return(model_state)   # see .is_refinable()
   if (inherits(view$mm, "nested")) return(model_state)
+  # The parameterisation below packs the *pooled* class weights (K-1 log-ratios)
+  # and has no slot for a class-membership regression. Where one is active the
+  # class priors are P(class | covariates), not a single vector, so the polish
+  # would maximise a different model from the one being fitted and then write its
+  # measurement parameters back into it. It did exactly that: on a two-group
+  # configural fit -- a model that is separable, so the joint log-likelihood must
+  # equal the sum of the per-group fits -- the polish left a 0.26 deficit that
+  # vanished to 0.0003 without it, and cut the number of restarts reaching the
+  # best solution from 19 of 21 to 1 of 21, because it perturbed each restart
+  # differently. EM alone is the whole estimator for these models.
+  if (!is.null(Y) && has_covariate(model_state$sm)) return(model_state)
   # K=1 has no weight parameters; the M-step already gives the exact analytic
   # solution (item marginals), so L-BFGS is a no-op and the K-2 index arithmetic
   # below produces an out-of-bounds sequence that triggers a sweep() warning.
@@ -267,7 +280,18 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
   # this whole term exists to fix, one level down. (m_step.blocks() estimates an
   # invariant item by stacking the blocks and calling the sub-model's M-step
   # once, so the marginal it computes is the stacked one by construction.)
+  # All three priors are read off the emission, which carries the whole
+  # `bayes_constants` list. They used to be hard-coded at 1 here while only
+  # `variances` was read, so `bayes_constants = list(categorical = 0, latent = 0)`
+  # — the documented escape hatch for reproducing an unregularized reference fit
+  # — switched the priors off in the M-step and left them on in the polish. The
+  # two stages then optimised different objectives, and the polish pulled the fit
+  # back off the maximum-likelihood optimum it had been asked for: on a 4-class
+  # binary LCA (n = 944) EM reached -2353.0021 and the polish returned
+  # -2354.1164, converging to the same penalised point no matter where it began.
   alpha_var <- .bayes_alpha(view$mm, "variances")
+  alpha_cat <- .bayes_alpha(view$mm, "categorical")
+  alpha_lat <- .bayes_alpha(view$mm, "latent")
   s2_free <- if (fam == "gaussian_diag") {
     sum_w   <- colSums(obs_w)
     sum_wx  <- colSums(X0 * sw)
@@ -390,9 +414,9 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
     obs_ll <- sum(sw * log_norm) / n_obs
 
     # ── Priors (also normalised by n_obs) ─────────────────────────────────────
-    log_prior_w <- (1 / K) * sum(log_w) / n_obs
-    log_prior_pis <- if (fam == "bernoulli")
-      sum((marginal / K) %*% t(log(pis_free)) +
+    log_prior_w <- (alpha_lat / K) * sum(log_w) / n_obs
+    log_prior_pis <- if (fam == "bernoulli" && alpha_cat > 0)
+      alpha_cat * sum((marginal / K) %*% t(log(pis_free)) +
             ((1 - marginal) / K) %*% t(log(1 - pis_free))) / n_obs
     else 0
 
@@ -430,7 +454,9 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
         g_data <- t(swR) %*% X - sweep(pis_p, 1, nk, "*")
       }
       if (tied) g_data <- fold_cols(g_data)
-      g_pis <- g_data + (matrix(marginal, K, P, byrow = TRUE) - pis_free) / K
+      # d/d logit(p) of (a/K)[m log p + (1-m) log(1-p)] = (a/K)(m - p).
+      g_pis <- g_data +
+        alpha_cat * (matrix(marginal, K, P, byrow = TRUE) - pis_free) / K
       grad[seq_len(K * P)] <- as.vector(-g_pis) / n_obs
 
     } else if (fam == "gaussian_diag") {
@@ -461,8 +487,9 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
       grad[seq_len(K * P)] <- as.vector(-g_mu) / n_obs
     }
 
+    # d/d eta_k of (a/K) sum_j log w_j = (a/K)(1 - K w_k) = a(1/K - w_k).
     g_w <- nk[seq_len(n_w)] - n_obs * w_vec[seq_len(n_w)] +
-      1/K - w_vec[seq_len(n_w)]
+      alpha_lat * (1/K - w_vec[seq_len(n_w)])
     grad[(length(par) - n_w + 1):length(par)] <- -g_w / n_obs
 
     list(val = val, grad = grad)
@@ -509,12 +536,19 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
     refined$means <- expand_out(matrix(par[1:(K*P)], nrow = K, ncol = P))
   }
 
+  # The refined parameters are decoded out of a flat numeric vector, so they
+  # arrive with no dimnames at all. Without this the polish silently renames
+  # every item to "Item_1, Item_2, ..." in the summaries -- most visibly on a
+  # group-varying fit, where each block's table lost the indicator names.
+  mm_before <- model_state$mm
+
   if (is.null(tb)) {
     for (nm in names(refined)) model_state$mm$parameters[[nm]] <- refined[[nm]]
   } else {
     # Scatter the wide refined matrix back into the per-occasion sub-models.
     model_state$mm <- .refine_time_block_write(model_state$mm, refined)
   }
+  model_state$mm <- .restore_param_dimnames(model_state$mm, mm_before)
 
   # Re-run E-step with the refined parameters so log_resp and lower_bound
   # reflect the true post-refinement posteriors.
@@ -523,6 +557,25 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
   model_state$lower_bound <- e_res$log_prob_norm
 
   return(model_state)
+}
+
+# Copy the dimnames of every parameter matrix from `src` onto the matching
+# matrix of `mm`, recursing through sub-model lists. Used after the refinement
+# rebuilds parameters out of a flat vector; shapes are identical by construction,
+# and a mismatch is skipped rather than treated as an error, since a lost label
+# should never break a fit.
+.restore_param_dimnames <- function(mm, src) {
+  if (is.null(mm) || is.null(src)) return(mm)
+  for (nm in names(mm$parameters)) {
+    p <- mm$parameters[[nm]]
+    q <- src$parameters[[nm]]
+    if (is.matrix(p) && is.matrix(q) && identical(dim(p), dim(q)))
+      dimnames(mm$parameters[[nm]]) <- dimnames(q)
+  }
+  if (!is.null(mm$models) && !is.null(src$models) &&
+      length(mm$models) == length(src$models))
+    mm$models <- Map(.restore_param_dimnames, mm$models, src$models)
+  mm
 }
 
 # Run the EM loop for a single random initialization.
@@ -536,15 +589,26 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
                             init_state = NULL) {
   n_samples <- nrow(X)
 
-  # The default stopping rule is deliberately loose because the emissions it was
-  # written for are polished afterwards by refine_lbfgs(), which climbs from
-  # wherever EM stopped to the penalised optimum. An emission outside that
-  # whitelist has no such second stage, so where EM stops is the answer, and it
-  # gets the tighter rule automatically. An emission may still name its own rule
-  # by carrying `em_tol`, which takes precedence over both.
-  em_tol <- model_state$mm$em_tol
-  if (is.null(em_tol) && !.is_refinable(model_state$mm))
-    em_tol <- .em_tol_unpolished
+  # Every emission now gets the tight rule. The loose default that used to apply
+  # to refinable emissions rested on the premise that refine_lbfgs() climbs from
+  # wherever EM stops to the optimum, so EM could stop early for free. Measured
+  # on a validated 4-class binary LCA (n = 944, pure ML), that premise is false:
+  #
+  #   loose EM (abs 1e-3, rel 1e-3), no polish   -2354.2694
+  #   loose EM + L-BFGS polish                   -2354.1320   (recovers 0.14)
+  #   tight EM (abs 1e-4, rel 1e-8), no polish   -2353.0021   (recovers 1.27)
+  #
+  # The polish made up a ninth of what stopping early gave away, and the loss
+  # scaled with the model: the same shortfall, three times over, was the whole
+  # of a 3.5-unit gap against the reference on a three-group configural fit.
+  # A relative tolerance of 1e-3 also stops EM at an absolute change of about 2.4
+  # units on a log-likelihood of -2354, which is far too coarse to *rank*
+  # restarts, so it was quietly degrading the multi-start search as well.
+  #
+  # The polish still runs where it applies; it now starts from a converged fit
+  # instead of substituting for one. An emission may still name its own rule by
+  # carrying `em_tol`, which takes precedence.
+  em_tol <- model_state$mm$em_tol %||% .em_tol_unpolished
   if (!is.null(em_tol)) {
     abs_tol <- em_tol$abs
     rel_tol <- em_tol$rel
@@ -651,33 +715,50 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     fit_single_init(model_state, X, Y, max_iter = max_iter, refine = refine,
                     init_state = state)
 
-  # The warm start gets the tight (absolute) rule even where the emission is one
-  # L-BFGS polishes. The default rule is *relative to the log-likelihood's own
-  # magnitude*, so in the thousands it fires at a change of several units, and
-  # the warm start has several *hundred* units of climbing to do along a ridge —
-  # measured on the multi-country validation model it stopped after 6 iterations,
-  # 7 units short, and the polish then converged to the nearest local optimum
-  # rather than following the ridge. A random start does not have this problem
-  # because it begins near nothing in particular.
+  # The warm start used to need the tight rule spelled out here, because the
+  # default was relative to the log-likelihood's own magnitude and so fired after
+  # six iterations while the warm start still had hundreds of units of climbing
+  # to do along a ridge. Every start now gets the tight rule (see
+  # fit_single_init()), so the warm start is no longer a special case and runs
+  # through the same path as the rest.
   #
-  # This is not a quirk of one model. Biernacki, Celeux and Govaert (2003,
+  # The general point is worth keeping. Biernacki, Celeux and Govaert (2003,
   # p. 568), setting up the standard comparison of EM initialisation strategies:
   # "We do not use stopping criteria based on the relative change of the
   # estimates or loglikelihood because the slow convergence of the EM makes such
   # criteria hazardous." Their own short runs stop on progress relative to
   # progress *made so far*, (L^q - L^{q-1}) / (L^q - L^0) — scale-free in the way
-  # that matters, where a rule relative to |L| is not. An absolute rule is the
-  # cheaper fix and is what `.em_tol_unpolished` already provides.
-  #
-  # An emission that names its own `em_tol` still overrides this inside
-  # fit_single_init().
-  run_warm <- function(state)
-    fit_single_init(model_state, X, Y, max_iter = max_iter, refine = refine,
-                    init_state = state,
-                    abs_tol = .em_tol_unpolished$abs,
-                    rel_tol = .em_tol_unpolished$rel)
+  # that matters, where a rule relative to |L| is not.
+  run_warm <- run_from
 
   ll_of <- function(s) sum(s$sample_weights * s$lower_bound)
+
+  # Every restart's final log-likelihood, collected so the fit can report how
+  # many of them found the best solution. A maximum reached once out of twenty is
+  # a different object from one reached nineteen times: the first says the search
+  # may simply have been lucky and a different seed could beat it, the second
+  # that the surface has been mapped. This is the standard multi-start report in
+  # the latent class literature and in the programs applied researchers compare
+  # against, and it costs nothing here because the values are computed anyway.
+  # Attached to the winning state at the end.
+  final_lls <- numeric(0)
+  record <- function(ll) { final_lls <<- c(final_lls, ll); invisible(NULL) }
+
+  # The tolerance for calling two restarts the same solution. It has to be
+  # looser than EM's own stopping rule, or restarts that agree to every digit
+  # the estimator can resolve are counted as different optima: at 1e-4 a
+  # configural fit whose starts landed at -6483.1620, -6483.1613, -6483.1612 and
+  # -6483.1607 reported "1 of 6". Genuinely different optima in these models sit
+  # whole units apart, so 0.01 separates them without splitting one.
+  same_ll <- 1e-2
+
+  finish <- function(best) {
+    if (is.null(best)) return(best)
+    best$start_lls    <- final_lls
+    best$n_starts     <- length(final_lls)
+    best$n_replicated <- sum(abs(final_lls - max(final_lls)) <= same_ll)
+    best
+  }
 
   # Built once, before either search below, so that a failure to build one is
   # reported (and tolerated) in a single place. The warm start is deterministic,
@@ -716,6 +797,7 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
       if (!is.null(random_state)) set.seed(random_state + i)
       fitted_state <- run_from(candidates[[i]])
       current_ll   <- ll_of(fitted_state)
+      record(current_ll)
       if (is.null(best_model) || current_ll > best_total_ll) {
         best_total_ll <- current_ll
         best_model    <- fitted_state
@@ -726,9 +808,11 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     # pass is worst at recognising (the GMM measurements in the roadmap).
     if (!is.null(warm)) {
       fitted_state <- run_warm(warm)
-      if (ll_of(fitted_state) > best_total_ll) best_model <- fitted_state
+      warm_ll      <- ll_of(fitted_state)
+      record(warm_ll)
+      if (warm_ll > best_total_ll) best_model <- fitted_state
     }
-    return(best_model)
+    return(finish(best_model))
   }
 
   best_model <- NULL
@@ -742,6 +826,7 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
                                     refine = refine)
 
     current_ll <- ll_of(fitted_state)
+    record(current_ll)
     if (is.null(best_model) || current_ll > best_total_ll) {
       best_total_ll <- current_ll
       best_model    <- fitted_state
@@ -750,9 +835,11 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
 
   if (!is.null(warm)) {
     fitted_state <- run_warm(warm)
-    if (is.null(best_model) || ll_of(fitted_state) > best_total_ll)
+    warm_ll      <- ll_of(fitted_state)
+    record(warm_ll)
+    if (is.null(best_model) || warm_ll > best_total_ll)
       best_model <- fitted_state
   }
 
-  return(best_model)
+  return(finish(best_model))
 }

@@ -43,6 +43,13 @@ as descriptive when missingness is heavy.
 set.seed(1)
 X <- matrix(rbinom(600, 1, 0.5), ncol = 6)
 fit <- fit_mixture(X, n_components = 2, measurement = "binary")
+}
+\references{
+Oberski, D. L., van Kollenburg, G. H., & Vermunt, J. K. (2013). A Monte
+Carlo evaluation of three methods to detect local dependence in binary
+data latent class models. \emph{Advances in Data Analysis and
+Classification}, \emph{7}(3), 267-279. \doi{10.1007/s11634-013-0146-2}
+
 bivariate_residuals(fit)
 }
 \seealso{

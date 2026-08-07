@@ -127,11 +127,24 @@ time_blocks_model <- function(n_components, n_items, n_times,
                         function(b) X[, .time_block_cols(b, n_items), drop = FALSE]))
 }
 
+# Drop the block tag a padded matrix carries on its column names, so a block's
+# own parameters come back labelled with the item rather than with the item and
+# the block. .pad_group_blocks() and its time-axis counterpart name columns
+# "G1.anxiety" / "T2.anxiety"; the block table already has the block in its
+# heading, so repeating it in every row is noise. A matrix with no column names,
+# or names in any other shape, is returned untouched.
+.strip_block_prefix <- function(X) {
+  nm <- colnames(X)
+  if (is.null(nm)) return(X)
+  colnames(X) <- sub("^[GT][0-9]+\\.", "", nm)
+  X
+}
+
 #' @exportS3Method
 init_params.blocks <- function(model_state, X, resp, random_state = NULL, ...) {
   J <- model_state$n_items
   for (b in seq_len(model_state$n_blocks)) {
-    X_sub <- X[, .time_block_cols(b, J), drop = FALSE]
+    X_sub <- .strip_block_prefix(X[, .time_block_cols(b, J), drop = FALSE])
     model_state$models[[b]] <-
       init_params(model_state$models[[b]], X_sub, resp, random_state)
   }
@@ -169,7 +182,7 @@ m_step.blocks <- function(model_state, X, resp, weights = NULL, ...) {
   # Free items: an ordinary per-block update.
   if (!all_invariant) {
     for (b in seq_len(Bn)) {
-      X_sub <- X[, .time_block_cols(b, J), drop = FALSE]
+      X_sub <- .strip_block_prefix(X[, .time_block_cols(b, J), drop = FALSE])
       model_state$models[[b]] <-
         m_step(model_state$models[[b]], X_sub, resp_at(b), weights = weights, ...)
     }
@@ -177,7 +190,7 @@ m_step.blocks <- function(model_state, X, resp, weights = NULL, ...) {
 
   # Invariant items: one update on the stacked blocks, copied everywhere.
   if (length(inv)) {
-    X_pool    <- .stack_blocks(X, J, Bn)
+    X_pool    <- .strip_block_prefix(.stack_blocks(X, J, Bn))
     resp_pool <- do.call(rbind, lapply(seq_len(Bn), resp_at))
     w_pool    <- if (is.null(weights)) NULL else rep(weights, Bn)
     pooled    <- m_step(model_state$models[[1]], X_pool, resp_pool,

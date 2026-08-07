@@ -25,7 +25,7 @@
 #' \eqn{\rho_{jtk}} are held equal across occasions. Constraining them makes a
 #' class label mean the same thing at every occasion and sharply reduces the
 #' number of free parameters; leaving them free lets an item behave differently
-#' over time. The two models are nested, so [`longitudinal_lrt()`] tests the
+#' over time. The two models are nested, so [`lr_test()`] tests the
 #' restriction directly.
 #'
 #' @param indicators The repeated indicators. Either a wide matrix or data frame
@@ -64,8 +64,13 @@
 #'   usual fields it carries `$longitudinal`, holding the item and occasion
 #'   labels, the invariance specification and the wave-missingness pattern.
 #'
+#' @references
+#' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
+#' Transition Analysis: With Applications in the Social, Behavioral, and Health
+#' Sciences}. Wiley (sec. 6.10).
+#'
 #' @seealso [`fit_lta()`] for a model in which class membership may change
-#'   between occasions, and [`longitudinal_lrt()`] for testing invariance.
+#'   between occasions, and [`lr_test()`] for testing invariance.
 #' @export
 fit_rmlca <- function(indicators,
                       n_classes = 2,

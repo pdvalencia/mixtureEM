@@ -96,7 +96,11 @@ init_params.gaussian_unit_nan <- function(model_state, X, resp, random_state = N
 m_step.gaussian_unit_nan <- function(model_state, X, resp, weights = NULL, ...) {
   if (!is.null(weights)) resp <- sweep(resp, 1, weights, "*")
 
-  means <- matrix(0, nrow = model_state$n_components, ncol = ncol(X))
+  # dimnames carried explicitly: this M-step allocates rather than deriving the
+  # result from a matrix product, so without them the item names are lost and
+  # summaries fall back to "Item_1, Item_2, ...".
+  means <- matrix(0, nrow = model_state$n_components, ncol = ncol(X),
+                  dimnames = list(NULL, colnames(X)))
   for (j in seq_len(ncol(X))) {
     valid <- !is.na(X[, j])
     if (any(valid)) {
@@ -298,7 +302,8 @@ m_step.gaussian_diag_nan <- function(model_state, X, resp, weights = NULL, ...) 
   s2        <- .marginal_var(X, weights)
 
   K <- model_state$n_components
-  means <- matrix(0, nrow = K, ncol = ncol(X))
+  means <- matrix(0, nrow = K, ncol = ncol(X),
+                  dimnames = list(NULL, colnames(X)))
   ss    <- matrix(0, nrow = K, ncol = ncol(X))
   nk    <- matrix(0, nrow = K, ncol = ncol(X))
   empty <- logical(ncol(X))

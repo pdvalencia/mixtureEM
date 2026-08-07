@@ -71,6 +71,61 @@ group_blocks_model <- function(n_components, n_items, n_groups,
                extra_class = "group_blocks")
 }
 
+# Restate the fit's missing-data summary in terms of the data the user supplied.
+#
+# .pad_group_blocks() turns J items into J*G columns of which a case can only
+# ever observe its own group's J -- so (G-1)/G of the padded matrix is empty by
+# construction, and fit_mixture_internal() builds `missing_data` from that. A
+# three-group configural fit therefore reported "67.4% missing, handled via FIML
+# (MAR assumption)", which is alarming, wrong, and meaningless: the padding is
+# not missing data and MAR has nothing to say about it. Recomputed here from the
+# unpadded matrix, with the block structure reported separately as the design
+# fact it is.
+.fix_group_block_reporting <- function(fit, X_unpadded, group_info) {
+  if (!inherits(fit$mm, "blocks")) return(fit)
+
+  keep <- setdiff(seq_len(nrow(X_unpadded)),
+                  fit$missing_data$empty_rows %||% integer(0))
+  Xu   <- X_unpadded[keep, , drop = FALSE]
+
+  item_missing <- colSums(is.na(Xu))
+  md <- fit$missing_data
+  md$any_missing      <- anyNA(Xu) || isTRUE(md$y_any_missing)
+  md$n_missing        <- sum(is.na(Xu))
+  md$n_cells          <- length(Xu)
+  md$prop_missing     <- if (length(Xu) > 0) mean(is.na(Xu)) else 0
+  md$per_item         <- item_missing
+  md$n_items_affected <- sum(item_missing > 0)
+  md$handled_by       <- if (anyNA(Xu)) "FIML (MAR assumption)" else NA_character_
+  # Named so print() and measurement_summary() can say what the blocks are
+  # instead of describing them as absent data.
+  md$group_blocks     <- list(n_groups = nlevels(group_info$factor),
+                              n_items  = ncol(Xu),
+                              levels   = levels(group_info$factor))
+  fit$missing_data <- md
+  fit
+}
+
+# Report the fit on the scale a known-class program uses, alongside its own.
+#
+# mixtureEM maximises the likelihood of the items *given* the group, and it does
+# not count the group's own G-1 proportions as parameters. Software that instead
+# treats the grouping variable as a latent class variable observed without error
+# adds the group's multinomial term to the
+# log-likelihood and its proportions to the parameter count. Both differences are
+# fixed constants that cancel in any likelihood-ratio test and in any comparison
+# between models fitted here, so they change no inference; they are supplied so a
+# number read off such a program's output can be compared directly.
+.add_knownclass_scale <- function(fit, group_info) {
+  g <- group_info$factor
+  n <- table(g)
+  n <- n[n > 0]
+  if (!length(n) || is.null(fit$metrics$ll)) return(fit)
+  fit$metrics$ll_knownclass       <- fit$metrics$ll + sum(n * log(n / sum(n)))
+  fit$metrics$n_params_knownclass <- fit$metrics$n_params + (length(n) - 1L)
+  fit
+}
+
 # ------------------------------------------------------------------------------
 # Warm-starting the configural (group-varying measurement) search
 # ------------------------------------------------------------------------------
@@ -243,3 +298,4 @@ group_blocks_model <- function(n_components, n_items, n_groups,
     list(weights = pooled$weights, mm = mm)
   }
 }
+

@@ -91,10 +91,15 @@ survey designs and FIML for missing data — applies unchanged.
 \eqn{\rho_{jtk}} are held equal across occasions. Constraining them makes a
 class label mean the same thing at every occasion and sharply reduces the
 number of free parameters; leaving them free lets an item behave differently
-over time. The two models are nested, so \code{\link[=longitudinal_lrt]{longitudinal_lrt()}} tests the
+over time. The two models are nested, so \code{\link[=lr_test]{lr_test()}} tests the
 restriction directly.
+}
+\references{
+Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
+Transition Analysis: With Applications in the Social, Behavioral, and Health
+Sciences}. Wiley (sec. 6.10).
 }
 \seealso{
 \code{\link[=fit_lta]{fit_lta()}} for a model in which class membership may change
-between occasions, and \code{\link[=longitudinal_lrt]{longitudinal_lrt()}} for testing invariance.
+between occasions, and \code{\link[=lr_test]{lr_test()}} for testing invariance.
 }

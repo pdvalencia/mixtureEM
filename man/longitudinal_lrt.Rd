@@ -2,7 +2,7 @@
 % Please edit documentation in R/lta_methods.R
 \name{longitudinal_lrt}
 \alias{longitudinal_lrt}
-\title{Likelihood-Ratio Test for Nested Longitudinal Models}
+\title{Likelihood-Ratio Test for Two Nested Models (deprecated name)}
 \usage{
 longitudinal_lrt(restricted, full)
 }
@@ -12,31 +12,13 @@ longitudinal_lrt(restricted, full)
 \item{full}{The less constrained model.}
 }
 \value{
-A list of class \code{"longitudinal_lrt"}.
+A list of class \code{"lr_test"}.
 }
 \description{
-Compares two nested models by the likelihood-ratio difference test,
-\eqn{-2(\ell_0 - \ell_1)} on \eqn{P_1 - P_0} degrees of freedom. This is the
-test Collins and Lanza use throughout chapters 7 and 8, and it answers the
-questions those chapters pose:
-
-\itemize{
-\item \strong{Measurement invariance across time} (sec. 7.11): fit with
-\code{time_invariance = "full"} and \code{"none"} and compare.
-\item \strong{Invariance of the transition matrix across time} (sec. 7.14): fit
-with \code{tau_homogeneous = TRUE} and \code{FALSE} and compare.
-\item \strong{Group differences in prevalences or transitions} (sec. 8.7, 8.8):
-compare a model with the relevant parameters constrained equal across
-groups against one that frees them.
+Deprecated. The test was never specific to longitudinal models — it accepts
+any pair of nested fits, and most uses of it in this package are
+cross-sectional multiple-group invariance tests. Use \code{\link[=lr_test]{lr_test()}}.
 }
-
-The models must be nested and fitted to the same data. That is not checked
-beyond the parameter counts and sample size, so it remains the analyst's
-responsibility.
-
-Because \code{full} strictly nests \code{restricted}, its log-likelihood can never
-be genuinely lower — if it comes out that way here, the \code{full} model's
-random-restart search landed on a worse local optimum than the
-\code{restricted} model's did, not a real result. A warning is issued in that
-case; refitting \code{full} with a larger \code{n_init} is the usual fix.
+\seealso{
+\code{\link[=lr_test]{lr_test()}}
 }

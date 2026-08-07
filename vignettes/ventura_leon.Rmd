@@ -64,10 +64,10 @@ selection <- compare_mixtures(X = items, measurement = "binary",
                                k_range = 1:6, n_init = 20)
 ```
 
-As in the paper, BIC keeps improving for a few classes past 4 (a common
-pattern in LCA, where the BIC curve is often quite flat near its minimum);
-we follow the paper in choosing 4 classes for interpretability, since it
-recovers a very clean, well-separated typology (see below).
+BIC keeps improving for a few classes past 4 (a common pattern in LCA, where
+the BIC curve is often quite flat near its minimum); we follow the paper in
+choosing 4 classes for interpretability, since it recovers a very clean,
+well-separated typology (see below).
 
 ## Fitting the 4-class model
 

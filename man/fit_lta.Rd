@@ -66,7 +66,7 @@ equal across occasions. \code{"none"} (the default) estimates a separate matrix
 for each pair of adjacent occasions; \code{"full"} shares one matrix throughout.
 Whether change happens at a constant rate is usually a substantive question
 rather than an assumption, and the two models are nested, so
-\code{\link[=longitudinal_lrt]{longitudinal_lrt()}} tests it (Collins & Lanza, sec. 7.14).}
+\code{\link[=lr_test]{lr_test()}} tests it (Collins & Lanza, sec. 7.14).}
 
 \item{forbidden_transitions}{Transitions that are impossible by design, as in
 a stage-sequential process where people cannot move backwards. Give a
@@ -95,7 +95,7 @@ remaining classes being "movers" (Vermunt, 2004). Implies \code{n_classes = 2}
 unless more are asked for,
 in which case only the last class is a stayer. The restricted rows cost no
 parameters, so the model is nested in the unrestricted mixture and
-\code{\link[=longitudinal_lrt]{longitudinal_lrt()}} tests it.}
+\code{\link[=lr_test]{lr_test()}} tests it.}
 
 \item{layout, id, time, items, item_names, time_labels}{Data-shape arguments,
 passed through as in \code{\link[=fit_rmlca]{fit_rmlca()}}.}
@@ -163,7 +163,7 @@ stays invariant across groups.}
 \item{group_effects}{Which parameters the grouping variable is allowed to
 shift: \code{"both"} (default), \code{"initial"}, \code{"transitions"} or \code{"none"}.
 Fitting the same data under two of these and comparing them with
-\code{\link[=longitudinal_lrt]{longitudinal_lrt()}} gives the group-difference tests of sec. 8.6-8.8.}
+\code{\link[=lr_test]{lr_test()}} gives the group-difference tests of sec. 8.6-8.8.}
 
 \item{bayes_constants}{Optional named list of prior strengths for the
 \emph{measurement} model (\code{categorical}, \code{poisson}, \code{variances}); see
@@ -214,9 +214,19 @@ change in the person with a change in what the status means, and the two
 cannot be told apart. Holding the item parameters equal across occasions
 removes that ambiguity, and is the usual practice (Collins & Lanza,
 sec. 7.11). It is a testable restriction: fit the model both ways and compare
-them with \code{\link[=longitudinal_lrt]{longitudinal_lrt()}}.
+them with \code{\link[=lr_test]{lr_test()}}.
+}
+\references{
+Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
+Transition Analysis: With Applications in the Social, Behavioral, and Health
+Sciences}. Wiley (chapters 7-8).
+
+Nylund-Gibson, K., Grimm, R., Quirk, M., & Furlong, M. (2014). A latent
+transition mixture model using the three-step specification.
+\emph{Structural Equation Modeling}, \emph{21}(3), 439-454.
+\doi{10.1080/10705511.2014.915375}
 }
 \seealso{
 \code{\link[=transition_matrix]{transition_matrix()}}, \code{\link[=status_prevalences]{status_prevalences()}},
-\code{\link[=longitudinal_lrt]{longitudinal_lrt()}}, \code{\link[=lta_g2]{lta_g2()}}, \code{\link[=fit_rmlca]{fit_rmlca()}}.
+\code{\link[=lr_test]{lr_test()}}, \code{\link[=lta_g2]{lta_g2()}}, \code{\link[=fit_rmlca]{fit_rmlca()}}.
 }

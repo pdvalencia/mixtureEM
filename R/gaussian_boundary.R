@@ -125,9 +125,18 @@
   if (is.null(flagged) || !nrow(flagged)) return(invisible(NULL))
   cat("\nWARNING - collapsed class variance:\n")
   for (line in .gaussian_boundary_lines(flagged)) cat("  ", line, "\n", sep = "")
-  cat("  These estimates are not interpretable. Refit with\n")
-  cat("  bayes_constants = list(variances = 5), or with fewer classes.\n\n")
+  cat("  These estimates are not interpretable, and this fit's BIC cannot be\n")
+  cat("  compared with a clean one's. See ?fit_mixture for what to do.\n\n")
   invisible(NULL)
+}
+
+# The number of classes the fit estimated, used to state the prior remedy in the
+# user's own K rather than as a bare constant. `n_components` on a
+# mixture_model, `n_statuses` on an lta_model.
+.degeneracy_n_classes <- function(fit) {
+  k <- fit$n_components %||% fit$n_statuses
+  if (is.numeric(k) && length(k) == 1L && is.finite(k) && k >= 1) as.integer(k)
+  else NA_integer_
 }
 
 # Run the check on a fitted model, store the result, and warn.
@@ -143,18 +152,39 @@
   fit$degenerate <- flagged
   if (is.null(flagged) || isTRUE(quiet)) return(fit)
 
+  # The prior remedy is stated as one artificial observation per class, and
+  # printed as the number that means for *this* model. A bare constant does not
+  # transfer: the constant is spread over the classes, so the same value is a
+  # different amount of prior at every K. Calibrated against a reference
+  # implementation on five-point scales, one observation per class was the
+  # weakest setting that both lifted the flagged variance into the range of the
+  # model's genuinely small variances and moved its class mean off the scale
+  # ceiling. See the `bayes_constants` section of ?fit_mixture.
+  K <- .degeneracy_n_classes(fit)
+  prior_hint <- if (is.na(K)) "bayes_constants = list(variances = <n_classes>)"
+                else sprintf("bayes_constants = list(variances = %d)", K)
+
   warning(sprintf(
     paste0("A class variance has collapsed towards zero: %s. ",
            "The likelihood of a mixture of normals is unbounded in this ",
            "direction, so this solution can score better than any meaningful ",
            "one while describing a handful of near-identical cases rather ",
-           "than a subgroup. Do not interpret it as it stands. Remedies, in ",
-           "the order worth trying: refit with ",
-           "bayes_constants = list(variances = 5), which strengthens the ",
-           "prior holding variances away from zero; fit fewer classes; or ",
-           "inspect the distribution of the named item for a floor, ceiling ",
-           "or spike that a class has latched onto."),
-    paste(.gaussian_boundary_lines(flagged), collapse = "; ")),
+           "than a subgroup. Do not interpret it as it stands, and do not ",
+           "compare its BIC with a clean fit's -- it is inflated by the spike. ",
+           "This is not a convergence failure, so raising n_init will not fix ",
+           "it and can make it worse. Three ways out, to choose between on ",
+           "substantive grounds: (1) hold each item's variance equal across ",
+           "classes with variances_equal = TRUE, which bounds the likelihood ",
+           "so the problem cannot arise; (2) fit fewer classes, since a class ",
+           "describing a spike rather than a subgroup usually means the data ",
+           "do not support this many; or (3) keep the model and strengthen the ",
+           "prior with %s -- roughly one artificial observation per class -- ",
+           "doubling it if the warning persists. Then check that the flagged ",
+           "variance is no longer far below the others and that its class mean ",
+           "has come off the floor or ceiling, and look at the distribution of ",
+           "the named item for the floor, ceiling or spike the class latched ",
+           "onto."),
+    paste(.gaussian_boundary_lines(flagged), collapse = "; "), prior_hint),
     call. = FALSE)
   fit
 }

@@ -109,7 +109,8 @@ m_step.poisson_nan <- function(model_state, X, resp, weights = NULL, alpha = NUL
 
   K         <- model_state$n_components
   prior_obs <- alpha / K
-  rates     <- matrix(0, nrow = K, ncol = ncol(X))
+  rates     <- matrix(0, nrow = K, ncol = ncol(X),
+                      dimnames = list(NULL, colnames(X)))
 
   # Each item is updated over the cases that observed it, so a missing cell
   # informs neither the numerator nor the effective count for that item.

@@ -41,6 +41,14 @@ Both tables use the case weights when the model was fitted with any.
 set.seed(1)
 X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
 fit <- fit_mixture(X, n_components = 2, measurement = "binary")
-classification_diagnostics(fit)
+}
+\references{
+Celeux, G., & Soromenho, G. (1996). An entropy criterion for assessing the
+number of clusters in a mixture model. \emph{Journal of Classification},
+\emph{13}(2), 195-212. \doi{10.1007/BF01246098}
 
+Nagin, D. S. (2005). \emph{Group-Based Modeling of Development}. Harvard
+University Press.
+
+classification_diagnostics(fit)
 }
