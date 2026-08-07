@@ -115,16 +115,27 @@ lower-entropy ones, should be treated as one reasonable answer rather than
 ## Testing measurement invariance across countries
 
 Rather than three separate models, mixtureEM can fit all three countries
-*jointly* as a multiple-group model. Fitting the same number of classes
-(4, following the paper's own supplementary invariance analysis, which
-tested the four-profile solution across all three countries), measurement
-invariance is the restriction that the item means and variances are the
-same in every country. That is `group_effects = "prevalence"`: the
-measurement model is pooled, and only the class *sizes* are free to differ
-by country. Freeing it is `group_effects = "both"`, which gives each
-country its own profile means and variances — the "configural" model.
-Comparing the two with a likelihood-ratio test is a direct test of
-measurement invariance.
+*jointly* as a multiple-group model, and ask directly whether a profile
+means the same thing in each. Fitting the same number of classes (4,
+following the paper's own supplementary invariance analysis, which tested
+the four-profile solution across all three countries), the comparison is
+between two nested models:
+
+| Model | Profile means | Indicator variances | Class sizes | Arguments |
+|---|---|---|---|---|
+| Invariant | pooled | pooled | free by country | `group_effects = "prevalence"` |
+| Non-invariant | **free by country** | pooled | free by country | `group_effects = "both"`, `group_invariant_params = "covariances"` |
+
+Measurement invariance is the restriction that a profile sits at the same
+place on every indicator in every country. Freeing the *means* by country
+is what breaks it; the indicator variances stay pooled in both models,
+because they describe how tightly people cluster around a profile rather
+than where the profile is, and holding them equal is what keeps the
+comparison a test of the profiles themselves. This is the standard
+latent-profile invariance comparison (Olivera-Aguilar & Rikoon, 2018), and
+it is also the smaller and better-behaved of the models available: a fully
+heterogeneous alternative, which frees the variances by country as well, is
+fitted at the end of this section for comparison.
 
 Let us fit the restricted model first, exactly as one would by default:
 
@@ -167,6 +178,41 @@ fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
                              random_state = 11,
                              bayes_constants = list(variances = 5))
 
+fit_free_means <- fit_mixture(janousch[items], n_classes = 4,
+                              measurement = "continuous_nan",
+                              group = janousch$country,
+                              group_effects = "both",
+                              group_invariant_params = "covariances",
+                              n_steps = 1, n_init = 50, max_iter = 2000,
+                              random_state = 11,
+                              bayes_constants = list(variances = 5))
+
+longitudinal_lrt(fit_invariant, fit_free_means)
+```
+
+Both fits are now clean — no collapsed variances in either — and the
+restriction is decisively rejected: forcing the same profile means across
+countries fits significantly worse than letting each country have its own.
+This matches the paper's own conclusion ("Measurement invariance did not
+hold across the three countries") — the same four profile *labels*
+(Non-Resilient, Moderately Resilient, Untroubled, Resilient) do not
+correspond to the same underlying levels of symptoms and protective
+factors in each country, so cross-country comparisons of these profiles
+should be made cautiously.
+
+One caution about the comparison itself: `bayes_constants` was raised on
+*both* models, which is what makes them comparable. A likelihood-ratio
+test between two fits estimated under different priors is not a test of
+anything.
+
+### If you also want the variances to differ
+
+`group_invariant_params = "covariances"` is what holds the indicator
+variances pooled while the means move. Dropping it frees everything about
+the measurement model, giving each country its own profile means *and* its
+own variances:
+
+```{r configural, cache = TRUE}
 fit_configural <- fit_mixture(janousch[items], n_classes = 4,
                               measurement = "continuous_nan",
                               group = janousch$country,
@@ -178,25 +224,20 @@ fit_configural <- fit_mixture(janousch[items], n_classes = 4,
 longitudinal_lrt(fit_invariant, fit_configural)
 ```
 
-Both fits are now clean — no collapsed variances in either — and the
-restriction is decisively rejected: forcing the same profile means and
-variances across countries fits significantly worse than letting each
-country have its own. This matches the paper's own conclusion
-("Measurement invariance did not hold across the three countries") — the
-same four profile *labels* (Non-Resilient, Moderately Resilient,
-Untroubled, Resilient) do not correspond to the same underlying levels of
-symptoms and protective factors in each country, so cross-country
-comparisons of these profiles should be made cautiously.
+This rejects too, and by more, but it is answering a broader question —
+"is anything about the measurement model different across countries?"
+rather than "do the profiles sit in the same place?" — on twice the
+degrees of freedom. Report it when heterogeneity of *spread* is itself of
+interest; otherwise the means-only test above is the one that matches the
+substantive claim.
 
-Two cautions about this comparison. First, `bayes_constants` was raised on
-*both* models, which is what makes them comparable; a likelihood-ratio
-test between two fits estimated under different priors is not a test of
-anything. Second, the configural model has 177 parameters spread across
-three country-specific blocks that random starting values struggle to
-align, so its search is the harder of the two: a larger `n_init` may still
-improve it, which would make the statistic larger and the rejection
-stronger, not weaker. `longitudinal_lrt()` warns if the search has gone
-badly enough to make the full model score *below* the restricted one.
+It is also the harder model to fit: 177 parameters spread across three
+country-specific blocks, which random starting values struggle to bring
+into correspondence. mixtureEM warm-starts it from the per-country
+solutions to help, but a larger `n_init` may still improve it, which would
+make the statistic larger and the rejection stronger, not weaker.
+`longitudinal_lrt()` warns if the search has gone badly enough to make the
+full model score *below* the restricted one.
 
 ## Covariates: gender and migration background
 
@@ -230,3 +271,8 @@ Graf, U., Rietz, C., Chouvati, R., & Govaris, C. (2022). Resilience
 profiles across context: A latent profile analysis in a German, Greek, and
 Swiss sample of adolescents. *PLOS ONE*, *17*(1), e0263089.
 <https://doi.org/10.1371/journal.pone.0263089>
+
+Olivera-Aguilar, M., & Rikoon, S. H. (2018). Assessing measurement
+invariance in multiple-group latent profile analysis. *Structural Equation
+Modeling*, *25*(3), 439–452.
+<https://doi.org/10.1080/10705511.2017.1408015>

@@ -41,9 +41,7 @@ classification uncertainty. mixtureEM's `add_covariates()` instead uses a
 bias-corrected multinomial logistic regression (Vermunt, 2010) that
 properly accounts for it.
 
-Data are shared here with permission from the author team (one of whom,
-Pablo D. Valencia, also maintains mixtureEM); see `?ventura_leon` for the
-full source and license note.
+See `?ventura_leon` for the full source and license note.
 
 ## The data
 
