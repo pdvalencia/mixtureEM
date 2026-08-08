@@ -4,8 +4,8 @@
 #
 # Not a data-preparation script (this directory is build-ignored, so it is
 # simply where reproducible off-line studies live). It answers the one question
-# the Latent GOLD comparison in tests/testthat/test-covariate-se.R cannot: a
-# standard error can agree with another program's and still be the wrong number.
+# the reference comparisons in the internal validation suite cannot: a standard
+# error can agree with another implementation's and still be the wrong number.
 # Only repeated sampling says whether an interval covers.
 #
 # The design is that of Bakk, Oberski & Vermunt (2014, sec. 4.1), so the results

@@ -13,9 +13,8 @@
 # enough to enumerate, and requires the two to agree to machine precision.
 # These need no external data and run everywhere.
 #
-# The second block is a two-level check against published benchmark
-# output for a model from a published tutorial #1 (Manuals/LGtutorial1.pdf, DemoData/
-# gss82white.sav), which prints all three statistics for the same fit.
+# Checks that anchor the same statistics against external reference output
+# live in the internal validation suite, which is not part of this package.
 
 # ------------------------------------------------------------------------------
 # Fixtures
@@ -192,8 +191,8 @@ test_that("the classification table reconciles both sets of margins", {
 
   # A perfectly separated model classifies without error.
   set.seed(11)
-  Xsep <- rbind(matrix(rep(c(1, 1, 0, 0), each = 100), 100, 4, byrow = TRUE),
-                matrix(rep(c(3, 3, 1, 1), each = 100), 100, 4, byrow = TRUE))
+  Xsep <- rbind(matrix(rep(c(1, 1, 0, 0), each = 100), 100, 4),
+                matrix(rep(c(3, 3, 1, 1), each = 100), 100, 4))
   colnames(Xsep) <- c("a", "b", "c", "d")
   expect_lt(attr(classification_table(.diag_fit(Xsep)), "error"), 1e-6)
 })
