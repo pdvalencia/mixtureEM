@@ -318,8 +318,8 @@ lr_test(fit_invariant, fit_free_means)
 #> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
 #>   Restricted : LL =   -5338.3248   parameters = 65
-#>   Full       : LL =   -5261.3503   parameters = 121
-#>   -2 x diff  : 153.9490   df = 56   p = 4.446e-11
+#>   Full       : LL =   -5261.3498   parameters = 121
+#>   -2 x diff  : 153.9499   df = 56   p = 4.445e-11
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 

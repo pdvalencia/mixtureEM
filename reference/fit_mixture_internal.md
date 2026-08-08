@@ -140,6 +140,13 @@ fit_mixture_internal(
   `poisson`, `variances`), each defaulting to `1`. See
   [`fit_mixture`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md).
 
+- warm_start:
+
+  Optional function of `(model_state, X, Y)` returning a starting model
+  state for EM, or `NULL` to skip that start. Used by the group-varying
+  measurement search to seed each fit from the pooled solution. `NULL`
+  (default) uses only the usual random initializations.
+
 - se:
 
   Character. How standard errors for a covariate (class-prediction)
@@ -248,7 +255,7 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.707  [    0.013,    38.318]     0.865
-#>   V1                       0.765  [    0.268,     2.181]     0.616
+#>   Intercept                0.707  [    0.013,    38.232]     0.865
+#>   V1                       0.765  [    0.268,     2.182]     0.616
 #> =========================================================
 ```

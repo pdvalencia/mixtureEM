@@ -196,6 +196,13 @@ after EM convergence to optimize the penalized maximum likelihood.</p></dd>
 defaulting to <code>1</code>. See <code><a href="fit_mixture.html">fit_mixture</a></code>.</p></dd>
 
 
+<dt id="arg-warm-start">warm_start<a class="anchor" aria-label="anchor" href="#arg-warm-start"></a></dt>
+<dd><p>Optional function of <code>(model_state, X, Y)</code> returning a
+starting model state for EM, or <code>NULL</code> to skip that start. Used by the
+group-varying measurement search to seed each fit from the pooled solution.
+<code>NULL</code> (default) uses only the usual random initializations.</p></dd>
+
+
 <dt id="arg-se">se<a class="anchor" aria-label="anchor" href="#arg-se"></a></dt>
 <dd><p>Character. How standard errors for a covariate (class-prediction)
 structural model are computed when <code>n_steps</code> is <code>2</code> or <code>3</code>.
@@ -294,8 +301,8 @@ Use <code>exp(fit$log_resp)</code> to obtain posterior probabilities.</p></li>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                               OR         [95% CI]         P-Value</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Class 2 ON</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Intercept                0.707  [    0.013,    38.318]     0.865</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   V1                       0.765  [    0.268,     2.181]     0.616</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Intercept                0.707  [    0.013,    38.232]     0.865</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   V1                       0.765  [    0.268,     2.182]     0.616</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
