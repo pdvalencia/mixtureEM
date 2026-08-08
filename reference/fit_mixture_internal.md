@@ -16,7 +16,7 @@ fit_mixture_internal(
   structural = NULL,
   n_steps = 1,
   correction = "none",
-  n_init = 1,
+  n_init = 20,
   max_iter = 1000,
   random_state = NULL,
   order_by_size = TRUE,
@@ -25,6 +25,8 @@ fit_mixture_internal(
   strata = NULL,
   cluster = NULL,
   refine = TRUE,
+  bayes_constants = NULL,
+  warm_start = NULL,
   se = c("corrected", "robust", "hessian"),
   ...
 )
@@ -92,7 +94,7 @@ fit_mixture_internal(
 - n_init:
 
   Positive integer. Number of random restarts. The solution with the
-  highest log-likelihood is retained. Default is `1`.
+  highest log-likelihood is retained. Default is `20`.
 
 - max_iter:
 
@@ -131,6 +133,12 @@ fit_mixture_internal(
 
   Logical. If `TRUE` (default), applies L-BFGS refinement after EM
   convergence to optimize the penalized maximum likelihood.
+
+- bayes_constants:
+
+  Optional named list of prior strengths (`latent`, `categorical`,
+  `poisson`, `variances`), each defaulting to `1`. See
+  [`fit_mixture`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md).
 
 - se:
 
@@ -188,10 +196,11 @@ print(fit)
 #> =========================================================
 #> Classes Estimated  : 3
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 5 iterations)
+#> Converged          : TRUE (in 252 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -337.02
-#>   Rel. Entropy   : 0.4579
+#>   Rel. Entropy   : 0.4577
+#>   Best solution  : found by 5 of 5 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 47.50%
@@ -212,7 +221,7 @@ measurement_summary(fit)
 #> Item_1               |   0.345 |   0.724 |   0.441
 #> Item_2               |   0.737 |   0.462 |   0.229
 #> Item_3               |   0.266 |   0.829 |   0.027
-#> Item_4               |   0.635 |   0.367 |   0.083
+#> Item_4               |   0.635 |   0.366 |   0.083
 #> Item_5               |   0.473 |   0.367 |   0.599
 #> =========================================================
 
@@ -239,7 +248,7 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.678  [    0.010,    48.223]     0.858
-#>   V1                       2.306  [    0.258,    20.622]     0.455
+#>   Intercept                0.707  [    0.013,    38.318]     0.865
+#>   V1                       0.765  [    0.268,     2.181]     0.616
 #> =========================================================
 ```

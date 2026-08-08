@@ -40,6 +40,7 @@
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
+    <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -94,9 +95,8 @@ most likely class and ran chi-square/ANOVA tests on those labels, which
 ignores classification uncertainty. mixtureEM’s
 <code><a href="../reference/add_covariates.html">add_covariates()</a></code> instead uses a bias-corrected multinomial
 logistic regression (Vermunt, 2010) that properly accounts for it.</p>
-<p>Data are shared here with permission from the author team (one of
-whom, Pablo D. Valencia, also maintains mixtureEM); see
-<code><a href="../reference/ventura_leon.html">?ventura_leon</a></code> for the full source and license note.</p>
+<p>See <code><a href="../reference/ventura_leon.html">?ventura_leon</a></code> for the full source and license
+note.</p>
 </div>
 <div class="section level2">
 <h2 id="the-data">The data<a class="anchor" aria-label="anchor" href="#the-data"></a>
@@ -135,18 +135,17 @@ item’s exact wording.</p>
 <span><span class="co">#&gt; === Model Selection Summary ===</span></span>
 <span><span class="co">#&gt;   Classes        LL Params      AIC      BIC    SABIC Entropy</span></span>
 <span><span class="co">#&gt; 1       1 -3905.807     16 7843.615 7907.478 7856.709   1.000</span></span>
-<span><span class="co">#&gt; 2       2 -2900.073     33 5866.146 5997.864 5893.153   0.948</span></span>
-<span><span class="co">#&gt; 3       3 -2654.562     50 5409.124 5608.698 5450.044   0.934</span></span>
-<span><span class="co">#&gt; 4       4 -2531.131     67 5196.262 5463.690 5251.095   0.905</span></span>
-<span><span class="co">#&gt; 5       5 -2474.481     84 5116.963 5452.246 5185.708   0.928</span></span>
-<span><span class="co">#&gt; 6       6 -2423.382    101 5048.764 5451.902 5131.422   0.925</span></span>
+<span><span class="co">#&gt; 2       2 -2900.078     33 5866.157 5997.875 5893.164   0.948</span></span>
+<span><span class="co">#&gt; 3       3 -2654.568     50 5409.136 5608.710 5450.056   0.934</span></span>
+<span><span class="co">#&gt; 4       4 -2531.130     67 5196.260 5463.688 5251.093   0.905</span></span>
+<span><span class="co">#&gt; 5       5 -2474.482     84 5116.963 5452.246 5185.709   0.928</span></span>
+<span><span class="co">#&gt; 6       6 -2423.385    101 5048.771 5451.909 5131.429   0.925</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; -&gt; Best model according to BIC: 6 classes</span></span></code></pre></div>
-<p>As in the paper, BIC keeps improving for a few classes past 4 (a
-common pattern in LCA, where the BIC curve is often quite flat near its
-minimum); we follow the paper in choosing 4 classes for
-interpretability, since it recovers a very clean, well-separated
-typology (see below).</p>
+<p>BIC keeps improving for a few classes past 4 (a common pattern in
+LCA, where the BIC curve is often quite flat near its minimum); we
+follow the paper in choosing 4 classes for interpretability, since it
+recovers a very clean, well-separated typology (see below).</p>
 </div>
 <div class="section level2">
 <h2 id="fitting-the-4-class-model">Fitting the 4-class model<a class="anchor" aria-label="anchor" href="#fitting-the-4-class-model"></a>
@@ -161,16 +160,17 @@ typology (see below).</p>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Classes Estimated  : 4</span></span>
 <span><span class="co">#&gt; Estimation Method  : 1-step</span></span>
-<span><span class="co">#&gt; Converged          : TRUE (in 11 iterations)</span></span>
+<span><span class="co">#&gt; Converged          : TRUE (in 84 iterations)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt;   Log-Likelihood : -2531.12</span></span>
+<span><span class="co">#&gt;   Log-Likelihood : -2531.13</span></span>
 <span><span class="co">#&gt;   Rel. Entropy   : 0.9046</span></span>
+<span><span class="co">#&gt;   Best solution  : found by 7 of 30 starts</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; Class Weights (Sizes):</span></span>
 <span><span class="co">#&gt;   Class 1: 43.43%</span></span>
-<span><span class="co">#&gt;   Class 2: 27.47%</span></span>
+<span><span class="co">#&gt;   Class 2: 27.46%</span></span>
 <span><span class="co">#&gt;   Class 3: 15.79%</span></span>
-<span><span class="co">#&gt;   Class 4: 13.31%</span></span>
+<span><span class="co">#&gt;   Class 4: 13.32%</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span></code></pre></div>
 <div class="section level3">
@@ -186,10 +186,10 @@ size, so <code><a href="../reference/class_sizes.html">class_sizes()</a></code> 
 <code class="sourceCode R"><span><span class="va">class_names</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Fidelity"</span>, <span class="st">"Affective interest"</span>, <span class="st">"Infidelity"</span>, <span class="st">"Sexual desire"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/class_sizes.html">class_sizes</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   class proportion n_expected n_modal</span></span>
-<span><span class="co">#&gt; 1     1  0.4342620  173.70479     176</span></span>
-<span><span class="co">#&gt; 2     2  0.2746819  109.87275     108</span></span>
-<span><span class="co">#&gt; 3     3  0.1579263   63.17054      63</span></span>
-<span><span class="co">#&gt; 4     4  0.1331298   53.25192      53</span></span></code></pre></div>
+<span><span class="co">#&gt; 1     1  0.4342541  173.70163     176</span></span>
+<span><span class="co">#&gt; 2     2  0.2746087  109.84347     108</span></span>
+<span><span class="co">#&gt; 3     3  0.1579380   63.17520      63</span></span>
+<span><span class="co">#&gt; 4     4  0.1331992   53.27969      53</span></span></code></pre></div>
 <p>The item-response probabilities per class come from
 <code><a href="../reference/measurement_summary.html">measurement_summary()</a></code>, which prints the full table and also
 returns it as a data frame for further use:</p>
@@ -210,14 +210,16 @@ returns it as a data frame for further use:</p>
 <span><span class="co">#&gt; in_love              |   0.066 |   0.432 |   0.807 |   0.356</span></span>
 <span><span class="co">#&gt; thoughts             |   0.236 |   0.765 |   0.967 |   0.843</span></span>
 <span><span class="co">#&gt; interest             |   0.070 |   0.674 |   0.951 |   0.858</span></span>
-<span><span class="co">#&gt; sexual_relations     |   0.000 |   0.136 |   0.996 |   0.001</span></span>
-<span><span class="co">#&gt; sexual_contact       |   0.000 |   0.132 |   0.997 |   0.064</span></span>
+<span><span class="co">#&gt; sexual_relations     |   0.000 |   0.136 |   0.996 |   0.002</span></span>
+<span><span class="co">#&gt; sexual_contact       |   0.000 |   0.133 |   0.997 |   0.064</span></span>
 <span><span class="co">#&gt; desired_relations    |   0.003 |   0.043 |   0.901 |   0.897</span></span>
 <span><span class="co">#&gt; desired_contact      |   0.012 |   0.029 |   0.916 |   0.862</span></span>
-<span><span class="co">#&gt; sexual_fantasies     |   0.000 |   0.056 |   0.901 |   0.654</span></span>
+<span><span class="co">#&gt; sexual_fantasies     |   0.000 |   0.056 |   0.901 |   0.653</span></span>
 <span><span class="co">#&gt; attraction           |   0.155 |   0.693 |   0.998 |   0.993</span></span>
 <span><span class="co">#&gt; had_sex              |   0.004 |   0.076 |   0.869 |   0.001</span></span>
-<span><span class="co">#&gt; desired_sex          |   0.010 |   0.076 |   0.887 |   0.880</span></span>
+<span><span class="co">#&gt; desired_sex          |   0.010 |   0.076 |   0.887 |   0.879</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; At the boundary: sexual_relations in class 1; sexual_contact in class 1; sexual_fantasies in class 1; had_sex in class 4. These probabilities have run to 0 or 1, so the class is defined partly by an item every case in it gives the same answer to, and their standard errors are not interpretable.</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
 <p>Because the returned table is an ordinary data frame, follow-up
 questions take one line — for example, which behaviors the third-largest
@@ -225,22 +227,22 @@ class endorses with high probability:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">params</span>, <span class="va">class</span> <span class="op">==</span> <span class="fl">3</span> <span class="op">&amp;</span> <span class="va">estimate</span> <span class="op">&gt;</span> <span class="fl">0.5</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    block   parameter                 item category class  estimate</span></span>
-<span><span class="co">#&gt; 3   &lt;NA&gt; probability             flirting       NA     3 0.9822268</span></span>
-<span><span class="co">#&gt; 7   &lt;NA&gt; probability    romantic_partners       NA     3 0.9338886</span></span>
-<span><span class="co">#&gt; 11  &lt;NA&gt; probability       emotional_bond       NA     3 0.9199791</span></span>
-<span><span class="co">#&gt; 15  &lt;NA&gt; probability romantic_involvement       NA     3 0.9181014</span></span>
-<span><span class="co">#&gt; 19  &lt;NA&gt; probability        loved_another       NA     3 0.7750896</span></span>
-<span><span class="co">#&gt; 23  &lt;NA&gt; probability              in_love       NA     3 0.8074915</span></span>
-<span><span class="co">#&gt; 27  &lt;NA&gt; probability             thoughts       NA     3 0.9674279</span></span>
-<span><span class="co">#&gt; 31  &lt;NA&gt; probability             interest       NA     3 0.9510176</span></span>
-<span><span class="co">#&gt; 35  &lt;NA&gt; probability     sexual_relations       NA     3 0.9958866</span></span>
-<span><span class="co">#&gt; 39  &lt;NA&gt; probability       sexual_contact       NA     3 0.9968245</span></span>
-<span><span class="co">#&gt; 43  &lt;NA&gt; probability    desired_relations       NA     3 0.9011418</span></span>
-<span><span class="co">#&gt; 47  &lt;NA&gt; probability      desired_contact       NA     3 0.9158267</span></span>
-<span><span class="co">#&gt; 51  &lt;NA&gt; probability     sexual_fantasies       NA     3 0.9012829</span></span>
-<span><span class="co">#&gt; 55  &lt;NA&gt; probability           attraction       NA     3 0.9982104</span></span>
-<span><span class="co">#&gt; 59  &lt;NA&gt; probability              had_sex       NA     3 0.8685902</span></span>
-<span><span class="co">#&gt; 63  &lt;NA&gt; probability          desired_sex       NA     3 0.8865975</span></span></code></pre></div>
+<span><span class="co">#&gt; 3   &lt;NA&gt; probability             flirting       NA     3 0.9822261</span></span>
+<span><span class="co">#&gt; 7   &lt;NA&gt; probability    romantic_partners       NA     3 0.9339329</span></span>
+<span><span class="co">#&gt; 11  &lt;NA&gt; probability       emotional_bond       NA     3 0.9199585</span></span>
+<span><span class="co">#&gt; 15  &lt;NA&gt; probability romantic_involvement       NA     3 0.9180926</span></span>
+<span><span class="co">#&gt; 19  &lt;NA&gt; probability        loved_another       NA     3 0.7750929</span></span>
+<span><span class="co">#&gt; 23  &lt;NA&gt; probability              in_love       NA     3 0.8074870</span></span>
+<span><span class="co">#&gt; 27  &lt;NA&gt; probability             thoughts       NA     3 0.9674325</span></span>
+<span><span class="co">#&gt; 31  &lt;NA&gt; probability             interest       NA     3 0.9509822</span></span>
+<span><span class="co">#&gt; 35  &lt;NA&gt; probability     sexual_relations       NA     3 0.9959057</span></span>
+<span><span class="co">#&gt; 39  &lt;NA&gt; probability       sexual_contact       NA     3 0.9968190</span></span>
+<span><span class="co">#&gt; 43  &lt;NA&gt; probability    desired_relations       NA     3 0.9011429</span></span>
+<span><span class="co">#&gt; 47  &lt;NA&gt; probability      desired_contact       NA     3 0.9158309</span></span>
+<span><span class="co">#&gt; 51  &lt;NA&gt; probability     sexual_fantasies       NA     3 0.9012937</span></span>
+<span><span class="co">#&gt; 55  &lt;NA&gt; probability           attraction       NA     3 0.9982136</span></span>
+<span><span class="co">#&gt; 59  &lt;NA&gt; probability              had_sex       NA     3 0.8685940</span></span>
+<span><span class="co">#&gt; 63  &lt;NA&gt; probability          desired_sex       NA     3 0.8865954</span></span></code></pre></div>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span>, class_labels <span class="op">=</span> <span class="va">class_names</span>,</span>
 <span>     main <span class="op">=</span> <span class="st">"Infidelity behavior patterns (4-class LCA)"</span><span class="op">)</span></span></code></pre></div>
@@ -278,11 +280,11 @@ re-estimated, so the classes cannot shift under our feet:</p>
 <span><span class="co">#&gt;                                       OR         [95% CI]         P-Value</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 2 ON</span></span>
-<span><span class="co">#&gt;   Intercept                        1.674  [    0.272,    10.321]     0.579</span></span>
-<span><span class="co">#&gt;   sex.Female                       2.663  [    1.075,     6.599]     0.034</span></span>
+<span><span class="co">#&gt;   Intercept                        1.671  [    0.271,    10.317]     0.580</span></span>
+<span><span class="co">#&gt;   sex.Female                       2.667  [    1.074,     6.621]     0.035</span></span>
 <span><span class="co">#&gt;   age                              0.927  [    0.861,     0.999]     0.047</span></span>
-<span><span class="co">#&gt;   sexual_orientation.Nothtrsxl     0.943  [    0.390,     2.280]     0.897</span></span>
-<span><span class="co">#&gt;   relationship_duration.Long       1.058  [    0.488,     2.295]     0.886</span></span>
+<span><span class="co">#&gt;   sexual_orientation.Nothtrsxl     0.943  [    0.390,     2.280]     0.896</span></span>
+<span><span class="co">#&gt;   relationship_duration.Long       1.059  [    0.488,     2.297]     0.885</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 3 ON</span></span>
 <span><span class="co">#&gt;   Intercept                        0.230  [    0.070,     0.751]     0.015</span></span>
@@ -292,21 +294,21 @@ re-estimated, so the classes cannot shift under our feet:</p>
 <span><span class="co">#&gt;   relationship_duration.Long       0.599  [    0.250,     1.437]     0.251</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 4 ON</span></span>
-<span><span class="co">#&gt;   Intercept                        0.145  [    0.042,     0.503]     0.002</span></span>
-<span><span class="co">#&gt;   sex.Female                       0.588  [    0.289,     1.197]     0.143</span></span>
-<span><span class="co">#&gt;   age                              1.036  [    0.994,     1.080]     0.098</span></span>
-<span><span class="co">#&gt;   sexual_orientation.Nothtrsxl     2.750  [    1.159,     6.522]     0.022</span></span>
-<span><span class="co">#&gt;   relationship_duration.Long       1.195  [    0.546,     2.613]     0.656</span></span>
+<span><span class="co">#&gt;   Intercept                        0.145  [    0.042,     0.505]     0.002</span></span>
+<span><span class="co">#&gt;   sex.Female                       0.588  [    0.289,     1.196]     0.143</span></span>
+<span><span class="co">#&gt;   age                              1.036  [    0.993,     1.080]     0.098</span></span>
+<span><span class="co">#&gt;   sexual_orientation.Nothtrsxl     2.749  [    1.159,     6.520]     0.022</span></span>
+<span><span class="co">#&gt;   relationship_duration.Long       1.194  [    0.546,     2.612]     0.657</span></span>
 <span><span class="co">#&gt;   Abbreviated names:</span></span>
 <span><span class="co">#&gt;     sexual_orientation.Nothtrsxl = sexual_orientation.Not heterosexual</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;                           Wald Chi2   df  P-Value</span></span>
-<span><span class="co">#&gt;   sex                        23.013    3    &lt; .001</span></span>
-<span><span class="co">#&gt;   age                        11.965    3     0.008</span></span>
+<span><span class="co">#&gt;   sex                        22.983    3    &lt; .001</span></span>
+<span><span class="co">#&gt;   age                        11.957    3     0.008</span></span>
 <span><span class="co">#&gt;   sexual_orientation          6.443    3     0.092</span></span>
-<span><span class="co">#&gt;   relationship_duration       1.992    3     0.574</span></span>
+<span><span class="co">#&gt;   relationship_duration       1.990    3     0.575</span></span>
 <span><span class="co">#&gt;   Note: a non-significant test beside large coefficients can be the</span></span>
 <span><span class="co">#&gt;         Hauck-Donner effect; confirm with wald_omnibus_test().</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
@@ -320,20 +322,20 @@ rather than estimated makes the intervals too narrow. See
 ratios are available as a data frame:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">results</span><span class="op">$</span><span class="va">coefficients</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   class                                term    estimate         se          z</span></span>
-<span><span class="co">#&gt; 1     2                           Intercept  0.51524791 0.92803255  0.5552046</span></span>
-<span><span class="co">#&gt; 2     2                          sex.Female  0.97945935 0.46295062  2.1156886</span></span>
-<span><span class="co">#&gt; 3     2                                 age -0.07549263 0.03801696 -1.9857617</span></span>
-<span><span class="co">#&gt; 4     2 sexual_orientation.Not heterosexual -0.05826954 0.45016135 -0.1294414</span></span>
-<span><span class="co">#&gt; 5     2          relationship_duration.Long  0.05678763 0.39492360  0.1437940</span></span>
-<span><span class="co">#&gt; 6     3                           Intercept -1.47018187 0.60414882 -2.4334763</span></span>
+<span><span class="co">#&gt;   class                                term    estimate        se          z</span></span>
+<span><span class="co">#&gt; 1     2                           Intercept  0.51342828 0.9287473  0.5528181</span></span>
+<span><span class="co">#&gt; 2     2                          sex.Female  0.98086743 0.4639788  2.1140350</span></span>
+<span><span class="co">#&gt; 3     2                                 age -0.07548275 0.0380130 -1.9857087</span></span>
+<span><span class="co">#&gt; 4     2 sexual_orientation.Not heterosexual -0.05872296 0.4503695 -0.1303884</span></span>
+<span><span class="co">#&gt; 5     2          relationship_duration.Long  0.05729248 0.3950917  0.1450106</span></span>
+<span><span class="co">#&gt; 6     3                           Intercept -1.47022394 0.6041147 -2.4336835</span></span>
 <span><span class="co">#&gt;            p        OR   OR_lower   OR_upper</span></span>
-<span><span class="co">#&gt; 1 0.57875474 1.6740535 0.27152641 10.3211140</span></span>
-<span><span class="co">#&gt; 2 0.03437130 2.6630161 1.07473717  6.5985013</span></span>
-<span><span class="co">#&gt; 3 0.04705979 0.9272866 0.86070292  0.9990211</span></span>
-<span><span class="co">#&gt; 4 0.89700835 0.9433956 0.39039908  2.2797065</span></span>
-<span><span class="co">#&gt; 5 0.88566317 1.0584310 0.48808650  2.2952411</span></span>
-<span><span class="co">#&gt; 6 0.01495461 0.2298837 0.07034711  0.7512249</span></span></code></pre></div>
+<span><span class="co">#&gt; 1 0.58038800 1.6710101 0.27065336 10.3167930</span></span>
+<span><span class="co">#&gt; 2 0.03451228 2.6667685 1.07408484  6.6211289</span></span>
+<span><span class="co">#&gt; 3 0.04706568 0.9272957 0.86071811  0.9990232</span></span>
+<span><span class="co">#&gt; 4 0.89625915 0.9429680 0.39006293  2.2796030</span></span>
+<span><span class="co">#&gt; 5 0.88470253 1.0589655 0.48817207  2.2971570</span></span>
+<span><span class="co">#&gt; 6 0.01494606 0.2298740 0.07034886  0.7511431</span></span></code></pre></div>
 <p>Reference class 1 is Fidelity (the largest class). Reading the odds
 ratios against that reference:</p>
 <ul>
@@ -395,20 +397,20 @@ actually expected to predict.</p>
 <span><span class="co">#&gt; CONTINUOUS DISTAL OUTCOME (MEANS)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Omnibus test (class differences): Wald chi^2(3) = 17.86, p  &lt; .001</span></span>
+<span><span class="co">#&gt; Omnibus test (class differences): Wald chi^2(3) = 17.84, p  &lt; .001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;                  Mean       [95% CI]        SE</span></span>
 <span><span class="co">#&gt;   Class 1       25.235  [24.181, 26.289]     0.538</span></span>
-<span><span class="co">#&gt;   Class 2       23.141  [22.007, 24.275]     0.579</span></span>
-<span><span class="co">#&gt;   Class 3       27.554  [25.329, 29.780]     1.136</span></span>
-<span><span class="co">#&gt;   Class 4       27.151  [24.900, 29.402]     1.148</span></span>
+<span><span class="co">#&gt;   Class 2       23.142  [22.007, 24.276]     0.579</span></span>
+<span><span class="co">#&gt;   Class 3       27.554  [25.329, 29.780]     1.135</span></span>
+<span><span class="co">#&gt;   Class 4       27.148  [24.897, 29.398]     1.148</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="va">age_results</span><span class="op">$</span><span class="va">outcome</span><span class="op">$</span><span class="va">means</span></span>
 <span><span class="co">#&gt;   class     mean        se    lower    upper</span></span>
-<span><span class="co">#&gt; 1     1 25.23516 0.5377970 24.18108 26.28924</span></span>
-<span><span class="co">#&gt; 2     2 23.14125 0.5786317 22.00714 24.27537</span></span>
-<span><span class="co">#&gt; 3     3 27.55416 1.1355083 25.32857 29.77976</span></span>
-<span><span class="co">#&gt; 4     4 27.15056 1.1484678 24.89957 29.40156</span></span></code></pre></div>
+<span><span class="co">#&gt; 1     1 25.23505 0.5377852 24.18099 26.28911</span></span>
+<span><span class="co">#&gt; 2     2 23.14177 0.5788384 22.00725 24.27630</span></span>
+<span><span class="co">#&gt; 3     3 27.55414 1.1354995 25.32856 29.77972</span></span>
+<span><span class="co">#&gt; 4     4 27.14763 1.1481233 24.89731 29.39795</span></span></code></pre></div>
 <p>The omnibus Wald test in the printed output asks whether the class
 means differ at all, before the per-class table is read.</p>
 </div>

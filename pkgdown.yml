@@ -3,13 +3,14 @@ pkgdown: 2.2.1
 pkgdown_sha: ~
 articles:
   class_enumeration: class_enumeration.html
+  estimation: estimation.html
   growth_mixture: growth_mixture.html
   janousch: janousch.html
   lta: lta.html
   rmlca: rmlca.html
   survey_lca: survey_lca.html
   ventura_leon: ventura_leon.html
-last_built: 2026-08-05T22:32Z
+last_built: 2026-08-07T23:48Z
 urls:
   reference: https://pdvalencia.github.io/mixtureEM/reference
   article: https://pdvalencia.github.io/mixtureEM/articles

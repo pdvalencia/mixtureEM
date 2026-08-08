@@ -28,8 +28,7 @@ ignores classification uncertainty. mixtureEM’s
 instead uses a bias-corrected multinomial logistic regression (Vermunt,
 2010) that properly accounts for it.
 
-Data are shared here with permission from the author team (one of whom,
-Pablo D. Valencia, also maintains mixtureEM); see
+See
 [`?ventura_leon`](https://pdvalencia.github.io/mixtureEM/reference/ventura_leon.md)
 for the full source and license note.
 
@@ -74,20 +73,19 @@ selection <- compare_mixtures(X = items, measurement = "binary",
 #> === Model Selection Summary ===
 #>   Classes        LL Params      AIC      BIC    SABIC Entropy
 #> 1       1 -3905.807     16 7843.615 7907.478 7856.709   1.000
-#> 2       2 -2900.073     33 5866.146 5997.864 5893.153   0.948
-#> 3       3 -2654.562     50 5409.124 5608.698 5450.044   0.934
-#> 4       4 -2531.131     67 5196.262 5463.690 5251.095   0.905
-#> 5       5 -2474.481     84 5116.963 5452.246 5185.708   0.928
-#> 6       6 -2423.382    101 5048.764 5451.902 5131.422   0.925
+#> 2       2 -2900.078     33 5866.157 5997.875 5893.164   0.948
+#> 3       3 -2654.568     50 5409.136 5608.710 5450.056   0.934
+#> 4       4 -2531.130     67 5196.260 5463.688 5251.093   0.905
+#> 5       5 -2474.482     84 5116.963 5452.246 5185.709   0.928
+#> 6       6 -2423.385    101 5048.771 5451.909 5131.429   0.925
 #> 
 #> -> Best model according to BIC: 6 classes
 ```
 
-As in the paper, BIC keeps improving for a few classes past 4 (a common
-pattern in LCA, where the BIC curve is often quite flat near its
-minimum); we follow the paper in choosing 4 classes for
-interpretability, since it recovers a very clean, well-separated
-typology (see below).
+BIC keeps improving for a few classes past 4 (a common pattern in LCA,
+where the BIC curve is often quite flat near its minimum); we follow the
+paper in choosing 4 classes for interpretability, since it recovers a
+very clean, well-separated typology (see below).
 
 ## Fitting the 4-class model
 
@@ -102,16 +100,17 @@ fit
 #> =========================================================
 #> Classes Estimated  : 4
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 11 iterations)
+#> Converged          : TRUE (in 84 iterations)
 #> ---------------------------------------------------------
-#>   Log-Likelihood : -2531.12
+#>   Log-Likelihood : -2531.13
 #>   Rel. Entropy   : 0.9046
+#>   Best solution  : found by 7 of 30 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 43.43%
-#>   Class 2: 27.47%
+#>   Class 2: 27.46%
 #>   Class 3: 15.79%
-#>   Class 4: 13.31%
+#>   Class 4: 13.32%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 ```
@@ -131,10 +130,10 @@ lines up with that ordering:
 class_names <- c("Fidelity", "Affective interest", "Infidelity", "Sexual desire")
 class_sizes(fit)
 #>   class proportion n_expected n_modal
-#> 1     1  0.4342620  173.70479     176
-#> 2     2  0.2746819  109.87275     108
-#> 3     3  0.1579263   63.17054      63
-#> 4     4  0.1331298   53.25192      53
+#> 1     1  0.4342541  173.70163     176
+#> 2     2  0.2746087  109.84347     108
+#> 3     3  0.1579380   63.17520      63
+#> 4     4  0.1331992   53.27969      53
 ```
 
 The item-response probabilities per class come from
@@ -160,14 +159,16 @@ params <- measurement_summary(fit)
 #> in_love              |   0.066 |   0.432 |   0.807 |   0.356
 #> thoughts             |   0.236 |   0.765 |   0.967 |   0.843
 #> interest             |   0.070 |   0.674 |   0.951 |   0.858
-#> sexual_relations     |   0.000 |   0.136 |   0.996 |   0.001
-#> sexual_contact       |   0.000 |   0.132 |   0.997 |   0.064
+#> sexual_relations     |   0.000 |   0.136 |   0.996 |   0.002
+#> sexual_contact       |   0.000 |   0.133 |   0.997 |   0.064
 #> desired_relations    |   0.003 |   0.043 |   0.901 |   0.897
 #> desired_contact      |   0.012 |   0.029 |   0.916 |   0.862
-#> sexual_fantasies     |   0.000 |   0.056 |   0.901 |   0.654
+#> sexual_fantasies     |   0.000 |   0.056 |   0.901 |   0.653
 #> attraction           |   0.155 |   0.693 |   0.998 |   0.993
 #> had_sex              |   0.004 |   0.076 |   0.869 |   0.001
-#> desired_sex          |   0.010 |   0.076 |   0.887 |   0.880
+#> desired_sex          |   0.010 |   0.076 |   0.887 |   0.879
+#> 
+#> At the boundary: sexual_relations in class 1; sexual_contact in class 1; sexual_fantasies in class 1; had_sex in class 4. These probabilities have run to 0 or 1, so the class is defined partly by an item every case in it gives the same answer to, and their standard errors are not interpretable.
 #> =========================================================
 ```
 
@@ -179,22 +180,22 @@ class endorses with high probability:
 
 subset(params, class == 3 & estimate > 0.5)
 #>    block   parameter                 item category class  estimate
-#> 3   <NA> probability             flirting       NA     3 0.9822268
-#> 7   <NA> probability    romantic_partners       NA     3 0.9338886
-#> 11  <NA> probability       emotional_bond       NA     3 0.9199791
-#> 15  <NA> probability romantic_involvement       NA     3 0.9181014
-#> 19  <NA> probability        loved_another       NA     3 0.7750896
-#> 23  <NA> probability              in_love       NA     3 0.8074915
-#> 27  <NA> probability             thoughts       NA     3 0.9674279
-#> 31  <NA> probability             interest       NA     3 0.9510176
-#> 35  <NA> probability     sexual_relations       NA     3 0.9958866
-#> 39  <NA> probability       sexual_contact       NA     3 0.9968245
-#> 43  <NA> probability    desired_relations       NA     3 0.9011418
-#> 47  <NA> probability      desired_contact       NA     3 0.9158267
-#> 51  <NA> probability     sexual_fantasies       NA     3 0.9012829
-#> 55  <NA> probability           attraction       NA     3 0.9982104
-#> 59  <NA> probability              had_sex       NA     3 0.8685902
-#> 63  <NA> probability          desired_sex       NA     3 0.8865975
+#> 3   <NA> probability             flirting       NA     3 0.9822261
+#> 7   <NA> probability    romantic_partners       NA     3 0.9339329
+#> 11  <NA> probability       emotional_bond       NA     3 0.9199585
+#> 15  <NA> probability romantic_involvement       NA     3 0.9180926
+#> 19  <NA> probability        loved_another       NA     3 0.7750929
+#> 23  <NA> probability              in_love       NA     3 0.8074870
+#> 27  <NA> probability             thoughts       NA     3 0.9674325
+#> 31  <NA> probability             interest       NA     3 0.9509822
+#> 35  <NA> probability     sexual_relations       NA     3 0.9959057
+#> 39  <NA> probability       sexual_contact       NA     3 0.9968190
+#> 43  <NA> probability    desired_relations       NA     3 0.9011429
+#> 47  <NA> probability      desired_contact       NA     3 0.9158309
+#> 51  <NA> probability     sexual_fantasies       NA     3 0.9012937
+#> 55  <NA> probability           attraction       NA     3 0.9982136
+#> 59  <NA> probability              had_sex       NA     3 0.8685940
+#> 63  <NA> probability          desired_sex       NA     3 0.8865954
 ```
 
 ``` r
@@ -239,11 +240,11 @@ results <- summary(fit_cov)
 #>                                       OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                        1.674  [    0.272,    10.321]     0.579
-#>   sex.Female                       2.663  [    1.075,     6.599]     0.034
+#>   Intercept                        1.671  [    0.271,    10.317]     0.580
+#>   sex.Female                       2.667  [    1.074,     6.621]     0.035
 #>   age                              0.927  [    0.861,     0.999]     0.047
-#>   sexual_orientation.Nothtrsxl     0.943  [    0.390,     2.280]     0.897
-#>   relationship_duration.Long       1.058  [    0.488,     2.295]     0.886
+#>   sexual_orientation.Nothtrsxl     0.943  [    0.390,     2.280]     0.896
+#>   relationship_duration.Long       1.059  [    0.488,     2.297]     0.885
 #> 
 #> Class 3 ON
 #>   Intercept                        0.230  [    0.070,     0.751]     0.015
@@ -253,21 +254,21 @@ results <- summary(fit_cov)
 #>   relationship_duration.Long       0.599  [    0.250,     1.437]     0.251
 #> 
 #> Class 4 ON
-#>   Intercept                        0.145  [    0.042,     0.503]     0.002
-#>   sex.Female                       0.588  [    0.289,     1.197]     0.143
-#>   age                              1.036  [    0.994,     1.080]     0.098
-#>   sexual_orientation.Nothtrsxl     2.750  [    1.159,     6.522]     0.022
-#>   relationship_duration.Long       1.195  [    0.546,     2.613]     0.656
+#>   Intercept                        0.145  [    0.042,     0.505]     0.002
+#>   sex.Female                       0.588  [    0.289,     1.196]     0.143
+#>   age                              1.036  [    0.993,     1.080]     0.098
+#>   sexual_orientation.Nothtrsxl     2.749  [    1.159,     6.520]     0.022
+#>   relationship_duration.Long       1.194  [    0.546,     2.612]     0.657
 #>   Abbreviated names:
 #>     sexual_orientation.Nothtrsxl = sexual_orientation.Not heterosexual
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                           Wald Chi2   df  P-Value
-#>   sex                        23.013    3    < .001
-#>   age                        11.965    3     0.008
+#>   sex                        22.983    3    < .001
+#>   age                        11.957    3     0.008
 #>   sexual_orientation          6.443    3     0.092
-#>   relationship_duration       1.992    3     0.574
+#>   relationship_duration       1.990    3     0.575
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================
@@ -286,20 +287,20 @@ tables invisibly, so the odds ratios are available as a data frame:
 ``` r
 
 head(results$coefficients)
-#>   class                                term    estimate         se          z
-#> 1     2                           Intercept  0.51524791 0.92803255  0.5552046
-#> 2     2                          sex.Female  0.97945935 0.46295062  2.1156886
-#> 3     2                                 age -0.07549263 0.03801696 -1.9857617
-#> 4     2 sexual_orientation.Not heterosexual -0.05826954 0.45016135 -0.1294414
-#> 5     2          relationship_duration.Long  0.05678763 0.39492360  0.1437940
-#> 6     3                           Intercept -1.47018187 0.60414882 -2.4334763
+#>   class                                term    estimate        se          z
+#> 1     2                           Intercept  0.51342828 0.9287473  0.5528181
+#> 2     2                          sex.Female  0.98086743 0.4639788  2.1140350
+#> 3     2                                 age -0.07548275 0.0380130 -1.9857087
+#> 4     2 sexual_orientation.Not heterosexual -0.05872296 0.4503695 -0.1303884
+#> 5     2          relationship_duration.Long  0.05729248 0.3950917  0.1450106
+#> 6     3                           Intercept -1.47022394 0.6041147 -2.4336835
 #>            p        OR   OR_lower   OR_upper
-#> 1 0.57875474 1.6740535 0.27152641 10.3211140
-#> 2 0.03437130 2.6630161 1.07473717  6.5985013
-#> 3 0.04705979 0.9272866 0.86070292  0.9990211
-#> 4 0.89700835 0.9433956 0.39039908  2.2797065
-#> 5 0.88566317 1.0584310 0.48808650  2.2952411
-#> 6 0.01495461 0.2298837 0.07034711  0.7512249
+#> 1 0.58038800 1.6710101 0.27065336 10.3167930
+#> 2 0.03451228 2.6667685 1.07408484  6.6211289
+#> 3 0.04706568 0.9272957 0.86071811  0.9990232
+#> 4 0.89625915 0.9429680 0.39006293  2.2796030
+#> 5 0.88470253 1.0589655 0.48817207  2.2971570
+#> 6 0.01494606 0.2298740 0.07034886  0.7511431
 ```
 
 Reference class 1 is Fidelity (the largest class). Reading the odds
@@ -359,20 +360,20 @@ age_results <- summary(fit_age)
 #> CONTINUOUS DISTAL OUTCOME (MEANS)
 #> ---------------------------------------------------------
 #> 
-#> Omnibus test (class differences): Wald chi^2(3) = 17.86, p  < .001
+#> Omnibus test (class differences): Wald chi^2(3) = 17.84, p  < .001
 #> 
 #>                  Mean       [95% CI]        SE
 #>   Class 1       25.235  [24.181, 26.289]     0.538
-#>   Class 2       23.141  [22.007, 24.275]     0.579
-#>   Class 3       27.554  [25.329, 29.780]     1.136
-#>   Class 4       27.151  [24.900, 29.402]     1.148
+#>   Class 2       23.142  [22.007, 24.276]     0.579
+#>   Class 3       27.554  [25.329, 29.780]     1.135
+#>   Class 4       27.148  [24.897, 29.398]     1.148
 #> =========================================================
 age_results$outcome$means
 #>   class     mean        se    lower    upper
-#> 1     1 25.23516 0.5377970 24.18108 26.28924
-#> 2     2 23.14125 0.5786317 22.00714 24.27537
-#> 3     3 27.55416 1.1355083 25.32857 29.77976
-#> 4     4 27.15056 1.1484678 24.89957 29.40156
+#> 1     1 25.23505 0.5377852 24.18099 26.28911
+#> 2     2 23.14177 0.5788384 22.00725 24.27630
+#> 3     3 27.55414 1.1354995 25.32856 29.77972
+#> 4     4 27.14763 1.1481233 24.89731 29.39795
 ```
 
 The omnibus Wald test in the printed output asks whether the class means

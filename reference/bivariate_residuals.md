@@ -48,6 +48,16 @@ An object of class `bivariate_residuals`: a lower-triangular
 indicator-by-indicator matrix, `NA` on and above the diagonal; or `NULL`
 (with a message) when the statistic does not apply.
 
+## References
+
+Oberski, D. L., van Kollenburg, G. H., & Vermunt, J. K. (2013). A Monte
+Carlo evaluation of three methods to detect local dependence in binary
+data latent class models. *Advances in Data Analysis and
+Classification*, *7*(3), 267-279.
+[doi:10.1007/s11634-013-0146-2](https://doi.org/10.1007/s11634-013-0146-2)
+
+bivariate_residuals(fit)
+
 ## See also
 
 [`absolute_fit()`](https://pdvalencia.github.io/mixtureEM/reference/absolute_fit.md),
@@ -60,21 +70,4 @@ set.seed(1)
 X <- matrix(rbinom(600, 1, 0.5), ncol = 6)
 fit <- fit_mixture(X, n_components = 2, measurement = "binary")
 #> Note: `X`, `Y`, `n_components`, and `structural` are the legacy interface. The current arguments are `indicators`, `n_classes`, `predictors`, and `outcome` / `outcome_covariates`.
-bivariate_residuals(fit)
-#> =========================================================
-#>                BIVARIATE RESIDUALS                       
-#> =========================================================
-#> Pearson chi-square per item pair, divided by its df.
-#> Values well above 1 flag a pair whose association the
-#> classes do not reproduce (local dependence).
-#> 
-#>          Item1    Item2    Item3    Item4    Item5
-#> Item2   0.0419
-#> Item3   0.0120   0.0002
-#> Item4   0.6327   1.1869   0.4264
-#> Item5   0.0697   0.3653   0.0726   0.0279
-#> Item6   0.0149   0.2691   0.0671   0.5234   0.1122
-#> 
-#> Largest: Item4 x Item2 = 1.1869
-#> =========================================================
 ```

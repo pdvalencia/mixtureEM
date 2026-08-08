@@ -1,5 +1,241 @@
 # Changelog
 
+## mixtureEM (development version)
+
+### Fixed: two estimation bugs that cost log-likelihood on every affected fit
+
+- **EM now converges before it stops.** Emissions that L-BFGS refines
+  afterwards — the binary and Gaussian families — used a much looser
+  stopping rule than the others, on the reasoning that the refinement
+  would climb the rest of the way. It does not. On a validated
+  four-class binary LCA the loose rule stopped 1.27 log-likelihood units
+  short and the refinement recovered 0.14 of that. The rule also stopped
+  EM at an absolute change of roughly two units on a log-likelihood in
+  the thousands, which is far too coarse to *rank* restarts, so it was
+  quietly degrading the multi-start search as well. Every emission now
+  uses the tight rule, and the refinement starts from a converged fit
+  instead of substituting for one. Fits will change, generally for the
+  better, and will take more iterations.
+
+- **`bayes_constants` now reaches the L-BFGS refinement.** The
+  refinement read `variances` but had `latent` and `categorical`
+  hard-coded at `1`, so setting either to `0` switched the prior off in
+  the M-step and left it on in the polish. The two stages then optimised
+  different objectives and the polish pulled the fit off the
+  maximum-likelihood optimum it had been asked for. The documented
+  escape hatch for reproducing an unregularized reference analysis now
+  works. The analytical gradient is verified against a finite-difference
+  one to 1e-10 for complete data and under FIML, at three prior
+  settings.
+
+- **The L-BFGS refinement no longer runs when class membership is
+  modelled by a regression.** Its parameterisation packs a single pooled
+  vector of class weights and has no slot for `P(class | covariates)`,
+  so with `predictors` or a `group` on the prevalences it was maximising
+  a different model from the one being fitted and then writing its
+  measurement parameters back. The damage was large and had been
+  invisible: a multiple-group configural model is *separable*, so its
+  log-likelihood must equal the sum of the per-group fits, and the
+  polish left it 1.10 units short. Removing it closes that to 0.0005 and
+  takes the number of restarts reaching the best solution from 1 of 6 to
+  4 of 6 — it had been perturbing every restart away from the optimum,
+  not just the winner.
+
+Together these close a 3.5-unit gap against an external reference on a
+three-group latent class model — 5.1 units on the configural model —
+both now matched to within 0.001.
+
+### New: binary indicators are recoded to 0/1 for you
+
+- **`measurement = "binary"` now accepts any two-valued item.** A
+  two-level factor or character, a logical, and any numeric pair — 1/2,
+  2/5, whatever the source data used — are converted on the way in, and
+  the fit is identical to the one hand-coded 0/1 data would have given.
+  Only the mapping is announced, once, and
+  [`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
+  then names the level each probability belongs to, so “0.87” is never
+  ambiguous. Data already in 0/1 is untouched and silent.
+
+- **Two silent-wrong-answer bugs closed on the way.** The old `{0, 1}`
+  check was reachable only through a single-string `measurement`, so a
+  1/2-coded item inside a mixed
+  [`list()`](https://rdrr.io/r/base/list.html) specification reached the
+  Bernoulli likelihood unchecked and returned a wrong log-likelihood
+  with no error. And a *categorical* item coded from 0 indexed the
+  previous item’s last category rather than its own — no error, wrong
+  likelihood. Both are now caught, the second with a message saying to
+  add 1.
+
+- An item with three or more values is still refused, but the message
+  now points at `"categorical"` or `"continuous"` instead of asking for
+  0/1 coding that would not have helped.
+
+### Renamed: `longitudinal_lrt()` is now `lr_test()`
+
+- The test was never specific to longitudinal models. It takes any two
+  nested fits and differences their log-likelihoods and parameter
+  counts, and most uses of it — including the multiple-group
+  measurement-invariance test — are cross-sectional.
+  [`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
+  still works and warns.
+
+### Changed: what the collapsed-variance warning tells you to do
+
+- The warning used to lead with `bayes_constants = list(variances = 5)`.
+  That number was calibrated on one dataset and does not transfer,
+  because the constant is divided among the classes: the same value is a
+  different amount of prior at every `n_classes`. The warning now leads
+  with `variances_equal = TRUE`, which bounds the likelihood so the
+  degeneracy cannot arise, then fewer classes, and only then the prior —
+  stated as roughly one artificial observation per class and printed as
+  the concrete number for the model in hand.
+
+- It also now says two things it should have said before: raising
+  `n_init` is **not** a remedy and can make matters worse, since the
+  likelihood really is unbounded in that direction and a longer search
+  finds a taller spike; and a flagged fit’s BIC must not be compared
+  with a clean fit’s, because it is inflated by the spike. Finally, it
+  asks for a substantive check — that the flagged variance is no longer
+  far below the others and that its class mean has come off the floor or
+  ceiling — rather than just that the warning stopped.
+
+### New: measurement invariance one parameter at a time
+
+- **New `group_invariant_params` argument on
+  [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)**,
+  for continuous indicators. `group_invariant_items` holds whole *items*
+  equal across groups, which is the natural constraint when an item has
+  one kind of parameter, as a categorical indicator does. A continuous
+  indicator has two — a class mean and a variance — and the
+  latent-profile invariance literature routinely frees one and holds the
+  other. That model could not be written down before: an item was either
+  wholly free across groups or wholly shared.
+
+  `group_invariant_params = "covariances"` frees the class means across
+  groups while holding the indicator variances invariant. This is the
+  model Olivera-Aguilar and Rikoon (2018) call *unconstrained* and note
+  is the default most software fits, and it is the one their invariance
+  test compares against — so it is the comparison an applied analysis
+  usually wants, and it is smaller and better identified than the fully
+  heterogeneous alternative. `group_invariant_params = "means"` is the
+  mirror constraint. The two axes are alternatives: pass either
+  `group_invariant_items` or `group_invariant_params`, not both.
+
+- **New `variances_equal` argument on
+  [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)**,
+  also for continuous indicators: hold each item’s variance equal across
+  the classes, so the classes differ in location only. This is the
+  homoscedastic latent profile model, and the parameterisation several
+  commercial programs estimate by default. It applies to an ordinary
+  single-group fit as well, and composes with `group_invariant_params`
+  to give a variance shared by the classes but free across groups.
+
+  The constrained variance is still stored once per class, so profiles,
+  plots, class alignment and the degeneracy check are unchanged; the
+  constraint lives in the M-step and in the parameter count.
+
+  A model carrying either constraint is fitted by EM alone. The L-BFGS
+  refinement packs one parameter per class-item cell and has no way to
+  express an equality across cells, so it would step off the constraint
+  surface; these models instead run EM to the tighter stopping rule the
+  unpolished emissions already use.
+
+### Improved: the search for a group-varying measurement model
+
+- **`group_effects = "both"` and `"measurement"` no longer rely on
+  random starting values alone.** A group-varying measurement model
+  holds one set of item parameters per group, tied together only through
+  the class labels, which are shared. Random starts give each group its
+  own arbitrary labelling, so class 1 in one group and class 1 in
+  another begin as unrelated things and EM has no way to bring them into
+  correspondence — and more restarts do not help, since every restart
+  draws from the same badly aligned prior. The visible symptom was a
+  model that could score *below* the more restricted model nested inside
+  it, which is impossible at the optimum and left
+  [`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
+  reporting a lower bound instead of a test.
+
+  These models now fit each group on its own data first, permute its
+  classes to match the pooled solution, and run one extra restart from
+  there. On the `janousch` example the configural fit improves by 15
+  log-likelihood units and the measurement-invariance statistic rises
+  from 251 to 282 on 112 degrees of freedom; the substantive conclusion
+  is unchanged, but the number no longer depends on the draw. The extra
+  fits make these models roughly a third slower.
+
+  Everything about it degrades gracefully: a group with fewer than
+  `2 * n_classes` cases is not fitted on its own, and any sub-fit that
+  fails falls back to the pooled parameters, so the worst case is the
+  search as it was before.
+
+### Fixed: collapsed class variances in continuous-indicator models
+
+- **A class variance that has collapsed towards zero is now detected and
+  reported.** A mixture of normals with freely estimated variances has
+  an unbounded likelihood: a class whose variance on one item is driven
+  to zero, with its mean on a few cases sharing a value, produces a
+  likelihood that grows without limit while describing nothing. Such a
+  solution previously won the restart competition, was returned as the
+  best fit, and gave no warning. It now raises one naming the item, the
+  class and the group, and reporting whether the class mean sits at a
+  data boundary. The flagged cells are stored on the fitted object as
+  `$degenerate` and repeated by
+  [`print()`](https://rdrr.io/r/base/print.html) and
+  [`summary()`](https://rdrr.io/r/base/summary.html), so a saved fit
+  still shows the problem months later.
+
+  **This changes results.** A model that previously reported a collapsed
+  solution as converged will now warn, and its estimates will differ,
+  because the regularisation it is fitted under has changed (see below).
+  The `janousch` vignette’s measurement-invariance section is the worked
+  example and its numbers have changed accordingly.
+
+- **The Gaussian M-step now carries a prior on the variances instead of
+  a hard floor.** `gaussian_diag` and `gaussian_diag_nan` previously
+  added `1e-6` to each variance after maximising. That is a constant in
+  the units of the data — invisible on a five-point scale, enormous on
+  one measured in thousands — and, being applied after the fact, did
+  nothing to stop the L-BFGS refinement from re-optimising straight
+  through it. The regularisation is now part of the objective: a
+  truncated inverse-Wishart prior centred on the item’s observed
+  marginal variance, expressed as pseudo-observations, applied
+  identically in the M-step and in the refinement so the two cannot
+  disagree about what is being maximised. On healthy fits the difference
+  is negligible.
+
+- **New `bayes_constants` argument** on
+  [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md),
+  [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+  and the wrappers that delegate to them, exposing the strength of each
+  of the estimator’s priors — `latent`, `categorical`, `poisson`,
+  `variances` — all defaulting to `1`, the value the first three were
+  already hard-coded to. Raising `variances` is one of the remedies the
+  collapsed-variance warning offers; setting a constant to `0` removes
+  that prior and recovers plain maximum likelihood for that block, which
+  is an escape hatch for reproducing an unregularized reference analysis
+  rather than a recommended setting.
+
+- **[`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
+  refuses to interpret a degenerate fit.** It warns when either input
+  carries the flag — the statistic is meaningless in either direction,
+  since a degenerate log-likelihood reflects a spike in the likelihood
+  rather than fit to the data. Its existing warning for a negative
+  statistic now names both things that can cause one: a failed search on
+  the full model, or a degenerate restricted model outscoring it.
+
+- **The `janousch` measurement-invariance comparison was testing the
+  wrong restriction.** Measurement invariance is the hypothesis that the
+  item parameters are equal across groups, which is
+  `group_effects = "prevalence"` (measurement pooled, prevalences free)
+  against `"both"`. The vignette and test compared `"measurement"`
+  against `"both"`, which frees the item parameters and pools the
+  prevalences — the opposite restriction. Both have been rewritten.
+
+  This supersedes the note in the 0.2.0-era commit that introduced a
+  fixed seed for that comparison: the seed was pinning a degenerate
+  configural solution rather than curing a search failure, and it has
+  been removed.
+
 ## mixtureEM 0.2.0
 
 ### New: stepwise analyses on a fitted model

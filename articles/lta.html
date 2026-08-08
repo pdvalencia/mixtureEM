@@ -40,6 +40,7 @@
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
+    <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -176,9 +177,9 @@ a likelihood- ratio test of a time-homogeneous process:</p>
 <code class="sourceCode R"><span><span class="va">fit_hom</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_lta.html">fit_lta</a></span><span class="op">(</span><span class="va">sym</span>, n_statuses <span class="op">=</span> <span class="fl">2</span>, times <span class="op">=</span> <span class="fl">3</span>, measurement <span class="op">=</span> <span class="st">"binary"</span>,</span>
 <span>                   transition_invariance <span class="op">=</span> <span class="st">"full"</span>, n_init <span class="op">=</span> <span class="fl">20</span>,</span>
 <span>                   random_state <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
-<span><span class="fu"><a href="../reference/longitudinal_lrt.html">longitudinal_lrt</a></span><span class="op">(</span><span class="va">fit_hom</span>, <span class="va">fit</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/lr_test.html">lr_test</a></span><span class="op">(</span><span class="va">fit_hom</span>, <span class="va">fit</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Likelihood-ratio test for nested longitudinal models</span></span>
+<span><span class="co">#&gt; Likelihood-ratio test for nested models</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Restricted : LL =   -6439.2904   parameters = 11</span></span>
 <span><span class="co">#&gt;   Full       : LL =   -6438.5480   parameters = 13</span></span>

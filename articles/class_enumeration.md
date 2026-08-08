@@ -70,9 +70,9 @@ selection <- compare_mixtures(ratings, k_range = 1:5,
 #>   Classes       LL Params      AIC      BIC    SABIC Entropy
 #> 1       1 -524.465      7 1062.930 1082.324 1060.196   1.000
 #> 2       2 -318.159     15  666.318  707.878  660.459   0.963
-#> 3       3 -294.934     23  635.868  699.594  626.885   0.915
-#> 4       4 -290.738     31  643.477  729.368  631.369   0.852
-#> 5       5 -288.512     39  655.024  763.081  639.792   0.862
+#> 3       3 -294.935     23  635.869  699.595  626.886   0.915
+#> 4       4 -290.739     31  643.478  729.369  631.370   0.852
+#> 5       5 -288.512     39  655.025  763.082  639.793   0.862
 #> 
 #> -> Best model according to BIC: 3 classes
 ```
@@ -119,7 +119,7 @@ blrt_34
 #>   LR statistic     : 8.39
 #>   Bootstrap draws  : 50
 #> ---------------------------------------------------------
-#>   Bootstrap p      : p = 0.216
+#>   Bootstrap p      : p = 0.255
 #>   Conclusion       : no significant improvement over the 3-class model.
 #> =========================================================
 ```
@@ -139,10 +139,11 @@ fit
 #> =========================================================
 #> Classes Estimated  : 3
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 14 iterations)
+#> Converged          : TRUE (in 30 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -294.93
 #>   Rel. Entropy   : 0.9151
+#>   Best solution  : found by 30 of 30 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 44.49%
@@ -152,9 +153,9 @@ fit
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 class_sizes(fit)
 #>   class proportion n_expected n_modal
-#> 1     1  0.4448811   52.49598      51
-#> 2     2  0.3748993   44.23812      44
-#> 3     3  0.1802195   21.26590      23
+#> 1     1  0.4448697   52.49462      51
+#> 2     2  0.3749301   44.24175      44
+#> 3     3  0.1802002   21.26363      23
 classification_diagnostics(fit)
 #> =========================================================
 #>           AVERAGE POSTERIOR PROBABILITIES (AvePP)        
@@ -173,9 +174,9 @@ classification_diagnostics(fit)
 #> Rows: model-expected membership | Columns: modal assignment
 #> 
 #>         Modal 1 Modal 2 Modal 3    Total
-#> Class 1 50.7032  0.0000  1.9035  52.6067
-#> Class 2  0.0000 43.1793  1.1019  44.2812
-#> Class 3  0.2968  0.8207 19.9946  21.1121
+#> Class 1 50.7028  0.0000  1.9037  52.6065
+#> Class 2  0.0000 43.1801  1.1028  44.2829
+#> Class 3  0.2972  0.8199 19.9935  21.1106
 #> Total   51.0000 44.0000 23.0000 118.0000
 #> 
 #> Classification error: 0.0349 (3.49% of 118 cases)
@@ -197,9 +198,9 @@ absolute_fit(fit)
 #> 
 #> Statistic               Value    p-value
 #> ---------------------------------------- 
-#> L-squared             17.7180     1.0000
-#> X-squared             21.1142     1.0000
-#> Cressie-Read          18.5868     1.0000
+#> L-squared             17.7208     1.0000
+#> X-squared             21.1127     1.0000
+#> Cressie-Read          18.5874     1.0000
 #> =========================================================
 #> Note: the table is sparse, so the chi-square reference
 #>  distribution is unreliable. Prefer these statistics for
@@ -214,13 +215,13 @@ bivariate_residuals(fit)
 #> 
 #>          A        B        C        D        E        F
 #> B   0.1079
-#> C   0.3482   0.0021
-#> D   0.8050   0.7699   0.0063
-#> E   0.0836   0.0911   0.3764   0.4741
-#> F   0.1810   0.6100   0.0082   4.6749   0.2017
-#> G   0.2685   0.1094   0.3304   0.6490   0.2106   0.1738
+#> C   0.3483   0.0021
+#> D   0.8052   0.7693   0.0063
+#> E   0.0834   0.0912   0.3775   0.4720
+#> F   0.1809   0.6095   0.0082   4.6750   0.2022
+#> G   0.2684   0.1092   0.3305   0.6491   0.2106   0.1737
 #> 
-#> Largest: F x D = 4.6749
+#> Largest: F x D = 4.6750
 #> =========================================================
 ```
 

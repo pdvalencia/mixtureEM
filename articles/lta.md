@@ -122,9 +122,9 @@ ratio test of a time-homogeneous process:
 fit_hom <- fit_lta(sym, n_statuses = 2, times = 3, measurement = "binary",
                    transition_invariance = "full", n_init = 20,
                    random_state = 3)
-longitudinal_lrt(fit_hom, fit)
+lr_test(fit_hom, fit)
 #> 
-#> Likelihood-ratio test for nested longitudinal models
+#> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
 #>   Restricted : LL =   -6439.2904   parameters = 11
 #>   Full       : LL =   -6438.5480   parameters = 13

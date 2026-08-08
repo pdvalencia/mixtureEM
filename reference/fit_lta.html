@@ -30,7 +30,7 @@ change in the person with a change in what the status means, and the two
 cannot be told apart. Holding the item parameters equal across occasions
 removes that ambiguity, and is the usual practice (Collins &amp;amp; Lanza,
 sec. 7.11). It is a testable restriction: fit the model both ways and compare
-them with longitudinal_lrt().'><meta property="og:description" content='Fits a latent transition model: each person occupies a latent status at each
+them with lr_test().'><meta property="og:description" content='Fits a latent transition model: each person occupies a latent status at each
 occasion, measured by the same indicators every time, and may move between
 statuses from one occasion to the next. Where fit_rmlca() assigns a person
 one class for the whole study, fit_lta() estimates both the prevalence of
@@ -61,7 +61,7 @@ change in the person with a change in what the status means, and the two
 cannot be told apart. Holding the item parameters equal across occasions
 removes that ambiguity, and is the usual practice (Collins &amp;amp; Lanza,
 sec. 7.11). It is a testable restriction: fit the model both ways and compare
-them with longitudinal_lrt().'></head><body>
+them with lr_test().'></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -87,6 +87,7 @@ them with longitudinal_lrt().'></head><body>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
+    <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -134,7 +135,7 @@ change in the person with a change in what the status means, and the two
 cannot be told apart. Holding the item parameters equal across occasions
 removes that ambiguity, and is the usual practice (Collins &amp; Lanza,
 sec. 7.11). It is a testable restriction: fit the model both ways and compare
-them with <code><a href="longitudinal_lrt.html">longitudinal_lrt()</a></code>.</p>
+them with <code><a href="lr_test.html">lr_test()</a></code>.</p>
     </div>
 
     <div class="section level2">
@@ -172,6 +173,7 @@ them with <code><a href="longitudinal_lrt.html">longitudinal_lrt()</a></code>.</
 <span>  transition_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"common"</span>, <span class="st">"by_origin"</span><span class="op">)</span>,</span>
 <span>  group <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  group_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"both"</span>, <span class="st">"initial"</span>, <span class="st">"transitions"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
+<span>  bayes_constants <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -217,7 +219,7 @@ equal across occasions. <code>"none"</code> (the default) estimates a separate m
 for each pair of adjacent occasions; <code>"full"</code> shares one matrix throughout.
 Whether change happens at a constant rate is usually a substantive question
 rather than an assumption, and the two models are nested, so
-<code><a href="longitudinal_lrt.html">longitudinal_lrt()</a></code> tests it (Collins &amp; Lanza, sec. 7.14).</p></dd>
+<code><a href="lr_test.html">lr_test()</a></code> tests it (Collins &amp; Lanza, sec. 7.14).</p></dd>
 
 
 <dt id="arg-forbidden-transitions">forbidden_transitions<a class="anchor" aria-label="anchor" href="#arg-forbidden-transitions"></a></dt>
@@ -251,7 +253,7 @@ remaining classes being "movers" (Vermunt, 2004). Implies <code>n_classes = 2</c
 unless more are asked for,
 in which case only the last class is a stayer. The restricted rows cost no
 parameters, so the model is nested in the unrestricted mixture and
-<code><a href="longitudinal_lrt.html">longitudinal_lrt()</a></code> tests it.</p></dd>
+<code><a href="lr_test.html">lr_test()</a></code> tests it.</p></dd>
 
 
 <dt id="arg-layout-id-time-items-item-names-time-labels">layout, id, time, items, item_names, time_labels<a class="anchor" aria-label="anchor" href="#arg-layout-id-time-items-item-names-time-labels"></a></dt>
@@ -349,7 +351,14 @@ stays invariant across groups.</p></dd>
 <dd><p>Which parameters the grouping variable is allowed to
 shift: <code>"both"</code> (default), <code>"initial"</code>, <code>"transitions"</code> or <code>"none"</code>.
 Fitting the same data under two of these and comparing them with
-<code><a href="longitudinal_lrt.html">longitudinal_lrt()</a></code> gives the group-difference tests of sec. 8.6-8.8.</p></dd>
+<code><a href="lr_test.html">lr_test()</a></code> gives the group-difference tests of sec. 8.6-8.8.</p></dd>
+
+
+<dt id="arg-bayes-constants">bayes_constants<a class="anchor" aria-label="anchor" href="#arg-bayes-constants"></a></dt>
+<dd><p>Optional named list of prior strengths for the
+<em>measurement</em> model (<code>categorical</code>, <code>poisson</code>, <code>variances</code>); see
+<code><a href="fit_mixture.html">fit_mixture()</a></code>. The status and transition probabilities are governed by
+<code>smoothing</code> instead, so <code>latent</code> is not read here.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -371,9 +380,19 @@ its <code>"by_class"</code> attribute; <code><a href="status_prevalences.html">s
 errors are not available for a mixture over chains and <code>se</code> is <code>NULL</code>.</p>
     </div>
     <div class="section level2">
+    <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
+    <p>Collins, L. M., &amp; Lanza, S. T. (2010). <em>Latent Class and Latent
+Transition Analysis: With Applications in the Social, Behavioral, and Health
+Sciences</em>. Wiley (chapters 7-8).</p>
+<p>Nylund-Gibson, K., Grimm, R., Quirk, M., &amp; Furlong, M. (2014). A latent
+transition mixture model using the three-step specification.
+<em>Structural Equation Modeling</em>, <em>21</em>(3), 439-454.
+<a href="https://doi.org/10.1080/10705511.2014.915375" class="external-link">doi:10.1080/10705511.2014.915375</a></p>
+    </div>
+    <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
     <div class="dont-index"><p><code><a href="transition_matrix.html">transition_matrix()</a></code>, <code><a href="status_prevalences.html">status_prevalences()</a></code>,
-<code><a href="longitudinal_lrt.html">longitudinal_lrt()</a></code>, <code><a href="lta_g2.html">lta_g2()</a></code>, <code><a href="fit_rmlca.html">fit_rmlca()</a></code>.</p></div>
+<code><a href="lr_test.html">lr_test()</a></code>, <code><a href="lta_g2.html">lta_g2()</a></code>, <code><a href="fit_rmlca.html">fit_rmlca()</a></code>.</p></div>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

@@ -40,6 +40,7 @@
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
+    <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -121,28 +122,29 @@ warning.</p>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Classes Estimated  : 5</span></span>
 <span><span class="co">#&gt; Estimation Method  : 1-step</span></span>
-<span><span class="co">#&gt; Converged          : TRUE (in 12 iterations)</span></span>
+<span><span class="co">#&gt; Converged          : TRUE (in 486 iterations)</span></span>
 <span><span class="co">#&gt; Cases Removed      : 3 of 13917 with no observed indicator (n = 13914 analysed)</span></span>
 <span><span class="co">#&gt; Missing Data       : 7284 / 166968 cells (4.4%) in 12 items — FIML (MAR assumption)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Log-Likelihood : -47814.65</span></span>
-<span><span class="co">#&gt;   Rel. Entropy   : 0.8340</span></span>
+<span><span class="co">#&gt;   Rel. Entropy   : 0.8339</span></span>
+<span><span class="co">#&gt;   Best solution  : found by 7 of 20 starts</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; Class Weights (Sizes):</span></span>
 <span><span class="co">#&gt;   Class 1: 70.12%</span></span>
-<span><span class="co">#&gt;   Class 2: 12.68%</span></span>
-<span><span class="co">#&gt;   Class 3: 8.25%</span></span>
-<span><span class="co">#&gt;   Class 4: 4.92%</span></span>
-<span><span class="co">#&gt;   Class 5: 4.03%</span></span>
+<span><span class="co">#&gt;   Class 2: 12.67%</span></span>
+<span><span class="co">#&gt;   Class 3: 8.26%</span></span>
+<span><span class="co">#&gt;   Class 4: 4.93%</span></span>
+<span><span class="co">#&gt;   Class 5: 4.02%</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span>
 <span><span class="fu"><a href="../reference/class_sizes.html">class_sizes</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   class proportion n_expected    n_modal</span></span>
-<span><span class="co">#&gt; 1     1 0.70117440  9756.1407 10136.8160</span></span>
-<span><span class="co">#&gt; 2     2 0.12683859  1764.8322  1592.7332</span></span>
-<span><span class="co">#&gt; 3     3 0.08246433  1147.4087   997.4884</span></span>
-<span><span class="co">#&gt; 4     4 0.04923695   685.0829   639.3167</span></span>
-<span><span class="co">#&gt; 5     5 0.04028572   560.5355   547.6457</span></span></code></pre></div>
+<span><span class="co">#&gt; 1     1 0.70118277  9756.2571 10136.8160</span></span>
+<span><span class="co">#&gt; 2     2 0.12671398  1763.0983  1592.7332</span></span>
+<span><span class="co">#&gt; 3     3 0.08258101  1149.0322   997.4884</span></span>
+<span><span class="co">#&gt; 4     4 0.04927445   685.6046   639.3167</span></span>
+<span><span class="co">#&gt; 5     5 0.04024779   560.0078   547.6457</span></span></code></pre></div>
 <p>The five classes reproduce the familiar YRBS typology — a large
 low-risk class, substance-experimentation classes, and a small
 high-everything class:</p>
@@ -161,14 +163,14 @@ high-everything class:</p>
 <span><span class="co">#&gt; smoked_before_13      |   0.039 |   0.615 |   0.130 |   0.207 |   0.871</span></span>
 <span><span class="co">#&gt; smoked_daily_30d      |   0.026 |   0.302 |   0.251 |   0.561 |   0.737</span></span>
 <span><span class="co">#&gt; drove_drinking        |   0.009 |   0.109 |   0.533 |   0.295 |   0.493</span></span>
-<span><span class="co">#&gt; first_drink_before_13 |   0.138 |   0.695 |   0.236 |   0.207 |   0.891</span></span>
-<span><span class="co">#&gt; binge_drink_30d       |   0.085 |   0.429 |   0.968 |   0.603 |   0.862</span></span>
-<span><span class="co">#&gt; marijuana_before_13   |   0.005 |   0.370 |   0.037 |   0.059 |   0.780</span></span>
-<span><span class="co">#&gt; cocaine_ever          |   0.003 |   0.042 |   0.056 |   0.645 |   0.846</span></span>
+<span><span class="co">#&gt; first_drink_before_13 |   0.138 |   0.696 |   0.236 |   0.208 |   0.891</span></span>
+<span><span class="co">#&gt; binge_drink_30d       |   0.085 |   0.429 |   0.967 |   0.603 |   0.862</span></span>
+<span><span class="co">#&gt; marijuana_before_13   |   0.005 |   0.370 |   0.037 |   0.060 |   0.781</span></span>
+<span><span class="co">#&gt; cocaine_ever          |   0.003 |   0.042 |   0.055 |   0.645 |   0.845</span></span>
 <span><span class="co">#&gt; glue_ever             |   0.060 |   0.186 |   0.147 |   0.417 |   0.636</span></span>
 <span><span class="co">#&gt; meth_ever             |   0.003 |   0.024 |   0.016 |   0.565 |   0.680</span></span>
 <span><span class="co">#&gt; ecstasy_ever          |   0.005 |   0.064 |   0.066 |   0.416 |   0.637</span></span>
-<span><span class="co">#&gt; sex_before_13         |   0.020 |   0.245 |   0.011 |   0.034 |   0.376</span></span>
+<span><span class="co">#&gt; sex_before_13         |   0.020 |   0.245 |   0.011 |   0.035 |   0.376</span></span>
 <span><span class="co">#&gt; sex_4plus_partners    |   0.054 |   0.306 |   0.282 |   0.382 |   0.588</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Missing data: 7284 of 166968 cells (4.4%) across 12 items, handled via FIML (MAR assumption).</span></span>
@@ -198,37 +200,37 @@ clusters.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 2 ON</span></span>
 <span><span class="co">#&gt;   Intercept                0.180  [    0.146,     0.222]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.10                 0.742  [    0.622,     0.885]    &lt; .001</span></span>
+<span><span class="co">#&gt;   grade.10                 0.742  [    0.622,     0.886]    &lt; .001</span></span>
 <span><span class="co">#&gt;   grade.11                 0.574  [    0.448,     0.734]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.12                 0.475  [    0.360,     0.626]    &lt; .001</span></span>
+<span><span class="co">#&gt;   grade.12                 0.474  [    0.360,     0.625]    &lt; .001</span></span>
 <span><span class="co">#&gt;   sex.Male                 1.795  [    1.508,     2.136]    &lt; .001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 3 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.005  [    0.000,     0.124]     0.001</span></span>
-<span><span class="co">#&gt;   grade.10                13.245  [    0.547,   320.836]     0.112</span></span>
-<span><span class="co">#&gt;   grade.11                31.785  [    1.336,   756.475]     0.032</span></span>
-<span><span class="co">#&gt;   grade.12                53.759  [    2.121,  1362.381]     0.016</span></span>
-<span><span class="co">#&gt;   sex.Male                 1.310  [    1.061,     1.618]     0.012</span></span>
+<span><span class="co">#&gt;   Intercept                0.005  [    0.000,     0.127]     0.001</span></span>
+<span><span class="co">#&gt;   grade.10                13.274  [    0.537,   328.178]     0.114</span></span>
+<span><span class="co">#&gt;   grade.11                31.851  [    1.311,   773.637]     0.033</span></span>
+<span><span class="co">#&gt;   grade.12                53.882  [    2.083,  1393.745]     0.016</span></span>
+<span><span class="co">#&gt;   sex.Male                 1.310  [    1.061,     1.617]     0.012</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 4 ON</span></span>
 <span><span class="co">#&gt;   Intercept                0.042  [    0.026,     0.067]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.10                 1.669  [    0.868,     3.209]     0.125</span></span>
-<span><span class="co">#&gt;   grade.11                 2.900  [    1.878,     4.478]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.12                 2.728  [    1.749,     4.256]    &lt; .001</span></span>
-<span><span class="co">#&gt;   sex.Male                 0.708  [    0.562,     0.893]     0.004</span></span>
+<span><span class="co">#&gt;   grade.10                 1.667  [    0.867,     3.205]     0.125</span></span>
+<span><span class="co">#&gt;   grade.11                 2.898  [    1.878,     4.473]    &lt; .001</span></span>
+<span><span class="co">#&gt;   grade.12                 2.727  [    1.748,     4.253]    &lt; .001</span></span>
+<span><span class="co">#&gt;   sex.Male                 0.709  [    0.562,     0.894]     0.004</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 5 ON</span></span>
 <span><span class="co">#&gt;   Intercept                0.041  [    0.030,     0.056]    &lt; .001</span></span>
 <span><span class="co">#&gt;   grade.10                 0.928  [    0.637,     1.351]     0.696</span></span>
-<span><span class="co">#&gt;   grade.11                 0.771  [    0.519,     1.144]     0.197</span></span>
-<span><span class="co">#&gt;   grade.12                 0.912  [    0.651,     1.276]     0.590</span></span>
-<span><span class="co">#&gt;   sex.Male                 2.125  [    1.640,     2.753]    &lt; .001</span></span>
+<span><span class="co">#&gt;   grade.11                 0.771  [    0.519,     1.144]     0.196</span></span>
+<span><span class="co">#&gt;   grade.12                 0.911  [    0.651,     1.276]     0.589</span></span>
+<span><span class="co">#&gt;   sex.Male                 2.126  [    1.641,     2.755]    &lt; .001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;                          Wald Chi2   df  P-Value</span></span>
-<span><span class="co">#&gt;   grade                    325.934   12    &lt; .001</span></span>
-<span><span class="co">#&gt;   sex                       70.689    4    &lt; .001</span></span>
+<span><span class="co">#&gt;   grade                    325.895   12    &lt; .001</span></span>
+<span><span class="co">#&gt;   sex                       70.629    4    &lt; .001</span></span>
 <span><span class="co">#&gt;   Note: a non-significant test beside large coefficients can be the</span></span>
 <span><span class="co">#&gt;         Hauck-Donner effect; confirm with wald_omnibus_test().</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>

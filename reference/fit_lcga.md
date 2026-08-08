@@ -130,6 +130,17 @@ usual fields it carries `$growth`, holding the design matrix, time
 scores, family, per-class coefficients, the fitted trajectories, and —
 for `family = "gaussian"` — the per-class residual variance.
 
+## References
+
+Nagin, D. S. (1999). Analyzing developmental trajectories: A
+semiparametric, group-based approach. *Psychological Methods*, *4*(2),
+139-157.
+[doi:10.1037/1082-989X.4.2.139](https://doi.org/10.1037/1082-989X.4.2.139)
+
+Nagin, D. S., & Odgers, C. L. (2010). Group-based trajectory modeling in
+clinical research. *Annual Review of Clinical Psychology*, *6*, 109-138.
+[doi:10.1146/annurev.clinpsy.121208.131413](https://doi.org/10.1146/annurev.clinpsy.121208.131413)
+
 ## See also
 
 [`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md)
@@ -174,6 +185,7 @@ fit
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1032.42
 #>   Rel. Entropy   : 0.6318
+#>   Best solution  : found by 5 of 5 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 58.21%

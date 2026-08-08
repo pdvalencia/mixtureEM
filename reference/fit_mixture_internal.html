@@ -31,6 +31,7 @@ estimation with optional bias correction."></head><body>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
+    <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -66,7 +67,7 @@ estimation with optional bias correction.</p>
 <span>  structural <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_steps <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  correction <span class="op">=</span> <span class="st">"none"</span>,</span>
-<span>  n_init <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  n_init <span class="op">=</span> <span class="fl">20</span>,</span>
 <span>  max_iter <span class="op">=</span> <span class="fl">1000</span>,</span>
 <span>  random_state <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  order_by_size <span class="op">=</span> <span class="cn">TRUE</span>,</span>
@@ -75,6 +76,8 @@ estimation with optional bias correction.</p>
 <span>  strata <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  cluster <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  refine <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  bayes_constants <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  warm_start <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  se <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"corrected"</span>, <span class="st">"robust"</span>, <span class="st">"hessian"</span><span class="op">)</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -145,7 +148,7 @@ One of <code>"none"</code>, <code>"BCH"</code>, or <code>"ML"</code>. Ignored wh
 
 <dt id="arg-n-init">n_init<a class="anchor" aria-label="anchor" href="#arg-n-init"></a></dt>
 <dd><p>Positive integer. Number of random restarts. The solution
-with the highest log-likelihood is retained. Default is <code>1</code>.</p></dd>
+with the highest log-likelihood is retained. Default is <code>20</code>.</p></dd>
 
 
 <dt id="arg-max-iter">max_iter<a class="anchor" aria-label="anchor" href="#arg-max-iter"></a></dt>
@@ -185,6 +188,12 @@ identical cases and set the effective sample size).</p></dd>
 <dt id="arg-refine">refine<a class="anchor" aria-label="anchor" href="#arg-refine"></a></dt>
 <dd><p>Logical. If <code>TRUE</code> (default), applies L-BFGS refinement
 after EM convergence to optimize the penalized maximum likelihood.</p></dd>
+
+
+<dt id="arg-bayes-constants">bayes_constants<a class="anchor" aria-label="anchor" href="#arg-bayes-constants"></a></dt>
+<dd><p>Optional named list of prior strengths
+(<code>latent</code>, <code>categorical</code>, <code>poisson</code>, <code>variances</code>), each
+defaulting to <code>1</code>. See <code><a href="fit_mixture.html">fit_mixture</a></code>.</p></dd>
 
 
 <dt id="arg-se">se<a class="anchor" aria-label="anchor" href="#arg-se"></a></dt>
@@ -233,10 +242,11 @@ Use <code>exp(fit$log_resp)</code> to obtain posterior probabilities.</p></li>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Classes Estimated  : 3</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Estimation Method  : 1-step</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Converged          : TRUE (in 5 iterations)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Converged          : TRUE (in 252 iterations)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> ---------------------------------------------------------</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Log-Likelihood : -337.02</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Rel. Entropy   : 0.4579</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Rel. Entropy   : 0.4577</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Best solution  : found by 5 of 5 starts</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> ---------------------------------------------------------</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Class Weights (Sizes):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Class 1: 47.50%</span>
@@ -257,7 +267,7 @@ Use <code>exp(fit$log_resp)</code> to obtain posterior probabilities.</p></li>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Item_1               |   0.345 |   0.724 |   0.441</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Item_2               |   0.737 |   0.462 |   0.229</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Item_3               |   0.266 |   0.829 |   0.027</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Item_4               |   0.635 |   0.367 |   0.083</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Item_4               |   0.635 |   0.366 |   0.083</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Item_5               |   0.473 |   0.367 |   0.599</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-in"><span></span></span>
@@ -284,8 +294,8 @@ Use <code>exp(fit$log_resp)</code> to obtain posterior probabilities.</p></li>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                               OR         [95% CI]         P-Value</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Class 2 ON</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Intercept                0.678  [    0.010,    48.223]     0.858</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   V1                       2.306  [    0.258,    20.622]     0.455</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Intercept                0.707  [    0.013,    38.318]     0.865</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   V1                       0.765  [    0.268,     2.181]     0.616</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

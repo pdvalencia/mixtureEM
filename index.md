@@ -4,23 +4,28 @@
 experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 [![R-CMD-check](https://github.com/pdvalencia/mixtureEM/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/pdvalencia/mixtureEM/actions/workflows/R-CMD-check.yaml)
 
-**mixtureEM** is latent class and latent profile analysis for applied
-researchers: find the hidden subgroups in your data, describe them
-(Collins & Lanza, 2010).
+Latent class and latent profile analysis for applied researchers.
 
-If you have ever run an LCA, assigned everyone to their most likely
-class, and then run chi-squares on the labels, this package exists for
-you: the step that is easiest to get wrong (relating classes to external
-variables) is the one mixtureEM automates correctly, using the
-bias-adjusted three-step estimators from the methodological literature
-(Bakk et al., 2014; Vermunt, 2010).
+**mixtureEM** helps you find hidden subgroups in your data and describe
+them (Collins & Lanza, 2010).
 
-And if you have never run an LCA, this package exists for you too: every
-step ships with a sensible default and output that reads like the table
-you would put in a paper, so you do not need the estimation theory
-memorized to get correct answers out.
+- If you have ever run an LCA, assigned everyone to their most likely
+  class, and then run ANOVAs or chi-squares on the labels, this package
+  exists for you. The step that is easiest to get wrong — relating
+  classes to external variables — is the one mixtureEM automates
+  correctly, using the bias-adjusted three-step estimators from the
+  methodological literature (Bakk et al., 2014; Vermunt, 2010).
+- If you have never run an LCA, this package exists for you too. Every
+  step ships with a sensible default, and the output reads like the
+  table you would put in a paper, so you do not need the estimation
+  theory memorized to get correct answers out.
+
+------------------------------------------------------------------------
 
 ## Installation
+
+You can install the development version from GitHub using the
+[pak](https://pak.r-lib.org/) package:
 
 ``` r
 
@@ -28,10 +33,15 @@ memorized to get correct answers out.
 pak::pkg_install("pdvalencia/mixtureEM")
 ```
 
-## A complete analysis in a handful of calls
+------------------------------------------------------------------------
 
-Using the bundled `ventura_leon` data — 16 yes/no infidelity items from
-400 young adults (Ventura-León et al., 2025):
+## Quick start
+
+A complete analysis takes just a handful of calls. Using the bundled
+`ventura_leon` data — 16 yes/no infidelity items from 400 young adults
+(run
+[`?ventura_leon`](https://pdvalencia.github.io/mixtureEM/reference/ventura_leon.md)
+for dataset details) — you can fit a model and view the class sizes:
 
 ``` r
 
@@ -47,20 +57,27 @@ class_sizes(fit)
 #> 4     4  0.1443723   57.74891      58
 ```
 
+You can then easily plot the item-response probabilities to interpret
+the classes:
+
 ``` r
 
 plot(fit, class_labels = c("Fidelity", "Affective interest",
                            "Infidelity", "Sexual desire"))
 ```
 
-![](reference/figures/README-example-plot-1.png)
+![Item-response probabilities for the four fitted classes across the 16
+infidelity items, one line per
+class.](reference/figures/README-example-plot-1.png)
 
-Choosing how many classes to keep, reading the full item-response table,
-relating classes to covariates with a bias correction, and describing
-them by a distal outcome are each one function call away — the
-[`ventura_leon` worked
-example](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html)
-walks through all of it on this exact fit.
+> Choosing how many classes to keep, reading the full item-response
+> table, relating classes to covariates with a bias correction, and
+> describing them by a distal outcome are each one function call away.
+> The [`ventura_leon` worked
+> example](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html)
+> walks through all of it on this exact fit.
+
+------------------------------------------------------------------------
 
 ## What it covers
 
@@ -85,6 +102,8 @@ classification diagnostics, and standard errors that account for the
 classes being estimated rather than observed
 ([`?covariate_se`](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md)).
 
+------------------------------------------------------------------------
+
 ## Design principles
 
 - **Conceptual workflow.** Choose a model, *then* examine covariates and
@@ -96,17 +115,18 @@ classes being estimated rather than observed
   otherwise; where a default has a literature, the default follows it.
 - **Readable output, reusable numbers.** Summaries print as formatted
   tables *and* return tidy data frames.
-- **No dependency stack.** Base R only, so it installs anywhere R does.
+- **No dependency stack.** Built using base R only, meaning it installs
+  cleanly anywhere R does.
+
+------------------------------------------------------------------------
 
 ## Citation
 
 If you use mixtureEM in published research, please cite it as:
 
-``` R
-Valencia, P. D. (2026). mixtureEM: Latent class and profile analysis via
-mixture modelling (Version 0.2.0) [R package].
-https://github.com/pdvalencia/mixtureEM
-```
+> Valencia, P. D. (2026). mixtureEM: Latent class and profile analysis
+> via mixture modelling (Version 0.2.0) \[R package\].
+> <https://github.com/pdvalencia/mixtureEM>
 
 ## Acknowledgements
 

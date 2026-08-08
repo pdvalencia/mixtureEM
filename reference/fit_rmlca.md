@@ -21,7 +21,7 @@ for missing data — applies unchanged.
 a class label mean the same thing at every occasion and sharply reduces
 the number of free parameters; leaving them free lets an item behave
 differently over time. The two models are nested, so
-[`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
 tests the restriction directly.
 
 ## Usage
@@ -123,9 +123,15 @@ An object of class `c("rmlca", "mixture_model")`. In addition to the
 usual fields it carries `$longitudinal`, holding the item and occasion
 labels, the invariance specification and the wave-missingness pattern.
 
+## References
+
+Collins, L. M., & Lanza, S. T. (2010). *Latent Class and Latent
+Transition Analysis: With Applications in the Social, Behavioral, and
+Health Sciences*. Wiley (sec. 6.10).
+
 ## See also
 
 [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
 for a model in which class membership may change between occasions, and
-[`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
 for testing invariance.

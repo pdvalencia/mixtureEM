@@ -16,3 +16,8 @@
   Models](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.md):
 - [LCA with Complex Survey
   Data](https://pdvalencia.github.io/mixtureEM/articles/survey_lca.md):
+
+### Reference
+
+- [What mixtureEM Estimates, and
+  Why](https://pdvalencia.github.io/mixtureEM/articles/estimation.md):

@@ -33,6 +33,7 @@ by the classes."></head><body>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
+    <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -73,9 +74,11 @@ by the classes.</p>
 <span>  group <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  group_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"both"</span>, <span class="st">"measurement"</span>, <span class="st">"prevalence"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
 <span>  group_invariant_items <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  group_invariant_params <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  variances_equal <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  n_steps <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  correction <span class="op">=</span> <span class="st">"none"</span>,</span>
-<span>  n_init <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  n_init <span class="op">=</span> <span class="fl">20</span>,</span>
 <span>  max_iter <span class="op">=</span> <span class="fl">1000</span>,</span>
 <span>  random_state <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  order_by_size <span class="op">=</span> <span class="cn">TRUE</span>,</span>
@@ -84,6 +87,7 @@ by the classes.</p>
 <span>  strata <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  cluster <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  refine <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  bayes_constants <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  se <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"corrected"</span>, <span class="st">"robust"</span>, <span class="st">"hessian"</span><span class="op">)</span>,</span>
 <span>  X <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  Y <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -107,16 +111,25 @@ latent classes (rows are observations, columns are items).</p></dd>
 
 
 <dt id="arg-measurement">measurement<a class="anchor" aria-label="anchor" href="#arg-measurement"></a></dt>
-<dd><p>Either a single type string applied to every indicator
-(<code>"binary"</code>, <code>"categorical"</code>, <code>"continuous"</code>,
-<code>"gaussian"</code>, <code>"count"</code>, and <code>"_nan"</code> missing-data
-variants), or, for a mixed-type model, a named list mapping each type to
-the indicator columns it governs by name or index, e.g.
+<dd><p>What kind of variables the indicators are. Either one type
+string for all of them — <code>"binary"</code>, <code>"categorical"</code>,
+<code>"continuous"</code>, <code>"gaussian"</code>, <code>"count"</code> — or, for a
+mixed-type model, a named list mapping each type to the columns it governs
+by name or index, e.g.
 <code>list(binary = c("q1","q2"), continuous = "score")</code>.</p>
-<p><code>"count"</code> fits a Poisson measurement model: each item is
-Poisson-distributed within class with its own rate, reported by
-<code><a href="measurement_summary.html">measurement_summary</a></code> as a rate (lambda) per item and class.
-It requires non-negative integer indicators.</p></dd>
+<p><strong>Missing values need no special handling.</strong> Any indicator containing
+<code>NA</code> is estimated by full-information maximum likelihood under the
+usual missing-at-random assumption, chosen automatically; cases missing on
+every indicator are dropped, with a warning saying how many. There is
+nothing to switch on. (The <code>"*_nan"</code> spellings are still accepted, and
+force the same estimator, but they are a leftover and you do not need them.)</p>
+<p><strong>Binary items need not be coded 0/1.</strong> A two-level factor or
+character, a logical, or any pair of numbers — 1/2 is the commonest — is
+converted for you, with a message saying which level became the 1, since
+that is what the reported probabilities refer to.</p>
+<p><code>"categorical"</code> expects integer codes running 1, 2, 3, ...; add 1 to a
+0-based item. <code>"count"</code> fits a Poisson model, one rate per item and
+class, and needs non-negative integers.</p></dd>
 
 
 <dt id="arg-predictors">predictors<a class="anchor" aria-label="anchor" href="#arg-predictors"></a></dt>
@@ -156,35 +169,36 @@ themselves; see <code>group_effects</code>.</p></dd>
 
 
 <dt id="arg-group-effects">group_effects<a class="anchor" aria-label="anchor" href="#arg-group-effects"></a></dt>
-<dd><p>Which parameters <code>group</code> is allowed to shift.
-<code>"both"</code> (default) frees both the item-response probabilities and
-the class prevalences across groups, i.e. fits each group's own
-model. <code>"measurement"</code> frees only the item-response probabilities
-(prevalences stay pooled). <code>"prevalence"</code> frees only the class
-prevalences, by entering <code>group</code> as a class-membership covariate
-exactly like <code>predictors</code> (item-response probabilities stay
-invariant across groups) — this is the same equivalence
-<code><a href="fit_rmlca.html">fit_rmlca()</a></code> documents for its own <code>predictors</code>, sec. 6.10.2.
-<code>"none"</code> ignores <code>group</code> for estimation. Fit the same data
-under two of these and compare them with <code><a href="longitudinal_lrt.html">longitudinal_lrt()</a></code> to get
-Collins &amp; Lanza's measurement-invariance test (sec. 5.8, comparing
-<code>"both"</code> against <code>"prevalence"</code>) and prevalence-equivalence
-test (sec. 5.11, comparing <code>"prevalence"</code> against <code>"none"</code>).
-Because a multiple-group model like Collins &amp; Lanza's is fit as one
-simultaneous model rather than through the auxiliary-variable 3-step
-approximation, pass <code>n_steps = 1</code> explicitly to reproduce their
-numbers exactly.</p>
-<p>With <code>"both"</code> or <code>"measurement"</code>, each group's item-response
-probabilities are estimated from that group's cases alone, tied to the
-other groups only by shared initialization — unlike occasions in
-<code><a href="fit_rmlca.html">fit_rmlca()</a></code>, which every case informs simultaneously. A likelihood-
-ratio comparison via <code><a href="longitudinal_lrt.html">longitudinal_lrt()</a></code> is unaffected (it only
-compares total log-likelihoods), but the <em>class labels</em> a configural fit
-assigns are not guaranteed to line up across groups: "Class 1" in one
-group's profile need not be the same kind of class as "Class 1" in
-another's. Use a larger <code>n_init</code> and a fixed <code>random_state</code>
-for configural fits, and when reading per-group profiles, match classes
-by their item-response pattern rather than by position.</p></dd>
+<dd><p>What you are allowing the groups to differ in. Pick by
+the question you are asking:</p>
+<dl><dt><code>"prevalence"</code></dt>
+<dd><p>Do the groups differ in <em>how many</em> people
+fall in each class? The classes themselves mean the same thing in every
+group; only their sizes move. This is the model most applied analyses
+want.</p></dd>
+
+<dt><code>"both"</code> (default)</dt>
+<dd><p>Does each group need its <em>own</em> class
+solution? Both the class sizes and what the classes look like are free
+to differ — the configural model.</p></dd>
+
+<dt><code>"none"</code></dt>
+<dd><p>Ignore the grouping variable when estimating.</p></dd>
+
+
+</dl><p><strong>The usual workflow</strong> is to fit <code>"prevalence"</code> and <code>"both"</code>
+and compare them with <code><a href="lr_test.html">lr_test()</a></code>. That is the test of measurement
+invariance (Collins &amp; Lanza, 2010, sec. 5.8): it asks whether letting the
+classes mean different things in different groups buys a significantly
+better fit. If it does not — the common outcome, and the one you want — keep
+<code>"prevalence"</code> and report the group differences in class sizes, which
+are then comparable across groups because the classes are. Comparing
+<code>"none"</code> against <code>"prevalence"</code> tests whether the sizes differ at
+all (sec. 5.11). Pass <code>n_steps = 1</code> for both fits.</p>
+<p>There is a fourth setting, <code>"measurement"</code>, which frees the item
+parameters while holding the class sizes pooled. It answers an unusual
+question and is rarely what is wanted; <code>"both"</code> is the configural model
+the invariance literature actually compares against.</p></dd>
 
 
 <dt id="arg-group-invariant-items">group_invariant_items<a class="anchor" aria-label="anchor" href="#arg-group-invariant-items"></a></dt>
@@ -192,6 +206,33 @@ by their item-response pattern rather than by position.</p></dd>
 groups even when <code>group_effects</code> frees the measurement model
 (Collins &amp; Lanza's partial-invariance models, sec. 5.9). <code>NULL</code>
 (the default) leaves every item free, i.e. a fully configural model.</p></dd>
+
+
+<dt id="arg-group-invariant-params">group_invariant_params<a class="anchor" aria-label="anchor" href="#arg-group-invariant-params"></a></dt>
+<dd><p>For continuous indicators, which <em>kind</em>
+of parameter is held equal across groups when <code>group_effects</code> frees
+the measurement model: <code>"means"</code>, <code>"covariances"</code>, or both.
+<code>NULL</code> (the default) frees everything. Where
+<code>group_invariant_items</code> shares whole items, this shares one parameter
+matrix for every item — which is the model the latent-profile invariance
+literature actually fits: Olivera-Aguilar and Rikoon's (2018)
+"unconstrained" model frees the class means across groups while holding the
+indicator variances invariant, i.e.
+<code>group_invariant_params = "covariances"</code>, and it is that model, not
+the fully heterogeneous one, that their invariance test compares against.
+The two are alternatives, not combinable. Categorical indicators have a
+single kind of parameter, so for them this constraint and
+<code>group_invariant_items</code> coincide and only the latter is offered.</p></dd>
+
+
+<dt id="arg-variances-equal">variances_equal<a class="anchor" aria-label="anchor" href="#arg-variances-equal"></a></dt>
+<dd><p>Logical, for continuous indicators only: hold each
+item's variance equal across the classes, so the classes differ in location
+only. This is the homoscedastic latent profile model and the default
+parameterisation of several commercial programs, and it combines with
+<code>group_invariant_params</code> to give a variance that is free across groups
+but shared by the classes within each. Passed through to the measurement
+model, so it is also available on an ordinary single-group fit.</p></dd>
 
 
 <dt id="arg-n-steps">n_steps<a class="anchor" aria-label="anchor" href="#arg-n-steps"></a></dt>
@@ -209,8 +250,14 @@ outcomes, BCH for continuous outcomes).</p></dd>
 
 <dt id="arg-n-init-max-iter-random-state-order-by-size-refine">n_init, max_iter, random_state, order_by_size, refine<a class="anchor" aria-label="anchor" href="#arg-n-init-max-iter-random-state-order-by-size-refine"></a></dt>
 <dd><p>Estimation
-controls: number of random starts, maximum EM iterations, RNG seed,
-whether to order classes by size, and whether to run L-BFGS refinement.</p></dd>
+controls: number of random starts (default 20), maximum EM iterations, RNG
+seed, whether to order classes by size, and whether to run L-BFGS
+refinement.</p>
+<p>A mixture likelihood usually has several local maxima, so a single start is
+a coin toss rather than an estimate; the fit reports how many of the starts
+reached the solution it kept. If that count is 1, raise <code>n_init</code> and
+refit — a maximum found once may simply be the best of a small sample of
+the surface. Set <code>random_state</code> to make the search reproducible.</p></dd>
 
 
 <dt id="arg-weights-strata-cluster">weights, strata, cluster<a class="anchor" aria-label="anchor" href="#arg-weights-strata-cluster"></a></dt>
@@ -228,6 +275,49 @@ relative sizes matter, so they are rescaled to sum to the number of cases.
 response-pattern table where one row stands for many respondents; the
 sample size behind AIC and BIC is then the sum of the counts. Getting this
 wrong changes BIC but not the parameter estimates.</p></dd>
+
+
+<dt id="arg-bayes-constants">bayes_constants<a class="anchor" aria-label="anchor" href="#arg-bayes-constants"></a></dt>
+<dd><p>Optional list adjusting the strength of the weak
+priors the estimator places on each block of parameters. Named
+<code>latent</code> (class weights and, in the transition models, the initial
+and transition probabilities), <code>categorical</code> (item-response
+probabilities), <code>poisson</code> (count rates), and <code>variances</code>
+(class-specific variances of continuous indicators); all default to
+<code>1</code>. Each is a number of pseudo-observations spread over the classes,
+so its influence shrinks as the sample grows.</p>
+<p>Two uses. <strong>Reproducing an unregularized fit:</strong> setting a constant to
+<code>0</code> removes that prior and gives plain maximum likelihood for that
+block. This is an escape hatch for matching a reference analysis, not a
+recommended setting — the unpenalised mixture likelihood is unbounded, and
+maximum likelihood for a mixture of normals is known to be inconsistent
+without some such restriction (Kiefer &amp; Wolfowitz, 1956).</p>
+<p><strong>Rescuing a collapsed fit:</strong> if a fit warns that a class variance has
+collapsed, the prior is one of three remedies, and not the first to reach
+for. Constraining the variances to be equal across classes
+(<code>variances_equal = TRUE</code>) bounds the likelihood so the problem cannot
+arise at all; fitting fewer classes often removes the class that was
+describing a spike. Where neither is acceptable substantively, raise
+<code>variances</code>. A useful starting point is <strong>one artificial
+observation per class</strong>, i.e. <code>variances = n_classes</code>, doubling it if
+the warning persists. State it that way rather than as a bare number: the
+constant is divided among the classes, so a fixed value is a different
+amount of prior at every <code>n_classes</code>. Then check the result rather
+than just that the warning stopped — the flagged variance should no longer
+be far below the others in the model, and its class mean should have come
+off the floor or ceiling of the response scale.</p>
+<p>Raising <code>n_init</code> is <em>not</em> a remedy here. A collapsed variance is
+not a convergence failure but a property of the likelihood, which really is
+unbounded in that direction, so a longer search can find a taller spike and
+report a better log-likelihood for a worse solution. For the same reason a
+flagged fit's BIC is not comparable with a clean fit's.</p>
+<p>The theory behind the prior settles its form and not its size: a penalty
+that diverges as a variance approaches zero and grows more slowly than the
+sample yields a consistent estimator whatever its constant (Chen, Tan, &amp;
+Zhang, 2008). The choice of constant is therefore a finite-sample judgement,
+which is why the default is deliberately weak and the guidance above is a
+rule with a check rather than a magic value.</p>
+<p>This is not a tuning menu. The defaults are the intended settings.</p></dd>
 
 
 <dt id="arg-se">se<a class="anchor" aria-label="anchor" href="#arg-se"></a></dt>
@@ -252,6 +342,50 @@ backward compatibility; prefer <code>indicators</code>, <code>n_classes</code>,
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A fitted <code>mixture_model</code> object.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="multiple-group-models">Multiple-group models<a class="anchor" aria-label="anchor" href="#multiple-group-models"></a></h2>
+
+
+<p>Under <code>group_effects = "both"</code> or <code>"measurement"</code> each group's item
+parameters are estimated from that group's own cases, so the <em>class
+labels</em> need not line up across groups: "Class 1" in one group's profile is
+not guaranteed to be the same kind of class as "Class 1" in another's. Read
+the per-group profiles by their item patterns rather than by position. The
+likelihood-ratio comparison is unaffected, since it only differences total
+log-likelihoods.</p>
+<p>The log-likelihood is that of the indicators <em>given</em> the group; the
+grouping variable's own distribution is not modelled and its proportions are
+not counted as parameters. Software that treats a known grouping variable as
+a latent class variable observed without error adds both. For
+comparison with such output, a <code>group</code> fit also carries
+<code>metrics$ll_knownclass</code> and <code>metrics$n_params_knownclass</code>; the
+difference is a fixed constant and cancels in <code><a href="lr_test.html">lr_test()</a></code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
+    <p>Collins, L. M., &amp; Lanza, S. T. (2010). <em>Latent Class and Latent
+Transition Analysis: With Applications in the Social, Behavioral, and Health
+Sciences</em>. Wiley.</p>
+<p>Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
+T. D. Little (Ed.), <em>The Oxford Handbook of Quantitative Methods</em>
+(Vol. 2, pp. 551-611). Oxford University Press.</p>
+<p>Vermunt, J. K., &amp; Magidson, J. (2002). Latent class cluster analysis. In
+J. A. Hagenaars &amp; A. L. McCutcheon (Eds.), <em>Applied Latent Class
+Analysis</em> (pp. 89-106). Cambridge University Press.</p>
+<p>Galindo Garre, F., &amp; Vermunt, J. K. (2006). Avoiding boundary estimates in
+latent class analysis by Bayesian posterior mode estimation.
+<em>Behaviormetrika</em>, <em>33</em>(1), 43-59. <a href="https://doi.org/10.2333/bhmk.33.43" class="external-link">doi:10.2333/bhmk.33.43</a>
+
+(the priors behind <code>bayes_constants</code>).</p>
+<p>Kiefer, J., &amp; Wolfowitz, J. (1956). Consistency of the maximum likelihood
+estimator in the presence of infinitely many incidental parameters.
+<em>The Annals of Mathematical Statistics</em>, <em>27</em>(4), 887-906.</p>
+<p>McLachlan, G. J., &amp; Peel, D. (2000). <em>Finite Mixture Models</em>. Wiley
+(on the unbounded likelihood and spurious solutions).</p>
+<p>Olivera-Aguilar, M., &amp; Rikoon, S. H. (2018). Assessing measurement invariance
+in multiple-group latent profile analysis. <em>Structural Equation
+Modeling</em>, <em>25</em>(3), 439-452. <a href="https://doi.org/10.1080/10705511.2017.1408015" class="external-link">doi:10.1080/10705511.2017.1408015</a></p>
     </div>
 
     <div class="section level2">

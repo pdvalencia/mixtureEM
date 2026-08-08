@@ -61,6 +61,18 @@ A named list with three elements:
 
 - `best_k` Integer. The value of K with the lowest BIC.
 
+## References
+
+Nylund, K. L., Asparouhov, T., & Muthen, B. O. (2007). Deciding on the
+number of classes in latent class analysis and growth mixture modeling:
+A Monte Carlo simulation study. *Structural Equation Modeling*, *14*(4),
+535-569.
+[doi:10.1080/10705510701575396](https://doi.org/10.1080/10705510701575396)
+
+Masyn, K. E. (2013). Latent class analysis and finite mixture modeling.
+In T. D. Little (Ed.), *The Oxford Handbook of Quantitative Methods*
+(Vol. 2, pp. 551-611). Oxford University Press.
+
 ## Examples
 
 ``` r
@@ -79,16 +91,16 @@ result <- compare_mixtures(X, k_range = 1:4, measurement = "binary",
 #>   Classes       LL Params     AIC     BIC   SABIC Entropy
 #> 1       1 -342.102      5 694.203 707.229 691.438   1.000
 #> 2       2 -340.085     11 702.169 730.826 696.085   0.303
-#> 3       3 -337.018     17 708.037 752.325 698.634   0.458
-#> 4       4 -334.542     23 715.084 775.003 702.364   0.590
+#> 3       3 -337.020     17 708.040 752.328 698.637   0.458
+#> 4       4 -334.543     23 715.086 775.005 702.365   0.590
 #> 
 #> -> Best model according to BIC: 1 classes
 result$fit_table
 #>   Classes        LL Params      AIC      BIC    SABIC   Entropy
 #> 1       1 -342.1016      5 694.2032 707.2290 691.4378 1.0000000
-#> 2       2 -340.0846     11 702.1693 730.8262 696.0854 0.3033087
-#> 3       3 -337.0184     17 708.0368 752.3247 698.6345 0.4580078
-#> 4       4 -334.5422     23 715.0844 775.0033 702.3636 0.5899555
+#> 2       2 -340.0846     11 702.1692 730.8261 696.0854 0.3033780
+#> 3       3 -337.0199     17 708.0398 752.3277 698.6374 0.4575710
+#> 4       4 -334.5428     23 715.0857 775.0046 702.3648 0.5898679
 result$best_k
 #> [1] 1
 ```

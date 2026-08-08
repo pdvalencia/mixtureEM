@@ -109,10 +109,10 @@ summary(fit_out)
 #> CONTINUOUS DISTAL OUTCOME (MEANS)
 #> ---------------------------------------------------------
 #> 
-#> Omnibus test (class differences): Wald chi^2(1) = 0.04, p   0.832
+#> Omnibus test (class differences): Wald chi^2(1) = 0.05, p   0.832
 #> 
 #>                  Mean       [95% CI]        SE
 #>   Class 1       25.063  [24.627, 25.500]     0.223
-#>   Class 2       24.967  [24.423, 25.511]     0.278
+#>   Class 2       24.967  [24.422, 25.512]     0.278
 #> =========================================================
 ```

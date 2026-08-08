@@ -54,7 +54,9 @@
 - [`lcga_model()`](https://pdvalencia.github.io/mixtureEM/reference/lcga_model.md)
   : Constructor for latent class growth models
 - [`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
-  : Likelihood-Ratio Test for Nested Longitudinal Models
+  : Likelihood-Ratio Test for Two Nested Models (deprecated name)
+- [`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+  : Likelihood-Ratio Test for Two Nested Models
 - [`lta_covariate_summary()`](https://pdvalencia.github.io/mixtureEM/reference/lta_covariate_summary.md)
   : Covariate Effects in a Latent Transition Model
 - [`lta_g2()`](https://pdvalencia.github.io/mixtureEM/reference/lta_g2.md)

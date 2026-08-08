@@ -43,14 +43,15 @@ print(fit)
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 5 iterations)
+#> Converged          : TRUE (in 136 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -203.34
-#>   Rel. Entropy   : 0.2213
+#>   Rel. Entropy   : 0.2215
+#>   Best solution  : found by 20 of 20 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 57.74%
-#>   Class 2: 42.26%
+#>   Class 1: 57.78%
+#>   Class 2: 42.22%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 # or equivalently:
@@ -60,14 +61,15 @@ fit
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 5 iterations)
+#> Converged          : TRUE (in 136 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -203.34
-#>   Rel. Entropy   : 0.2213
+#>   Rel. Entropy   : 0.2215
+#>   Best solution  : found by 20 of 20 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 57.74%
-#>   Class 2: 42.26%
+#>   Class 1: 57.78%
+#>   Class 2: 42.22%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 ```

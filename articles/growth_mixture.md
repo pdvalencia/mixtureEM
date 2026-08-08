@@ -81,6 +81,7 @@ fit_lcga2
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -6245.41
 #>   Rel. Entropy   : 0.9175
+#>   Best solution  : found by 15 of 15 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 55.66%
@@ -135,6 +136,7 @@ fit_gmm2
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -5570.91
 #>   Rel. Entropy   : 0.9113
+#>   Best solution  : found by 4 of 4 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 59.29%
@@ -254,6 +256,7 @@ print(fit_gp)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -5570.48
 #>   Rel. Entropy   : 0.9110
+#>   Best solution  : found by 4 of 4 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 59.25%

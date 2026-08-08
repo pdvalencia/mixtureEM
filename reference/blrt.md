@@ -95,6 +95,19 @@ observed \\2\\\Delta\ell\\ statistic), `null_dist` (the bootstrap null
 distribution), and the compared class counts. It has `print` and `plot`
 methods.
 
+## References
+
+McLachlan, G. J. (1987). On bootstrapping the likelihood ratio test
+statistic for the number of components in a normal mixture. *Applied
+Statistics*, *36*(3), 318-324.
+[doi:10.2307/2347790](https://doi.org/10.2307/2347790)
+
+Nylund, K. L., Asparouhov, T., & Muthen, B. O. (2007). Deciding on the
+number of classes in latent class analysis and growth mixture modeling:
+A Monte Carlo simulation study. *Structural Equation Modeling*, *14*(4),
+535-569.
+[doi:10.1080/10705510701575396](https://doi.org/10.1080/10705510701575396)
+
 ## Examples
 
 ``` r

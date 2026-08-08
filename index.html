@@ -42,6 +42,7 @@
     <li><a class="dropdown-item" href="articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
     <li><a class="dropdown-item" href="articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="articles/survey_lca.html">LCA with Complex Survey Data</a></li>
+    <li><a class="dropdown-item" href="articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
@@ -62,20 +63,26 @@
 <div class="page-header"><h1 id="mixtureem">mixtureEM<a class="anchor" aria-label="anchor" href="#mixtureem"></a>
 </h1></div>
 <p><a href="https://lifecycle.r-lib.org/articles/stages.html#experimental" class="external-link"><img src="https://img.shields.io/badge/lifecycle-experimental-orange.svg" alt="Lifecycle: experimental"></a> <a href="https://github.com/pdvalencia/mixtureEM/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/pdvalencia/mixtureEM/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></p>
-<p><strong>mixtureEM</strong> is latent class and latent profile analysis for applied researchers: find the hidden subgroups in your data, describe them (Collins &amp; Lanza, 2010).</p>
-<p>If you have ever run an LCA, assigned everyone to their most likely class, and then run chi-squares on the labels, this package exists for you: the step that is easiest to get wrong (relating classes to external variables) is the one mixtureEM automates correctly, using the bias-adjusted three-step estimators from the methodological literature (Bakk et al., 2014; Vermunt, 2010).</p>
-<p>And if you have never run an LCA, this package exists for you too: every step ships with a sensible default and output that reads like the table you would put in a paper, so you do not need the estimation theory memorized to get correct answers out.</p>
+<p>Latent class and latent profile analysis for applied researchers.</p>
+<p><strong>mixtureEM</strong> helps you find hidden subgroups in your data and describe them (Collins &amp; Lanza, 2010).</p>
+<ul>
+<li>If you have ever run an LCA, assigned everyone to their most likely class, and then run ANOVAs or chi-squares on the labels, this package exists for you. The step that is easiest to get wrong — relating classes to external variables — is the one mixtureEM automates correctly, using the bias-adjusted three-step estimators from the methodological literature (Bakk et al., 2014; Vermunt, 2010).</li>
+<li>If you have never run an LCA, this package exists for you too. Every step ships with a sensible default, and the output reads like the table you would put in a paper, so you do not need the estimation theory memorized to get correct answers out.</li>
+</ul>
+<hr>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
+<p>You can install the development version from GitHub using the <a href="https://pak.r-lib.org/" class="external-link">pak</a> package:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pkg_install.html" class="external-link">pkg_install</a></span><span class="op">(</span><span class="st">"pdvalencia/mixtureEM"</span><span class="op">)</span></span></code></pre></div>
+<hr>
 </div>
 <div class="section level2">
-<h2 id="a-complete-analysis-in-a-handful-of-calls">A complete analysis in a handful of calls<a class="anchor" aria-label="anchor" href="#a-complete-analysis-in-a-handful-of-calls"></a>
+<h2 id="quick-start">Quick start<a class="anchor" aria-label="anchor" href="#quick-start"></a>
 </h2>
-<p>Using the bundled <code>ventura_leon</code> data — 16 yes/no infidelity items from 400 young adults (Ventura-León et al., 2025):</p>
+<p>A complete analysis takes just a handful of calls. Using the bundled <code>ventura_leon</code> data — 16 yes/no infidelity items from 400 young adults (run <code><a href="reference/ventura_leon.html">?ventura_leon</a></code> for dataset details) — you can fit a model and view the class sizes:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://pdvalencia.github.io/mixtureEM/">mixtureEM</a></span><span class="op">)</span></span>
 <span></span>
@@ -87,11 +94,15 @@
 <span><span class="co">#&gt; 2     2  0.2697511  107.90043     106</span></span>
 <span><span class="co">#&gt; 3     3  0.1579645   63.18579      63</span></span>
 <span><span class="co">#&gt; 4     4  0.1443723   57.74891      58</span></span></code></pre></div>
+<p>You can then easily plot the item-response probabilities to interpret the classes:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span>, class_labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Fidelity"</span>, <span class="st">"Affective interest"</span>,</span>
 <span>                           <span class="st">"Infidelity"</span>, <span class="st">"Sexual desire"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/README-example-plot-1.png" width="100%"></p>
-<p>Choosing how many classes to keep, reading the full item-response table, relating classes to covariates with a bias correction, and describing them by a distal outcome are each one function call away — the <a href="https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html"><code>ventura_leon</code> worked example</a> walks through all of it on this exact fit.</p>
+<p><img src="reference/figures/README-example-plot-1.png" alt="Item-response probabilities for the four fitted classes across the 16 infidelity items, one line per class." width="100%"></p>
+<blockquote>
+<p>Choosing how many classes to keep, reading the full item-response table, relating classes to covariates with a bias correction, and describing them by a distal outcome are each one function call away. The <a href="https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html"><code>ventura_leon</code> worked example</a> walks through all of it on this exact fit.</p>
+</blockquote>
+<hr>
 </div>
 <div class="section level2">
 <h2 id="what-it-covers">What it covers<a class="anchor" aria-label="anchor" href="#what-it-covers"></a>
@@ -160,6 +171,7 @@
 </tbody>
 </table>
 <p>Also included: mixed measurement models (binary + continuous + count indicators in one model), full-information missing-data handling everywhere, absolute and local fit diagnostics (<code><a href="reference/absolute_fit.html">absolute_fit()</a></code>, <code><a href="reference/bivariate_residuals.html">bivariate_residuals()</a></code>), classification diagnostics, and standard errors that account for the classes being estimated rather than observed (<code><a href="reference/covariate_se.html">?covariate_se</a></code>).</p>
+<hr>
 </div>
 <div class="section level2">
 <h2 id="design-principles">Design principles<a class="anchor" aria-label="anchor" href="#design-principles"></a>
@@ -172,16 +184,17 @@
 <li>
 <strong>Readable output, reusable numbers.</strong> Summaries print as formatted tables <em>and</em> return tidy data frames.</li>
 <li>
-<strong>No dependency stack.</strong> Base R only, so it installs anywhere R does.</li>
+<strong>No dependency stack.</strong> Built using base R only, meaning it installs cleanly anywhere R does.</li>
 </ul>
+<hr>
 </div>
 <div class="section level2">
 <h2 id="citation">Citation<a class="anchor" aria-label="anchor" href="#citation"></a>
 </h2>
 <p>If you use mixtureEM in published research, please cite it as:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>Valencia, P. <span class="fu">D.</span> (<span class="dv">2026</span>). mixtureEM<span class="sc">:</span> Latent class and profile analysis via</span>
-<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>mixture <span class="fu">modelling</span> (Version <span class="dv">0</span>.<span class="fl">2.0</span>) [R package].</span>
-<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>https<span class="sc">:</span><span class="er">//</span>github.com<span class="sc">/</span>pdvalencia<span class="sc">/</span>mixtureEM</span></code></pre></div>
+<blockquote>
+<p>Valencia, P. D. (2026). mixtureEM: Latent class and profile analysis via mixture modelling (Version 0.2.0) [R package]. <a href="https://github.com/pdvalencia/mixtureEM" class="external-link uri">https://github.com/pdvalencia/mixtureEM</a></p>
+</blockquote>
 </div>
 <div class="section level2">
 <h2 id="acknowledgements">Acknowledgements<a class="anchor" aria-label="anchor" href="#acknowledgements"></a>

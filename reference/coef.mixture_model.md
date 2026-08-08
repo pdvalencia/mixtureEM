@@ -52,5 +52,5 @@ fit <- fit_mixture(X, Y = Z, n_components = 2, measurement = "binary",
 coef(fit)
 #>               Intercept       age
 #> Class 1 (Ref) 1.0000000 1.0000000
-#> Class 2       0.6958575 0.2661591
+#> Class 2       0.6961114 0.2660264
 ```

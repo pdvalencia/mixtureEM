@@ -21,9 +21,11 @@ fit_mixture(
   group = NULL,
   group_effects = c("both", "measurement", "prevalence", "none"),
   group_invariant_items = NULL,
+  group_invariant_params = NULL,
+  variances_equal = FALSE,
   n_steps = 1,
   correction = "none",
-  n_init = 1,
+  n_init = 20,
   max_iter = 1000,
   random_state = NULL,
   order_by_size = TRUE,
@@ -32,6 +34,7 @@ fit_mixture(
   strata = NULL,
   cluster = NULL,
   refine = TRUE,
+  bayes_constants = NULL,
   se = c("corrected", "robust", "hessian"),
   X = NULL,
   Y = NULL,
@@ -54,17 +57,28 @@ fit_mixture(
 
 - measurement:
 
-  Either a single type string applied to every indicator (`"binary"`,
-  `"categorical"`, `"continuous"`, `"gaussian"`, `"count"`, and `"_nan"`
-  missing-data variants), or, for a mixed-type model, a named list
-  mapping each type to the indicator columns it governs by name or
-  index, e.g. `list(binary = c("q1","q2"), continuous = "score")`.
+  What kind of variables the indicators are. Either one type string for
+  all of them — `"binary"`, `"categorical"`, `"continuous"`,
+  `"gaussian"`, `"count"` — or, for a mixed-type model, a named list
+  mapping each type to the columns it governs by name or index, e.g.
+  `list(binary = c("q1","q2"), continuous = "score")`.
 
-  `"count"` fits a Poisson measurement model: each item is
-  Poisson-distributed within class with its own rate, reported by
-  [`measurement_summary`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
-  as a rate (lambda) per item and class. It requires non-negative
-  integer indicators.
+  **Missing values need no special handling.** Any indicator containing
+  `NA` is estimated by full-information maximum likelihood under the
+  usual missing-at-random assumption, chosen automatically; cases
+  missing on every indicator are dropped, with a warning saying how
+  many. There is nothing to switch on. (The `"*_nan"` spellings are
+  still accepted, and force the same estimator, but they are a leftover
+  and you do not need them.)
+
+  **Binary items need not be coded 0/1.** A two-level factor or
+  character, a logical, or any pair of numbers — 1/2 is the commonest —
+  is converted for you, with a message saying which level became the 1,
+  since that is what the reported probabilities refer to.
+
+  `"categorical"` expects integer codes running 1, 2, 3, ...; add 1 to a
+  0-based item. `"count"` fits a Poisson model, one rate per item and
+  class, and needs non-negative integers.
 
 - predictors:
 
@@ -102,40 +116,41 @@ fit_mixture(
 
 - group_effects:
 
-  Which parameters `group` is allowed to shift. `"both"` (default) frees
-  both the item-response probabilities and the class prevalences across
-  groups, i.e. fits each group's own model. `"measurement"` frees only
-  the item-response probabilities (prevalences stay pooled).
-  `"prevalence"` frees only the class prevalences, by entering `group`
-  as a class-membership covariate exactly like `predictors`
-  (item-response probabilities stay invariant across groups) — this is
-  the same equivalence
-  [`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md)
-  documents for its own `predictors`, sec. 6.10.2. `"none"` ignores
-  `group` for estimation. Fit the same data under two of these and
-  compare them with
-  [`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
-  to get Collins & Lanza's measurement-invariance test (sec. 5.8,
-  comparing `"both"` against `"prevalence"`) and prevalence-equivalence
-  test (sec. 5.11, comparing `"prevalence"` against `"none"`). Because a
-  multiple-group model like Collins & Lanza's is fit as one simultaneous
-  model rather than through the auxiliary-variable 3-step approximation,
-  pass `n_steps = 1` explicitly to reproduce their numbers exactly.
+  What you are allowing the groups to differ in. Pick by the question
+  you are asking:
 
-  With `"both"` or `"measurement"`, each group's item-response
-  probabilities are estimated from that group's cases alone, tied to the
-  other groups only by shared initialization — unlike occasions in
-  [`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md),
-  which every case informs simultaneously. A likelihood- ratio
-  comparison via
-  [`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
-  is unaffected (it only compares total log-likelihoods), but the *class
-  labels* a configural fit assigns are not guaranteed to line up across
-  groups: "Class 1" in one group's profile need not be the same kind of
-  class as "Class 1" in another's. Use a larger `n_init` and a fixed
-  `random_state` for configural fits, and when reading per-group
-  profiles, match classes by their item-response pattern rather than by
-  position.
+  `"prevalence"`
+
+  :   Do the groups differ in *how many* people fall in each class? The
+      classes themselves mean the same thing in every group; only their
+      sizes move. This is the model most applied analyses want.
+
+  `"both"` (default)
+
+  :   Does each group need its *own* class solution? Both the class
+      sizes and what the classes look like are free to differ — the
+      configural model.
+
+  `"none"`
+
+  :   Ignore the grouping variable when estimating.
+
+  **The usual workflow** is to fit `"prevalence"` and `"both"` and
+  compare them with
+  [`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md).
+  That is the test of measurement invariance (Collins & Lanza, 2010,
+  sec. 5.8): it asks whether letting the classes mean different things
+  in different groups buys a significantly better fit. If it does not —
+  the common outcome, and the one you want — keep `"prevalence"` and
+  report the group differences in class sizes, which are then comparable
+  across groups because the classes are. Comparing `"none"` against
+  `"prevalence"` tests whether the sizes differ at all (sec. 5.11). Pass
+  `n_steps = 1` for both fits.
+
+  There is a fourth setting, `"measurement"`, which frees the item
+  parameters while holding the class sizes pooled. It answers an unusual
+  question and is rarely what is wanted; `"both"` is the configural
+  model the invariance literature actually compares against.
 
 - group_invariant_items:
 
@@ -143,6 +158,34 @@ fit_mixture(
   `group_effects` frees the measurement model (Collins & Lanza's
   partial-invariance models, sec. 5.9). `NULL` (the default) leaves
   every item free, i.e. a fully configural model.
+
+- group_invariant_params:
+
+  For continuous indicators, which *kind* of parameter is held equal
+  across groups when `group_effects` frees the measurement model:
+  `"means"`, `"covariances"`, or both. `NULL` (the default) frees
+  everything. Where `group_invariant_items` shares whole items, this
+  shares one parameter matrix for every item — which is the model the
+  latent-profile invariance literature actually fits: Olivera-Aguilar
+  and Rikoon's (2018) "unconstrained" model frees the class means across
+  groups while holding the indicator variances invariant, i.e.
+  `group_invariant_params = "covariances"`, and it is that model, not
+  the fully heterogeneous one, that their invariance test compares
+  against. The two are alternatives, not combinable. Categorical
+  indicators have a single kind of parameter, so for them this
+  constraint and `group_invariant_items` coincide and only the latter is
+  offered.
+
+- variances_equal:
+
+  Logical, for continuous indicators only: hold each item's variance
+  equal across the classes, so the classes differ in location only. This
+  is the homoscedastic latent profile model and the default
+  parameterisation of several commercial programs, and it combines with
+  `group_invariant_params` to give a variance that is free across groups
+  but shared by the classes within each. Passed through to the
+  measurement model, so it is also available on an ordinary single-group
+  fit.
 
 - n_steps:
 
@@ -159,9 +202,16 @@ fit_mixture(
 
 - n_init, max_iter, random_state, order_by_size, refine:
 
-  Estimation controls: number of random starts, maximum EM iterations,
-  RNG seed, whether to order classes by size, and whether to run L-BFGS
-  refinement.
+  Estimation controls: number of random starts (default 20), maximum EM
+  iterations, RNG seed, whether to order classes by size, and whether to
+  run L-BFGS refinement.
+
+  A mixture likelihood usually has several local maxima, so a single
+  start is a coin toss rather than an estimate; the fit reports how many
+  of the starts reached the solution it kept. If that count is 1, raise
+  `n_init` and refit — a maximum found once may simply be the best of a
+  small sample of the surface. Set `random_state` to make the search
+  reproducible.
 
 - weights, strata, cluster:
 
@@ -178,6 +228,55 @@ fit_mixture(
   where one row stands for many respondents; the sample size behind AIC
   and BIC is then the sum of the counts. Getting this wrong changes BIC
   but not the parameter estimates.
+
+- bayes_constants:
+
+  Optional list adjusting the strength of the weak priors the estimator
+  places on each block of parameters. Named `latent` (class weights and,
+  in the transition models, the initial and transition probabilities),
+  `categorical` (item-response probabilities), `poisson` (count rates),
+  and `variances` (class-specific variances of continuous indicators);
+  all default to `1`. Each is a number of pseudo-observations spread
+  over the classes, so its influence shrinks as the sample grows.
+
+  Two uses. **Reproducing an unregularized fit:** setting a constant to
+  `0` removes that prior and gives plain maximum likelihood for that
+  block. This is an escape hatch for matching a reference analysis, not
+  a recommended setting — the unpenalised mixture likelihood is
+  unbounded, and maximum likelihood for a mixture of normals is known to
+  be inconsistent without some such restriction (Kiefer & Wolfowitz,
+  1956).
+
+  **Rescuing a collapsed fit:** if a fit warns that a class variance has
+  collapsed, the prior is one of three remedies, and not the first to
+  reach for. Constraining the variances to be equal across classes
+  (`variances_equal = TRUE`) bounds the likelihood so the problem cannot
+  arise at all; fitting fewer classes often removes the class that was
+  describing a spike. Where neither is acceptable substantively, raise
+  `variances`. A useful starting point is **one artificial observation
+  per class**, i.e. `variances = n_classes`, doubling it if the warning
+  persists. State it that way rather than as a bare number: the constant
+  is divided among the classes, so a fixed value is a different amount
+  of prior at every `n_classes`. Then check the result rather than just
+  that the warning stopped — the flagged variance should no longer be
+  far below the others in the model, and its class mean should have come
+  off the floor or ceiling of the response scale.
+
+  Raising `n_init` is *not* a remedy here. A collapsed variance is not a
+  convergence failure but a property of the likelihood, which really is
+  unbounded in that direction, so a longer search can find a taller
+  spike and report a better log-likelihood for a worse solution. For the
+  same reason a flagged fit's BIC is not comparable with a clean fit's.
+
+  The theory behind the prior settles its form and not its size: a
+  penalty that diverges as a variance approaches zero and grows more
+  slowly than the sample yields a consistent estimator whatever its
+  constant (Chen, Tan, & Zhang, 2008). The choice of constant is
+  therefore a finite-sample judgement, which is why the default is
+  deliberately weak and the guidance above is a rule with a check rather
+  than a magic value.
+
+  This is not a tuning menu. The defaults are the intended settings.
 
 - se:
 
@@ -200,6 +299,57 @@ fit_mixture(
 ## Value
 
 A fitted `mixture_model` object.
+
+## Multiple-group models
+
+Under `group_effects = "both"` or `"measurement"` each group's item
+parameters are estimated from that group's own cases, so the *class
+labels* need not line up across groups: "Class 1" in one group's profile
+is not guaranteed to be the same kind of class as "Class 1" in
+another's. Read the per-group profiles by their item patterns rather
+than by position. The likelihood-ratio comparison is unaffected, since
+it only differences total log-likelihoods.
+
+The log-likelihood is that of the indicators *given* the group; the
+grouping variable's own distribution is not modelled and its proportions
+are not counted as parameters. Software that treats a known grouping
+variable as a latent class variable observed without error adds both.
+For comparison with such output, a `group` fit also carries
+`metrics$ll_knownclass` and `metrics$n_params_knownclass`; the
+difference is a fixed constant and cancels in
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md).
+
+## References
+
+Collins, L. M., & Lanza, S. T. (2010). *Latent Class and Latent
+Transition Analysis: With Applications in the Social, Behavioral, and
+Health Sciences*. Wiley.
+
+Masyn, K. E. (2013). Latent class analysis and finite mixture modeling.
+In T. D. Little (Ed.), *The Oxford Handbook of Quantitative Methods*
+(Vol. 2, pp. 551-611). Oxford University Press.
+
+Vermunt, J. K., & Magidson, J. (2002). Latent class cluster analysis. In
+J. A. Hagenaars & A. L. McCutcheon (Eds.), *Applied Latent Class
+Analysis* (pp. 89-106). Cambridge University Press.
+
+Galindo Garre, F., & Vermunt, J. K. (2006). Avoiding boundary estimates
+in latent class analysis by Bayesian posterior mode estimation.
+*Behaviormetrika*, *33*(1), 43-59.
+[doi:10.2333/bhmk.33.43](https://doi.org/10.2333/bhmk.33.43) (the priors
+behind `bayes_constants`).
+
+Kiefer, J., & Wolfowitz, J. (1956). Consistency of the maximum
+likelihood estimator in the presence of infinitely many incidental
+parameters. *The Annals of Mathematical Statistics*, *27*(4), 887-906.
+
+McLachlan, G. J., & Peel, D. (2000). *Finite Mixture Models*. Wiley (on
+the unbounded likelihood and spurious solutions).
+
+Olivera-Aguilar, M., & Rikoon, S. H. (2018). Assessing measurement
+invariance in multiple-group latent profile analysis. *Structural
+Equation Modeling*, *25*(3), 439-452.
+[doi:10.1080/10705511.2017.1408015](https://doi.org/10.1080/10705511.2017.1408015)
 
 ## Examples
 

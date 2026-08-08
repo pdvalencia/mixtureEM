@@ -60,9 +60,9 @@ selection <- compare_longitudinal(drink, k_range = 2:4, model = "rmlca",
 selection
 #> $fit_table
 #>   Classes        LL Params      AIC      BIC    SABIC   Entropy
-#> 1       2 -2001.342      9 4020.684 4063.905 4035.323 0.7260821
-#> 2       3 -1981.321     14 3990.641 4057.875 4013.413 0.6457837
-#> 3       4 -1979.786     19 3997.573 4088.818 4028.477 0.5861254
+#> 1       2 -2001.342      9 4020.684 4063.905 4035.323 0.7260827
+#> 2       3 -1981.322     14 3990.643 4057.877 4013.415 0.6455619
+#> 3       4 -1979.788     19 3997.576 4088.821 4028.481 0.5877929
 #> 
 #> $models
 #> $models$K2
@@ -77,14 +77,15 @@ selection
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 7 iterations)
+#> Converged          : TRUE (in 19 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -2001.34
 #>   Rel. Entropy   : 0.7261
+#>   Best solution  : found by 10 of 10 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 58.68%
-#>   Class 2: 41.32%
+#>   Class 1: 58.67%
+#>   Class 2: 41.33%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 #> 
@@ -100,15 +101,16 @@ selection
 #> =========================================================
 #> Classes Estimated  : 3
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 16 iterations)
+#> Converged          : TRUE (in 203 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1981.32
-#>   Rel. Entropy   : 0.6458
+#>   Rel. Entropy   : 0.6456
+#>   Best solution  : found by 10 of 10 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 46.16%
-#>   Class 2: 35.03%
-#>   Class 3: 18.81%
+#>   Class 2: 35.04%
+#>   Class 3: 18.80%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 #> 
@@ -124,16 +126,17 @@ selection
 #> =========================================================
 #> Classes Estimated  : 4
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 8 iterations)
+#> Converged          : TRUE (in 239 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1979.79
-#>   Rel. Entropy   : 0.5861
+#>   Rel. Entropy   : 0.5878
+#>   Best solution  : found by 10 of 10 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 41.02%
-#>   Class 2: 23.35%
-#>   Class 3: 21.09%
-#>   Class 4: 14.54%
+#>   Class 1: 41.07%
+#>   Class 2: 23.31%
+#>   Class 3: 21.18%
+#>   Class 4: 14.44%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 #> 
@@ -162,22 +165,23 @@ fit
 #> =========================================================
 #> Classes Estimated  : 3
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 7 iterations)
+#> Converged          : TRUE (in 212 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1981.32
-#>   Rel. Entropy   : 0.6458
+#>   Rel. Entropy   : 0.6457
+#>   Best solution  : found by 20 of 20 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 46.16%
-#>   Class 2: 35.05%
-#>   Class 3: 18.78%
+#>   Class 1: 46.18%
+#>   Class 2: 35.03%
+#>   Class 3: 18.79%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 class_sizes(fit)
 #>   class proportion n_expected n_modal
-#> 1     1  0.4616451   415.4806     467
-#> 2     2  0.3505370   315.4833     271
-#> 3     3  0.1878178   169.0361     162
+#> 1     1  0.4617785   415.6006     467
+#> 2     2  0.3503331   315.2998     271
+#> 3     3  0.1878884   169.0996     162
 ```
 
 The item-response probabilities per wave — the trajectories themselves —
@@ -195,22 +199,22 @@ params <- measurement_summary(fit)
 #> Categorical Probabilities: T1
 #> Indicator            | Class 1 | Class 2 | Class 3
 #> -------------------------------------------------- 
-#> Item_1               |   0.089 |   0.129 |   0.843
+#> drink@T1             |   0.089 |   0.129 |   0.842
 #> 
 #> Categorical Probabilities: T2
 #> Indicator            | Class 1 | Class 2 | Class 3
 #> -------------------------------------------------- 
-#> Item_1               |   0.074 |   0.339 |   0.823
+#> drink@T2             |   0.074 |   0.339 |   0.823
 #> 
 #> Categorical Probabilities: T3
 #> Indicator            | Class 1 | Class 2 | Class 3
 #> -------------------------------------------------- 
-#> Item_1               |   0.020 |   0.676 |   0.860
+#> drink@T3             |   0.020 |   0.676 |   0.860
 #> 
 #> Categorical Probabilities: T4
 #> Indicator            | Class 1 | Class 2 | Class 3
 #> -------------------------------------------------- 
-#> Item_1               |   0.143 |   0.722 |   0.968
+#> drink@T4             |   0.144 |   0.722 |   0.968
 #> =========================================================
 ```
 
@@ -251,17 +255,17 @@ results <- summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.606  [    0.286,     1.282]     0.190
-#>   risk                     1.897  [    1.411,     2.551]    < .001
+#>   Intercept                0.605  [    0.286,     1.280]     0.189
+#>   risk                     1.898  [    1.412,     2.551]    < .001
 #> 
 #> Class 3 ON
-#>   Intercept                0.408  [    0.195,     0.854]     0.017
-#>   risk                     0.981  [    0.717,     1.341]     0.902
+#>   Intercept                0.408  [    0.195,     0.852]     0.017
+#>   risk                     0.981  [    0.717,     1.340]     0.902
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   risk                      21.125    2    < .001
+#>   risk                      21.123    2    < .001
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================

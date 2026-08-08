@@ -40,6 +40,15 @@ An object of class `absolute_fit` with elements `g2`, `x2`,
 `n_patterns`; or `NULL` (with a message) when the statistics do not
 apply.
 
+## References
+
+Langeheine, R., Pannekoek, J., & van de Pol, F. (1996). Bootstrapping
+goodness-of-fit measures in categorical data analysis. *Sociological
+Methods & Research*, *24*(4), 492-516.
+[doi:10.1177/0049124196024004004](https://doi.org/10.1177/0049124196024004004)
+
+absolute_fit(fit)
+
 ## See also
 
 [`bivariate_residuals()`](https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.md)
@@ -54,17 +63,4 @@ set.seed(1)
 X <- matrix(rbinom(600, 1, 0.5), ncol = 6)
 fit <- fit_mixture(X, n_components = 2, measurement = "binary")
 #> Note: `X`, `Y`, `n_components`, and `structural` are the legacy interface. The current arguments are `indicators`, `n_classes`, `predictors`, and `outcome` / `outcome_covariates`.
-absolute_fit(fit)
-#> =========================================================
-#>                   ABSOLUTE FIT                           
-#> =========================================================
-#> Table: 64 cells, 48 observed response patterns
-#> Free parameters: 13   df: 50
-#> 
-#> Statistic               Value    p-value
-#> ---------------------------------------- 
-#> L-squared             62.4165     0.1118
-#> X-squared             50.0310     0.4722
-#> Cressie-Read          51.3454     0.4208
-#> =========================================================
 ```

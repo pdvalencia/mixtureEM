@@ -56,28 +56,29 @@ fit
 #> =========================================================
 #> Classes Estimated  : 5
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 12 iterations)
+#> Converged          : TRUE (in 486 iterations)
 #> Cases Removed      : 3 of 13917 with no observed indicator (n = 13914 analysed)
 #> Missing Data       : 7284 / 166968 cells (4.4%) in 12 items — FIML (MAR assumption)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -47814.65
-#>   Rel. Entropy   : 0.8340
+#>   Rel. Entropy   : 0.8339
+#>   Best solution  : found by 7 of 20 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 70.12%
-#>   Class 2: 12.68%
-#>   Class 3: 8.25%
-#>   Class 4: 4.92%
-#>   Class 5: 4.03%
+#>   Class 2: 12.67%
+#>   Class 3: 8.26%
+#>   Class 4: 4.93%
+#>   Class 5: 4.02%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 class_sizes(fit)
 #>   class proportion n_expected    n_modal
-#> 1     1 0.70117440  9756.1407 10136.8160
-#> 2     2 0.12683859  1764.8322  1592.7332
-#> 3     3 0.08246433  1147.4087   997.4884
-#> 4     4 0.04923695   685.0829   639.3167
-#> 5     5 0.04028572   560.5355   547.6457
+#> 1     1 0.70118277  9756.2571 10136.8160
+#> 2     2 0.12671398  1763.0983  1592.7332
+#> 3     3 0.08258101  1149.0322   997.4884
+#> 4     4 0.04927445   685.6046   639.3167
+#> 5     5 0.04024779   560.0078   547.6457
 ```
 
 The five classes reproduce the familiar YRBS typology — a large low-risk
@@ -104,14 +105,14 @@ params <- measurement_summary(fit)
 #> smoked_before_13      |   0.039 |   0.615 |   0.130 |   0.207 |   0.871
 #> smoked_daily_30d      |   0.026 |   0.302 |   0.251 |   0.561 |   0.737
 #> drove_drinking        |   0.009 |   0.109 |   0.533 |   0.295 |   0.493
-#> first_drink_before_13 |   0.138 |   0.695 |   0.236 |   0.207 |   0.891
-#> binge_drink_30d       |   0.085 |   0.429 |   0.968 |   0.603 |   0.862
-#> marijuana_before_13   |   0.005 |   0.370 |   0.037 |   0.059 |   0.780
-#> cocaine_ever          |   0.003 |   0.042 |   0.056 |   0.645 |   0.846
+#> first_drink_before_13 |   0.138 |   0.696 |   0.236 |   0.208 |   0.891
+#> binge_drink_30d       |   0.085 |   0.429 |   0.967 |   0.603 |   0.862
+#> marijuana_before_13   |   0.005 |   0.370 |   0.037 |   0.060 |   0.781
+#> cocaine_ever          |   0.003 |   0.042 |   0.055 |   0.645 |   0.845
 #> glue_ever             |   0.060 |   0.186 |   0.147 |   0.417 |   0.636
 #> meth_ever             |   0.003 |   0.024 |   0.016 |   0.565 |   0.680
 #> ecstasy_ever          |   0.005 |   0.064 |   0.066 |   0.416 |   0.637
-#> sex_before_13         |   0.020 |   0.245 |   0.011 |   0.034 |   0.376
+#> sex_before_13         |   0.020 |   0.245 |   0.011 |   0.035 |   0.376
 #> sex_4plus_partners    |   0.054 |   0.306 |   0.282 |   0.382 |   0.588
 #> 
 #> Missing data: 7284 of 166968 cells (4.4%) across 12 items, handled via FIML (MAR assumption).
@@ -142,37 +143,37 @@ results <- summary(fit_cov)
 #> 
 #> Class 2 ON
 #>   Intercept                0.180  [    0.146,     0.222]    < .001
-#>   grade.10                 0.742  [    0.622,     0.885]    < .001
+#>   grade.10                 0.742  [    0.622,     0.886]    < .001
 #>   grade.11                 0.574  [    0.448,     0.734]    < .001
-#>   grade.12                 0.475  [    0.360,     0.626]    < .001
+#>   grade.12                 0.474  [    0.360,     0.625]    < .001
 #>   sex.Male                 1.795  [    1.508,     2.136]    < .001
 #> 
 #> Class 3 ON
-#>   Intercept                0.005  [    0.000,     0.124]     0.001
-#>   grade.10                13.245  [    0.547,   320.836]     0.112
-#>   grade.11                31.785  [    1.336,   756.475]     0.032
-#>   grade.12                53.759  [    2.121,  1362.381]     0.016
-#>   sex.Male                 1.310  [    1.061,     1.618]     0.012
+#>   Intercept                0.005  [    0.000,     0.127]     0.001
+#>   grade.10                13.274  [    0.537,   328.178]     0.114
+#>   grade.11                31.851  [    1.311,   773.637]     0.033
+#>   grade.12                53.882  [    2.083,  1393.745]     0.016
+#>   sex.Male                 1.310  [    1.061,     1.617]     0.012
 #> 
 #> Class 4 ON
 #>   Intercept                0.042  [    0.026,     0.067]    < .001
-#>   grade.10                 1.669  [    0.868,     3.209]     0.125
-#>   grade.11                 2.900  [    1.878,     4.478]    < .001
-#>   grade.12                 2.728  [    1.749,     4.256]    < .001
-#>   sex.Male                 0.708  [    0.562,     0.893]     0.004
+#>   grade.10                 1.667  [    0.867,     3.205]     0.125
+#>   grade.11                 2.898  [    1.878,     4.473]    < .001
+#>   grade.12                 2.727  [    1.748,     4.253]    < .001
+#>   sex.Male                 0.709  [    0.562,     0.894]     0.004
 #> 
 #> Class 5 ON
 #>   Intercept                0.041  [    0.030,     0.056]    < .001
 #>   grade.10                 0.928  [    0.637,     1.351]     0.696
-#>   grade.11                 0.771  [    0.519,     1.144]     0.197
-#>   grade.12                 0.912  [    0.651,     1.276]     0.590
-#>   sex.Male                 2.125  [    1.640,     2.753]    < .001
+#>   grade.11                 0.771  [    0.519,     1.144]     0.196
+#>   grade.12                 0.911  [    0.651,     1.276]     0.589
+#>   sex.Male                 2.126  [    1.641,     2.755]    < .001
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   grade                    325.934   12    < .001
-#>   sex                       70.689    4    < .001
+#>   grade                    325.895   12    < .001
+#>   sex                       70.629    4    < .001
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================

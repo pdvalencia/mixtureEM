@@ -36,7 +36,7 @@ the two cannot be told apart. Holding the item parameters equal across
 occasions removes that ambiguity, and is the usual practice (Collins &
 Lanza, sec. 7.11). It is a testable restriction: fit the model both ways
 and compare them with
-[`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md).
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md).
 
 ## Usage
 
@@ -74,6 +74,7 @@ fit_lta(
   transition_effects = c("common", "by_origin"),
   group = NULL,
   group_effects = c("both", "initial", "transitions", "none"),
+  bayes_constants = NULL,
   ...
 )
 ```
@@ -119,7 +120,7 @@ fit_lta(
   adjacent occasions; `"full"` shares one matrix throughout. Whether
   change happens at a constant rate is usually a substantive question
   rather than an assumption, and the two models are nested, so
-  [`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
+  [`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
   tests it (Collins & Lanza, sec. 7.14).
 
 - forbidden_transitions:
@@ -155,7 +156,7 @@ fit_lta(
   more are asked for, in which case only the last class is a stayer. The
   restricted rows cost no parameters, so the model is nested in the
   unrestricted mixture and
-  [`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
+  [`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
   tests it.
 
 - layout, id, time, items, item_names, time_labels:
@@ -256,8 +257,16 @@ fit_lta(
   Which parameters the grouping variable is allowed to shift: `"both"`
   (default), `"initial"`, `"transitions"` or `"none"`. Fitting the same
   data under two of these and comparing them with
-  [`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
+  [`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
   gives the group-difference tests of sec. 8.6-8.8.
+
+- bayes_constants:
+
+  Optional named list of prior strengths for the *measurement* model
+  (`categorical`, `poisson`, `variances`); see
+  [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md).
+  The status and transition probabilities are governed by `smoothing`
+  instead, so `latent` is not read here.
 
 - ...:
 
@@ -281,10 +290,21 @@ and
 take a `class` argument to reach them. Standard errors are not available
 for a mixture over chains and `se` is `NULL`.
 
+## References
+
+Collins, L. M., & Lanza, S. T. (2010). *Latent Class and Latent
+Transition Analysis: With Applications in the Social, Behavioral, and
+Health Sciences*. Wiley (chapters 7-8).
+
+Nylund-Gibson, K., Grimm, R., Quirk, M., & Furlong, M. (2014). A latent
+transition mixture model using the three-step specification. *Structural
+Equation Modeling*, *21*(3), 439-454.
+[doi:10.1080/10705511.2014.915375](https://doi.org/10.1080/10705511.2014.915375)
+
 ## See also
 
 [`transition_matrix()`](https://pdvalencia.github.io/mixtureEM/reference/transition_matrix.md),
 [`status_prevalences()`](https://pdvalencia.github.io/mixtureEM/reference/status_prevalences.md),
-[`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md),
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md),
 [`lta_g2()`](https://pdvalencia.github.io/mixtureEM/reference/lta_g2.md),
 [`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md).

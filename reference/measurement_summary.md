@@ -49,7 +49,7 @@ measurement_summary(fit)
 #> CATEGORICAL PROBABILITIES
 #> Indicator            | Class 1 | Class 2
 #> ---------------------------------------- 
-#> Item_1               |   0.252 |   0.799
+#> Item_1               |   0.253 |   0.800
 #> Item_2               |   0.574 |   0.492
 #> Item_3               |   0.270 |   0.534
 #> Item_4               |   0.495 |   0.339
@@ -63,7 +63,7 @@ params <- measurement_summary(fit)   # reuse the table programmatically
 #> CATEGORICAL PROBABILITIES
 #> Indicator            | Class 1 | Class 2
 #> ---------------------------------------- 
-#> Item_1               |   0.252 |   0.799
+#> Item_1               |   0.253 |   0.800
 #> Item_2               |   0.574 |   0.492
 #> Item_3               |   0.270 |   0.534
 #> Item_4               |   0.495 |   0.339
