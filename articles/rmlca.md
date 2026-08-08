@@ -62,7 +62,7 @@ selection
 #>   Classes        LL Params      AIC      BIC    SABIC   Entropy
 #> 1       2 -2001.342      9 4020.684 4063.905 4035.323 0.7260827
 #> 2       3 -1981.322     14 3990.643 4057.877 4013.415 0.6455619
-#> 3       4 -1979.788     19 3997.575 4088.821 4028.480 0.5862685
+#> 3       4 -1979.788     19 3997.576 4088.821 4028.481 0.5877929
 #> 
 #> $models
 #> $models$K2
@@ -126,17 +126,17 @@ selection
 #> =========================================================
 #> Classes Estimated  : 4
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 348 iterations)
+#> Converged          : TRUE (in 239 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1979.79
-#>   Rel. Entropy   : 0.5863
+#>   Rel. Entropy   : 0.5878
 #>   Best solution  : found by 10 of 10 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 41.07%
-#>   Class 2: 23.09%
-#>   Class 3: 21.14%
-#>   Class 4: 14.71%
+#>   Class 2: 23.31%
+#>   Class 3: 21.18%
+#>   Class 4: 14.44%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 #> 
@@ -255,17 +255,17 @@ results <- summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.605  [    0.286,     1.281]     0.189
-#>   risk                     1.898  [    1.411,     2.551]    < .001
+#>   Intercept                0.605  [    0.286,     1.280]     0.189
+#>   risk                     1.898  [    1.412,     2.551]    < .001
 #> 
 #> Class 3 ON
-#>   Intercept                0.408  [    0.195,     0.853]     0.017
-#>   risk                     0.981  [    0.717,     1.341]     0.902
+#>   Intercept                0.408  [    0.195,     0.852]     0.017
+#>   risk                     0.981  [    0.717,     1.340]     0.902
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   risk                      21.124    2    < .001
+#>   risk                      21.123    2    < .001
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================

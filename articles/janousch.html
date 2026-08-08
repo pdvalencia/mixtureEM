@@ -95,8 +95,11 @@ same underlying symptom/protective-factor levels) in each country?</p>
 with a full-information ML estimator rather than deleting incomplete
 cases, and so do we — without having to ask for it.
 <code><a href="../reference/fit_mixture.html">fit_mixture()</a></code> detects the missing values and models them
-directly; <code>measurement = "continuous"</code> is all that is
-needed.</p>
+directly; <code>measurement = "continuous"</code> is all that is needed.
+In practical terms: instead of dropping an adolescent who skipped one
+item — which is what listwise deletion, the default in many packages,
+would do — the model uses every answer that adolescent <em>did</em>
+give.</p>
 </div>
 <div class="section level2">
 <h2 id="the-data">The data<a class="anchor" aria-label="anchor" href="#the-data"></a>
@@ -166,7 +169,22 @@ frame:</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Missing data: 143 of 2527 cells (5.7%) across 7 items, handled via FIML (MAR assumption).</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
+<p>Profiles are easier to name than to read off a table, so plot them.
+<code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> puts every indicator on a common 0–1 axis
+(continuous items are min–max scaled against their observed range, which
+is what the <code>*</code> marks), so the <em>shape</em> of each line —
+high on the protective factors, low on the symptoms, or the reverse — is
+what you interpret:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_ch</span>, main <span class="op">=</span> <span class="st">"Resilience profiles, Switzerland"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="janousch_files/figure-html/plot-ch-1.png" class="r-plt" alt="" width="672"></p>
+<p>Once you have decided what each line represents, read the profile
+means off <code>profile_ch</code> to fix the class order, then pass your
+own names in that order through <code>class_labels = c(...)</code>; the
+legend will carry them, with each class’s size attached. Those names —
+“Non-Resilient”, “Moderately Resilient”, “Untroubled” — are the paper’s,
+and this plot is how they were arrived at.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
 <span><span class="va">fit_de</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">janousch</span><span class="op">$</span><span class="va">country</span> <span class="op">==</span> <span class="st">"Germany"</span>, <span class="va">items</span><span class="op">]</span>,</span>
 <span>                       n_classes <span class="op">=</span> <span class="fl">4</span>, measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
@@ -182,7 +200,7 @@ frame:</p>
 <p>This closely recovers the paper’s German solution (Non-Resilient
 15.7%, Moderately Resilient 44.2%, Untroubled 27.3%, Resilient
 12.7%).</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
 <span><span class="va">fit_gr0</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">janousch</span><span class="op">$</span><span class="va">country</span> <span class="op">==</span> <span class="st">"Greece"</span>, <span class="va">items</span><span class="op">]</span>,</span>
 <span>                       n_classes <span class="op">=</span> <span class="fl">4</span>, measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
@@ -212,15 +230,43 @@ frame:</p>
 section explains what that means and why it happens; the short version
 is that a mixture of normals with freely estimated variances has an
 <em>unbounded</em> likelihood, so a class can score well by sitting on a
-handful of identical answers instead of describing a subgroup. Such a
-solution is not interpretable, and — importantly — more random starts
-will not rescue it.</p>
-<p>The remedy is a stronger prior holding the variances away from zero.
-The warning suggests a starting point of one artificial observation per
-class — <code>variances = 4</code> for this four-class model — and says
-to raise it if the warning persists, which on this data it does. A
-little more is enough:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+handful of identical answers instead of describing a subgroup. In survey
+terms this is usually a <strong>ceiling or floor effect</strong>: when a
+large block of respondents picks the very top of the
+<code>social_resources</code> scale, the model can manufacture a
+“profile” out of those identical scores alone. Such a solution is not
+interpretable, and — importantly — more random starts will not rescue
+it.</p>
+<blockquote>
+<p><strong>If your variance collapses</strong></p>
+<ol style="list-style-type: decimal">
+<li>
+<strong>Read the warning.</strong> It names the item and the class
+(here, <code>social_resources</code> in one of the four Greek classes)
+and suggests a starting value.</li>
+<li>
+<strong>Look at that item.</strong> A histogram usually shows the
+culprit: a heavy pile of responses on the highest or lowest scale
+point.</li>
+<li>
+<strong>Raise the prior, not <code>n_init</code>.</strong> Start at
+the suggested <code>bayes_constants = list(variances = ...)</code> and
+increase it a little at a time until the warning goes away.</li>
+<li>
+<strong>Re-run every model you intend to compare at the same
+value</strong>, so the fits stay on a common footing.</li>
+</ol>
+</blockquote>
+<p>The remedy is that stronger prior holding the variances away from
+zero. It is best read as a gentle statement of disbelief that any real
+subgroup has exactly zero spread: <code>variances = 5</code> adds the
+equivalent of five hypothetical observations, spread across the classes,
+whose only job is to smooth the mathematical spike away. The warning
+suggests a starting point of one artificial observation per class —
+<code>variances = 4</code> for this four-class model — and says to raise
+it if the warning persists, which on this data it does. A little more is
+enough:</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
 <span><span class="va">fit_gr</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">janousch</span><span class="op">$</span><span class="va">country</span> <span class="op">==</span> <span class="st">"Greece"</span>, <span class="va">items</span><span class="op">]</span>,</span>
 <span>                       n_classes <span class="op">=</span> <span class="fl">4</span>, measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
@@ -252,6 +298,13 @@ and more starts make it worse.</p>
 <div class="section level2">
 <h2 id="testing-measurement-invariance-across-countries">Testing measurement invariance across countries<a class="anchor" aria-label="anchor" href="#testing-measurement-invariance-across-countries"></a>
 </h2>
+<p>Before we can say “Greece has more Resilient adolescents than
+Germany”, we have to establish that <em>being</em> Resilient means the
+same thing in both places. If the profile means differ by country, the
+labels are attached to different underlying patterns and the comparison
+is apples to oranges. That is the question measurement invariance
+answers, and it is worth settling before any cross-country claim goes
+into a manuscript.</p>
 <p>Rather than three separate models, mixtureEM can fit all three
 countries <em>jointly</em> as a multiple-group model, and ask directly
 whether a profile means the same thing in each. Fitting the same number
@@ -306,7 +359,7 @@ alternative, which frees the variances by country as well, is fitted at
 the end of this section for comparison.</p>
 <p>Let us fit the restricted model first, exactly as one would by
 default:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_invariant</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">items</span><span class="op">]</span>, n_classes <span class="op">=</span> <span class="fl">4</span>,</span>
 <span>                             measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>                             group <span class="op">=</span> <span class="va">janousch</span><span class="op">$</span><span class="va">country</span>,</span>
@@ -359,7 +412,7 @@ showed, mild enough that it does not prevent every collapse — its job is
 to keep the problem finite and <em>visible</em>, so the warning can name
 the item and the class, which it does. The remedy is the same stronger
 prior, at the same strength the Greek fit needed:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_invariant</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">items</span><span class="op">]</span>, n_classes <span class="op">=</span> <span class="fl">4</span>,</span>
 <span>                             measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>                             group <span class="op">=</span> <span class="va">janousch</span><span class="op">$</span><span class="va">country</span>,</span>
@@ -388,8 +441,8 @@ prior, at the same strength the Greek fit needed:</p>
 <span><span class="co">#&gt; Likelihood-ratio test for nested models</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Restricted : LL =   -5338.3248   parameters = 65</span></span>
-<span><span class="co">#&gt;   Full       : LL =   -5261.3498   parameters = 121</span></span>
-<span><span class="co">#&gt;   -2 x diff  : 153.9499   df = 56   p = 4.445e-11</span></span>
+<span><span class="co">#&gt;   Full       : LL =   -5261.3503   parameters = 121</span></span>
+<span><span class="co">#&gt;   -2 x diff  : 153.9490   df = 56   p = 4.446e-11</span></span>
 <span><span class="co">#&gt;   The restriction is rejected: the full model fits significantly better.</span></span></code></pre></div>
 <p>Both fits are now clean — no collapsed variances in either — and the
 restriction is decisively rejected: forcing the same profile means
@@ -398,8 +451,14 @@ its own. This matches the paper’s own conclusion (“Measurement
 invariance did not hold across the three countries”) — the same four
 profile <em>labels</em> (Non-Resilient, Moderately Resilient,
 Untroubled, Resilient) do not correspond to the same underlying levels
-of symptoms and protective factors in each country, so cross-country
-comparisons of these profiles should be made cautiously.</p>
+of symptoms and protective factors in each country.</p>
+<p>For the write-up, that has a concrete consequence: report and
+interpret the profiles <strong>separately within each country</strong>,
+and do not pool the three samples or compare profile prevalences across
+them as if the labels were interchangeable. A statement like “the
+Untroubled profile is more common in Greece than in Germany” is not
+supported by these data, because “Untroubled” is not the same profile in
+the two countries.</p>
 <p>One caution about the comparison itself: <code>bayes_constants</code>
 was raised on <em>both</em> models, which is what makes them comparable.
 A likelihood-ratio test between two fits estimated under different
@@ -411,7 +470,7 @@ priors is not a test of anything.</p>
 indicator variances pooled while the means move. Dropping it frees
 everything about the measurement model, giving each country its own
 profile means <em>and</em> its own variances:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_configural</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">items</span><span class="op">]</span>, n_classes <span class="op">=</span> <span class="fl">4</span>,</span>
 <span>                              measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>                              group <span class="op">=</span> <span class="va">janousch</span><span class="op">$</span><span class="va">country</span>,</span>
@@ -460,7 +519,7 @@ effects, as a check:</p>
 <code><a href="../reference/add_covariates.html">add_covariates()</a></code> runs the three-step analysis on that exact
 solution — no re-specification and no re-estimation of the measurement
 model:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ch</span> <span class="op">&lt;-</span> <span class="va">janousch</span><span class="op">[</span><span class="va">janousch</span><span class="op">$</span><span class="va">country</span> <span class="op">==</span> <span class="st">"Switzerland"</span>, <span class="op">]</span></span>
 <span><span class="va">fit_ch_cov</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/add_covariates.html">add_covariates</a></span><span class="op">(</span><span class="va">fit_ch</span>, <span class="va">ch</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"gender"</span>, <span class="st">"migration_background"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Using 'ML' bias correction (set `correction` to override).</span></span>
@@ -497,6 +556,17 @@ model:</p>
 <span><span class="co">#&gt;   Note: a non-significant test beside large coefficients can be the</span></span>
 <span><span class="co">#&gt;         Hauck-Donner effect; confirm with wald_omnibus_test().</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
+<p>Each row is one predictor level in one contrast: the class named in
+the header versus the reference class (Class 1). The odds ratio says how
+the odds of falling in that class rather than the reference change for
+that level of the predictor, holding the other covariates fixed. A
+<code>gender.Female</code> row with an odds ratio near 1 and a p-value
+far above .05 therefore reads as: girls are no more or less likely than
+boys to land in that profile rather than the reference one. Values above
+1 favour the named class, values below 1 favour the reference class, and
+only the p-value tells you whether the difference is distinguishable
+from none — an odds ratio of 1.5 on a p of .6 is not evidence of
+anything.</p>
 <p>One detail worth noticing: the full dataset codes <code>gender</code>
 with three levels, but no Swiss adolescent chose “Other”, so after
 subsetting that level is empty. mixtureEM drops empty levels

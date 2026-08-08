@@ -305,7 +305,7 @@ re-estimated, so the classes cannot shift under our feet:</p>
 <span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;                           Wald Chi2   df  P-Value</span></span>
-<span><span class="co">#&gt;   sex                        22.982    3    &lt; .001</span></span>
+<span><span class="co">#&gt;   sex                        22.983    3    &lt; .001</span></span>
 <span><span class="co">#&gt;   age                        11.957    3     0.008</span></span>
 <span><span class="co">#&gt;   sexual_orientation          6.443    3     0.092</span></span>
 <span><span class="co">#&gt;   relationship_duration       1.990    3     0.575</span></span>
@@ -322,20 +322,20 @@ rather than estimated makes the intervals too narrow. See
 ratios are available as a data frame:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">results</span><span class="op">$</span><span class="va">coefficients</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   class                                term    estimate         se          z</span></span>
-<span><span class="co">#&gt; 1     2                           Intercept  0.51342828 0.92875356  0.5528143</span></span>
-<span><span class="co">#&gt; 2     2                          sex.Female  0.98086743 0.46399330  2.1139689</span></span>
-<span><span class="co">#&gt; 3     2                                 age -0.07548275 0.03801384 -1.9856646</span></span>
-<span><span class="co">#&gt; 4     2 sexual_orientation.Not heterosexual -0.05872296 0.45037290 -0.1303874</span></span>
-<span><span class="co">#&gt; 5     2          relationship_duration.Long  0.05729248 0.39509491  0.1450094</span></span>
-<span><span class="co">#&gt; 6     3                           Intercept -1.47022394 0.60411635 -2.4336768</span></span>
+<span><span class="co">#&gt;   class                                term    estimate        se          z</span></span>
+<span><span class="co">#&gt; 1     2                           Intercept  0.51342828 0.9287473  0.5528181</span></span>
+<span><span class="co">#&gt; 2     2                          sex.Female  0.98086743 0.4639788  2.1140350</span></span>
+<span><span class="co">#&gt; 3     2                                 age -0.07548275 0.0380130 -1.9857087</span></span>
+<span><span class="co">#&gt; 4     2 sexual_orientation.Not heterosexual -0.05872296 0.4503695 -0.1303884</span></span>
+<span><span class="co">#&gt; 5     2          relationship_duration.Long  0.05729248 0.3950917  0.1450106</span></span>
+<span><span class="co">#&gt; 6     3                           Intercept -1.47022394 0.6041147 -2.4336835</span></span>
 <span><span class="co">#&gt;            p        OR   OR_lower   OR_upper</span></span>
-<span><span class="co">#&gt; 1 0.58039056 1.6710101 0.27065003 10.3169199</span></span>
-<span><span class="co">#&gt; 2 0.03451792 2.6667685 1.07405430  6.6213171</span></span>
-<span><span class="co">#&gt; 3 0.04707057 0.9272957 0.86071668  0.9990249</span></span>
-<span><span class="co">#&gt; 4 0.89625992 0.9429680 0.39006033  2.2796181</span></span>
-<span><span class="co">#&gt; 5 0.88470345 1.0589655 0.48816903  2.2971713</span></span>
-<span><span class="co">#&gt; 6 0.01494633 0.2298740 0.07034863  0.7511455</span></span></code></pre></div>
+<span><span class="co">#&gt; 1 0.58038800 1.6710101 0.27065336 10.3167930</span></span>
+<span><span class="co">#&gt; 2 0.03451228 2.6667685 1.07408484  6.6211289</span></span>
+<span><span class="co">#&gt; 3 0.04706568 0.9272957 0.86071811  0.9990232</span></span>
+<span><span class="co">#&gt; 4 0.89625915 0.9429680 0.39006293  2.2796030</span></span>
+<span><span class="co">#&gt; 5 0.88470253 1.0589655 0.48817207  2.2971570</span></span>
+<span><span class="co">#&gt; 6 0.01494606 0.2298740 0.07034886  0.7511431</span></span></code></pre></div>
 <p>Reference class 1 is Fidelity (the largest class). Reading the odds
 ratios against that reference:</p>
 <ul>
