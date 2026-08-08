@@ -42,6 +42,9 @@ The original analysis handled the substantial item-level missingness with a
 full-information ML estimator rather than deleting incomplete cases, and so do
 we — without having to ask for it. `fit_mixture()` detects the missing values
 and models them directly; `measurement = "continuous"` is all that is needed.
+In practical terms: instead of dropping an adolescent who skipped one item —
+which is what listwise deletion, the default in many packages, would do — the
+model uses every answer that adolescent *did* give.
 
 ## The data
 
@@ -81,6 +84,22 @@ comes from the class-specific indicator means, which
 profile_ch <- measurement_summary(fit_ch)
 ```
 
+Profiles are easier to name than to read off a table, so plot them. `plot()`
+puts every indicator on a common 0–1 axis (continuous items are min–max scaled
+against their observed range, which is what the `*` marks), so the *shape* of
+each line — high on the protective factors, low on the symptoms, or the
+reverse — is what you interpret:
+
+```{r plot-ch}
+plot(fit_ch, main = "Resilience profiles, Switzerland")
+```
+
+Once you have decided what each line represents, read the profile means off
+`profile_ch` to fix the class order, then pass your own names in that order
+through `class_labels = c(...)`; the legend will carry them, with each class's
+size attached. Those names — "Non-Resilient", "Moderately Resilient",
+"Untroubled" — are the paper's, and this plot is how they were arrived at.
+
 ```{r fit-germany}
 set.seed(1)
 fit_de <- fit_mixture(janousch[janousch$country == "Germany", items],
@@ -103,13 +122,33 @@ That fit raises a warning: one class's variance on `social_resources` has
 collapsed towards zero. The next section explains what that means and why it
 happens; the short version is that a mixture of normals with freely estimated
 variances has an *unbounded* likelihood, so a class can score well by sitting on
-a handful of identical answers instead of describing a subgroup. Such a solution
-is not interpretable, and — importantly — more random starts will not rescue it.
+a handful of identical answers instead of describing a subgroup. In survey terms
+this is usually a **ceiling or floor effect**: when a large block of respondents
+picks the very top of the `social_resources` scale, the model can manufacture a
+"profile" out of those identical scores alone. Such a solution is not
+interpretable, and — importantly — more random starts will not rescue it.
 
-The remedy is a stronger prior holding the variances away from zero. The warning
-suggests a starting point of one artificial observation per class — `variances =
-4` for this four-class model — and says to raise it if the warning persists,
-which on this data it does. A little more is enough:
+> **If your variance collapses**
+>
+> 1. **Read the warning.** It names the item and the class (here,
+>    `social_resources` in one of the four Greek classes) and suggests a
+>    starting value.
+> 2. **Look at that item.** A histogram usually shows the culprit: a heavy pile
+>    of responses on the highest or lowest scale point.
+> 3. **Raise the prior, not `n_init`.** Start at the suggested
+>    `bayes_constants = list(variances = ...)` and increase it a little at a
+>    time until the warning goes away.
+> 4. **Re-run every model you intend to compare at the same value**, so the
+>    fits stay on a common footing.
+
+The remedy is that stronger prior holding the variances away from zero. It is
+best read as a gentle statement of disbelief that any real subgroup has exactly
+zero spread: `variances = 5` adds the equivalent of five hypothetical
+observations, spread across the classes, whose only job is to smooth the
+mathematical spike away. The warning suggests a starting point of one artificial
+observation per class — `variances = 4` for this four-class model — and says to
+raise it if the warning persists, which on this data it does. A little more is
+enough:
 
 ```{r fit-greece-clean}
 set.seed(1)
@@ -134,6 +173,13 @@ solution found by k of n starts" line tells you whether you have enough; a
 worse.
 
 ## Testing measurement invariance across countries
+
+Before we can say "Greece has more Resilient adolescents than Germany", we have
+to establish that *being* Resilient means the same thing in both places. If the
+profile means differ by country, the labels are attached to different underlying
+patterns and the comparison is apples to oranges. That is the question
+measurement invariance answers, and it is worth settling before any
+cross-country claim goes into a manuscript.
 
 Rather than three separate models, mixtureEM can fit all three countries
 *jointly* as a multiple-group model, and ask directly whether a profile
@@ -223,8 +269,14 @@ This matches the paper's own conclusion ("Measurement invariance did not
 hold across the three countries") — the same four profile *labels*
 (Non-Resilient, Moderately Resilient, Untroubled, Resilient) do not
 correspond to the same underlying levels of symptoms and protective
-factors in each country, so cross-country comparisons of these profiles
-should be made cautiously.
+factors in each country.
+
+For the write-up, that has a concrete consequence: report and interpret the
+profiles **separately within each country**, and do not pool the three samples
+or compare profile prevalences across them as if the labels were interchangeable.
+A statement like "the Untroubled profile is more common in Greece than in
+Germany" is not supported by these data, because "Untroubled" is not the same
+profile in the two countries.
 
 One caution about the comparison itself: `bayes_constants` was raised on
 *both* models, which is what makes them comparable. A likelihood-ratio
@@ -282,6 +334,16 @@ ch <- janousch[janousch$country == "Switzerland", ]
 fit_ch_cov <- add_covariates(fit_ch, ch[, c("gender", "migration_background")])
 summary(fit_ch_cov)
 ```
+
+Each row is one predictor level in one contrast: the class named in the header
+versus the reference class (Class 1). The odds ratio says how the odds of
+falling in that class rather than the reference change for that level of the
+predictor, holding the other covariates fixed. A `gender.Female` row with an
+odds ratio near 1 and a p-value far above .05 therefore reads as: girls are no
+more or less likely than boys to land in that profile rather than the reference
+one. Values above 1 favour the named class, values below 1 favour the reference
+class, and only the p-value tells you whether the difference is distinguishable
+from none — an odds ratio of 1.5 on a p of .6 is not evidence of anything.
 
 One detail worth noticing: the full dataset codes `gender` with three
 levels, but no Swiss adolescent chose "Other", so after subsetting that
