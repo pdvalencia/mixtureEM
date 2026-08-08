@@ -103,6 +103,11 @@ after EM convergence to optimize the penalized maximum likelihood.}
 (\code{latent}, \code{categorical}, \code{poisson}, \code{variances}), each
 defaulting to \code{1}. See \code{\link{fit_mixture}}.}
 
+\item{warm_start}{Optional function of \code{(model_state, X, Y)} returning a
+starting model state for EM, or \code{NULL} to skip that start. Used by the
+group-varying measurement search to seed each fit from the pooled solution.
+\code{NULL} (default) uses only the usual random initializations.}
+
 \item{se}{Character. How standard errors for a covariate (class-prediction)
 structural model are computed when \code{n_steps} is \code{2} or \code{3}.
 \code{"corrected"} (default) is the first-order corrected estimator of
