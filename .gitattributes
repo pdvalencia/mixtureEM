@@ -1,0 +1,4 @@
+# The CDC-supplied SAS input and format programs are kept verbatim as the
+# provenance record for the column positions used in data-raw/yrbs2005.R.
+# They are third-party documentation, not part of this package's source.
+data-raw/yrbs2005/*.sas linguist-vendored
