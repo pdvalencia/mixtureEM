@@ -153,12 +153,6 @@ Collins, L. M., & Lanza, S. T. (2010). *Latent class and latent
 transition analysis: With applications in the social, behavioral, and
 health sciences*. Wiley.
 
-Ventura-León, J., Reyes, A., Valencia, P. D., Tocto-Muñoz, S.,
-Gamboa-Melgar, G., Ruiz-Castro, J., & Lino-Cruz, C. (2025). Exploring
-infidelity behavior patterns in a sample of Peruvian young adults: A
-latent class analysis. *Journal of Marital and Family Therapy*, *51*(4),
-e70066. <https://doi.org/10.1111/jmft.70066>
-
 Vermunt, J. K. (2010). Latent class modeling with covariates: Two
 improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
 <https://doi.org/10.1093/pan/mpq025>
