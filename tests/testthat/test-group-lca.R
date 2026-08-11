@@ -241,3 +241,23 @@ test_that("a configural fit is not worse than the sum of its separable parts", {
   # difference in what they converge to.
   expect_gt(joint$metrics$ll, per_group - 0.01)
 })
+
+test_that("a group-only fit says what the 3-step default costs", {
+  d <- .make_group_data(n = 300)
+
+  # `group` reaches the structural engine through the prevalence effect, so the
+  # user gets a 3-step fit without asking for one. The message has to name the
+  # consequence: metrics$ll is then on the structural model's scale.
+  expect_message(
+    fit <- suppressWarnings(fit_mixture(d$X, n_classes = d$K,
+                                        measurement = "binary", group = d$grp,
+                                        group_effects = "prevalence",
+                                        n_init = 3, random_state = 1)),
+    "n_steps = 1")
+
+  # An explicit n_steps is left alone.
+  expect_no_message(
+    suppressWarnings(fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                                 group = d$grp, group_effects = "measurement",
+                                 n_steps = 1, n_init = 3, random_state = 1)))
+})

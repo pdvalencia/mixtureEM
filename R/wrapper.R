@@ -2114,6 +2114,15 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   reached the solution it kept. If that count is 1, raise \code{n_init} and
 #'   refit — a maximum found once may simply be the best of a small sample of
 #'   the surface. Set \code{random_state} to make the search reproducible.
+#'
+#'   More starts are not \emph{monotonically} better on a large model. Where each
+#'   EM iteration is expensive the search runs in two stages: a short pass ranks
+#'   the starts and only the best fraction is run to convergence. That ranking is
+#'   taken before the starts have converged, so it can discard a slow-climbing
+#'   basin that would have won, and raising \code{n_init} changes which starts
+#'   survive rather than simply adding to them. A larger \code{n_init} can
+#'   therefore land on a slightly worse solution than a smaller one. On a big
+#'   model, compare two or three values rather than assuming the largest is best.
 #' @param bayes_constants Optional list adjusting the strength of the weak
 #'   priors the estimator places on each block of parameters. Named
 #'   \code{latent} (class weights and, in the transition models, the initial
@@ -2456,7 +2465,22 @@ fit_mixture <- function(indicators = NULL,
   # --- Friendly defaults when a structural model is present -------------------
   if (!is.null(structural_engine) && !steps_set) {
     n_steps <- 3L
-    message("Using 3-step estimation (set `n_steps` to override).")
+    # `group` reaches this branch through the prevalence effect above, so a user
+    # who asked only for a multiple-group measurement model gets a three-step
+    # fit without having asked for one. That changes what metrics$ll is, which
+    # is easy to miss inside a loop over models, so say so here rather than
+    # leaving it to the documentation.
+    group_only <- !is.null(group) && is.null(predictors) && is.null(outcome)
+    if (group_only) {
+      message(paste("Using 3-step estimation (set `n_steps` to override):",
+                    "`group` is being modelled as a predictor of class",
+                    "membership, so `metrics$ll` is the structural model's",
+                    "log-likelihood and is not comparable with a 1-step fit's.",
+                    "For a multiple-group measurement model, pass",
+                    "`n_steps = 1` explicitly."))
+    } else {
+      message("Using 3-step estimation (set `n_steps` to override).")
+    }
   }
   if (!is.null(structural_engine) && n_steps == 3L && !corr_set) {
     correction <- if (identical(structural_engine, "predict_class")) "ML"
