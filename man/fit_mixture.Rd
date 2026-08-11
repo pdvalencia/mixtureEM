@@ -166,7 +166,16 @@ A mixture likelihood usually has several local maxima, so a single start is
 a coin toss rather than an estimate; the fit reports how many of the starts
 reached the solution it kept. If that count is 1, raise \code{n_init} and
 refit — a maximum found once may simply be the best of a small sample of
-the surface. Set \code{random_state} to make the search reproducible.}
+the surface. Set \code{random_state} to make the search reproducible.
+
+More starts are not \emph{monotonically} better on a large model. Where each
+EM iteration is expensive the search runs in two stages: a short pass ranks
+the starts and only the best fraction is run to convergence. That ranking is
+taken before the starts have converged, so it can discard a slow-climbing
+basin that would have won, and raising \code{n_init} changes which starts
+survive rather than simply adding to them. A larger \code{n_init} can
+therefore land on a slightly worse solution than a smaller one. On a big
+model, compare two or three values rather than assuming the largest is best.}
 
 \item{weights, strata, cluster}{Optional survey design: sampling
 \code{weights}, and \code{strata}/\code{cluster} identifiers enabling
