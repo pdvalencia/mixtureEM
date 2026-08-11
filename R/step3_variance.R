@@ -397,10 +397,14 @@ NULL
 # (BHHH), which needs only the first derivatives that
 # have already been computed. Bakk, Oberski & Vermunt (2014, Table 3) cross the
 # two choices with everything else and find the difference immaterial.
+#
+# Returns a list of `V` and the `method` actually used, which is not always the
+# one asked for: see the fallback below.
 .step1_variance <- function(model_state, X, par, scores, w, method) {
+  outer_v <- function() pinv(compute_survey_B(scores, rep(1L, nrow(scores)),
+                                              seq_len(nrow(scores))))
   if (method == "outer")
-    return(pinv(compute_survey_B(scores, rep(1L, nrow(scores)),
-                                 seq_len(nrow(scores)))))
+    return(list(V = outer_v(), method = "outer", fallback = FALSE))
 
   p  <- length(par)
   h  <- .step1_fd_step * pmax(1, abs(par))
@@ -416,7 +420,20 @@ NULL
            ll(par - ea + eb) + ll(par - ea - eb)) / (4 * h[a] * h[b])
     }
   }
-  pinv(-H)
+
+  V1 <- pinv(-H)
+  V1 <- (V1 + t(V1)) / 2
+  ev <- eigen(V1, symmetric = TRUE, only.values = TRUE)$values
+  if (!all(is.finite(ev)) || min(ev) < -1e-8 * max(1, max(ev))) {
+    # Bakk, Oberski & Vermunt (2014, p. 527) define the corrected variance as a
+    # sum of two positive-definite terms; a numerical Hessian that is indefinite
+    # at the penalised step-one mode breaks that guarantee, so fall back to the
+    # outer-product estimator, which is positive semi-definite by construction.
+    # Their Table 3 finds the two choices immaterial, so the fallback costs
+    # nothing statistical.
+    return(list(V = outer_v(), method = "outer", fallback = TRUE))
+  }
+  list(V = V1, method = "hessian", fallback = FALSE)
 }
 
 # Case-level step-one log-likelihood at an arbitrary theta1.
@@ -530,14 +547,17 @@ NULL
                           "uses the outer-product estimator: the measurement",
                           "model has %d parameters (limit %d for the numerical",
                           "Hessian)."), p1, .step1_hessian_max))
-  D1 <- .step1_variance(model_state, X, th1, S1, w, d1_method)
+  d1 <- .step1_variance(model_state, X, th1, S1, w, d1_method)
+  D1 <- d1$V
 
   J  <- H3_inv %*% Cmat
   V  <- D3 + J %*% D1 %*% t(J)
 
   list(V = pad(V),
-       method = sprintf("Bakk-Oberski-Vermunt corrected (%s step 3, %s step 1)",
-                        label_D3, d1_method))
+       method = sprintf("Bakk-Oberski-Vermunt corrected (%s step 3, %s step 1)%s",
+                        label_D3, d1$method,
+                        if (isTRUE(d1$fallback))
+                          "; step-1 Hessian was not positive definite" else ""))
 }
 
 # Above this many step-one parameters the numerical Hessian's O(p^2) likelihood

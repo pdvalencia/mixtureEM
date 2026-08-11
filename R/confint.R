@@ -95,16 +95,30 @@ confint.mixture_model <- function(object, parm = NULL, level = 0.95,
       if (is.null(H)) stop("Hessian missing. Refit model.")
       Sigma <- pinv(-H)
     }
-    se    <- matrix(0, nrow = K, ncol = D)
+    se      <- matrix(0, nrow = K, ncol = D)
+    clamped <- 0L
     for (c in seq_len(K)) {
       for (v in seq_len(D)) {
         idx_c   <- (c - 1L) * D + v
         idx_ref <- (ref_class - 1L) * D + v
         var_diff <- Sigma[idx_c, idx_c] + Sigma[idx_ref, idx_ref] -
           2 * Sigma[idx_c, idx_ref]
+        # The clamp keeps an NaN out of the printed table, but a negative
+        # contrast variance means the covariance matrix is not positive
+        # semi-definite, and the zero-width interval it produces looks like a
+        # precise estimate rather than a failure. Say so.
+        scale <- max(1, abs(Sigma[idx_c, idx_c]), abs(Sigma[idx_ref, idx_ref]))
+        if (is.finite(var_diff) && var_diff < -1e-8 * scale) clamped <- clamped + 1L
         se[c, v] <- sqrt(max(0, var_diff))
       }
     }
+    if (clamped > 0L)
+      warning(sprintf(paste("%d of %d standard errors came from a negative",
+                            "variance and were set to zero, giving intervals of",
+                            "zero width. The covariance matrix is not positive",
+                            "semi-definite; refit with se = \"robust\" for",
+                            "usable intervals."),
+                      clamped, K * D))
   }
 
   # 3. Compute bounds on the log-OR scale, then exponentiate
