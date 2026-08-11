@@ -75,18 +75,33 @@ fit_bch <- function(model_state, X, Y) {
     Y_vec    <- as.numeric(Y[, 1])
     K        <- model_state$n_components
     mu       <- as.vector(model_state$sm$parameters$means)
-    Nk       <- colSums(bch_resp)
-    Sigma_mu <- matrix(0, K, K)
-    for (j in 1:K) {
-      for (k in j:K) {
-        cov_jk <- sum(bch_resp[, j] * bch_resp[, k] *
-                        (Y_vec - mu[j]) * (Y_vec - mu[k])) /
-          (Nk[j] * Nk[k])
-        Sigma_mu[j, k] <- cov_jk
-        Sigma_mu[k, j] <- cov_jk
+
+    # Restrict to cases with an observed outcome. The m_step above masks the
+    # same rows, so the means this covariance matrix belongs to are estimated
+    # from these cases only; Nk must be recomputed on the mask rather than over
+    # all rows, or the denominators would not match the weights in the sums.
+    obs     <- is.finite(Y_vec)
+    bch_obs <- bch_resp[obs, , drop = FALSE]
+    Y_obs   <- Y_vec[obs]
+    Nk      <- colSums(bch_obs)
+
+    if (sum(obs) < 2L || any(abs(Nk) < 1e-8)) {
+      # Leave Sigma_mu unset: .wald_omnibus_means() falls back to the SEs when
+      # it is NULL, whereas a matrix of zeros would be taken at face value.
+      model_state$sm$parameters$Sigma_mu <- NULL
+    } else {
+      Sigma_mu <- matrix(0, K, K)
+      for (j in 1:K) {
+        for (k in j:K) {
+          cov_jk <- sum(bch_obs[, j] * bch_obs[, k] *
+                          (Y_obs - mu[j]) * (Y_obs - mu[k])) /
+            (Nk[j] * Nk[k])
+          Sigma_mu[j, k] <- cov_jk
+          Sigma_mu[k, j] <- cov_jk
+        }
       }
+      model_state$sm$parameters$Sigma_mu <- Sigma_mu
     }
-    model_state$sm$parameters$Sigma_mu <- Sigma_mu
   }
 
   # For distal_continuous_pooled: store the full model-based covariance matrix
