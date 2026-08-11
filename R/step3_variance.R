@@ -265,9 +265,20 @@ NULL
                                  1e-10), 1 - 1e-10)),
     poisson   = log(pmax(as.vector(p$rates[, cols, drop = FALSE]), 1e-12)),
     gaussian_unit = as.vector(p$means[, cols, drop = FALSE]),
-    gaussian_diag = c(as.vector(p$means[, cols, drop = FALSE]),
-                      0.5 * log(pmax(as.vector(p$covariances[, cols, drop = FALSE]),
-                                     1e-12))),
+    gaussian_diag = {
+      # Under `variances_equal` the K rows of `covariances` hold one shared
+      # parameter per item, not K free ones. Packing all K hands the numerical
+      # Hessian in .step1_variance() K - 1 directions per item that the fit was
+      # never free to move along, and is therefore not stationary in — which
+      # made -H indefinite and forced the outer-product fallback on every
+      # constrained model. Same accounting as n_parameters.gaussian_diag(),
+      # which already divides this block by K.
+      v <- if (isTRUE(emis$variances_equal))
+             p$covariances[1L, cols, drop = TRUE]
+           else
+             as.vector(p$covariances[, cols, drop = FALSE])
+      c(as.vector(p$means[, cols, drop = FALSE]), 0.5 * log(pmax(v, 1e-12)))
+    },
     multinoulli = {
       M <- emis$max_val
       unlist(lapply(items, function(j) {
@@ -296,8 +307,12 @@ NULL
     emis$parameters$means[, cols] <- matrix(par, K, nc)
   } else if (fam == "gaussian_diag") {
     emis$parameters$means[, cols] <- matrix(par[seq_len(K * nc)], K, nc)
+    vp <- par[(K * nc + 1L):length(par)]
     emis$parameters$covariances[, cols] <-
-      matrix(exp(2 * par[(K * nc + 1L):(2L * K * nc)]), K, nc)
+      if (isTRUE(emis$variances_equal))
+        matrix(exp(2 * vp), K, nc, byrow = TRUE)   # one row, recycled to all K
+      else
+        matrix(exp(2 * vp), K, nc)
   } else if (fam == "multinoulli") {
     M   <- emis$max_val
     per <- K * (M - 1L)
@@ -431,18 +446,9 @@ NULL
     # positive semi-definite by construction; their Table 3 finds the two
     # choices immaterial, so the fallback costs nothing statistical.
     #
-    # The known trigger is an equality constraint on the measurement model that
-    # the packing above does not represent. .step1_pack_sub() exposes every
-    # K x J variance cell as a free coordinate, so under `variances_equal` the
-    # vector carries K times more variance directions than the model actually
-    # has, and the fit is not stationary along the ones the constraint removed.
-    # Measured on a four-class continuous model (K = 4, J = 3, n ~ 1000): the
-    # step-one gradient is ~0.25 in the means and ~0.16 in the weights but 42.7
-    # in the log-sd block, and min eig(-H) = -5.25; refitting the same data with
-    # free variances gives min eig(-H) = +7.32. Switching every prior off leaves
-    # both unchanged (41.9 and -6.40), so this is the constraint and not, as
-    # once supposed, the gap between the penalised mode and the unpenalised
-    # likelihood differentiated here.
+    # The `variances_equal` packing gap that used to trigger this routinely was
+    # fixed in .step1_pack_sub(); reaching here is now a genuine signal about the
+    # geometry of the fit rather than an artefact of the representation.
     return(list(V = outer_v(), method = "outer", fallback = TRUE))
   }
   list(V = V1, method = "hessian", fallback = FALSE)

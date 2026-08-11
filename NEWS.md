@@ -1,5 +1,18 @@
 # mixtureEM (development version)
 
+* **Corrected standard errors now use the estimator they name on models fitted
+  with `variances_equal = TRUE`.** `se = "corrected"` needs the sampling
+  variance of the measurement parameters, and the vector it built for that
+  treated each class's variance as free even on models that hold them equal. The
+  extra directions were ones the fit was never able to move along, so the
+  numerical information matrix came back indefinite and the package silently
+  substituted the outer-product estimator — on a large and very ordinary family
+  of models, while printing a diagnostic that read like a failure. The vector
+  now carries one variance per item when the classes share it. Standard errors
+  for covariate effects on those models change slightly; expect movement in the
+  third decimal rather than changed conclusions. `se = "robust"` and
+  `se = "hessian"` never used this path and are unaffected.
+
 * **`bayes_constants$categorical` now reaches categorical distal outcomes.** The
   constant was applied to categorical *indicators* but never to a categorical
   *distal outcome*, whose M-step is a separate engine. A class in which nobody

@@ -212,6 +212,33 @@ test_that("step-1 packing respects equality constraints across occasions", {
   }
 })
 
+test_that("step-1 packing respects equal variances across classes", {
+  set.seed(11)
+  n   <- 300
+  cls <- sample(1:2, n, TRUE)
+  X   <- matrix(rnorm(n * 4, ifelse(rep(cls, 4) == 1, 1, -1)), n, 4)
+
+  free <- suppressMessages(fit_mixture(X, n_classes = 2, measurement = "continuous",
+                                       variances_equal = FALSE,
+                                       n_init = 3, random_state = 4))
+  inv  <- suppressMessages(fit_mixture(X, n_classes = 2, measurement = "continuous",
+                                       variances_equal = TRUE,
+                                       n_init = 3, random_state = 4))
+
+  # K variance cells per item collapse to one, so the constrained packing is
+  # shorter by (K - 1) * n_items.
+  expect_equal(length(.step1_pack(free)) - length(.step1_pack(inv)),
+               (inv$n_components - 1L) * 4L)
+
+  for (f in list(inv, free)) {
+    par <- .step1_pack(f)
+    expect_equal(.step1_pack(.step1_unpack(f, par)), par)
+    expect_equal(.step1_ll_case(f, X, par),
+                 logsumexp(sweep(log_likelihood(f$mm, X), 2,
+                                 log(f$weights), "+"), MARGIN = 1))
+  }
+})
+
 # ------------------------------------------------------------------------------
 # 2. Structure
 # ------------------------------------------------------------------------------
