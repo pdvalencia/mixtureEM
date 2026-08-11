@@ -426,11 +426,23 @@ NULL
   ev <- eigen(V1, symmetric = TRUE, only.values = TRUE)$values
   if (!all(is.finite(ev)) || min(ev) < -1e-8 * max(1, max(ev))) {
     # Bakk, Oberski & Vermunt (2014, p. 527) define the corrected variance as a
-    # sum of two positive-definite terms; a numerical Hessian that is indefinite
-    # at the penalised step-one mode breaks that guarantee, so fall back to the
-    # outer-product estimator, which is positive semi-definite by construction.
-    # Their Table 3 finds the two choices immaterial, so the fallback costs
-    # nothing statistical.
+    # sum of two positive-definite terms, so an indefinite step-one variance
+    # breaks that guarantee. Fall back to the outer-product estimator, which is
+    # positive semi-definite by construction; their Table 3 finds the two
+    # choices immaterial, so the fallback costs nothing statistical.
+    #
+    # The known trigger is an equality constraint on the measurement model that
+    # the packing above does not represent. .step1_pack_sub() exposes every
+    # K x J variance cell as a free coordinate, so under `variances_equal` the
+    # vector carries K times more variance directions than the model actually
+    # has, and the fit is not stationary along the ones the constraint removed.
+    # Measured on a four-class continuous model (K = 4, J = 3, n ~ 1000): the
+    # step-one gradient is ~0.25 in the means and ~0.16 in the weights but 42.7
+    # in the log-sd block, and min eig(-H) = -5.25; refitting the same data with
+    # free variances gives min eig(-H) = +7.32. Switching every prior off leaves
+    # both unchanged (41.9 and -6.40), so this is the constraint and not, as
+    # once supposed, the gap between the penalised mode and the unpenalised
+    # likelihood differentiated here.
     return(list(V = outer_v(), method = "outer", fallback = TRUE))
   }
   list(V = V1, method = "hessian", fallback = FALSE)
