@@ -171,3 +171,40 @@ test_that("add_covariates and add_outcome reject unusable fits", {
   expect_error(add_covariates(fit0), "`predictors` is required")
   expect_error(add_outcome(fit0), "`outcome` is required")
 })
+
+test_that("the categorical Bayes constant bounds a distal logit on a separated class", {
+  # A class in which nobody gives a response has no finite unpenalised logit for
+  # it. The prior is what keeps the estimate on the scale; without it the
+  # intercept simply runs off towards minus infinity.
+  set.seed(3)
+  K    <- 3L
+  cls  <- rep(seq_len(K), length.out = 300)
+  resp <- matrix(0, length(cls), K)
+  resp[cbind(seq_along(cls), cls)] <- 1
+  y    <- ifelse(cls == 1L, 1L, sample(1:2, length(cls), TRUE))
+  Xd   <- matrix(y, ncol = 1)
+
+  fit_alpha <- function(a) {
+    st <- distal_categorical_model(K, max_iter = 5000, tol = 1e-10)
+    st$bayes_constants <- list(latent = 1, categorical = a, poisson = 1,
+                               variances = 1)
+    st <- init_params(st, Xd, resp, random_state = 1)
+    as.vector(m_step(st, Xd, resp)$parameters$beta_pooled)
+  }
+
+  b <- fit_alpha(1)
+  expect_true(all(is.finite(b)))
+  expect_lt(max(abs(b)), 25)
+
+  # The constant reaches this engine in the same pseudo-observations form the
+  # categorical measurement M-step uses, so it must reproduce that closed form:
+  #   p_km = (n_km + (alpha/K) * q_m) / (n_k + alpha/K)
+  prior_obs <- 1 / K
+  closed    <- (as.vector(table(cls, y)[, 2]) + prior_obs * mean(y == 2)) /
+    (as.vector(table(cls)) + prior_obs)
+  expect_equal(exp(b) / (1 + exp(b)), closed, tolerance = 1e-8)
+
+  # Switching it off recovers plain maximum likelihood, which on this data has
+  # no finite maximiser for the separated class.
+  expect_gt(abs(fit_alpha(0)[1]), abs(b[1]))
+})

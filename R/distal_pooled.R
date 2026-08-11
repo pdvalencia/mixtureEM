@@ -62,7 +62,8 @@ init_params.distal_pooled <- function(model_state, X, resp,
 }
 
 #' @exportS3Method
-m_step.distal_pooled <- function(model_state, X, resp, weights = NULL, ...) {
+m_step.distal_pooled <- function(model_state, X, resp, weights = NULL,
+                                 alpha = NULL, ...) {
   Y <- .validate_pooled_Y(X[, 1], "distal_pooled m_step")
   if (is.null(Y)) return(model_state)  # constant outcome - skip
 
@@ -74,6 +75,7 @@ m_step.distal_pooled <- function(model_state, X, resp, weights = NULL, ...) {
   L     <- K + D_cov
   N     <- nrow(X)
 
+  w_case <- if (is.null(weights)) rep(1, N) else weights
   if (!is.null(weights)) resp <- sweep(resp, 1, weights, "*")
 
   U <- matrix(0, nrow = N * K, ncol = L)
@@ -91,6 +93,35 @@ m_step.distal_pooled <- function(model_state, X, resp, weights = NULL, ...) {
   U_valid    <- U[valid_Y_flat, , drop = FALSE]
   W_valid    <- W_flat[valid_Y_flat]
   Y_oh_valid <- Y_oh_flat[valid_Y_flat, , drop = FALSE]
+  n_data     <- nrow(U_valid)
+
+  # Dirichlet prior on the class-specific response probabilities, in the same
+  # alpha/K pseudo-observations form the categorical measurement M-step uses, so
+  # that bayes_constants$categorical means the same thing on both engines.
+  # Without it a class in which no member gives a particular response drives its
+  # intercept to minus infinity instead of to a large finite logit.
+  #
+  # The prior enters as K extra observations, one per class, each carrying
+  # alpha/K weight and the outcome's observed marginal distribution in place of
+  # a one-hot response: the existing gradient and Hessian sums then pick it up
+  # unchanged. That equivalence holds because the design row of a pseudo-
+  # observation is the class indicator itself, which is only true when there are
+  # no covariates -- with covariates there is no non-arbitrary place in
+  # covariate space to put them, so the prior is confined to the no-covariate
+  # (distal_categorical) engine.
+  if (inherits(model_state, "distal_categorical") && D_cov == 0L) {
+    alpha     <- alpha %||% .bayes_alpha(model_state, "categorical")
+    prior_obs <- alpha / K
+    obs_Y     <- !is.na(Y)
+    if (prior_obs > 0 && any(obs_Y)) {
+      q <- colSums(distal_one_hot(Y[obs_Y], M) * w_case[obs_Y]) / sum(w_case[obs_Y])
+      U_prior <- matrix(0, nrow = K, ncol = L)
+      U_prior[cbind(seq_len(K), seq_len(K))] <- 1
+      U_valid    <- rbind(U_valid, U_prior)
+      W_valid    <- c(W_valid, rep(prior_obs, K))
+      Y_oh_valid <- rbind(Y_oh_valid, matrix(q, nrow = K, ncol = M, byrow = TRUE))
+    }
+  }
 
   beta_mat <- model_state$parameters$beta_pooled
 
@@ -134,14 +165,19 @@ m_step.distal_pooled <- function(model_state, X, resp, weights = NULL, ...) {
   # is ever assigned, and the previous call's H would be silently returned.
   # The ridge penalty is omitted here — we want the true Fisher
   # information matrix at the MLE, not the NR stabilisation term.
+  # The prior's pseudo-observations are dropped for the same reason: they are
+  # part of the objective that was maximised, not part of the data whose
+  # curvature the standard errors describe.
   # ----------------------------------------------------------------
-  P_final <- distal_forward(U_valid, beta_mat)
+  U_final <- U_valid[seq_len(n_data), , drop = FALSE]
+  W_final <- W_valid[seq_len(n_data)]
+  P_final <- distal_forward(U_final, beta_mat)
   H_final <- matrix(0, nrow = (M - 1) * L, ncol = (M - 1) * L)
   for (m in 2:M) {
     for (m_prime in 2:M) {
       kronecker <- if (m == m_prime) 1 else 0
-      r     <- W_valid * P_final[, m] * (kronecker - P_final[, m_prime])
-      sub_H <- -t(U_valid) %*% sweep(U_valid, 1, r, "*")
+      r     <- W_final * P_final[, m] * (kronecker - P_final[, m_prime])
+      sub_H <- -t(U_final) %*% sweep(U_final, 1, r, "*")
       idx_m       <- ((m - 2) * L + 1):((m - 1) * L)
       idx_m_prime <- ((m_prime - 2) * L + 1):((m_prime - 1) * L)
       H_final[idx_m, idx_m_prime] <- sub_H
