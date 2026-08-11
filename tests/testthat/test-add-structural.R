@@ -208,3 +208,26 @@ test_that("the categorical Bayes constant bounds a distal logit on a separated c
   # no finite maximiser for the separated class.
   expect_gt(abs(fit_alpha(0)[1]), abs(b[1]))
 })
+
+test_that("outcome takes one column, and says so when given more", {
+  d <- .sim_step3_data(n = 150)
+  two <- data.frame(bmi = d$bmi, other = rnorm(150))
+
+  # The old failure was a coercion error naming doubles or xtfrm, which said
+  # nothing about the cause.
+  expect_error(
+    suppressMessages(fit_mixture(d$items, n_classes = 2, outcome = two,
+                                 n_init = 3, random_state = 5)),
+    "single distal outcome")
+  expect_error(
+    suppressMessages(fit_mixture(d$items, n_classes = 2, outcome = as.matrix(two),
+                                 n_init = 3, random_state = 5)),
+    "single distal outcome")
+
+  # A single column wrapped in a data frame is unambiguous: accepted, with the
+  # column name kept as the outcome label.
+  spec <- .build_outcome_spec(data.frame(bmi = d$bmi), NULL, "categorical",
+                              "pooled", NULL)
+  expect_identical(colnames(spec$Y), "bmi")
+  expect_identical(ncol(spec$Y), 1L)
+})
