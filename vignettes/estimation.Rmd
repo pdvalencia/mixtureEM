@@ -112,19 +112,57 @@ There are three ways out, and they change the model in different ways:
   means the data do not support this many.
 - **A stronger prior**, `bayes_constants = list(variances = ...)`. A useful
   starting point is one artificial observation per class — that is
-  `variances = n_classes` — doubling it if the warning persists. The warning
-  prints that number for your model.
+  `variances = n_classes` — increasing it a little at a time if the warning
+  persists. The warning prints that number for your model.
 
 Then check the result rather than just that the warning stopped: the flagged
 variance should no longer be far below the others, and its class mean should
 have come off the floor or ceiling of the response scale.
 
-Theory settles the *form* of this prior and not its size. Any penalty that
-diverges as a variance approaches zero, and grows more slowly than the sample,
-gives a consistent estimator whatever its constant (Chen, Tan & Zhang, 2008).
-The choice of constant is a finite-sample judgement, which is why the default is
-deliberately weak and the advice above is a rule with a check rather than a
-number to copy.
+Two things about that prior are worth knowing, because they are what make the
+advice a rule rather than a number to copy.
+
+It is centred on each item's *own* observed marginal variance, not on a fixed
+quantity. That is what lets one constant mean the same thing on a five-point
+scale and on an income variable: rescale an indicator and the prior rescales
+with it. A penalty pinned to a constant has no such property, and the
+penalised-likelihood literature prefers the data-scaled form for exactly this
+reason (Chen, Tan & Zhang, 2008, sec. 4).
+
+And the constant is divided among the classes, so `variances = n_classes` is
+the setting that holds it at one artificial observation per class at *every*
+number of classes — the way the literature applies it, the same amount to every
+component. A bare number does the opposite: it is a different amount of prior in
+a three-class model than in a six-class one. Write it as `n_classes` and it
+stays comparable across the models you are enumerating.
+
+Theory settles the *form* of this prior and not its size. Within the conditions
+Chen, Tan & Zhang (2008) impose — which any fixed positive constant meets — a
+penalty that diverges as a variance approaches zero, and grows more slowly than
+the sample, gives a consistent estimator whatever its constant. That result is
+proved for *univariate* normal mixtures; the multivariate case, which is what
+this package fits, they leave open (sec. 5). So the choice of constant is all
+the more a finite-sample judgement, which is why the default is deliberately
+weak and the advice above comes with a check attached.
+
+### A clean fit is not proof that there is no spike
+
+The absence of the warning does not establish that no collapsed solution exists.
+The warning can only report on the solution the search actually reached, and
+some degenerate solutions sit in basins so narrow that random starts never land
+in them. A fit can replicate its maximum on every one of hundreds of starts, and
+still not be the highest point on the likelihood.
+
+This is worth checking whenever an indicator has a floor or a ceiling — a
+bounded scale with a visible pile-up of cases at an endpoint. That pile-up is a
+set of near-identical values, which is exactly what a collapsing class latches
+onto, but it attracts only starts that begin very close to it. Two cheap checks:
+refit with `bayes_constants = list(variances = n_classes)` and see whether the
+solution moves at all, and look at whether any class mean is sitting on a scale
+endpoint with a variance far below that item's marginal. Splitting the sample
+into subgroups widens these basins, because the pile-up makes up a larger share
+of each smaller sample, so a model that looks clean on the whole sample deserves
+the check again on the parts.
 
 ## Missing data needs nothing from you
 

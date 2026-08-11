@@ -190,12 +190,20 @@ probabilities), \code{poisson} (count rates), and \code{variances}
 \code{1}. Each is a number of pseudo-observations spread over the classes,
 so its influence shrinks as the sample grows.
 
+The \code{variances} prior is centred on each item's own observed marginal
+variance rather than on a fixed number, which is what makes it mean the same
+thing on a five-point scale and on an income variable: rescaling an
+indicator rescales the prior with it. That invariance is the reason the
+penalised-likelihood literature recommends a data-scaled penalty over a
+constant one (Chen, Tan, & Zhang, 2008, sec. 4).
+
 Two uses. \strong{Reproducing an unregularized fit:} setting a constant to
 \code{0} removes that prior and gives plain maximum likelihood for that
 block. This is an escape hatch for matching a reference analysis, not a
-recommended setting — the unpenalised mixture likelihood is unbounded, and
-maximum likelihood for a mixture of normals is known to be inconsistent
-without some such restriction (Kiefer & Wolfowitz, 1956).
+recommended setting — the unpenalised mixture likelihood for a mixture of
+normals is unbounded, so a \emph{global} maximum likelihood estimate does
+not exist (Day, 1969; Kiefer & Wolfowitz, 1956) and what an unregularized
+program reports is a local maximum.
 
 \strong{Rescuing a collapsed fit:} if a fit warns that a class variance has
 collapsed, the prior is one of three remedies, and not the first to reach
@@ -204,13 +212,16 @@ for. Constraining the variances to be equal across classes
 arise at all; fitting fewer classes often removes the class that was
 describing a spike. Where neither is acceptable substantively, raise
 \code{variances}. A useful starting point is \strong{one artificial
-observation per class}, i.e. \code{variances = n_classes}, doubling it if
-the warning persists. State it that way rather than as a bare number: the
-constant is divided among the classes, so a fixed value is a different
-amount of prior at every \code{n_classes}. Then check the result rather
-than just that the warning stopped — the flagged variance should no longer
-be far below the others in the model, and its class mean should have come
-off the floor or ceiling of the response scale.
+observation per class}, i.e. \code{variances = n_classes}, increasing it a
+little at a time if the warning persists. State it that way rather than as a
+bare number: the constant is divided among the classes, so
+\code{variances = n_classes} is what holds the prior at one
+pseudo-observation per class at \emph{every} number of classes — the way the
+penalised-mixture literature applies it, the same amount to every component
+— while a fixed value drifts as classes are added. Then check the result
+rather than just that the warning stopped — the flagged variance should no
+longer be far below the others in the model, and its class mean should have
+come off the floor or ceiling of the response scale.
 
 Raising \code{n_init} is \emph{not} a remedy here. A collapsed variance is
 not a convergence failure but a property of the likelihood, which really is
@@ -218,10 +229,13 @@ unbounded in that direction, so a longer search can find a taller spike and
 report a better log-likelihood for a worse solution. For the same reason a
 flagged fit's BIC is not comparable with a clean fit's.
 
-The theory behind the prior settles its form and not its size: a penalty
-that diverges as a variance approaches zero and grows more slowly than the
-sample yields a consistent estimator whatever its constant (Chen, Tan, &
-Zhang, 2008). The choice of constant is therefore a finite-sample judgement,
+The theory behind the prior settles its form and not its size: within the
+conditions Chen, Tan, & Zhang (2008) impose — which any fixed positive
+constant meets — a penalty that diverges as a variance approaches zero and
+grows more slowly than the sample yields a consistent estimator whatever its
+constant. That result is proved for \emph{univariate} normal mixtures; the
+multivariate case, which is what this package fits, they leave open (sec. 5).
+The choice of constant is therefore all the more a finite-sample judgement,
 which is why the default is deliberately weak and the guidance above is a
 rule with a check rather than a magic value.
 
@@ -305,6 +319,13 @@ Galindo Garre, F., & Vermunt, J. K. (2006). Avoiding boundary estimates in
 latent class analysis by Bayesian posterior mode estimation.
 \emph{Behaviormetrika}, \emph{33}(1), 43-59. \doi{10.2333/bhmk.33.43}
 (the priors behind \code{bayes_constants}).
+
+Chen, J., Tan, X., & Zhang, R. (2008). Inference for normal mixtures in mean
+and variance. \emph{Statistica Sinica}, \emph{18}(2), 443-465
+(the penalty behind \code{bayes_constants$variances}).
+
+Day, N. E. (1969). Estimating the components of a mixture of normal
+distributions. \emph{Biometrika}, \emph{56}(3), 463-474.
 
 Kiefer, J., & Wolfowitz, J. (1956). Consistency of the maximum likelihood
 estimator in the presence of infinitely many incidental parameters.
