@@ -1,5 +1,19 @@
 # mixtureEM (development version)
 
+* **`bayes_constants$categorical` now reaches categorical distal outcomes.** The
+  constant was applied to categorical *indicators* but never to a categorical
+  *distal outcome*, whose M-step is a separate engine. A class in which nobody
+  gave a particular response therefore had no finite estimate for it and the
+  intercept ran off towards minus infinity, printing as a large negative logit
+  rather than as a bounded one. The prior now enters that M-step in the same
+  pseudo-observations form the indicator M-step uses, so the constant means the
+  same thing on both, and `categorical = 0` still recovers plain maximum
+  likelihood. Estimates for categorical distal outcomes will change, most
+  visibly on classes with an unobserved response category. Models with
+  covariates alongside the outcome are unaffected: there is no non-arbitrary
+  place in covariate space to put the pseudo-observations, so the prior is
+  confined to the no-covariate case.
+
 ## Fixed: two estimation bugs that cost log-likelihood on every affected fit
 
 * **EM now converges before it stops.** Emissions that L-BFGS refines
