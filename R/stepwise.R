@@ -206,6 +206,30 @@
 # two paths cannot drift apart.
 .build_outcome_spec <- function(outcome, outcome_covariates, outcome_type,
                                 slopes, cov_expr) {
+  # One distal outcome per call. A multi-column `outcome` otherwise reaches the
+  # coercions below as a list and dies there with a message about doubles or
+  # xtfrm, which says nothing about what the caller did wrong. A single column
+  # arriving as a one-column data frame or matrix is unambiguous, so it is
+  # unwrapped rather than rejected.
+  if (!is.null(dim(outcome))) {
+    if (ncol(outcome) > 1L)
+      stop(sprintf(paste("`outcome` must be a single distal outcome, but %d",
+                         "columns were supplied (%s). Fit them one at a time:",
+                         "the three-step estimates are identical either way,",
+                         "because each outcome is regressed on the same frozen",
+                         "measurement model and the outcomes do not enter each",
+                         "other's structural equation."),
+                   ncol(outcome),
+                   paste(utils::head(colnames(outcome) %||%
+                                       seq_len(ncol(outcome)), 4L),
+                         collapse = ", ")),
+           call. = FALSE)
+    out_label <- .outcome_label(outcome)
+    outcome   <- if (is.data.frame(outcome)) outcome[[1L]] else outcome[, 1L]
+  } else {
+    out_label <- .outcome_label(outcome)
+  }
+
   otype <- .resolve_outcome_type(outcome, outcome_type)
   if (outcome_type == "auto")
     message(sprintf("Outcome treated as %s (set `outcome_type` to override).",
@@ -232,8 +256,7 @@
     if (anyNA(out_col) && !anyNA(outcome))
       stop("A continuous `outcome` must be numeric.", call. = FALSE)
   }
-  out_mat <- matrix(out_col, ncol = 1L,
-                    dimnames = list(NULL, .outcome_label(outcome)))
+  out_mat <- matrix(out_col, ncol = 1L, dimnames = list(NULL, out_label))
 
   Y <- if (has_cov) .cbind_covariates(out_mat, prepare_covariates(
     .as_named_covariates(outcome_covariates, cov_expr, "covariate")))
