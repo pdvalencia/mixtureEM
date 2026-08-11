@@ -157,3 +157,50 @@
 .time_block_cols <- function(t, n_items) {
   ((t - 1L) * n_items + 1L):(t * n_items)
 }
+
+# Put two-level binary indicators on the 0/1 scale the Bernoulli emission
+# requires, deciding the level set ONCE PER ITEM over every block.
+#
+# `.recode_binary()` (R/wrapper.R) does the same job column by column, which is
+# right for a cross-sectional matrix and wrong here: the same item appears once
+# per occasion, and a per-column decision would map a level differently at t1
+# and t2 whenever one occasion happens to observe only one of the two levels.
+# With thresholds held equal across time that silently compares different
+# response spaces, so the level set is pooled over the blocks first and the
+# mapping becomes a property of the item.
+#
+# Blocks are occasions in the longitudinal models and groups in the
+# multiple-group one; both use the same layout, so `n_blocks` covers both.
+.recode_binary_blocks <- function(X, n_items, n_blocks) {
+  nms <- colnames(X)
+  map <- list()
+  for (j in seq_len(n_items)) {
+    cols <- j + (seq_len(n_blocks) - 1L) * n_items
+    v    <- as.vector(X[, cols, drop = FALSE])
+    obs  <- v[!is.na(v)]
+    if (!length(obs)) next
+    vals <- sort(unique(obs))
+    if (length(vals) != 2L || all(vals == c(0, 1))) next
+
+    X[, cols] <- matrix(as.numeric(X[, cols, drop = FALSE] == vals[2L]),
+                        nrow(X), length(cols))
+    # Column labels carry a block marker -- "item@T1" here, "G1.item" on the
+    # group path -- and the message should name the item, not one of its
+    # occasions.
+    nm <- if (is.null(nms)) paste0("column ", j)
+          else sub("^G[0-9]+\\.", "", sub("@.*$", "", nms[cols[1L]]))
+    map[[nm]] <- vals
+  }
+
+  if (length(map)) {
+    pairs <- vapply(names(map), function(nm)
+      sprintf("%s (%s -> 0, %s -> 1)", nm, format(map[[nm]][1L]),
+              format(map[[nm]][2L])), character(1))
+    message("Recoded binary indicators to 0/1: ", paste(pairs, collapse = "; "),
+            ". Reported probabilities are of the value shown as 1. ",
+            "The mapping is decided once per item across all occasions, so an ",
+            "occasion that observed only one level is coded consistently with ",
+            "the others.")
+  }
+  list(X = X, map = map)
+}

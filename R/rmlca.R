@@ -98,6 +98,7 @@ fit_rmlca <- function(indicators,
 
   engine <- .longitudinal_measurement_spec(measurement, prep$X, prep$n_items,
                                            prep$n_times)
+  prep$X <- engine$X
 
   if (!is.null(predictors))
     predictors <- .as_named_covariates(predictors, substitute(predictors),
@@ -175,9 +176,11 @@ fit_rmlca <- function(indicators,
     d %in% c("categorical", "multinoulli", "categorical_nan", "multinoulli_nan")
 
   if (is_binary(sub_model)) {
+    X <- .recode_binary_blocks(X, n_items, n_times)$X
     vals <- X[!is.na(X)]
     if (length(vals) && !all(vals %in% c(0, 1)))
-      stop('measurement = "binary" requires indicator values in {0, 1}.',
+      stop('measurement = "binary" requires indicator values in {0, 1}, or a ',
+           "two-level coding of each item that can be mapped to them.",
            call. = FALSE)
   }
 
@@ -195,7 +198,7 @@ fit_rmlca <- function(indicators,
       measurement, X[, .time_block_cols(1L, n_items), drop = FALSE])
   }
 
-  list(sub_model = sub_model, max_val = max_val)
+  list(sub_model = sub_model, max_val = max_val, X = X)
 }
 
 # Class-by-time-by-item array of the quantity that characterises each class at

@@ -265,6 +265,7 @@ fit_lta <- function(indicators,
                                prep$item_names, measurement)
   engine <- .longitudinal_measurement_spec(measurement, prep$X, prep$n_items,
                                            prep$n_times)
+  prep$X <- engine$X
 
   X <- prep$X
   n <- nrow(X)

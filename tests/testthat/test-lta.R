@@ -58,3 +58,46 @@ test_that("forbidden transitions hold the ruled-out cells at exactly zero", {
   # probabilities, held equal across occasions by the default invariance).
   expect_equal(fit$n_params, 1L + 3L + 2L)
 })
+
+# ------------------------------------------------------------------------------
+# Two-level indicators that are not coded 0/1
+# ------------------------------------------------------------------------------
+
+test_that("1/2-coded indicators fit the same model as their 0/1 recoding", {
+  set.seed(21)
+  n   <- 300
+  st  <- sample(1:2, n, TRUE)
+  p   <- rbind(c(0.8, 0.75, 0.85), c(0.2, 0.25, 0.15))
+  X01 <- cbind(matrix(rbinom(n * 3, 1, p[st, ]), n, 3),
+               matrix(rbinom(n * 3, 1, p[st, ]), n, 3))
+  colnames(X01) <- paste0("i", rep(1:3, 2), "@T", rep(1:2, each = 3))
+
+  a <- fit_lta(X01, n_statuses = 2, times = 2, measurement = "binary",
+               n_init = 5, random_state = 7, standard_errors = FALSE)
+  expect_message(
+    b <- fit_lta(X01 + 1, n_statuses = 2, times = 2, measurement = "binary",
+                 n_init = 5, random_state = 7, standard_errors = FALSE),
+    "Recoded binary indicators")
+
+  expect_equal(a$loglik, b$loglik, tolerance = 1e-8)
+})
+
+test_that("the binary recode pools the occasions rather than deciding per column", {
+  set.seed(22)
+  n  <- 200
+  X  <- matrix(rbinom(n * 4, 1, 0.5), n, 4) + 1
+  colnames(X) <- paste0("i", rep(1:2, 2), "@T", rep(1:2, each = 2))
+  # Item 1 happens to observe only the upper level at the second occasion. A
+  # per-column recode would map that 2 to 0, contradicting the first occasion.
+  X[, 3] <- 2
+
+  expect_silent(
+    fit <- suppressMessages(
+      fit_lta(X, n_statuses = 2, times = 2, measurement = "binary",
+              n_init = 3, random_state = 8, standard_errors = FALSE)))
+  expect_true(is.finite(fit$loglik))
+
+  rec <- suppressMessages(.recode_binary_blocks(X, n_items = 2, n_blocks = 2)$X)
+  expect_equal(unname(rec[, 3]), rep(1, n))
+  expect_true(all(rec %in% c(0, 1)))
+})

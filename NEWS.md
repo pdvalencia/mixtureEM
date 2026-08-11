@@ -1,5 +1,19 @@
 # mixtureEM (development version)
 
+* **`fit_lta()` and `fit_rmlca()` now accept two-level indicators that are not
+  coded 0/1.** `fit_mixture()` has always recoded them for you; the longitudinal
+  models never reached that code and stopped with an error instead, so a
+  perfectly ordinary 1/2 coding had to be shifted by hand. They now recode it
+  themselves, and they decide the mapping once per item across all occasions
+  rather than column by column. That distinction matters: the same item appears
+  once per occasion, and a per-column decision would map a level differently at
+  two occasions whenever one of them happened to observe only one of the two
+  levels — which, with thresholds held equal across time, would silently compare
+  different response spaces. The recode is reported, naming the item and which
+  value became 1, so it is clear which response the printed probabilities
+  describe. Items with three or more levels are still an error under
+  `measurement = "binary"`.
+
 * **Corrected standard errors now use the estimator they name on models fitted
   with `variances_equal = TRUE`.** `se = "corrected"` needs the sampling
   variance of the measurement parameters, and the vector it built for that

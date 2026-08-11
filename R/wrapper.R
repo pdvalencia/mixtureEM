@@ -2420,7 +2420,7 @@ fit_mixture <- function(indicators = NULL,
       engine <- .longitudinal_measurement_spec(measurement, X_grp,
                                                n_items = ncol(X_use),
                                                n_times = n_groups)
-      X_use              <- X_grp
+      X_use              <- engine$X
       measurement_engine <- "group_blocks"
       group_extra_args <- list(
         n_items          = length(item_names),
