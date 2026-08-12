@@ -61,6 +61,19 @@ same numbers. What changed is what the package tells you about them.
   cannot be sourced — the `1e-4` EM tolerance, `n_init_boot = 10` — the
   vignette says so rather than dressing it up.
 
+* **The growth-model help files now carry the applied reporting conventions,
+  with their sources, and no behaviour changed.** `?fit_gmm` names the three
+  specification levels applied papers use, says which of them `psi` and
+  `residual_equal` correspond to and which this package cannot fit, and states
+  the cost of the `psi = "equal"` default — the same constraint that buys
+  stability can buy an extra class that is an artefact of it. `?fit_lcga` says
+  why an LCGA's information criteria can improve monotonically with K, and why
+  that is a symptom rather than a result. Both now say how many occasions each
+  polynomial degree needs. `?class_sizes` gives the two published small-class
+  conventions and states plainly that the package enforces neither, and the two
+  comparison functions document how to read the `Entropy` column — anchors, and
+  the fact that entropy is not evidence for the number of classes.
+
 * **Three small fixes.** A single collapsed pair of latent statuses is now
   reported as "Latent class 1 and 2" rather than "Latent classes"; the
   `@references` blocks of `classification_diagnostics()`, `absolute_fit()` and

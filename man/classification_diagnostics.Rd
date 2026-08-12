@@ -35,6 +35,17 @@ See \code{\link[=classification_table]{classification_table()}} for the details,
 \code{\link[=bivariate_residuals]{bivariate_residuals()}} for the fit of the model itself rather than the
 quality of its assignments.
 
+The diagonal of the AvePP matrix reads as a percentage of the cases assigned
+to that class: a value of 0.91 "suggests that 91\% of subjects in the assigned
+class fit that category, while 9\% of the subjects in that class do not
+accurately fit that category" (Fanti & Henrich, 2010, as reported by Lee et
+al., 2023, p. 653).
+
+This function does not compute entropy, which is the other number solutions
+are judged by. That is \code{fit$metrics$entropy}, printed as \verb{Rel. Entropy} and
+carried as the \code{Entropy} column of \code{\link[=compare_mixtures]{compare_mixtures()}} and
+\code{\link[=compare_longitudinal]{compare_longitudinal()}}, where it is documented.
+
 Both tables use the case weights when the model was fitted with any.
 }
 \examples{
@@ -48,6 +59,11 @@ classification_diagnostics(fit)
 Celeux, G., & Soromenho, G. (1996). An entropy criterion for assessing the
 number of clusters in a mixture model. \emph{Journal of Classification},
 \emph{13}(2), 195-212. \doi{10.1007/BF01246098}
+
+Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
+growth mixture models (GMM). In \emph{International Encyclopedia of
+Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
+\doi{10.1016/B978-0-12-818630-5.10076-4}
 
 Nagin, D. S. (2005). \emph{Group-Based Modeling of Development}. Harvard
 University Press.

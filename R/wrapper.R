@@ -388,6 +388,17 @@ measurement_summary.default <- function(object, ...) {
 #' [`bivariate_residuals()`] for the fit of the model itself rather than the
 #' quality of its assignments.
 #'
+#' The diagonal of the AvePP matrix reads as a percentage of the cases assigned
+#' to that class: a value of 0.91 "suggests that 91% of subjects in the assigned
+#' class fit that category, while 9% of the subjects in that class do not
+#' accurately fit that category" (Fanti & Henrich, 2010, as reported by Lee et
+#' al., 2023, p. 653).
+#'
+#' This function does not compute entropy, which is the other number solutions
+#' are judged by. That is `fit$metrics$entropy`, printed as `Rel. Entropy` and
+#' carried as the `Entropy` column of [`compare_mixtures()`] and
+#' [`compare_longitudinal()`], where it is documented.
+#'
 #' Both tables use the case weights when the model was fitted with any.
 #'
 #' @param object A fitted \code{mixture_model} object returned by
@@ -408,6 +419,11 @@ measurement_summary.default <- function(object, ...) {
 #' Celeux, G., & Soromenho, G. (1996). An entropy criterion for assessing the
 #' number of clusters in a mixture model. \emph{Journal of Classification},
 #' \emph{13}(2), 195-212. \doi{10.1007/BF01246098}
+#'
+#' Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
+#' growth mixture models (GMM). In \emph{International Encyclopedia of
+#' Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
+#' \doi{10.1016/B978-0-12-818630-5.10076-4}
 #'
 #' Nagin, D. S. (2005). \emph{Group-Based Modeling of Development}. Harvard
 #' University Press.
@@ -449,6 +465,22 @@ classification_diagnostics.default <- function(object, ...) {
 #' and the number of cases modally assigned to the class. Case weights are
 #' used when the model was fitted with any.
 #'
+#' @details
+#' The smallest class is one of the things readers judge a solution by, and
+#' there are two published conventions for it. Lee et al. (2023, p. 654): "If
+#' the smallest class contains less than 5\% of the sample and/or the sample
+#' size for the smallest class is less than 25, it is recommended that the model
+#' only be retained as the optimal model if the researcher can accurately defend
+#' what is gained from this small class given the possibility of low power and a
+#' lack of statistical precision." Jung and Wickrama (2008, p. 312) give a
+#' weaker floor among their checks: no less than 1\% of the total in any class.
+#'
+#' Both are reporting conventions, and mixtureEM enforces neither. This function
+#' applies no threshold, raises no warning and filters nothing; a small class is
+#' estimated and returned like any other. What the conventions ask of you is a
+#' defence, not a deletion: keep the class if it can be justified substantively,
+#' drop it if it cannot, and report the number either way.
+#'
 #' @param object A fitted \code{mixture_model} object returned by
 #'   \code{\link{fit_mixture}}.
 #' @param ... Passed to methods.
@@ -463,6 +495,16 @@ classification_diagnostics.default <- function(object, ...) {
 #' X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
 #' fit <- fit_mixture(X, n_classes = 2)
 #' class_sizes(fit)
+#'
+#' @references
+#' Jung, T., & Wickrama, K. A. S. (2008). An introduction to latent class growth
+#' analysis and growth mixture modeling. \emph{Social and Personality Psychology
+#' Compass}, \emph{2}(1), 302-317. \doi{10.1111/j.1751-9004.2007.00054.x}
+#'
+#' Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
+#' growth mixture models (GMM). In \emph{International Encyclopedia of
+#' Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
+#' \doi{10.1016/B978-0-12-818630-5.10076-4}
 #'
 #' @export
 class_sizes <- function(object, ...) UseMethod("class_sizes")
@@ -2662,6 +2704,26 @@ print.mixture_model <- function(x, ...) {
 #' class enumeration. The best model according to BIC is identified
 #' automatically.
 #'
+#' @details
+#' **Reading the `Entropy` column.** Relative entropy describes how cleanly a
+#' solution separates the classes, on a 0-to-1 scale. The usual anchors are 0.40,
+#' 0.60 and 0.80 for low, medium and high separation (Clark & Muthen, 2009, as
+#' reported by Lee et al., 2023, p. 653); Ram and Grimm (2009, p. 571) put the
+#' same point as "high values of entropy (>.80) indicate that individuals are
+#' classified with confidence", and suggest preferring the higher-entropy model
+#' when choosing among models with similar BIC. Those anchors are on the same
+#' normalisation this package uses.
+#'
+#' Entropy is not evidence for how many classes there are, and there is no
+#' threshold it has to clear: "there are no set cut-off criteria for deciding
+#' whether the entropy is reasonably high" (Jung & Wickrama, 2008, p. 312). The
+#' numbers above are for reading a table, and mixtureEM applies no entropy
+#' threshold anywhere.
+#'
+#' **Reading the `Unreplicated` column.** `TRUE` means the reported maximum for
+#' that K was found by exactly one random start. Refit those values of K with
+#' `n_init = 100` before reporting them; see `vignette("estimation")`.
+#'
 #' @param X A numeric matrix or data frame of indicator variables.
 #' @param k_range Integer vector of class numbers to fit. All values must be >= 1. Default is \code{1:5}.
 #' @param measurement Character string specifying the measurement model type.
@@ -2675,7 +2737,7 @@ print.mixture_model <- function(x, ...) {
 #'
 #' @return A named list with three elements:
 #'   * `fit_table` Data frame with one row per K and columns `Classes`, `LL`,
-#'     `Params`, `AIC`, `BIC`, `SABIC`, `Entropy`.
+#'     `Params`, `AIC`, `BIC`, `SABIC`, `Entropy` and `Unreplicated`.
 #'   * `models` Named list of fitted `mixture_model` objects, one per K
 #'     (names are `"K1"`, `"K2"`, etc.).
 #'   * `best_k` Integer. The value of K with the lowest BIC.
@@ -2693,6 +2755,20 @@ print.mixture_model <- function(x, ...) {
 #' of classes in latent class analysis and growth mixture modeling: A Monte
 #' Carlo simulation study. \emph{Structural Equation Modeling}, \emph{14}(4),
 #' 535-569. \doi{10.1080/10705510701575396}
+#'
+#' Jung, T., & Wickrama, K. A. S. (2008). An introduction to latent class growth
+#' analysis and growth mixture modeling. \emph{Social and Personality Psychology
+#' Compass}, \emph{2}(1), 302-317. \doi{10.1111/j.1751-9004.2007.00054.x}
+#'
+#' Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
+#' growth mixture models (GMM). In \emph{International Encyclopedia of
+#' Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
+#' \doi{10.1016/B978-0-12-818630-5.10076-4}
+#'
+#' Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
+#' identifying differences in longitudinal change among unobserved groups.
+#' \emph{International Journal of Behavioral Development}, \emph{33}(6),
+#' 565-576. \doi{10.1177/0165025409343765}
 #'
 #' Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
 #' T. D. Little (Ed.), \emph{The Oxford Handbook of Quantitative Methods}

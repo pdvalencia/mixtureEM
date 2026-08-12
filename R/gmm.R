@@ -122,6 +122,27 @@
 #' and the reported trajectory is evaluated at the sample mean of the
 #' covariates.
 #'
+#' Applied papers usually name a growth mixture model by what the classes are
+#' allowed to differ in, and Ram and Grimm (2009, pp. 569-570) give the three
+#' levels. *Means* — classes differ in mean change only — is `psi = "equal"`,
+#' the default here. *Means + Covs* — classes also differ in how much
+#' interindividual variation there is within them — is `psi = "free"`; the
+#' residual variances are a separate switch, `residual_equal = FALSE`, and
+#' should not be merged with it. *Means + Covs + Pattern*, where classes differ
+#' in the shape of change as well, would need class-specific time scores;
+#' `fit_gmm()` builds one design for every class, so that level is not
+#' available.
+#'
+#' Two cautions worth carrying into any such analysis. Classes will be found
+#' whether or not there are groups to find: a skewed or otherwise non-normal
+#' outcome can be fitted by extra classes that are not subgroups of anyone (Jung
+#' & Wickrama, 2008, p. 305; Lee et al., 2023, p. 652, both citing Bauer &
+#' Curran, 2003). And as Ram and Grimm put it (p. 574), "groups and differences
+#' among groups will be found; but whether they represent true processes that
+#' generated the data is unknown" — the remedies they name are replication on
+#' new data and checking that class membership relates to other measured
+#' variables in the ways theory predicts.
+#'
 #' Contrast [`fit_lcga()`], which fixes the growth-factor variances at zero, so
 #' every case in a class sits on that class's curve up to occasion-level noise.
 #' LCGA is the more parsimonious model and, in criminology especially, often the
@@ -137,7 +158,11 @@
 #' @param times Integer. Number of occasions. Required for wide input; inferred
 #'   otherwise.
 #' @param degree Degree of the polynomial in time: `1` for a linear trajectory
-#'   (intercept and slope), `2` for a quadratic, and so on.
+#'   (intercept and slope), `2` for a quadratic, and so on. Each degree needs
+#'   occasions to identify it — with three time points a linear pattern can be
+#'   modelled, with four a quadratic as well, and with five a cubic (Berlin et
+#'   al., 2014, p. 191). Asking for more than the occasions support is an error
+#'   rather than a warning.
 #' @param random_effects Which growth factors vary within a class:
 #'   * `"intercept_slope"` (default) — both the intercept and the linear slope,
 #'     the standard growth mixture model. Cases in a class differ both in where
@@ -153,6 +178,21 @@
 #'   Equality is the better default in practice as well as by convention: it is
 #'   what BIC typically selects, and a class-specific \eqn{\Psi} is
 #'   where growth mixture models most often produce a negative variance.
+#'
+#'   It is not free, though, and the cost runs the other way. Simulation work
+#'   reported by Lee et al. (2023, p. 651) finds that equality restrictions on
+#'   the growth-factor variances and covariances "could result in the
+#'   over-extraction of latent classes and biased parameter estimates" — the
+#'   within-class heterogeneity the constraint refuses to let differ between
+#'   classes has to go somewhere, and an extra class is where it goes. So
+#'   `psi = "equal"` buys stability and bounds the likelihood, and it can buy an
+#'   extra class that is an artefact of the constraint. Where the number of
+#'   classes is itself the finding, fit both and report which was used.
+#'
+#'   This pulls against the collapsed-variance warning, which fires more often
+#'   under `psi = "free"`. That is not a contradiction: they are the two sides
+#'   of one trade-off between a model flexible enough to be realistic and one
+#'   constrained enough to be estimable.
 #' @param residual Whether the residual variances are `"occasion"`-specific (the
 #'   default) or `"constant"` across occasions.
 #' @param residual_equal Logical. Hold the residual variances equal across
@@ -195,6 +235,25 @@
 #' @references
 #' Muthen, B., & Shedden, K. (1999). Finite mixture modeling with mixture
 #' outcomes using the EM algorithm. *Biometrics*, *55*(2), 463-469.
+#'
+#' Berlin, K. S., Parra, G. R., & Williams, N. A. (2014). An introduction to
+#' latent variable mixture modeling (part 2): Longitudinal latent class growth
+#' analysis and growth mixture models. *Journal of Pediatric Psychology*,
+#' *39*(2), 188-203. \doi{10.1093/jpepsy/jst085}
+#'
+#' Jung, T., & Wickrama, K. A. S. (2008). An introduction to latent class growth
+#' analysis and growth mixture modeling. *Social and Personality Psychology
+#' Compass*, *2*(1), 302-317. \doi{10.1111/j.1751-9004.2007.00054.x}
+#'
+#' Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
+#' growth mixture models (GMM). In *International Encyclopedia of Education*
+#' (4th ed., Vol. 14, pp. 646-655). Elsevier.
+#' \doi{10.1016/B978-0-12-818630-5.10076-4}
+#'
+#' Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
+#' identifying differences in longitudinal change among unobserved groups.
+#' *International Journal of Behavioral Development*, *33*(6), 565-576.
+#' \doi{10.1177/0165025409343765}
 #'
 #' @seealso [`fit_lcga()`] for the no-random-effects version and
 #'   [`fit_rmlca()`] for trajectory classes with no growth curve at all.

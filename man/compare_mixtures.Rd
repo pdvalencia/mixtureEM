@@ -34,7 +34,7 @@ Default is \code{1}.}
 A named list with three elements:
 \itemize{
 \item \code{fit_table} Data frame with one row per K and columns \code{Classes}, \code{LL},
-\code{Params}, \code{AIC}, \code{BIC}, \code{SABIC}, \code{Entropy}.
+\code{Params}, \code{AIC}, \code{BIC}, \code{SABIC}, \code{Entropy} and \code{Unreplicated}.
 \item \code{models} Named list of fitted \code{mixture_model} objects, one per K
 (names are \code{"K1"}, \code{"K2"}, etc.).
 \item \code{best_k} Integer. The value of K with the lowest BIC.
@@ -45,6 +45,26 @@ Fits a sequence of measurement-only mixture models, one for each value of
 \code{k} in \code{k_range}, and returns a table of fit indices to guide
 class enumeration. The best model according to BIC is identified
 automatically.
+}
+\details{
+\strong{Reading the \code{Entropy} column.} Relative entropy describes how cleanly a
+solution separates the classes, on a 0-to-1 scale. The usual anchors are 0.40,
+0.60 and 0.80 for low, medium and high separation (Clark & Muthen, 2009, as
+reported by Lee et al., 2023, p. 653); Ram and Grimm (2009, p. 571) put the
+same point as "high values of entropy (>.80) indicate that individuals are
+classified with confidence", and suggest preferring the higher-entropy model
+when choosing among models with similar BIC. Those anchors are on the same
+normalisation this package uses.
+
+Entropy is not evidence for how many classes there are, and there is no
+threshold it has to clear: "there are no set cut-off criteria for deciding
+whether the entropy is reasonably high" (Jung & Wickrama, 2008, p. 312). The
+numbers above are for reading a table, and mixtureEM applies no entropy
+threshold anywhere.
+
+\strong{Reading the \code{Unreplicated} column.} \code{TRUE} means the reported maximum for
+that K was found by exactly one random start. Refit those values of K with
+\code{n_init = 100} before reporting them; see \code{vignette("estimation")}.
 }
 \examples{
 set.seed(1)
@@ -60,6 +80,20 @@ Nylund, K. L., Asparouhov, T., & Muthen, B. O. (2007). Deciding on the number
 of classes in latent class analysis and growth mixture modeling: A Monte
 Carlo simulation study. \emph{Structural Equation Modeling}, \emph{14}(4),
 535-569. \doi{10.1080/10705510701575396}
+
+Jung, T., & Wickrama, K. A. S. (2008). An introduction to latent class growth
+analysis and growth mixture modeling. \emph{Social and Personality Psychology
+Compass}, \emph{2}(1), 302-317. \doi{10.1111/j.1751-9004.2007.00054.x}
+
+Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
+growth mixture models (GMM). In \emph{International Encyclopedia of
+Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
+\doi{10.1016/B978-0-12-818630-5.10076-4}
+
+Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
+identifying differences in longitudinal change among unobserved groups.
+\emph{International Journal of Behavioral Development}, \emph{33}(6),
+565-576. \doi{10.1177/0165025409343765}
 
 Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
 T. D. Little (Ed.), \emph{The Oxford Handbook of Quantitative Methods}

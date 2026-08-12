@@ -209,9 +209,19 @@ growth analysis and growth mixture modeling. *Social and Personality
 Psychology Compass*, *2*(1), 302–317.
 <https://doi.org/10.1111/j.1751-9004.2007.00054.x>
 
+Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
+growth mixture models (GMM). In *International Encyclopedia of Education*
+(4th ed., Vol. 14, pp. 646–655). Elsevier.
+<https://doi.org/10.1016/B978-0-12-818630-5.10076-4>
+
 Muthén, B., & Shedden, K. (1999). Finite mixture modeling with mixture
 outcomes using the EM algorithm. *Biometrics*, *55*(2), 463–469.
 <https://doi.org/10.1111/j.0006-341X.1999.00463.x>
+
+Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
+identifying differences in longitudinal change among unobserved groups.
+*International Journal of Behavioral Development*, *33*(6), 565–576.
+<https://doi.org/10.1177/0165025409343765>
 
 Nylund, K. L., Asparouhov, T., & Muthén, B. O. (2007). Deciding on the
 number of classes in latent class analysis and growth mixture modeling: A
