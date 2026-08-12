@@ -214,11 +214,23 @@ generate_synthetic_data <- function(mm, classes, N) {
 #'   strictly greater than \code{k_small}.
 #' @param measurement Measurement specification, as in \code{\link{fit_mixture}}
 #'   (a single type string or a named list for mixed-type indicators).
-#' @param n_reps Number of bootstrap replications. Default \code{100}.
+#' @param n_reps Number of bootstrap replications. Default \code{100},
+#'   following Dziak et al. (2014) and the general advice in Davison and
+#'   Hinkley (1997, p. 143) that the number of replicates be at least 99. It is
+#'   a floor rather than a target: the attainable p-values are
+#'   \eqn{1/(B+1), 2/(B+1), \ldots}, so a decision that turns on the third
+#'   decimal needs \code{n_reps = 999}, which recovers about 0.95 of the power
+#'   of the full test where 99 draws recover about 0.83 (and only about 0.60 at
+#'   \eqn{\alpha = .01}). See \code{vignette("estimation")}.
 #' @param n_init_base Random restarts when fitting the observed-data models.
-#'   Default \code{20}.
+#'   Default \code{20}, as elsewhere in the package.
 #' @param n_init_boot Random restarts per bootstrap replicate. Default
-#'   \code{10}.
+#'   \code{10}. This is a compute compromise rather than a recommended value:
+#'   the two models are refitted \code{2 * n_reps} times, so the replicate
+#'   search is where the cost of the test lives. Dziak et al. (2014) used 50
+#'   and note that too few restarts under the alternative can make the
+#'   likelihood ratio come out negative. \code{blrt()} counts those draws and
+#'   warns when there are any; if it does, raise this to \code{50}.
 #' @param verbose Logical; print progress while bootstrapping. Default
 #'   \code{TRUE}.
 #' @param ... Additional arguments passed to the fitting engine.
@@ -226,8 +238,9 @@ generate_synthetic_data <- function(mm, classes, N) {
 #'
 #' @return An object of class \code{blrt_test}: a list with \code{p_value},
 #'   \code{obs_diff} (the observed \eqn{2\,\Delta\ell} statistic),
-#'   \code{null_dist} (the bootstrap null distribution), and the compared class
-#'   counts. It has \code{print} and \code{plot} methods.
+#'   \code{null_dist} (the bootstrap null distribution), \code{n_negative} (how
+#'   many draws produced a negative statistic), and the compared class counts.
+#'   It has \code{print} and \code{plot} methods.
 #'
 #' @examples
 #' \dontrun{
@@ -240,6 +253,14 @@ generate_synthetic_data <- function(mm, classes, N) {
 #' }
 #'
 #' @references
+#' Davison, A. C., & Hinkley, D. V. (1997). \emph{Bootstrap Methods and Their
+#' Application} (ch. 4). Cambridge University Press.
+#'
+#' Dziak, J. J., Lanza, S. T., & Tan, X. (2014). Effect size, statistical power
+#' and sample size requirements for the bootstrap likelihood ratio test in
+#' latent class analysis. \emph{Structural Equation Modeling}, \emph{21}(4),
+#' 534-552. \doi{10.1080/10705511.2014.919819}
+#'
 #' McLachlan, G. J. (1987). On bootstrapping the likelihood ratio test statistic
 #' for the number of components in a normal mixture. \emph{Applied Statistics},
 #' \emph{36}(3), 318-324. \doi{10.2307/2347790}
@@ -320,18 +341,59 @@ blrt <- function(indicators, k_small, k_large, measurement = "binary",
 
   p_val <- (sum(null_dist >= obs_diff) + 1) / (n_reps + 1)
 
+  .blrt_check_granularity(p_val, n_reps)
+  n_negative <- sum(null_dist < 0)
+  .blrt_check_negative(n_negative, n_reps, k_small, k_large)
+
   result <- list(
-    p_value   = p_val,
-    obs_diff  = obs_diff,
-    null_dist = null_dist,
-    k_small   = k_small,
-    k_large   = k_large,
-    n_reps    = n_reps,
-    ll_small  = null_model$metrics$ll,
-    ll_large  = alt_model$metrics$ll
+    p_value    = p_val,
+    obs_diff   = obs_diff,
+    null_dist  = null_dist,
+    k_small    = k_small,
+    k_large    = k_large,
+    n_reps     = n_reps,
+    n_negative = n_negative,
+    ll_small   = null_model$metrics$ll,
+    ll_large   = alt_model$metrics$ll
   )
   class(result) <- c("blrt_test", "list")
   result
+}
+
+# A Monte Carlo p-value can only take the values 1/(B+1), 2/(B+1), ..., 1, so at
+# 100 draws it moves in steps of about 0.01 and cannot separate .04 from .06.
+# The granularity only matters where the decision turns on it, which is within
+# one step of the conventional level.
+#
+# Silent from 999 draws upward, where the remedy would be the number already in
+# use: a warning whose advice is "do what you did" is noise.
+.blrt_check_granularity <- function(p_val, n_reps) {
+  if (n_reps >= 999L) return(invisible(NULL))
+  if (abs(p_val - 0.05) > 1 / (n_reps + 1)) return(invisible(NULL))
+  warning(sprintf(paste0(
+    "The bootstrap p-value (%.4f) is within one Monte Carlo step of .05, and ",
+    "with %d draws the attainable p-values are 1/%d, 2/%d, ... - the test ",
+    "cannot tell .04 from .06 here. Refit with `n_reps = 999`, which recovers ",
+    "about 0.95 of the power of the full test where 99 draws recover about ",
+    "0.83."),
+    p_val, n_reps, n_reps + 1L, n_reps + 1L), call. = FALSE)
+  invisible(NULL)
+}
+
+# A replicate whose k-class fit lands below the (k-1)-class model nested inside
+# it is not a feature of the null distribution; it is a search that stopped
+# short on the larger model. The statistic is biased downward on that draw, and
+# the p-value with it.
+.blrt_check_negative <- function(n_negative, n_reps, k_small, k_large) {
+  if (n_negative <= 0L) return(invisible(NULL))
+  warning(sprintf(paste0(
+    "%d of %d bootstrap draws produced a negative likelihood-ratio statistic, ",
+    "which means the %d-class replicate fitted worse than the %d-class model ",
+    "nested inside it. That is a local maximum in the replicate search rather ",
+    "than a null distribution: refit with `n_init_boot = 50`. Until then the ",
+    "p-value is biased and should not be reported."),
+    n_negative, n_reps, k_large, k_small), call. = FALSE)
+  invisible(NULL)
 }
 
 #' @rdname blrt
@@ -362,6 +424,11 @@ print.blrt_test <- function(x, ...) {
               x$ll_small, x$k_small, x$ll_large, x$k_large))
   cat(sprintf("  LR statistic     : %.2f\n", x$obs_diff))
   cat(sprintf("  Bootstrap draws  : %d\n", x$n_reps))
+  # Only when there are any: on a clean run this line would be a zero the reader
+  # has to interpret.
+  if (isTRUE(x$n_negative > 0L))
+    cat(sprintf("  Negative draws   : %d (replicate search too shallow)\n",
+                x$n_negative))
   cat("---------------------------------------------------------\n")
   cat(sprintf("  Bootstrap p      : p %s\n", p_fmt))
   cat(sprintf("  Conclusion       : %s.\n", decision))

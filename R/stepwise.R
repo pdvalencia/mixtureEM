@@ -24,6 +24,8 @@
                                    model_state$n_components)
   n_eff <- model_state$n_eff
 
+  # The sample-size-adjusted BIC uses Sclove's (1987) effective sample size,
+  # (n + 2)/24, in place of n.
   list(
     ll       = ll_s1,
     n_params = n_params_s1,
@@ -180,7 +182,12 @@
     # How many restarts found this solution, out of how many were run. Carried
     # up from fit_em(); absent on a state that did not come through it.
     n_starts     = model_state$n_starts,
-    n_replicated = model_state$n_replicated
+    n_replicated = model_state$n_replicated,
+    # How many were asked for, which on a staged search is not how many ran to
+    # convergence. Both numbers are needed: the first is what the user set and
+    # what a reporting checklist asks for, the second is what the count of
+    # replications is out of.
+    n_requested  = model_state$n_requested
   )
 
   model_state
@@ -195,8 +202,85 @@
   n  <- x$metrics$n_starts
   nr <- x$metrics$n_replicated
   if (is.null(n) || is.null(nr) || !is.finite(n) || n < 2L) return(invisible(NULL))
-  cat(sprintf("  Best solution  : found by %d of %d starts%s\n", nr, n,
-              if (nr == 1L) " - raise n_init to check it" else ""))
+  # Both counts where they differ. Reporting only the converged one understates
+  # what was asked for - a checklist item in its own right - and reporting only
+  # the requested one overstates what the replication count is out of.
+  req    <- x$metrics$n_requested
+  detail <- if (!is.null(req) && is.finite(req) && req != n)
+    sprintf("%d of %d starts that ran to convergence (of %d requested)", nr, n, req)
+  else
+    sprintf("%d of %d starts", nr, n)
+  cat(sprintf("  Best solution  : found by %s%s\n", detail,
+              if (nr == 1L) " - refit with n_init = 100" else ""))
+  invisible(NULL)
+}
+
+# Was the reported maximum found by exactly one start, out of enough starts for
+# that to mean anything? Shared by the warning below and by the `Unreplicated`
+# column of both comparison tables, so the three cannot drift apart.
+#
+# The threshold is on the *requested* count, not on the number that ran to
+# convergence. On the staged searches only three restarts are carried to
+# convergence, so a threshold on `n_starts` alone would go quiet on exactly the
+# fits that need it: "1 of 3 survivors, out of 50 requested" is the case this
+# exists for. On an unstaged search the two counts are equal.
+#
+# Below ten requested starts a lone replication carries no information, so the
+# answer is FALSE rather than TRUE; NA when the fit carries no counts at all.
+.is_unreplicated <- function(metrics) {
+  nr <- metrics$n_replicated
+  n  <- metrics$n_requested %||% metrics$n_starts
+  if (is.null(nr) || is.null(n) || !is.finite(nr) || !is.finite(n)) return(NA)
+  nr == 1L && n >= 10L
+}
+
+# The same fact as a warning, because the printed note above is invisible to
+# anyone working from summary() or from the coefficients. Raised as a classed
+# condition so the comparison functions can muffle it by class rather than by
+# matching its text.
+.check_replication <- function(fit) {
+  m <- fit$metrics
+  if (is.null(m) || !isTRUE(.is_unreplicated(m))) return(invisible(NULL))
+  # A collapsed variance and a growth-factor boundary both say that raising
+  # n_init can make matters worse - more starts means more chances to find the
+  # spike - and this warning says to raise it. They must never both fire on one
+  # fit, and where they compete the collapse is the more urgent diagnosis.
+  if (!is.null(fit$degenerate) || length(fit$growth$boundary))
+    return(invisible(NULL))
+
+  n_conv <- m$n_starts
+  n_req  <- m$n_requested %||% n_conv
+  count  <- if (!is.null(n_conv) && is.finite(n_conv) && n_conv != n_req)
+    sprintf("1 of %d starts that ran to convergence, out of %d requested",
+            n_conv, n_req)
+  else
+    sprintf("1 of %d starts", n_req)
+
+  msg <- sprintf(paste0(
+    "The reported solution was found by %s. EM climbs the peak it starts ",
+    "nearest, so a maximum seen once may be the best of a small sample of the ",
+    "likelihood surface rather than the best there is. Refit with ",
+    "`n_init = 100`. If the maximum still does not replicate at 100 starts, ",
+    "that points at the specification - most often more classes than the data ",
+    "support - rather than at the search."), count)
+
+  warning(structure(class = c("mixtureEM_replication", "warning", "condition"),
+                    list(message = msg, call = NULL)))
+  invisible(NULL)
+}
+
+# Non-convergence, worded once and shared, so the models with their own EM
+# driver say the same thing as the ones that go through fit_mixture(). The
+# escalation is a doubling rather than a round number: the iteration budget is
+# the thing being explored, and it is explored on a multiplicative scale.
+.warn_non_convergence <- function(max_iter) {
+  warning(sprintf(
+    paste0("EM did not converge within max_iter = %d iterations. The ",
+           "estimates are wherever the algorithm had reached, which need ",
+           "not be a maximum. Refit with `max_iter = %d`, doubling again if ",
+           "that is still not enough; if doubling does not help, the model is ",
+           "probably weakly identified at this number of classes."),
+    max_iter, 2L * max_iter), call. = FALSE)
   invisible(NULL)
 }
 

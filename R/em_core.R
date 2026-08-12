@@ -757,6 +757,11 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     best$start_lls    <- final_lls
     best$n_starts     <- length(final_lls)
     best$n_replicated <- sum(abs(final_lls - max(final_lls)) <= same_ll)
+    # What was asked for, carried alongside what converged. On the staged path
+    # only the survivors reach record(), so `n_starts` there is three however
+    # many restarts were requested, and a report built on it alone would say a
+    # 50-start search had been a 10-start one.
+    best$n_requested  <- n_init
     best
   }
 

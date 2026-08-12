@@ -359,7 +359,13 @@ measurement_summary.default <- function(object, ...) {
     paste0("\nAt the boundary: %s%s. These probabilities have run to 0 or 1, ",
            "so the class is defined partly by an item every case in it gives ",
            "the same answer to, and their standard errors are not ",
-           "interpretable.\n"),
+           "interpretable. There are two ways on: read it substantively, since ",
+           "an item every member of a class answers identically is often the ",
+           "finding rather than a fault; or, if that parameter needs a ",
+           "standard error, refit with a stronger prior than the default of 1 ",
+           "- `bayes_constants = list(categorical = 2)` - which holds the ",
+           "estimate off the edge at the cost of shrinking it slightly toward ",
+           "the item's marginal.\n"),
     paste(show, collapse = "; "),
     if (length(lab) > 5L) sprintf(" and %d more", length(lab) - 5L) else ""))
   invisible(NULL)
@@ -396,6 +402,8 @@ measurement_summary.default <- function(object, ...) {
 #' set.seed(1)
 #' X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
 #' fit <- fit_mixture(X, n_components = 2, measurement = "binary")
+#' classification_diagnostics(fit)
+#'
 #' @references
 #' Celeux, G., & Soromenho, G. (1996). An entropy criterion for assessing the
 #' number of clusters in a mixture model. \emph{Journal of Classification},
@@ -403,8 +411,6 @@ measurement_summary.default <- function(object, ...) {
 #'
 #' Nagin, D. S. (2005). \emph{Group-Based Modeling of Development}. Harvard
 #' University Press.
-#'
-#' classification_diagnostics(fit)
 #'
 #' @export
 classification_diagnostics <- function(object, ...)
@@ -2530,14 +2536,18 @@ fit_mixture <- function(indicators = NULL,
   # hundreds of iterations, and the default cap is 1000. Silently returning the
   # iterate EM happened to be on at the cap is the one outcome worth
   # interrupting for, so say it here rather than leaving it to be noticed.
-  if (isFALSE(fit$converged))
-    warning(sprintf(
-      paste0("EM did not converge within max_iter = %d iterations. The ",
-             "estimates are wherever the algorithm had reached, which need ",
-             "not be a maximum. Refit with a larger `max_iter`; if that does ",
-             "not help, the model is probably weakly identified at this ",
-             "number of classes."),
-      max_iter), call. = FALSE)
+  if (isFALSE(fit$converged)) .warn_non_convergence(max_iter)
+
+  # A maximum found by one start out of many is the other outcome worth
+  # interrupting for, and it too was reported only by print(). The growth models
+  # are the exception: `structured_normal` is fit_gmm()'s call into this
+  # wrapper, and at the moment this function returns, fit_gmm() has not yet run
+  # its boundary check, so the guard inside .check_replication() would be
+  # looking at a flag that is not set yet. fit_gmm() issues the warning itself
+  # once it is. A hand-written fit_mixture(measurement = "structured_normal")
+  # therefore does not get it; that is the accepted cost of not having two
+  # warnings contradict each other.
+  if (!identical(measurement, "structured_normal")) .check_replication(fit)
 
   fit
 }
@@ -2692,13 +2702,27 @@ compare_mixtures <- function(X, k_range = 1:5, measurement = "binary",
     results[[k]] <- data.frame(
       Classes = k, LL = fit$metrics$ll, Params = fit$metrics$n_params,
       AIC = fit$metrics$aic, BIC = fit$metrics$bic,
-      SABIC = fit$metrics$sabic, Entropy = fit$metrics$entropy
+      SABIC = fit$metrics$sabic, Entropy = fit$metrics$entropy,
+      # No warning is raised anywhere in this loop: it calls the engine
+      # directly, and the warning lives in fit_mixture(). The column is how a
+      # user learns which K found its maximum only once.
+      Unreplicated = .is_unreplicated(fit$metrics)
     )
   }
   fit_table   <- do.call(rbind, results)
   best_bic_k  <- fit_table$Classes[which.min(fit_table$BIC)]
   cat("\n=== Model Selection Summary ===\n")
-  print(round(fit_table, 3))
+  # Rounded column by column: round() on the whole frame fails once one of the
+  # columns is logical.
+  printed <- fit_table
+  num     <- vapply(printed, is.numeric, logical(1))
+  printed[num] <- lapply(printed[num], round, 3)
+  print(printed)
+  flagged <- fit_table$Classes[which(fit_table$Unreplicated)]
+  if (length(flagged))
+    cat(sprintf(paste0("\nUnreplicated maximum at K = %s - refit those with ",
+                       "n_init = 100 before reporting.\n"),
+                paste(flagged, collapse = ", ")))
   cat(sprintf("\n-> Best model according to BIC: %d classes\n", best_bic_k))
   return(list(fit_table = fit_table, models = models, best_k = best_bic_k))
 }

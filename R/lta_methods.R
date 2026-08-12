@@ -252,11 +252,17 @@ compare_longitudinal <- function(indicators, k_range = NULL,
   for (k in k_range) {
     if (verbose) message(sprintf("  Fitting %d-%s model...", k,
                                  if (model == "lta") "status" else "class"))
-    fit <- switch(model,
-      lta   = fit_lta(indicators, n_statuses = k, times = times, ...),
-      rmlca = fit_rmlca(indicators, n_classes = k, times = times, ...),
-      gmm   = fit_gmm(indicators, n_classes = k, times = times, ...),
-      lcga  = fit_lcga(indicators, n_classes = k, times = times, ...))
+    # Every fit here warns on its own about an unreplicated maximum, so a
+    # four-K comparison would raise the same warning four times before the
+    # table it belongs next to has even been printed. The column below carries
+    # the same information, per K, in the place the user is reading.
+    fit <- withCallingHandlers(
+      switch(model,
+        lta   = fit_lta(indicators, n_statuses = k, times = times, ...),
+        rmlca = fit_rmlca(indicators, n_classes = k, times = times, ...),
+        gmm   = fit_gmm(indicators, n_classes = k, times = times, ...),
+        lcga  = fit_lcga(indicators, n_classes = k, times = times, ...)),
+      mixtureEM_replication = function(w) invokeRestart("muffleWarning"))
 
     m <- fit$metrics
     models[[paste0("K", k)]] <- fit
@@ -265,7 +271,8 @@ compare_longitudinal <- function(indicators, k_range = NULL,
     rows[[length(rows) + 1L]] <- data.frame(
       Classes = k, LL = m$ll, Params = m$n_params,
       AIC = m$aic, BIC = m$bic, SABIC = m$sabic,
-      Entropy = if (k == 1L) NA_real_ else m$entropy %||% NA_real_)
+      Entropy = if (k == 1L) NA_real_ else m$entropy %||% NA_real_,
+      Unreplicated = .is_unreplicated(m))
   }
 
   tab <- do.call(rbind, rows)
@@ -273,6 +280,11 @@ compare_longitudinal <- function(indicators, k_range = NULL,
   if (verbose) {
     message("\n=== Model Selection Summary ===")
     print(format(tab, digits = 4))
+    flagged <- tab$Classes[which(tab$Unreplicated)]
+    if (length(flagged))
+      message(sprintf(paste0("Unreplicated maximum at K = %s - refit those ",
+                             "with n_init = 100 before reporting."),
+                      paste(flagged, collapse = ", ")))
     message(sprintf("\n-> Best model according to BIC: %d", best))
   }
   list(fit_table = tab, models = models, best_k = best)
@@ -485,6 +497,10 @@ print.lta_model <- function(x, ...) {
               if (is.null(x$metrics$class_entropy)) "" else " (status)"))
   if (!is.null(x$metrics$class_entropy))
     cat(sprintf("                   %.4f (class)\n", x$metrics$class_entropy))
+  # The quiet channel the mixture models have had all along: how many restarts
+  # found this solution. It sits with the other indented metrics rather than in
+  # the header block above, which is left-aligned.
+  .print_replication_note(x)
   cat("---------------------------------------------------------\n")
   if ((x$n_classes %||% 1L) > 1L) {
     cat("Latent class sizes:\n")

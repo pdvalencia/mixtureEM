@@ -394,6 +394,11 @@ fit_lta <- function(indicators,
 
   best <- NULL
   stage1 <- list()
+  # Every restart that ran to convergence, kept so the fit can report how many
+  # of them found the reported maximum. On the staged path that is the second
+  # loop: the first is a ranking pass stopped at 250 iterations, and its
+  # log-likelihoods are not the maxima of anything.
+  final_lls <- numeric(0)
   for (init in seq_len(max(1L, n_init))) {
     if (!is.null(random_state)) set.seed(random_state + init)
     cand <- try(.lta_em(.lta_random_start(state, X), X,
@@ -402,7 +407,10 @@ fit_lta <- function(indicators,
                 silent = TRUE)
     if (inherits(cand, "try-error")) next
     if (staged) stage1[[length(stage1) + 1L]] <- cand
-    else if (is.null(best) || cand$loglik > best$loglik) best <- cand
+    else {
+      final_lls <- c(final_lls, cand$loglik)
+      if (is.null(best) || cand$loglik > best$loglik) best <- cand
+    }
   }
 
   if (staged && length(stage1)) {
@@ -411,6 +419,7 @@ fit_lta <- function(indicators,
       cand <- try(.lta_em(stage1[[i]], X, max_iter = max_iter, tol = tol,
                           alpha = alpha), silent = TRUE)
       if (inherits(cand, "try-error")) cand <- stage1[[i]]
+      final_lls <- c(final_lls, cand$loglik)
       if (is.null(best) || cand$loglik > best$loglik) best <- cand
     }
   }
@@ -454,6 +463,15 @@ fit_lta <- function(indicators,
   best$prevalences <- .lta_prevalences(best)
   best$boundary    <- .lta_boundary_cells(best)
   best$metrics     <- .lta_metrics(best)
+  # The multi-start report the mixture models already carry. Two restarts count
+  # as the same solution when their log-likelihoods are within 1e-2, the rule
+  # fit_em() uses (R/em_core.R): genuinely different optima in these models sit
+  # whole units apart, and a tighter rule splits one optimum into several.
+  if (length(final_lls)) {
+    best$metrics$n_starts     <- length(final_lls)
+    best$metrics$n_replicated <- sum(abs(final_lls - max(final_lls)) <= 1e-2)
+  }
+  best$metrics$n_requested <- max(1L, n_init)
   if (isTRUE(standard_errors)) best$se <- .lta_standard_errors(best, X)
 
   # Recorded on the object as well as warned about: a warning is transient, and
@@ -466,7 +484,7 @@ fit_lta <- function(indicators,
       "describes one process with the parameters of several. Refit with ",
       "fewer classes, or with a restriction such as `mover_stayer = TRUE` ",
       "that tells the classes apart."),
-      if (nrow(collapsed) == 1L) "es" else "es",
+      if (nrow(collapsed) == 1L) "" else "es",
       paste(apply(collapsed, 1, paste, collapse = " and "), collapse = "; ")),
       call. = FALSE)
 
@@ -474,6 +492,14 @@ fit_lta <- function(indicators,
   # it does not pass through fit_mixture_internal() where this normally happens.
   # See R/gaussian_boundary.R.
   best <- .check_gaussian_degeneracy(best, X)
+
+  # Both warnings come last, and in this order, for the same reason: the
+  # degeneracy check above sets the flag that .check_replication() reads before
+  # deciding whether raising n_init is good advice. Convergence was previously
+  # reported only by print(), which a user working from the transition matrix
+  # never sees.
+  if (isFALSE(best$converged)) .warn_non_convergence(max_iter)
+  .check_replication(best)
 
   best
 }

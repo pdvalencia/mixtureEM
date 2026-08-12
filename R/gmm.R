@@ -320,6 +320,11 @@ fit_gmm <- function(indicator,
   if (length(fit$growth$boundary))
     warning(.gmm_boundary_message(fit$growth$boundary, mm), call. = FALSE)
 
+  # Issued here rather than in fit_mixture(), which returned before the boundary
+  # flag above existed: the two warnings give opposite advice about n_init, so
+  # the one that reads the flag has to run after it is set.
+  .check_replication(fit)
+
   class(fit) <- c("gmm", class(fit))
   fit
 }
