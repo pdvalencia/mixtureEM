@@ -6,8 +6,8 @@
 \usage{
 compare_longitudinal(
   indicators,
-  k_range = 2:4,
-  model = c("lta", "rmlca"),
+  k_range = NULL,
+  model = c("lta", "rmlca", "gmm", "lcga"),
   times = NULL,
   verbose = TRUE,
   ...
@@ -15,18 +15,24 @@ compare_longitudinal(
 }
 \arguments{
 \item{indicators}{The repeated indicators, in any format accepted by
-\code{\link[=fit_rmlca]{fit_rmlca()}}.}
+\code{\link[=fit_rmlca]{fit_rmlca()}}; for \code{model = "gmm"} or \code{"lcga"}, the single repeated
+outcome, in any format accepted by \code{\link[=fit_gmm]{fit_gmm()}}.}
 
-\item{k_range}{Integer vector of class or status counts to fit.}
+\item{k_range}{Integer vector of class or status counts to fit. Defaults to
+\code{1:4} for the growth models and \code{2:4} for the others.}
 
-\item{model}{\code{"lta"} (default) or \code{"rmlca"}.}
+\item{model}{\code{"lta"} (default), \code{"rmlca"}, \code{"gmm"} or \code{"lcga"}.}
 
 \item{times}{Number of occasions; required for wide input.}
 
 \item{verbose}{Print progress.}
 
-\item{...}{Further arguments passed to \code{\link[=fit_lta]{fit_lta()}} or \code{\link[=fit_rmlca]{fit_rmlca()}},
-such as \code{measurement}, \code{time_invariance}, \code{tau_homogeneous} or \code{n_init}.}
+\item{...}{Further arguments passed to the fitting function, such as
+\code{measurement}, \code{time_invariance} or \code{tau_homogeneous} for the categorical
+models, \code{degree}, \code{time_scores}, \code{random_effects}, \code{psi} or \code{residual} for
+the growth models, and \code{n_init} for any of them. Passing the same
+specification to every K is the point: the criteria in the table are only
+comparable across models that differ in nothing else.}
 }
 \value{
 A list with \code{fit_table}, the fitted \code{models} (named \code{"K2"}, \code{"K3"},
@@ -47,4 +53,17 @@ support on its own (Collins & Lanza, 2010, sec. 7.3.3).
 Note that likelihood-based tests of \eqn{K} against \eqn{K-1} classes, such
 as the bootstrap likelihood-ratio test, do not have their usual reference
 distribution here, which is why only information criteria are reported.
+
+For the growth models the comparison should include the one-class solution,
+which is the ordinary latent growth curve model: it is the benchmark the
+class solutions have to beat, and reporting it is asked for by name in the
+GRoLTS reporting checklist (van de Schoot et al., 2017, item 11). It is
+therefore in the default \code{k_range} for \code{"gmm"} and \code{"lcga"} and not for the
+other two, where a one-status LTA is not a model anyone reports.
+}
+\references{
+van de Schoot, R., Sijbrandij, M., Winter, S. D., Depaoli, S., & Vermunt,
+J. K. (2017). The GRoLTS-checklist: Guidelines for reporting on latent
+trajectory studies. \emph{Structural Equation Modeling}, \emph{24}(3),
+451-467.
 }

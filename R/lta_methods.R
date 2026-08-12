@@ -204,23 +204,43 @@ lta_g2 <- function(object) {
 #' as the bootstrap likelihood-ratio test, do not have their usual reference
 #' distribution here, which is why only information criteria are reported.
 #'
+#' For the growth models the comparison should include the one-class solution,
+#' which is the ordinary latent growth curve model: it is the benchmark the
+#' class solutions have to beat, and reporting it is asked for by name in the
+#' GRoLTS reporting checklist (van de Schoot et al., 2017, item 11). It is
+#' therefore in the default `k_range` for `"gmm"` and `"lcga"` and not for the
+#' other two, where a one-status LTA is not a model anyone reports.
+#'
 #' @param indicators The repeated indicators, in any format accepted by
-#'   [`fit_rmlca()`].
-#' @param k_range Integer vector of class or status counts to fit.
-#' @param model `"lta"` (default) or `"rmlca"`.
+#'   [`fit_rmlca()`]; for `model = "gmm"` or `"lcga"`, the single repeated
+#'   outcome, in any format accepted by [`fit_gmm()`].
+#' @param k_range Integer vector of class or status counts to fit. Defaults to
+#'   `1:4` for the growth models and `2:4` for the others.
+#' @param model `"lta"` (default), `"rmlca"`, `"gmm"` or `"lcga"`.
 #' @param times Number of occasions; required for wide input.
 #' @param verbose Print progress.
-#' @param ... Further arguments passed to [`fit_lta()`] or [`fit_rmlca()`],
-#'   such as `measurement`, `time_invariance`, `tau_homogeneous` or `n_init`.
+#' @param ... Further arguments passed to the fitting function, such as
+#'   `measurement`, `time_invariance` or `tau_homogeneous` for the categorical
+#'   models, `degree`, `time_scores`, `random_effects`, `psi` or `residual` for
+#'   the growth models, and `n_init` for any of them. Passing the same
+#'   specification to every K is the point: the criteria in the table are only
+#'   comparable across models that differ in nothing else.
 #'
 #' @return A list with `fit_table`, the fitted `models` (named `"K2"`, `"K3"`,
 #'   ...) and `best_k`, the class count with the lowest BIC.
+#' @references
+#' van de Schoot, R., Sijbrandij, M., Winter, S. D., Depaoli, S., & Vermunt,
+#' J. K. (2017). The GRoLTS-checklist: Guidelines for reporting on latent
+#' trajectory studies. \emph{Structural Equation Modeling}, \emph{24}(3),
+#' 451-467.
 #' @export
-compare_longitudinal <- function(indicators, k_range = 2:4,
-                                 model = c("lta", "rmlca"), times = NULL,
-                                 verbose = TRUE, ...) {
+compare_longitudinal <- function(indicators, k_range = NULL,
+                                 model = c("lta", "rmlca", "gmm", "lcga"),
+                                 times = NULL, verbose = TRUE, ...) {
   model <- match.arg(model)
-  if (model == "lta" && any(k_range < 1L))
+  growth <- model %in% c("gmm", "lcga")
+  if (is.null(k_range)) k_range <- if (growth) 1:4 else 2:4
+  if (any(k_range < 1L))
     stop("`k_range` must be positive.", call. = FALSE)
 
   if (verbose)
@@ -232,16 +252,20 @@ compare_longitudinal <- function(indicators, k_range = 2:4,
   for (k in k_range) {
     if (verbose) message(sprintf("  Fitting %d-%s model...", k,
                                  if (model == "lta") "status" else "class"))
-    fit <- if (model == "lta")
-      fit_lta(indicators, n_statuses = k, times = times, ...)
-    else
-      fit_rmlca(indicators, n_classes = k, times = times, ...)
+    fit <- switch(model,
+      lta   = fit_lta(indicators, n_statuses = k, times = times, ...),
+      rmlca = fit_rmlca(indicators, n_classes = k, times = times, ...),
+      gmm   = fit_gmm(indicators, n_classes = k, times = times, ...),
+      lcga  = fit_lcga(indicators, n_classes = k, times = times, ...))
 
     m <- fit$metrics
     models[[paste0("K", k)]] <- fit
+    # A one-class model has no classification to be entropic about, so the cell
+    # is NA rather than a 1 that would read as perfect separation.
     rows[[length(rows) + 1L]] <- data.frame(
       Classes = k, LL = m$ll, Params = m$n_params,
-      AIC = m$aic, BIC = m$bic, SABIC = m$sabic, Entropy = m$entropy)
+      AIC = m$aic, BIC = m$bic, SABIC = m$sabic,
+      Entropy = if (k == 1L) NA_real_ else m$entropy %||% NA_real_)
   }
 
   tab <- do.call(rbind, rows)
@@ -314,8 +338,13 @@ lr_test <- function(restricted, full) {
   # admissible one -- it is a spurious optimum sitting on a spike in the
   # likelihood -- so neither a large statistic nor a small one means anything.
   # See R/gaussian_boundary.R.
-  degenerate <- c(if (!is.null(restricted$degenerate)) "restricted",
-                  if (!is.null(full$degenerate))       "full")
+  # A growth model records the same finding in its own field, since its remedy
+  # is structural rather than the variance prior; the consequence for a
+  # likelihood-ratio test is identical.
+  collapsed <- function(fit)
+    !is.null(fit$degenerate) || length(fit$growth$boundary) > 0L
+  degenerate <- c(if (collapsed(restricted)) "restricted",
+                  if (collapsed(full))       "full")
   if (length(degenerate))
     warning(sprintf(
       paste0("The %s model carries a collapsed class variance, so this test ",

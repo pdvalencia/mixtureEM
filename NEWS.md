@@ -41,6 +41,66 @@
   place in covariate space to put the pseudo-observations, so the prior is
   confined to the no-covariate case.
 
+## New: reporting a growth model
+
+* **`measurement_summary()` now works on `fit_gmm()` and `fit_lcga()` fits.** It
+  printed a header and nothing else, and returned `NULL`: the growth parameters
+  existed only inside `print()`'s output, which cannot be indexed, joined or put
+  in a table. It now prints the growth-factor means, the growth-factor variances
+  and covariances, the residual variances and the fitted trajectory, and returns
+  them in the same long data frame the other models return — `block`,
+  `parameter`, `item`, `category`, `class`, `estimate` — with `parameter` taking
+  the values `"growth_mean"`, `"growth_variance"`, `"growth_covariance"`,
+  `"growth_regression"`, `"residual_variance"` and `"fitted"`. A parameter held
+  equal across classes is repeated once per class rather than reported once, so
+  the table joins to anything else indexed by class.
+
+* **`compare_longitudinal()` accepts `model = "gmm"` and `model = "lcga"`.**
+  Choosing the number of trajectory classes meant looping `fit_gmm()` by hand
+  and assembling the table. For the growth models the default `k_range` starts
+  at one class — the ordinary latent growth curve model is the benchmark the
+  class solutions have to beat, and reporting it is asked for by name in the
+  usual reporting checklists. `k_range` now defaults to `NULL`, resolving to
+  `1:4` for the growth models and to `2:4`, as before, for `"lta"` and
+  `"rmlca"`.
+
+* **`blrt()` takes a fitted growth model with `from_fit =`.** The bootstrap
+  likelihood-ratio test has always handled growth mixtures correctly, but
+  reaching it meant naming the emission and building the time design with an
+  internal function. Passing the fit reads the data, the design, the random
+  effects and the covariance constraints off it, so the null and alternative
+  models differ from the fit in the number of classes and in nothing else.
+
+* **`lr_test()` warns on a growth model with a collapsed variance**, as it
+  already did for the other continuous models. A degenerate fit's
+  log-likelihood is not on the same scale as an admissible one, so the test is
+  uninterpretable in either direction.
+
+## Fixed: growth mixture models flag a collapsed variance before it reaches zero
+
+* **`fit_gmm()` now judges a variance against the data rather than against the
+  estimation floor.** The check fired only once the M-step had pinned a residual
+  variance at 1e-6 or a growth-factor covariance eigenvalue at its 1e-8 clip,
+  which is the last stage of a collapse rather than the diagnostic one. A class
+  with no within-class variation left, or a residual variance three orders of
+  magnitude below the others, was therefore reported as an ordinary solution —
+  and, because a collapsed variance inflates the likelihood, it could carry the
+  best BIC of a whole model set. Both are now compared with the observed
+  variance of the outcome on the same 1% rule the latent profile models use, and
+  the growth-factor side is judged on the random effects' contribution to the
+  implied variance of the outcome rather than on the covariance's own entries,
+  which are on the growth factors' scale. A slope variance at zero under a
+  healthy intercept variance is still not flagged: that is the
+  `random_effects = "intercept"` model, not a degeneracy.
+
+* **The warning says what to do, and what not to do.** It now prints the
+  offending variance next to the occasion variance it is small relative to,
+  states that this fit's BIC cannot be compared with a clean fit's, and says
+  that raising `n_init` will not fix it and can make it worse — a collapse is a
+  property of the specification, not of the search, so more starts means more
+  chances to find the spike. The flag is stored on the fit and repeated by
+  `print()`, so it is still visible on a fit reloaded months later.
+
 ## Fixed: two estimation bugs that cost log-likelihood on every affected fit
 
 * **EM now converges before it stops.** Emissions that L-BFGS refines

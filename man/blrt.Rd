@@ -15,6 +15,7 @@ blrt(
   n_init_boot = 10,
   verbose = TRUE,
   ...,
+  from_fit = NULL,
   X = NULL
 )
 
@@ -32,7 +33,7 @@ calc_blrt(
 }
 \arguments{
 \item{indicators}{Matrix or data frame of measurement items. (\code{X} is
-accepted as a deprecated alias.)}
+accepted as a deprecated alias.) Not needed when \code{from_fit} is given.}
 
 \item{k_small}{Number of classes in the smaller (null) model.}
 
@@ -55,6 +56,11 @@ Default \code{20}.}
 
 \item{...}{Additional arguments passed to the fitting engine.}
 
+\item{from_fit}{A model fitted by \code{\link{fit_gmm}} or
+\code{\link{fit_lcga}}, whose data and specification are used for both
+models and every replicate. \code{k_small} and \code{k_large} still say
+which class counts to compare; everything else comes from the fit.}
+
 \item{X}{Deprecated alias for \code{indicators}.}
 }
 \value{
@@ -75,6 +81,13 @@ models on the observed data, compute the observed likelihood-ratio
 statistic, then generate \code{n_reps} synthetic datasets under the smaller
 model to build the reference distribution. \code{blrt()} is the preferred
 name; \code{calc_blrt()} is retained for backward compatibility.
+
+A growth model is specified by a design matrix in time and a covariance
+structure rather than by a measurement string, which is more than a
+\code{measurement =} argument can carry. Pass the fitted model itself with
+\code{from_fit =} instead: the data, the time design, the random effects and
+the covariance constraints are all read off it, so the null and alternative
+models differ from the fit in the number of classes and in nothing else.
 }
 \examples{
 \dontrun{

@@ -316,55 +316,188 @@ fit_gmm <- function(indicator,
     random_names      = colnames(design)[mm$r_cols],
     wave_missing      = prep$wave_missing
   )
-  fit$growth$boundary <- .gmm_boundary(mm)
+  fit$growth$boundary <- .gmm_boundary(mm, fit$data, fit$sample_weights)
   if (length(fit$growth$boundary))
-    warning(sprintf(
-      paste0("The solution is on the boundary of the parameter space: %s. ",
-             "Growth mixture models reach this most often when the ",
-             "growth-factor covariance or the residual variances are free ",
-             "across classes and the data do not support that many; the ",
-             "estimates at a boundary are not interpretable as variances and ",
-             "their standard errors are not valid. Consider psi = \"equal\", ",
-             "residual_equal = TRUE, or fewer classes."),
-      paste(fit$growth$boundary, collapse = "; ")), call. = FALSE)
+    warning(.gmm_boundary_message(fit$growth$boundary, mm), call. = FALSE)
 
   class(fit) <- c("gmm", class(fit))
   fit
 }
 
-# Variance parameters sitting at the floor the M-step imposes.
+# Variance parameters that have collapsed relative to the data, not merely to
+# the numerical floor.
 #
 # A growth mixture model whose covariance structure the data do not support does
-# not fail; it produces a variance that wants to be negative. Some programs
-# let it go negative and print it. This
-# package floors instead, which keeps the likelihood a likelihood, but a floored
-# estimate is the same diagnosis and would otherwise be reported as though it
-# were an ordinary small variance. Hence the warning: an inadmissible solution
-# should be visible without the user checking for it.
-.gmm_boundary <- function(mm) {
+# not fail; it produces a variance that wants to be negative. Some programs let
+# it go negative and print it. This package floors instead, which keeps the
+# likelihood a likelihood, but a floored estimate is the same diagnosis and
+# would otherwise be reported as though it were an ordinary small variance.
+#
+# The floor tests this function used to run on their own only fire once the
+# M-step has pinned a parameter at 1e-6 or an eigenvalue at the 1e-8 clip. That
+# is the last stage of a collapse, not the diagnostic one: on a reference
+# class-varying fit the shared residual variance at the final occasion reached
+# 1.19e-4 -- 0.08% of that occasion's observed variance, three orders of
+# magnitude below every other occasion -- and neither test fired, while the fit
+# carried the lowest BIC of the whole model set. The ratio to the observed
+# marginal is the statistic `.gaussian_boundary()` already uses for the same
+# failure in a latent profile model, at the same 1% threshold and for the same
+# reason (R/gaussian_boundary.R:72): it means the same thing whatever the
+# outcome is measured in. The floor tests are kept as an unconditional second
+# trigger, since a parameter genuinely pinned at the floor must still be
+# reported even if the marginal is unavailable.
+#
+# For Psi the ratio is taken on the random effects' *contribution to the implied
+# variance of the outcome*, max_t diag(Lambda_r Psi_k Lambda_r')_t / s2_t, not on
+# Psi's own entries. Psi's entries are on the growth factors' scale, which for a
+# slope is the outcome's scale divided by time squared, so a bare comparison
+# would flag every slope variance ever estimated. The eigenvalue *ratio* is not
+# usable either: it is 0.004 on a collapsed Psi and 0.004 on a healthy one.
+#
+# The share is taken over the whole of Psi_k, per class, rather than per growth
+# factor. A slope variance going to zero under a healthy intercept variance is
+# not a degeneracy: it is the random_effects = "intercept" model, which this
+# package offers and which is a reportable finding. What is a degeneracy is the
+# whole of Psi_k going to zero -- that class is an LCGA class -- and a residual
+# variance going to zero, which is the unbounded-likelihood spike.
+.gmm_boundary <- function(mm, X = NULL, weights = NULL, threshold = 0.01) {
   msg <- character(0)
 
-  at_floor <- which(mm$parameters$theta <= .sn_theta_floor * 10,
-                    arr.ind = TRUE)
-  if (nrow(at_floor))
-    msg <- c(msg, sprintf(
-      "residual variance at zero for %s",
-      paste(sprintf("class %d, occasion %d", at_floor[, 1], at_floor[, 2]),
-            collapse = ", ")))
+  s2 <- .gmm_marginal(mm, X, weights)
+  Tn <- nrow(mm$design)
+
+  theta      <- mm$parameters$theta
+  theta_rows <- if (isTRUE(mm$theta_equal)) 1L else nrow(theta)
+  # With residual = "constant" the columns of theta are one parameter, not T of
+  # them, so it is judged once. The marginal it is compared with is the smallest
+  # of the occasions', which is the conservative choice: a single variance
+  # shared over occasions of different spread is only a collapse if it is small
+  # relative to even the least variable of them.
+  shared_t <- isTRUE(mm$theta_shared_occasions)
+  occasions <- if (shared_t) 1L else seq_len(Tn)
+  for (k in seq_len(theta_rows)) {
+    for (t in occasions) {
+      v  <- theta[k, t]
+      s2t <- if (is.null(s2)) NA_real_ else if (shared_t) min(s2) else s2[t]
+      at_floor <- v <= .sn_theta_floor * 10
+      ratio    <- v / s2t
+      if (!at_floor && !(is.finite(ratio) && ratio < threshold)) next
+      where <- paste0(
+        if (theta_rows == 1L) "" else sprintf("in class %d ", k),
+        if (shared_t) "(constant over occasions)" else sprintf("at occasion %d", t))
+      msg <- c(msg, if (is.finite(ratio))
+        sprintf("residual variance %s (%.3g vs %.3g for %s, %s)",
+                where, v, s2t,
+                if (shared_t) "the least variable occasion"
+                else "that occasion overall",
+                .gmm_pct(ratio))
+      else sprintf("residual variance %s at the estimation floor (%.3g)",
+                   where, v))
+    }
+  }
 
   if (length(mm$r_cols)) {
-    for (k in seq_along(mm$parameters$psi)) {
+    Lr <- mm$design[, mm$r_cols, drop = FALSE]
+    psi_rows <- if (isTRUE(mm$psi_equal)) 1L else length(mm$parameters$psi)
+    for (k in seq_len(psi_rows)) {
       P <- mm$parameters$psi[[k]]
-      if (!length(P)) next
-      if (min(eigen(P, symmetric = TRUE, only.values = TRUE)$values) <= 1e-7) {
-        msg <- c(msg, sprintf(
-          "growth-factor covariance singular in class %d (no within-class variation left in the growth factors, which is the latent class growth model fit_lcga() estimates directly)",
-          k))
-        if (mm$psi_equal) break
-      }
+      if (is.null(P) || !length(P)) next
+      implied  <- diag(Lr %*% P %*% t(Lr))
+      singular <- min(eigen(P, symmetric = TRUE, only.values = TRUE)$values) <=
+        1e-7
+      share <- if (is.null(s2)) NA_real_ else max(implied / s2)
+      if (!singular && !(is.finite(share) && share < threshold)) next
+      where <- if (psi_rows == 1L) "the growth factors"
+               else sprintf("the growth factors in class %d", k)
+      detail <- if (is.finite(share))
+        sprintf(" (contributing at most %s of the outcome's variance)",
+                .gmm_pct(share))
+      else ""
+      msg <- c(msg, sprintf(
+        paste0("no within-class variation left in %s%s, which is the latent ",
+               "class growth model fit_lcga() estimates directly"),
+        where, detail))
     }
   }
   msg
+}
+
+# Observed variance of each occasion, or NULL when the data are not available.
+#
+# Wrapped rather than inlined because a caller that hands over a matrix of the
+# wrong width -- a mis-shaped fit, or an internal call made before the data are
+# resolved -- should fall back to the floor tests rather than compare a variance
+# with an unrelated column's.
+.gmm_marginal <- function(mm, X, weights = NULL) {
+  if (is.null(X) || !is.matrix(X) || ncol(X) != nrow(mm$design)) return(NULL)
+  if (!is.null(weights) && length(weights) != nrow(X)) weights <- NULL
+  s2 <- .marginal_var(X, weights)
+  if (any(!is.finite(s2)) || any(s2 <= 0)) return(NULL)
+  s2
+}
+
+# A ratio as a percentage, at a precision that survives three orders of
+# magnitude: "0.08%" says what "0%" would hide.
+.gmm_pct <- function(ratio) {
+  pct <- 100 * ratio
+  sprintf("%s%%", format(signif(pct, 2), scientific = FALSE, trim = TRUE))
+}
+
+# The warning text. Two things it must do that naming the parameter does not.
+#
+# It must say that BIC cannot be compared across a degenerate fit and a clean
+# one, because a collapsed variance *wins* on BIC -- on the reference data the
+# degenerate solution beat every admissible model in the set by 40 points -- so
+# a user following ordinary model-selection practice is led straight to it.
+#
+# And it must say that raising n_init is the wrong response. This is not a
+# convergence failure: on that same fit the spike was found by 1 start in 50 and
+# the clean solution by 21 in 30, so more starts means more chances to find the
+# spike. `.check_gaussian_degeneracy()` already says this for the latent profile
+# case, for the same reason, and the two warnings are meant to read as one
+# family.
+#
+# The remedies are named in order of how much structure they impose, and only
+# when they are not already in force -- advice a user has already taken reads as
+# noise and buries the advice they have not.
+.gmm_boundary_message <- function(lines, mm = NULL) {
+  fixes <- character(0)
+  if (is.null(mm) || !isTRUE(mm$psi_equal))
+    fixes <- c(fixes, "hold the growth-factor covariance equal across classes with psi = \"equal\"")
+  if (is.null(mm) || !isTRUE(mm$theta_equal))
+    fixes <- c(fixes, "hold the residual variances equal across classes with residual_equal = TRUE")
+  if (is.null(mm) || length(mm$r_cols) > 1L)
+    fixes <- c(fixes, "let only the intercept vary within a class with random_effects = \"intercept\"")
+  fixes <- c(fixes, "fit fewer classes, since a class the data cannot support usually means there are too many")
+
+  sprintf(
+    paste0("A variance has collapsed towards zero: %s. The likelihood of a ",
+           "mixture of normals is unbounded in this direction, so this ",
+           "solution can score better than any meaningful one while ",
+           "describing a handful of near-identical cases rather than a ",
+           "subgroup. Do not interpret these estimates as variances -- their ",
+           "standard errors are not valid either -- and do not compare this ",
+           "fit's BIC with a clean one's, since it is inflated by the spike. ",
+           "This is not a convergence failure, so raising n_init will not fix ",
+           "it and can make it worse. Ways out, to choose between on ",
+           "substantive grounds: %s. A class with no growth-factor variation ",
+           "left is a latent class growth class, which fit_lcga() estimates ",
+           "directly and without this failure mode."),
+    paste(lines, collapse = "; "),
+    paste(sprintf("(%d) %s", seq_along(fixes), fixes), collapse = "; "))
+}
+
+# Repeat the flag in print(). Someone opening a saved fit months later should
+# still see that its variances collapsed; the warning at fit time is gone by
+# then. `.print_degenerate_note()` (R/gaussian_boundary.R) is the model.
+.print_gmm_boundary_note <- function(x) {
+  lines <- x$growth$boundary
+  if (!length(lines)) return(invisible(NULL))
+  cat("\nWARNING - collapsed variance:\n")
+  for (line in lines) cat("  ", line, "\n", sep = "")
+  cat("  These estimates are not interpretable, and this fit's BIC cannot be\n")
+  cat("  compared with a clean one's. See ?fit_gmm for what to do.\n")
+  invisible(NULL)
 }
 
 # ------------------------------------------------------------------------------
@@ -543,5 +676,166 @@ print.gmm <- function(x, ...) {
   dimnames(ft) <- list(paste("Class", seq_len(K)), g$time_labels)
   print(round(ft, 3))
 
+  .print_gmm_boundary_note(x)
+
   NextMethod()
 }
+
+# ------------------------------------------------------------------------------
+# The growth parameters as a table
+# ------------------------------------------------------------------------------
+
+# One printed block: a K x J matrix with the classes across the top, in the
+# layout measurement_summary.default() uses for item parameters, so a growth
+# model's table reads like every other model's.
+.growth_print_block <- function(title, mat, K) {
+  cat(sprintf("\n%s\n", title))
+  disp    <- .shorten_labels(colnames(mat), width = 30L)
+  label_w <- max(20L, max(nchar(disp)))
+  cat(sprintf("%-*s", label_w, "Parameter"))
+  for (k in seq_len(K)) cat(sprintf(" | Class %d", k))
+  cat("\n")
+  cat(paste0(rep("-", label_w + K * 10), collapse = ""), "\n")
+  for (j in seq_len(ncol(mat))) {
+    cat(sprintf("%-*s", label_w, disp[j]))
+    for (k in seq_len(K)) cat(sprintf(" | %7.3f", mat[k, j]))
+    cat("\n")
+  }
+  .cat_label_legend(disp, indent = "")
+  invisible(NULL)
+}
+
+# Long-format rows for one block, in the schema measurement_summary() returns.
+.growth_rows <- function(mat, parameter, K) {
+  J <- ncol(mat)
+  data.frame(block     = rep(NA_character_, K * J),
+             parameter = rep(parameter, K * J),
+             item      = rep(colnames(mat), each = K),
+             category  = rep(NA_integer_, K * J),
+             class     = rep(seq_len(K), times = J),
+             estimate  = as.vector(mat),
+             stringsAsFactors = FALSE)
+}
+
+# A constrained parameter is repeated across the classes rather than reported
+# once. The alternative -- one row with class = NA -- would make the table
+# unjoinable to class_sizes() or to the posterior, which is most of what a tidy
+# table is for, and would quietly drop the parameter out of any per-class
+# summary a user writes. The constraint is stated in the printed heading
+# instead, exactly as print.gmm() states it.
+.growth_expand <- function(mat, K) {
+  if (nrow(mat) == K) return(mat)
+  out <- matrix(rep(mat[1L, ], each = K), nrow = K,
+                dimnames = list(NULL, colnames(mat)))
+  out
+}
+
+# Every measurement parameter of a growth model, as one K-by-parameter matrix
+# per family, in print order.
+.growth_blocks <- function(x) {
+  g <- x$growth
+  K <- x$n_components
+  out <- list()
+
+  add <- function(title, parameter, mat) {
+    if (is.null(mat) || !length(mat)) return(invisible(NULL))
+    out[[length(out) + 1L]] <<- list(title = title, parameter = parameter,
+                                     mat = .growth_expand(mat, K))
+  }
+
+  if (identical(g$model, "lcga")) {
+    means <- g$coefficients
+    colnames(means) <- colnames(g$design)
+    add(sprintf("GROWTH COEFFICIENTS (%s scale)",
+                if (identical(g$family, "gaussian")) "response" else "link"),
+        "growth_mean", means)
+  } else {
+    means <- g$means
+    colnames(means) <- g$factor_names
+    add(if (is.null(g$coefficients)) "GROWTH FACTOR MEANS"
+        else "GROWTH FACTOR INTERCEPTS", "growth_mean", means)
+
+    # The covariate regressions are measurement parameters here -- they enter
+    # the emission, not the structural model -- so a table that left them out
+    # would be missing estimated parameters on exactly the models where the
+    # growth means are no longer means.
+    if (!is.null(g$coefficients)) {
+      cf <- lapply(g$coefficients, function(B) {
+        v <- as.vector(B)
+        names(v) <- as.vector(outer(rownames(B), colnames(B),
+                                    function(a, b) paste(a, "ON", b)))
+        v
+      })
+      M <- do.call(rbind, cf)
+      colnames(M) <- names(cf[[1L]])
+      add(sprintf("GROWTH FACTORS ON COVARIATES%s",
+                  if (g$covariate_equal) " (held equal across classes)" else ""),
+          "growth_regression", M)
+    }
+
+    if (length(g$random_names)) {
+      nm  <- g$random_names
+      q   <- length(nm)
+      idx <- which(upper.tri(diag(q), diag = TRUE), arr.ind = TRUE)
+      lab <- ifelse(idx[, 1] == idx[, 2], nm[idx[, 1]],
+                    paste(nm[idx[, 1]], nm[idx[, 2]], sep = " with "))
+      V <- do.call(rbind, lapply(g$psi, function(P) P[idx]))
+      colnames(V) <- lab
+      diag_cols <- idx[, 1] == idx[, 2]
+      add(sprintf("GROWTH FACTOR VARIANCES%s",
+                  if (g$psi_equal) " (held equal across classes)" else ""),
+          "growth_variance", V[, diag_cols, drop = FALSE])
+      if (any(!diag_cols))
+        add(sprintf("GROWTH FACTOR COVARIANCES%s",
+                    if (g$psi_equal) " (held equal across classes)" else ""),
+            "growth_covariance", V[, !diag_cols, drop = FALSE])
+    }
+  }
+
+  rv <- g$residual_variance
+  if (!is.null(rv)) {
+    if (!is.matrix(rv)) rv <- matrix(rv, ncol = 1L)
+    colnames(rv) <- if (ncol(rv) == length(g$time_labels)) g$time_labels
+                    else "Variance"
+    add(sprintf("RESIDUAL VARIANCE%s",
+                if (isTRUE(g$residual_equal)) " (held equal across classes)"
+                else ""),
+        "residual_variance", rv)
+  }
+
+  ft <- g$fitted
+  colnames(ft) <- g$time_labels
+  add("FITTED TRAJECTORY", "fitted", ft)
+
+  out
+}
+
+#' @rdname measurement_summary
+#' @export
+measurement_summary.gmm <- function(object, ...) {
+  K <- object$n_components
+  cat("=========================================================\n")
+  cat("             MEASUREMENT MODEL PARAMETERS                \n")
+  cat("=========================================================\n")
+
+  blocks <- .growth_blocks(object)
+  for (b in blocks) .growth_print_block(b$title, b$mat, K)
+
+  if (!is.null(object$missing_data) && isTRUE(object$missing_data$any_missing)) {
+    md <- object$missing_data
+    cat(sprintf(paste0("\nMissing data: %d of %d cells (%.1f%%) across %d ",
+                       "occasion%s, handled via %s.\n"),
+                md$n_missing, md$n_cells, 100 * md$prop_missing,
+                md$n_items_affected, if (md$n_items_affected == 1L) "" else "s",
+                md$handled_by))
+  }
+  .print_gmm_boundary_note(object)
+  cat("=========================================================\n")
+
+  invisible(do.call(rbind, lapply(blocks, function(b)
+    .growth_rows(b$mat, b$parameter, K))))
+}
+
+#' @rdname measurement_summary
+#' @export
+measurement_summary.lcga <- measurement_summary.gmm
