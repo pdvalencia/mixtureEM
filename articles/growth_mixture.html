@@ -201,7 +201,7 @@ default, <code>random_effects = "intercept_slope"</code>):</p>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Log-Likelihood : -5570.91</span></span>
 <span><span class="co">#&gt;   Rel. Entropy   : 0.9113</span></span>
-<span><span class="co">#&gt;   Best solution  : found by 4 of 4 starts</span></span>
+<span><span class="co">#&gt;   Best solution  : found by 4 of 4 starts that ran to convergence (of 15 requested)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; Class Weights (Sizes):</span></span>
 <span><span class="co">#&gt;   Class 1: 59.29%</span></span>
@@ -309,7 +309,7 @@ are part of the measurement model and therefore supplied to
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Log-Likelihood : -5570.48</span></span>
 <span><span class="co">#&gt;   Rel. Entropy   : 0.9110</span></span>
-<span><span class="co">#&gt;   Best solution  : found by 4 of 4 starts</span></span>
+<span><span class="co">#&gt;   Best solution  : found by 4 of 4 starts that ran to convergence (of 15 requested)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; Class Weights (Sizes):</span></span>
 <span><span class="co">#&gt;   Class 1: 59.25%</span></span>
@@ -318,33 +318,149 @@ are part of the measurement model and therefore supplied to
 <span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span></code></pre></div>
 </div>
 <div class="section level2">
+<h2 id="reporting-the-model">Reporting the model<a class="anchor" aria-label="anchor" href="#reporting-the-model"></a>
+</h2>
+<p><code><a href="../reference/measurement_summary.html">measurement_summary()</a></code> returns the growth parameters as a
+tidy data frame — the growth-factor means, their variances and
+covariances, the residual variances and the fitted trajectory, one row
+per parameter and class — so the numbers can go into a table without
+being retyped from the printed output:</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">params</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/measurement_summary.html">measurement_summary</a></span><span class="op">(</span><span class="va">fit_gmm2</span><span class="op">)</span></span>
+<span><span class="co">#&gt; =========================================================</span></span>
+<span><span class="co">#&gt;              MEASUREMENT MODEL PARAMETERS                </span></span>
+<span><span class="co">#&gt; =========================================================</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; GROWTH FACTOR MEANS</span></span>
+<span><span class="co">#&gt; Parameter            | Class 1 | Class 2</span></span>
+<span><span class="co">#&gt; ---------------------------------------- </span></span>
+<span><span class="co">#&gt; intercept            |   1.897 |   6.015</span></span>
+<span><span class="co">#&gt; linear               |   0.089 |  -0.724</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; GROWTH FACTOR VARIANCES (held equal across classes)</span></span>
+<span><span class="co">#&gt; Parameter            | Class 1 | Class 2</span></span>
+<span><span class="co">#&gt; ---------------------------------------- </span></span>
+<span><span class="co">#&gt; intercept            |   0.766 |   0.766</span></span>
+<span><span class="co">#&gt; linear               |   0.056 |   0.056</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; GROWTH FACTOR COVARIANCES (held equal across classes)</span></span>
+<span><span class="co">#&gt; Parameter             | Class 1 | Class 2</span></span>
+<span><span class="co">#&gt; ----------------------------------------- </span></span>
+<span><span class="co">#&gt; intercept with linear |   0.008 |   0.008</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; RESIDUAL VARIANCE (held equal across classes)</span></span>
+<span><span class="co">#&gt; Parameter            | Class 1 | Class 2</span></span>
+<span><span class="co">#&gt; ---------------------------------------- </span></span>
+<span><span class="co">#&gt; T1                   |   0.676 |   0.676</span></span>
+<span><span class="co">#&gt; T2                   |   0.655 |   0.655</span></span>
+<span><span class="co">#&gt; T3                   |   0.653 |   0.653</span></span>
+<span><span class="co">#&gt; T4                   |   0.579 |   0.579</span></span>
+<span><span class="co">#&gt; T5                   |   0.655 |   0.655</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; FITTED TRAJECTORY</span></span>
+<span><span class="co">#&gt; Parameter            | Class 1 | Class 2</span></span>
+<span><span class="co">#&gt; ---------------------------------------- </span></span>
+<span><span class="co">#&gt; T1                   |   1.897 |   6.015</span></span>
+<span><span class="co">#&gt; T2                   |   1.987 |   5.291</span></span>
+<span><span class="co">#&gt; T3                   |   2.076 |   4.567</span></span>
+<span><span class="co">#&gt; T4                   |   2.165 |   3.843</span></span>
+<span><span class="co">#&gt; T5                   |   2.254 |   3.119</span></span>
+<span><span class="co">#&gt; =========================================================</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">params</span><span class="op">[</span><span class="va">params</span><span class="op">$</span><span class="va">parameter</span> <span class="op">==</span> <span class="st">"growth_mean"</span>, <span class="op">]</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   block   parameter      item category class    estimate</span></span>
+<span><span class="co">#&gt; 1  &lt;NA&gt; growth_mean intercept       NA     1  1.89749427</span></span>
+<span><span class="co">#&gt; 2  &lt;NA&gt; growth_mean intercept       NA     2  6.01535071</span></span>
+<span><span class="co">#&gt; 3  &lt;NA&gt; growth_mean    linear       NA     1  0.08903508</span></span>
+<span><span class="co">#&gt; 4  &lt;NA&gt; growth_mean    linear       NA     2 -0.72405220</span></span></code></pre></div>
+<p>Class enumeration has its own two functions.
+<code><a href="../reference/compare_longitudinal.html">compare_longitudinal()</a></code> fits a range of class counts with
+one specification and tabulates the criteria, and for a growth model its
+default range starts at one class — the ordinary latent growth curve
+model, which is the benchmark the class solutions have to beat:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/compare_longitudinal.html">compare_longitudinal</a></span><span class="op">(</span><span class="va">Y</span>, model <span class="op">=</span> <span class="st">"gmm"</span>, times <span class="op">=</span> <span class="fl">5</span>, k_range <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>,</span>
+<span>                     n_init <span class="op">=</span> <span class="fl">15</span>, random_state <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span></code></pre></div>
+<p><code><a href="../reference/blrt.html">blrt()</a></code> takes the fitted model itself, so the
+bootstrapped comparison is run on the same time design and covariance
+structure rather than on a re-specified model:</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/blrt.html">blrt</a></span><span class="op">(</span>k_small <span class="op">=</span> <span class="fl">2</span>, k_large <span class="op">=</span> <span class="fl">3</span>, from_fit <span class="op">=</span> <span class="va">fit_gmm2</span>, n_reps <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
 <h2 id="practical-cautions">Practical cautions<a class="anchor" aria-label="anchor" href="#practical-cautions"></a>
 </h2>
 <ul>
 <li>A GMM whose data cannot support its covariance structure does not
-fail loudly — it drives a variance to the boundary. mixtureEM warns when
-a solution sits on the boundary; treat that as a sign to simplify
-(<code>psi = "equal"</code>, <code>random_effects = "intercept"</code>,
-or LCGA).</li>
+fail loudly — it drives a variance towards zero. mixtureEM warns when a
+residual variance or a class’s growth-factor variation has collapsed
+relative to the observed variance of the outcome; treat that as a sign
+to simplify (<code>psi = "equal"</code>,
+<code>random_effects = "intercept"</code>, fewer classes, or LCGA). Two
+things about that warning are worth taking literally. The collapsed
+solution is usually the one with the <em>best</em> BIC, because a
+variance heading for zero inflates the likelihood without bound, so BIC
+cannot be used to choose between it and a clean fit. And it is not a
+convergence failure, so raising <code>n_init</code> will not fix it:
+more starts means more chances of finding the spike, and a solution that
+only one start in fifty reaches is evidence about the specification
+rather than about the search (Hipp &amp; Bauer, 2006).</li>
+<li>
+<strong>A lower log-likelihood is not always a worse
+answer.</strong> The growth-factor covariance is constrained here to be
+positive semi-definite, and the residual variances to be positive.
+Software that does not impose those constraints can report a negative
+variance, or variances that are each positive while implying a
+correlation greater than one in absolute value — and the likelihood it
+prints for such a solution is evaluated outside the parameter space, so
+it is not comparable with one that is inside it. When mixtureEM reports
+a lower likelihood than another program on the same model, check the
+other program’s covariance matrix before concluding anything: an
+admissible solution with a smaller likelihood is the reportable one. The
+right response to a model that cannot produce a proper solution is
+Berlin, Parra and Williams’s (2014): to report that no reasonable and
+proper solution was found, and to simplify the specification.</li>
 <li>Class enumeration is harder than in cross-sectional LCA: BIC, the
 plotted trajectories against observed means, and substantive
 interpretability should all agree before a solution is reported (Nylund
-et al., 2007).</li>
+et al., 2007). Checklists for reporting a trajectory study (van de
+Schoot et al., 2017) ask for the one-class solution, the criteria at
+every class count, the class sizes and the classification diagnostics;
+<code><a href="../reference/compare_longitudinal.html">compare_longitudinal()</a></code>, <code><a href="../reference/class_sizes.html">class_sizes()</a></code> and
+<code><a href="../reference/classification_diagnostics.html">classification_diagnostics()</a></code> supply them.</li>
 </ul>
 </div>
 <div class="section level2">
 <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
 </h2>
+<p>Berlin, K. S., Parra, G. R., &amp; Williams, N. A. (2014). An
+introduction to latent variable mixture modeling (part 2): Longitudinal
+latent class growth analysis and growth mixture models. <em>Journal of
+Pediatric Psychology</em>, <em>39</em>(2), 188–203. <a href="https://doi.org/10.1093/jpepsy/jst085" class="external-link uri">https://doi.org/10.1093/jpepsy/jst085</a></p>
+<p>Hipp, J. R., &amp; Bauer, D. J. (2006). Local solutions in the
+estimation of growth mixture models. <em>Psychological Methods</em>,
+<em>11</em>(1), 36–53. <a href="https://doi.org/10.1037/1082-989X.11.1.36" class="external-link uri">https://doi.org/10.1037/1082-989X.11.1.36</a></p>
 <p>Jung, T., &amp; Wickrama, K. A. S. (2008). An introduction to latent
 class growth analysis and growth mixture modeling. <em>Social and
 Personality Psychology Compass</em>, <em>2</em>(1), 302–317. <a href="https://doi.org/10.1111/j.1751-9004.2007.00054.x" class="external-link uri">https://doi.org/10.1111/j.1751-9004.2007.00054.x</a></p>
+<p>Lee, T. K., Wickrama, K. A. S., &amp; O’Neal, C. W. (2023). An
+introduction to growth mixture models (GMM). In <em>International
+Encyclopedia of Education</em> (4th ed., Vol. 14, pp. 646–655).
+Elsevier. <a href="https://doi.org/10.1016/B978-0-12-818630-5.10076-4" class="external-link uri">https://doi.org/10.1016/B978-0-12-818630-5.10076-4</a></p>
 <p>Muthén, B., &amp; Shedden, K. (1999). Finite mixture modeling with
 mixture outcomes using the EM algorithm. <em>Biometrics</em>,
 <em>55</em>(2), 463–469. <a href="https://doi.org/10.1111/j.0006-341X.1999.00463.x" class="external-link uri">https://doi.org/10.1111/j.0006-341X.1999.00463.x</a></p>
+<p>Ram, N., &amp; Grimm, K. J. (2009). Growth mixture modeling: A method
+for identifying differences in longitudinal change among unobserved
+groups. <em>International Journal of Behavioral Development</em>,
+<em>33</em>(6), 565–576. <a href="https://doi.org/10.1177/0165025409343765" class="external-link uri">https://doi.org/10.1177/0165025409343765</a></p>
 <p>Nylund, K. L., Asparouhov, T., &amp; Muthén, B. O. (2007). Deciding
 on the number of classes in latent class analysis and growth mixture
 modeling: A Monte Carlo simulation study. <em>Structural Equation
 Modeling</em>, <em>14</em>(4), 535–569. <a href="https://doi.org/10.1080/10705510701575396" class="external-link uri">https://doi.org/10.1080/10705510701575396</a></p>
+<p>van de Schoot, R., Sijbrandij, M., Winter, S. D., Depaoli, S., &amp;
+Vermunt, J. K. (2017). The GRoLTS-checklist: Guidelines for reporting on
+latent trajectory studies. <em>Structural Equation Modeling</em>,
+<em>24</em>(3), 451–467. <a href="https://doi.org/10.1080/10705511.2016.1247646" class="external-link uri">https://doi.org/10.1080/10705511.2016.1247646</a></p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

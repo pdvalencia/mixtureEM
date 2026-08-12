@@ -71,13 +71,13 @@ selection <- compare_mixtures(X = items, measurement = "binary",
 #> Fitting 6-class model...
 #> 
 #> === Model Selection Summary ===
-#>   Classes        LL Params      AIC      BIC    SABIC Entropy
-#> 1       1 -3905.807     16 7843.615 7907.478 7856.709   1.000
-#> 2       2 -2900.078     33 5866.157 5997.875 5893.164   0.948
-#> 3       3 -2654.568     50 5409.136 5608.710 5450.056   0.934
-#> 4       4 -2531.130     67 5196.260 5463.688 5251.093   0.905
-#> 5       5 -2474.482     84 5116.963 5452.246 5185.709   0.928
-#> 6       6 -2423.385    101 5048.771 5451.909 5131.429   0.925
+#>   Classes        LL Params      AIC      BIC    SABIC Entropy Unreplicated
+#> 1       1 -3905.807     16 7843.615 7907.478 7856.709   1.000        FALSE
+#> 2       2 -2900.078     33 5866.157 5997.875 5893.164   0.948        FALSE
+#> 3       3 -2654.568     50 5409.136 5608.710 5450.056   0.934        FALSE
+#> 4       4 -2531.130     67 5196.260 5463.688 5251.093   0.905        FALSE
+#> 5       5 -2474.482     84 5116.963 5452.246 5185.709   0.928        FALSE
+#> 6       6 -2423.385    101 5048.771 5451.909 5131.429   0.925        FALSE
 #> 
 #> -> Best model according to BIC: 6 classes
 ```
@@ -168,7 +168,7 @@ params <- measurement_summary(fit)
 #> had_sex              |   0.004 |   0.076 |   0.869 |   0.001
 #> desired_sex          |   0.010 |   0.076 |   0.887 |   0.879
 #> 
-#> At the boundary: sexual_relations in class 1; sexual_contact in class 1; sexual_fantasies in class 1; had_sex in class 4. These probabilities have run to 0 or 1, so the class is defined partly by an item every case in it gives the same answer to, and their standard errors are not interpretable.
+#> At the boundary: sexual_relations in class 1; sexual_contact in class 1; sexual_fantasies in class 1; had_sex in class 4. These probabilities have run to 0 or 1, so the class is defined partly by an item every case in it gives the same answer to, and their standard errors are not interpretable. There are two ways on: read it substantively, since an item every member of a class answers identically is often the finding rather than a fault; or, if that parameter needs a standard error, refit with a stronger prior than the default of 1 - `bayes_constants = list(categorical = 2)` - which holds the estimate off the edge at the cost of shrinking it slightly toward the item's marginal.
 #> =========================================================
 ```
 

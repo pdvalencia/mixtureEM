@@ -255,9 +255,26 @@ seed, whether to order classes by size, and whether to run L-BFGS
 refinement.</p>
 <p>A mixture likelihood usually has several local maxima, so a single start is
 a coin toss rather than an estimate; the fit reports how many of the starts
-reached the solution it kept. If that count is 1, raise <code>n_init</code> and
-refit — a maximum found once may simply be the best of a small sample of
-the surface. Set <code>random_state</code> to make the search reproducible.</p></dd>
+reached the solution it kept. If that count is 1, refit with
+<code>n_init = 100</code> — a maximum found once may simply be the best of a
+small sample of the surface, and if it does not replicate at 100 starts the
+problem is more likely the specification than the search (Hipp &amp; Bauer,
+2006). Set <code>random_state</code> to make the search reproducible.</p>
+<p>The default of 20 is a floor for small, well-separated models rather than a
+guarantee: under a correct specification the maximum is typically found by
+39\<!-- % to 77\\% of the starts, so 20 is enough to see a stable maximum when -->
+there is one, but local optima multiply with more classes and poorer
+separation. <code>max_iter</code> defaults to 1000, following the iteration
+budget in Biernacki et al. (2003); when a fit stops at the cap, double it.
+<code><a href="../articles/estimation.html">vignette("estimation")</a></code> gives the figures behind both numbers.</p>
+<p>More starts are not <em>monotonically</em> better on a large model. Where each
+EM iteration is expensive the search runs in two stages: a short pass ranks
+the starts and only the best fraction is run to convergence. That ranking is
+taken before the starts have converged, so it can discard a slow-climbing
+basin that would have won, and raising <code>n_init</code> changes which starts
+survive rather than simply adding to them. A larger <code>n_init</code> can
+therefore land on a slightly worse solution than a smaller one. On a big
+model, compare two or three values rather than assuming the largest is best.</p></dd>
 
 
 <dt id="arg-weights-strata-cluster">weights, strata, cluster<a class="anchor" aria-label="anchor" href="#arg-weights-strata-cluster"></a></dt>
@@ -286,12 +303,32 @@ probabilities), <code>poisson</code> (count rates), and <code>variances</code>
 (class-specific variances of continuous indicators); all default to
 <code>1</code>. Each is a number of pseudo-observations spread over the classes,
 so its influence shrinks as the sample grows.</p>
+<p>The default of one observation, and the fact that it is spread in agreement
+with each item's own observed marginal rather than uniformly over the
+cells, are both taken from Galindo Garre and Vermunt (2006). Their
+simulation compares Jeffreys, normal and two Dirichlet priors against
+maximum likelihood and the parametric bootstrap, at a prior strength of a
+single added case, and the marginal-preserving Dirichlet has the lowest
+root median squared error and the best coverage in every condition they
+study — most clearly where a true parameter is near the boundary and small
+samples send the maximum likelihood estimate to infinity. The constant
+Dirichlet, which spreads the same one observation uniformly, degrades as
+the table grows: with nine binary items that observation is spread over 512
+cells rather than 32, and its estimates shrink too far toward zero. This is
+why <code>categorical</code> is not simply an add-one adjustment.</p>
+<p>The <code>variances</code> prior is centred on each item's own observed marginal
+variance rather than on a fixed number, which is what makes it mean the same
+thing on a five-point scale and on an income variable: rescaling an
+indicator rescales the prior with it. That invariance is the reason the
+penalised-likelihood literature recommends a data-scaled penalty over a
+constant one (Chen, Tan, &amp; Zhang, 2008, sec. 4).</p>
 <p>Two uses. <strong>Reproducing an unregularized fit:</strong> setting a constant to
 <code>0</code> removes that prior and gives plain maximum likelihood for that
 block. This is an escape hatch for matching a reference analysis, not a
-recommended setting — the unpenalised mixture likelihood is unbounded, and
-maximum likelihood for a mixture of normals is known to be inconsistent
-without some such restriction (Kiefer &amp; Wolfowitz, 1956).</p>
+recommended setting — the unpenalised mixture likelihood for a mixture of
+normals is unbounded, so a <em>global</em> maximum likelihood estimate does
+not exist (Day, 1969; Kiefer &amp; Wolfowitz, 1956) and what an unregularized
+program reports is a local maximum.</p>
 <p><strong>Rescuing a collapsed fit:</strong> if a fit warns that a class variance has
 collapsed, the prior is one of three remedies, and not the first to reach
 for. Constraining the variances to be equal across classes
@@ -299,22 +336,28 @@ for. Constraining the variances to be equal across classes
 arise at all; fitting fewer classes often removes the class that was
 describing a spike. Where neither is acceptable substantively, raise
 <code>variances</code>. A useful starting point is <strong>one artificial
-observation per class</strong>, i.e. <code>variances = n_classes</code>, doubling it if
-the warning persists. State it that way rather than as a bare number: the
-constant is divided among the classes, so a fixed value is a different
-amount of prior at every <code>n_classes</code>. Then check the result rather
-than just that the warning stopped — the flagged variance should no longer
-be far below the others in the model, and its class mean should have come
-off the floor or ceiling of the response scale.</p>
+observation per class</strong>, i.e. <code>variances = n_classes</code>, increasing it a
+little at a time if the warning persists. State it that way rather than as a
+bare number: the constant is divided among the classes, so
+<code>variances = n_classes</code> is what holds the prior at one
+pseudo-observation per class at <em>every</em> number of classes — the way the
+penalised-mixture literature applies it, the same amount to every component
+— while a fixed value drifts as classes are added. Then check the result
+rather than just that the warning stopped — the flagged variance should no
+longer be far below the others in the model, and its class mean should have
+come off the floor or ceiling of the response scale.</p>
 <p>Raising <code>n_init</code> is <em>not</em> a remedy here. A collapsed variance is
 not a convergence failure but a property of the likelihood, which really is
 unbounded in that direction, so a longer search can find a taller spike and
 report a better log-likelihood for a worse solution. For the same reason a
 flagged fit's BIC is not comparable with a clean fit's.</p>
-<p>The theory behind the prior settles its form and not its size: a penalty
-that diverges as a variance approaches zero and grows more slowly than the
-sample yields a consistent estimator whatever its constant (Chen, Tan, &amp;
-Zhang, 2008). The choice of constant is therefore a finite-sample judgement,
+<p>The theory behind the prior settles its form and not its size: within the
+conditions Chen, Tan, &amp; Zhang (2008) impose — which any fixed positive
+constant meets — a penalty that diverges as a variance approaches zero and
+grows more slowly than the sample yields a consistent estimator whatever its
+constant. That result is proved for <em>univariate</em> normal mixtures; the
+multivariate case, which is what this package fits, they leave open (sec. 5).
+The choice of constant is therefore all the more a finite-sample judgement,
 which is why the default is deliberately weak and the guidance above is a
 rule with a check rather than a magic value.</p>
 <p>This is not a tuning menu. The defaults are the intended settings.</p></dd>
@@ -364,7 +407,22 @@ difference is a fixed constant and cancels in <code><a href="lr_test.html">lr_te
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
-    <p>Collins, L. M., &amp; Lanza, S. T. (2010). <em>Latent Class and Latent
+    <p>Biernacki, C., Celeux, G., &amp; Govaert, G. (2003). Choosing starting values for
+the EM algorithm for getting the highest likelihood in multivariate Gaussian
+mixture models. <em>Computational Statistics &amp; Data Analysis</em>,
+<em>41</em>(3-4), 561-575. <a href="https://doi.org/10.1016/S0167-9473%2802%2900163-9" class="external-link">doi:10.1016/S0167-9473(02)00163-9</a>
+
+(the iteration budget behind <code>max_iter</code>).</p>
+<p>Hipp, J. R., &amp; Bauer, D. J. (2006). Local solutions in the estimation of
+growth mixture models. <em>Psychological Methods</em>, <em>11</em>(1), 36-53.
+<a href="https://doi.org/10.1037/1082-989X.11.1.36" class="external-link">doi:10.1037/1082-989X.11.1.36</a>
+ (the replication rates behind
+<code>n_init</code>).</p>
+<p>Shireman, E., Steinley, D., &amp; Brusco, M. J. (2017). Examining the effect of
+initialization strategies on the performance of Gaussian mixture modeling.
+<em>Behavior Research Methods</em>, <em>49</em>(1), 282-293.
+<a href="https://doi.org/10.3758/s13428-015-0697-6" class="external-link">doi:10.3758/s13428-015-0697-6</a></p>
+<p>Collins, L. M., &amp; Lanza, S. T. (2010). <em>Latent Class and Latent
 Transition Analysis: With Applications in the Social, Behavioral, and Health
 Sciences</em>. Wiley.</p>
 <p>Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
@@ -378,6 +436,11 @@ latent class analysis by Bayesian posterior mode estimation.
 <em>Behaviormetrika</em>, <em>33</em>(1), 43-59. <a href="https://doi.org/10.2333/bhmk.33.43" class="external-link">doi:10.2333/bhmk.33.43</a>
 
 (the priors behind <code>bayes_constants</code>).</p>
+<p>Chen, J., Tan, X., &amp; Zhang, R. (2008). Inference for normal mixtures in mean
+and variance. <em>Statistica Sinica</em>, <em>18</em>(2), 443-465
+(the penalty behind <code>bayes_constants$variances</code>).</p>
+<p>Day, N. E. (1969). Estimating the components of a mixture of normal
+distributions. <em>Biometrika</em>, <em>56</em>(3), 463-474.</p>
 <p>Kiefer, J., &amp; Wolfowitz, J. (1956). Consistency of the maximum likelihood
 estimator in the presence of infinitely many incidental parameters.
 <em>The Annals of Mathematical Statistics</em>, <em>27</em>(4), 887-906.</p>

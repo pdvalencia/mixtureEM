@@ -59,10 +59,10 @@ selection <- compare_longitudinal(drink, k_range = 2:4, model = "rmlca",
                                   times = 4, n_init = 10, verbose = FALSE)
 selection
 #> $fit_table
-#>   Classes        LL Params      AIC      BIC    SABIC   Entropy
-#> 1       2 -2001.342      9 4020.684 4063.905 4035.323 0.7260827
-#> 2       3 -1981.322     14 3990.643 4057.877 4013.415 0.6455619
-#> 3       4 -1979.788     19 3997.575 4088.821 4028.480 0.5862685
+#>   Classes        LL Params      AIC      BIC    SABIC   Entropy Unreplicated
+#> 1       2 -2001.342      9 4020.684 4063.905 4035.323 0.7260827        FALSE
+#> 2       3 -1981.322     14 3990.643 4057.877 4013.415 0.6455619        FALSE
+#> 3       4 -1979.788     19 3997.575 4088.821 4028.480 0.5862685        FALSE
 #> 
 #> $models
 #> $models$K2

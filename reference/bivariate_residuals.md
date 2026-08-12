@@ -56,8 +56,6 @@ data latent class models. *Advances in Data Analysis and
 Classification*, *7*(3), 267-279.
 [doi:10.1007/s11634-013-0146-2](https://doi.org/10.1007/s11634-013-0146-2)
 
-bivariate_residuals(fit)
-
 ## See also
 
 [`absolute_fit()`](https://pdvalencia.github.io/mixtureEM/reference/absolute_fit.md),
@@ -70,4 +68,21 @@ set.seed(1)
 X <- matrix(rbinom(600, 1, 0.5), ncol = 6)
 fit <- fit_mixture(X, n_components = 2, measurement = "binary")
 #> Note: `X`, `Y`, `n_components`, and `structural` are the legacy interface. The current arguments are `indicators`, `n_classes`, `predictors`, and `outcome` / `outcome_covariates`.
+bivariate_residuals(fit)
+#> =========================================================
+#>                BIVARIATE RESIDUALS                       
+#> =========================================================
+#> Pearson chi-square per item pair, divided by its df.
+#> Values well above 1 flag a pair whose association the
+#> classes do not reproduce (local dependence).
+#> 
+#>          Item1    Item2    Item3    Item4    Item5
+#> Item2   0.0420
+#> Item3   0.0121   0.0001
+#> Item4   0.6319   1.1868   0.4270
+#> Item5   0.0697   0.3652   0.0726   0.0279
+#> Item6   0.0148   0.2689   0.0676   0.5240   0.1121
+#> 
+#> Largest: Item4 x Item2 = 1.1868
+#> =========================================================
 ```

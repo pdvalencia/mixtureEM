@@ -10,7 +10,32 @@ a solution can be supported longitudinally that no single occasion would
 support on its own (Collins &amp;amp; Lanza, 2010, sec. 7.3.3).
 Note that likelihood-based tests of \(K\) against \(K-1\) classes, such
 as the bootstrap likelihood-ratio test, do not have their usual reference
-distribution here, which is why only information criteria are reported."><meta property="og:description" content="Fits a series of models with increasing numbers of latent classes (RMLCA) or
+distribution here, which is why only information criteria are reported.
+For the growth models the comparison should include the one-class solution,
+which is the ordinary latent growth curve model: it is the benchmark the
+class solutions have to beat, and reporting it is asked for by name in the
+GRoLTS reporting checklist (van de Schoot et al., 2017, item 11). It is
+therefore in the default k_range for &quot;gmm&quot; and &quot;lcga&quot; and not for the
+other two, where a one-status LTA is not a model anyone reports.
+The table informs the decision; it does not make it. As Ram and Grimm (2009,
+p. 571) put it, &quot;there is not a deterministic set of rules to follow when
+selecting the best model. Rather, model selection is an art — informed by
+theory, past findings, past experience, and a variety of statistical fit
+indices.&quot;
+Reading the Entropy column. Relative entropy describes how cleanly a
+solution separates its classes. The usual anchors are 0.40, 0.60 and 0.80 for
+low, medium and high separation (Clark &amp;amp; Muthen, 2009, as reported by Lee et
+al., 2023, p. 653), and Ram and Grimm (p. 571) suggest preferring the
+higher-entropy model when choosing among models with similar BIC. Those
+anchors are on the same normalisation this package uses. Entropy is not
+evidence for how many classes there are, though, and there is no threshold it
+has to clear — &quot;there are no set cut-off criteria for deciding whether the
+entropy is reasonably high&quot; (Jung &amp;amp; Wickrama, 2008, p. 312) — so the package
+applies none.
+Reading the Unreplicated column. TRUE means that K's reported maximum
+was found by exactly one random start; refit those with n_init = 100
+before reporting. The per-model warning is suppressed inside this loop, since
+it would otherwise fire once per K."><meta property="og:description" content="Fits a series of models with increasing numbers of latent classes (RMLCA) or
 latent statuses (LTA) and tabulates the usual selection criteria, mirroring
 compare_mixtures() for the cross-sectional case. Lower AIC, BIC and SABIC
 are better; entropy summarises how cleanly cases are classified.
@@ -21,7 +46,32 @@ a solution can be supported longitudinally that no single occasion would
 support on its own (Collins &amp;amp; Lanza, 2010, sec. 7.3.3).
 Note that likelihood-based tests of \(K\) against \(K-1\) classes, such
 as the bootstrap likelihood-ratio test, do not have their usual reference
-distribution here, which is why only information criteria are reported."></head><body>
+distribution here, which is why only information criteria are reported.
+For the growth models the comparison should include the one-class solution,
+which is the ordinary latent growth curve model: it is the benchmark the
+class solutions have to beat, and reporting it is asked for by name in the
+GRoLTS reporting checklist (van de Schoot et al., 2017, item 11). It is
+therefore in the default k_range for &quot;gmm&quot; and &quot;lcga&quot; and not for the
+other two, where a one-status LTA is not a model anyone reports.
+The table informs the decision; it does not make it. As Ram and Grimm (2009,
+p. 571) put it, &quot;there is not a deterministic set of rules to follow when
+selecting the best model. Rather, model selection is an art — informed by
+theory, past findings, past experience, and a variety of statistical fit
+indices.&quot;
+Reading the Entropy column. Relative entropy describes how cleanly a
+solution separates its classes. The usual anchors are 0.40, 0.60 and 0.80 for
+low, medium and high separation (Clark &amp;amp; Muthen, 2009, as reported by Lee et
+al., 2023, p. 653), and Ram and Grimm (p. 571) suggest preferring the
+higher-entropy model when choosing among models with similar BIC. Those
+anchors are on the same normalisation this package uses. Entropy is not
+evidence for how many classes there are, though, and there is no threshold it
+has to clear — &quot;there are no set cut-off criteria for deciding whether the
+entropy is reasonably high&quot; (Jung &amp;amp; Wickrama, 2008, p. 312) — so the package
+applies none.
+Reading the Unreplicated column. TRUE means that K's reported maximum
+was found by exactly one random start; refit those with n_init = 100
+before reporting. The per-model warning is suppressed inside this loop, since
+it would otherwise fire once per K."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -79,14 +129,39 @@ support on its own (Collins &amp; Lanza, 2010, sec. 7.3.3).</p>
 <p>Note that likelihood-based tests of \(K\) against \(K-1\) classes, such
 as the bootstrap likelihood-ratio test, do not have their usual reference
 distribution here, which is why only information criteria are reported.</p>
+<p>For the growth models the comparison should include the one-class solution,
+which is the ordinary latent growth curve model: it is the benchmark the
+class solutions have to beat, and reporting it is asked for by name in the
+GRoLTS reporting checklist (van de Schoot et al., 2017, item 11). It is
+therefore in the default <code>k_range</code> for <code>"gmm"</code> and <code>"lcga"</code> and not for the
+other two, where a one-status LTA is not a model anyone reports.</p>
+<p>The table informs the decision; it does not make it. As Ram and Grimm (2009,
+p. 571) put it, "there is not a deterministic set of rules to follow when
+selecting the best model. Rather, model selection is an art — informed by
+theory, past findings, past experience, and a variety of statistical fit
+indices."</p>
+<p><strong>Reading the <code>Entropy</code> column.</strong> Relative entropy describes how cleanly a
+solution separates its classes. The usual anchors are 0.40, 0.60 and 0.80 for
+low, medium and high separation (Clark &amp; Muthen, 2009, as reported by Lee et
+al., 2023, p. 653), and Ram and Grimm (p. 571) suggest preferring the
+higher-entropy model when choosing among models with similar BIC. Those
+anchors are on the same normalisation this package uses. Entropy is not
+evidence for how many classes there are, though, and there is no threshold it
+has to clear — "there are no set cut-off criteria for deciding whether the
+entropy is reasonably high" (Jung &amp; Wickrama, 2008, p. 312) — so the package
+applies none.</p>
+<p><strong>Reading the <code>Unreplicated</code> column.</strong> <code>TRUE</code> means that K's reported maximum
+was found by exactly one random start; refit those with <code>n_init = 100</code>
+before reporting. The per-model warning is suppressed inside this loop, since
+it would otherwise fire once per K.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">compare_longitudinal</span><span class="op">(</span></span>
 <span>  <span class="va">indicators</span>,</span>
-<span>  k_range <span class="op">=</span> <span class="fl">2</span><span class="op">:</span><span class="fl">4</span>,</span>
-<span>  model <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"lta"</span>, <span class="st">"rmlca"</span><span class="op">)</span>,</span>
+<span>  k_range <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  model <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"lta"</span>, <span class="st">"rmlca"</span>, <span class="st">"gmm"</span>, <span class="st">"lcga"</span><span class="op">)</span>,</span>
 <span>  times <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  <span class="va">...</span></span>
@@ -99,15 +174,17 @@ distribution here, which is why only information criteria are reported.</p>
 
 <dl><dt id="arg-indicators">indicators<a class="anchor" aria-label="anchor" href="#arg-indicators"></a></dt>
 <dd><p>The repeated indicators, in any format accepted by
-<code><a href="fit_rmlca.html">fit_rmlca()</a></code>.</p></dd>
+<code><a href="fit_rmlca.html">fit_rmlca()</a></code>; for <code>model = "gmm"</code> or <code>"lcga"</code>, the single repeated
+outcome, in any format accepted by <code><a href="fit_gmm.html">fit_gmm()</a></code>.</p></dd>
 
 
 <dt id="arg-k-range">k_range<a class="anchor" aria-label="anchor" href="#arg-k-range"></a></dt>
-<dd><p>Integer vector of class or status counts to fit.</p></dd>
+<dd><p>Integer vector of class or status counts to fit. Defaults to
+<code>1:4</code> for the growth models and <code>2:4</code> for the others.</p></dd>
 
 
 <dt id="arg-model">model<a class="anchor" aria-label="anchor" href="#arg-model"></a></dt>
-<dd><p><code>"lta"</code> (default) or <code>"rmlca"</code>.</p></dd>
+<dd><p><code>"lta"</code> (default), <code>"rmlca"</code>, <code>"gmm"</code> or <code>"lcga"</code>.</p></dd>
 
 
 <dt id="arg-times">times<a class="anchor" aria-label="anchor" href="#arg-times"></a></dt>
@@ -119,14 +196,40 @@ distribution here, which is why only information criteria are reported.</p>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Further arguments passed to <code><a href="fit_lta.html">fit_lta()</a></code> or <code><a href="fit_rmlca.html">fit_rmlca()</a></code>,
-such as <code>measurement</code>, <code>time_invariance</code>, <code>tau_homogeneous</code> or <code>n_init</code>.</p></dd>
+<dd><p>Further arguments passed to the fitting function, such as
+<code>measurement</code>, <code>time_invariance</code> or <code>tau_homogeneous</code> for the categorical
+models, <code>degree</code>, <code>time_scores</code>, <code>random_effects</code>, <code>psi</code> or <code>residual</code> for
+the growth models, and <code>n_init</code> for any of them. Passing the same
+specification to every K is the point: the criteria in the table are only
+comparable across models that differ in nothing else. Ram and Grimm (2009,
+p. 571) state the same rule for the tests: they "compare models that differ
+only in the number of classes ... but are not appropriate for comparing
+models that allow for different types of between-class differences".</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A list with <code>fit_table</code>, the fitted <code>models</code> (named <code>"K2"</code>, <code>"K3"</code>,
-...) and <code>best_k</code>, the class count with the lowest BIC.</p>
+    <p>A list with <code>fit_table</code> (columns <code>Classes</code>, <code>LL</code>, <code>Params</code>, <code>AIC</code>,
+<code>BIC</code>, <code>SABIC</code>, <code>Entropy</code> and <code>Unreplicated</code>), the fitted <code>models</code> (named
+<code>"K2"</code>, <code>"K3"</code>, ...) and <code>best_k</code>, the class count with the lowest BIC.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
+    <p>van de Schoot, R., Sijbrandij, M., Winter, S. D., Depaoli, S., &amp; Vermunt,
+J. K. (2017). The GRoLTS-checklist: Guidelines for reporting on latent
+trajectory studies. <em>Structural Equation Modeling</em>, <em>24</em>(3),
+451-467.</p>
+<p>Jung, T., &amp; Wickrama, K. A. S. (2008). An introduction to latent class growth
+analysis and growth mixture modeling. <em>Social and Personality Psychology
+Compass</em>, <em>2</em>(1), 302-317. <a href="https://doi.org/10.1111/j.1751-9004.2007.00054.x" class="external-link">doi:10.1111/j.1751-9004.2007.00054.x</a></p>
+<p>Lee, T. K., Wickrama, K. A. S., &amp; O'Neal, C. W. (2023). An introduction to
+growth mixture models (GMM). In <em>International Encyclopedia of
+Education</em> (4th ed., Vol. 14, pp. 646-655). Elsevier.
+<a href="https://doi.org/10.1016/B978-0-12-818630-5.10076-4" class="external-link">doi:10.1016/B978-0-12-818630-5.10076-4</a></p>
+<p>Ram, N., &amp; Grimm, K. J. (2009). Growth mixture modeling: A method for
+identifying differences in longitudinal change among unobserved groups.
+<em>International Journal of Behavioral Development</em>, <em>33</em>(6),
+565-576. <a href="https://doi.org/10.1177/0165025409343765" class="external-link">doi:10.1177/0165025409343765</a></p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

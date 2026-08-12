@@ -85,6 +85,32 @@ used when the model was fitted with any.</p>
 (proportion times the analysed sample size), and <code>n_modal</code> (cases
 assigned by highest posterior probability).</p>
     </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>The smallest class is one of the things readers judge a solution by, and
+there are two published conventions for it. Lee et al. (2023, p. 654): "If
+the smallest class contains less than 5\<!-- % of the sample and/or the sample -->
+size for the smallest class is less than 25, it is recommended that the model
+only be retained as the optimal model if the researcher can accurately defend
+what is gained from this small class given the possibility of low power and a
+lack of statistical precision." Jung and Wickrama (2008, p. 312) give a
+weaker floor among their checks: no less than 1\<!-- % of the total in any class. --></p>
+<p>Both are reporting conventions, and mixtureEM enforces neither. This function
+applies no threshold, raises no warning and filters nothing; a small class is
+estimated and returned like any other. What the conventions ask of you is a
+defence, not a deletion: keep the class if it can be justified substantively,
+drop it if it cannot, and report the number either way.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
+    <p>Jung, T., &amp; Wickrama, K. A. S. (2008). An introduction to latent class growth
+analysis and growth mixture modeling. <em>Social and Personality Psychology
+Compass</em>, <em>2</em>(1), 302-317. <a href="https://doi.org/10.1111/j.1751-9004.2007.00054.x" class="external-link">doi:10.1111/j.1751-9004.2007.00054.x</a></p>
+<p>Lee, T. K., Wickrama, K. A. S., &amp; O'Neal, C. W. (2023). An introduction to
+growth mixture models (GMM). In <em>International Encyclopedia of
+Education</em> (4th ed., Vol. 14, pp. 646-655). Elsevier.
+<a href="https://doi.org/10.1016/B978-0-12-818630-5.10076-4" class="external-link">doi:10.1016/B978-0-12-818630-5.10076-4</a></p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>

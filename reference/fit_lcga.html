@@ -12,7 +12,27 @@ $$g(E[y_{it} \mid c_i = k]) = \beta_{k0} + \beta_{k1} t + \beta_{k2} t^2 + \dots
 with the logit link for a binary outcome. Contrast fit_rmlca(), which
 also produces trajectory classes but leaves each occasion's response
 parameter free rather than constraining it to a smooth curve; LCGA is the
-more parsimonious model and the one that extrapolates."><meta property="og:description" content="Fits class-specific growth curves to a single outcome measured repeatedly:
+more parsimonious model and the one that extrapolates.
+What the zero-variance assumption costs when you enumerate classes. In an
+LCGA the information criteria can keep improving as classes are added,
+because the within-class variation the model refuses to estimate has to be
+absorbed somewhere, and more classes is where it goes. Berlin et al. (2014,
+p. 196) hit this in their own analysis — &quot;increasing the number of latent
+classes resulted in increasingly better (i.e., smaller) AICs, BICs, and
+SSA-BICs, without any detriment to entropy&quot; — and read it as a symptom
+rather than a result: &quot;this is probably a poorly specified model … The
+assumption of zero variance within classes (as modeled here) is not likely
+tenable and might account for each successive model … seeming to improve the
+fit.&quot; So before reading a monotone BIC as evidence for many classes, fit a
+fit_gmm() at the same K and compare.
+That is not an argument against the model. Where within-class homogeneity
+genuinely holds, LCGAs &quot;often allow for more straightforward
+interpretations&quot; (Ram &amp;amp; Grimm, 2009, p. 574), and the constraint &quot;may be
+particularly helpful when working with smaller sample sizes or when more
+complex models fail due to nonconvergence, out of range estimates, or other
+statistical problems, or as an initial modeling step prior to specifying a
+GMM model&quot; (Berlin et al., 2014, p. 191) — which is also how Jung and
+Wickrama (2008, p. 304) recommend starting."><meta property="og:description" content="Fits class-specific growth curves to a single outcome measured repeatedly:
 each latent class follows its own polynomial trajectory over time, with no
 within-class random effects. This is Nagin's group-based trajectory modelling
 (Nagin, 2005). Because there are no random
@@ -25,7 +45,27 @@ $$g(E[y_{it} \mid c_i = k]) = \beta_{k0} + \beta_{k1} t + \beta_{k2} t^2 + \dots
 with the logit link for a binary outcome. Contrast fit_rmlca(), which
 also produces trajectory classes but leaves each occasion's response
 parameter free rather than constraining it to a smooth curve; LCGA is the
-more parsimonious model and the one that extrapolates."></head><body>
+more parsimonious model and the one that extrapolates.
+What the zero-variance assumption costs when you enumerate classes. In an
+LCGA the information criteria can keep improving as classes are added,
+because the within-class variation the model refuses to estimate has to be
+absorbed somewhere, and more classes is where it goes. Berlin et al. (2014,
+p. 196) hit this in their own analysis — &quot;increasing the number of latent
+classes resulted in increasingly better (i.e., smaller) AICs, BICs, and
+SSA-BICs, without any detriment to entropy&quot; — and read it as a symptom
+rather than a result: &quot;this is probably a poorly specified model … The
+assumption of zero variance within classes (as modeled here) is not likely
+tenable and might account for each successive model … seeming to improve the
+fit.&quot; So before reading a monotone BIC as evidence for many classes, fit a
+fit_gmm() at the same K and compare.
+That is not an argument against the model. Where within-class homogeneity
+genuinely holds, LCGAs &quot;often allow for more straightforward
+interpretations&quot; (Ram &amp;amp; Grimm, 2009, p. 574), and the constraint &quot;may be
+particularly helpful when working with smaller sample sizes or when more
+complex models fail due to nonconvergence, out of range estimates, or other
+statistical problems, or as an initial modeling step prior to specifying a
+GMM model&quot; (Berlin et al., 2014, p. 191) — which is also how Jung and
+Wickrama (2008, p. 304) recommend starting."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -85,6 +125,26 @@ with the logit link for a binary outcome. Contrast <code><a href="fit_rmlca.html
 also produces trajectory classes but leaves each occasion's response
 parameter free rather than constraining it to a smooth curve; LCGA is the
 more parsimonious model and the one that extrapolates.</p>
+<p><strong>What the zero-variance assumption costs when you enumerate classes.</strong> In an
+LCGA the information criteria can keep improving as classes are added,
+because the within-class variation the model refuses to estimate has to be
+absorbed somewhere, and more classes is where it goes. Berlin et al. (2014,
+p. 196) hit this in their own analysis — "increasing the number of latent
+classes resulted in increasingly better (i.e., smaller) AICs, BICs, and
+SSA-BICs, without any detriment to entropy" — and read it as a symptom
+rather than a result: "this is probably a poorly specified model … The
+assumption of zero variance within classes (as modeled here) is not likely
+tenable and might account for each successive model … seeming to improve the
+fit." So before reading a monotone BIC as evidence for many classes, fit a
+<code><a href="fit_gmm.html">fit_gmm()</a></code> at the same K and compare.</p>
+<p>That is not an argument against the model. Where within-class homogeneity
+genuinely holds, LCGAs "often allow for more straightforward
+interpretations" (Ram &amp; Grimm, 2009, p. 574), and the constraint "may be
+particularly helpful when working with smaller sample sizes or when more
+complex models fail due to nonconvergence, out of range estimates, or other
+statistical problems, or as an initial modeling step prior to specifying a
+GMM model" (Berlin et al., 2014, p. 191) — which is also how Jung and
+Wickrama (2008, p. 304) recommend starting.</p>
     </div>
 
     <div class="section level2">
@@ -132,7 +192,9 @@ otherwise.</p></dd>
 <dd><p>Degree of the polynomial in time: <code>1</code> for a linear trajectory
 (intercept and slope), <code>2</code> for a quadratic, and so on. Must leave at least
 one occasion beyond the coefficients being estimated, so <code>degree</code> cannot
-exceed <code>times - 2</code>.</p></dd>
+exceed <code>times - 2</code>. In practice that means three time points support a
+linear pattern, four a quadratic as well, and five a cubic (Berlin et al.,
+2014, p. 191).</p></dd>
 
 
 <dt id="arg-family">family<a class="anchor" aria-label="anchor" href="#arg-family"></a></dt>
@@ -201,6 +263,21 @@ group-based approach. <em>Psychological Methods</em>, <em>4</em>(2), 139-157.
 <p>Nagin, D. S., &amp; Odgers, C. L. (2010). Group-based trajectory modeling in
 clinical research. <em>Annual Review of Clinical Psychology</em>, <em>6</em>,
 109-138. <a href="https://doi.org/10.1146/annurev.clinpsy.121208.131413" class="external-link">doi:10.1146/annurev.clinpsy.121208.131413</a></p>
+<p>Berlin, K. S., Parra, G. R., &amp; Williams, N. A. (2014). An introduction to
+latent variable mixture modeling (part 2): Longitudinal latent class growth
+analysis and growth mixture models. <em>Journal of Pediatric Psychology</em>,
+<em>39</em>(2), 188-203. <a href="https://doi.org/10.1093/jpepsy/jst085" class="external-link">doi:10.1093/jpepsy/jst085</a></p>
+<p>Jung, T., &amp; Wickrama, K. A. S. (2008). An introduction to latent class growth
+analysis and growth mixture modeling. <em>Social and Personality Psychology
+Compass</em>, <em>2</em>(1), 302-317. <a href="https://doi.org/10.1111/j.1751-9004.2007.00054.x" class="external-link">doi:10.1111/j.1751-9004.2007.00054.x</a></p>
+<p>Lee, T. K., Wickrama, K. A. S., &amp; O'Neal, C. W. (2023). An introduction to
+growth mixture models (GMM). In <em>International Encyclopedia of
+Education</em> (4th ed., Vol. 14, pp. 646-655). Elsevier.
+<a href="https://doi.org/10.1016/B978-0-12-818630-5.10076-4" class="external-link">doi:10.1016/B978-0-12-818630-5.10076-4</a></p>
+<p>Ram, N., &amp; Grimm, K. J. (2009). Growth mixture modeling: A method for
+identifying differences in longitudinal change among unobserved groups.
+<em>International Journal of Behavioral Development</em>, <em>33</em>(6),
+565-576. <a href="https://doi.org/10.1177/0165025409343765" class="external-link">doi:10.1177/0165025409343765</a></p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

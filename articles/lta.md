@@ -65,6 +65,7 @@ fit
 #>   Parameters     : 13
 #>   BIC            : 12966.90
 #>   Rel. Entropy   : 0.8846
+#>   Best solution  : found by 20 of 20 starts
 #> ---------------------------------------------------------
 #> Latent status prevalences by occasion:
 #>    Status 1 Status 2
@@ -165,6 +166,7 @@ fit_ms
 #>   BIC            : 12981.66
 #>   Rel. Entropy   : 0.8844 (status)
 #>                    0.5944 (class)
+#>   Best solution  : found by 3 of 3 starts that ran to convergence (of 20 requested)
 #> ---------------------------------------------------------
 #> Latent class sizes:
 #>  Class 1 (mover) Class 2 (stayer) 

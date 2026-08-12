@@ -2,6 +2,243 @@
 
 ## mixtureEM (development version)
 
+### Diagnostics now say what to change, and by how much
+
+No default changed anywhere in this group, so every existing fit returns
+the same numbers. What changed is what the package tells you about them.
+
+- **An unreplicated maximum is now a warning, not a line in
+  [`print()`](https://rdrr.io/r/base/print.html).** The most informative
+  local-maximum signal there is — “the best solution was found by 1 of
+  20 starts” — was a [`cat()`](https://rdrr.io/r/base/cat.html) line,
+  invisible to anyone working from
+  [`summary()`](https://rdrr.io/r/base/summary.html) or from the
+  coefficients. It is now a warning that names the remedy: refit with
+  `n_init = 100`, and if the maximum still does not replicate, read that
+  as a problem with the specification rather than with the search. It
+  fires only from ten requested starts upward, below which a lone
+  replication carries no information, and it stays silent on a fit that
+  has already been flagged for a collapsed variance or a growth-factor
+  boundary — those warnings say that raising `n_init` can make matters
+  worse, and two warnings must not give opposite advice about the same
+  argument.
+
+- **The number of restarts is now reported honestly on the staged
+  searches.** A growth mixture model at `psi = "equal"`, or a latent
+  transition model with more than one class, ranks its restarts on a
+  short pass and carries only three of them to convergence. The report
+  counted the survivors, so a 50-start search announced itself as a
+  10-start one;
+  [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+  kept no counts at all. Both numbers are now carried, and printed as
+  “found by 1 of 3 starts that ran to convergence (of 50 requested)”.
+
+- **[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+  and
+  [`compare_longitudinal()`](https://pdvalencia.github.io/mixtureEM/reference/compare_longitudinal.md)
+  gain an `Unreplicated` column**, with a line after the table naming
+  the class counts to refit before reporting. The per-model warning is
+  suppressed inside
+  [`compare_longitudinal()`](https://pdvalencia.github.io/mixtureEM/reference/compare_longitudinal.md),
+  which would otherwise raise it once per K before the table it belongs
+  next to had been printed.
+
+- **The non-convergence warning names a new `max_iter`** — double the
+  one that failed — instead of saying “a larger `max_iter`”, and
+  [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+  now issues it at all. It has its own EM driver, so it reported
+  non-convergence only through
+  [`print()`](https://rdrr.io/r/base/print.html).
+
+- **[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)
+  warns when 100 draws cannot resolve the decision.** A bootstrap
+  p-value can only take the values 1/(B+1), 2/(B+1), …, so at 100 draws
+  it cannot separate .04 from .06; when the result lands within one step
+  of .05 the test now says so and names `n_reps = 999`. It also counts
+  draws where the larger model fitted worse than the model nested inside
+  it — a symptom of a replicate search that stopped short — reports the
+  count as `n_negative`, and recommends `n_init_boot = 50`.
+
+- **The boundary-probability note now offers a way forward**, rather
+  than stating the problem and stopping: read it substantively, since an
+  item every member of a class answers identically is often the finding,
+  or refit with a stronger `bayes_constants = list(categorical = ...)`
+  if that parameter needs an interpretable standard error.
+
+- **Every default the estimator chose is now traceable to a source.**
+  [`vignette("estimation")`](https://pdvalencia.github.io/mixtureEM/articles/estimation.md)
+  gains three sections and a rewritten one: why `n_init = 20` is a floor
+  and what the published replication rates actually say about a count of
+  1 (including the correction that a 3–10% band puts 1 of 20 *inside*
+  it, which is an argument for more starts rather than a verdict); how
+  long EM runs and why the doubling escalation; the bootstrap test, its
+  p-value formula, and what 100 draws can and cannot resolve; and a
+  table of every warning the package raises with the action for each.
+  Where a number cannot be sourced — the `1e-4` EM tolerance,
+  `n_init_boot = 10` — the vignette says so rather than dressing it up.
+
+- **The growth-model help files now carry the applied reporting
+  conventions, with their sources, and no behaviour changed.**
+  [`?fit_gmm`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+  names the three specification levels applied papers use, says which of
+  them `psi` and `residual_equal` correspond to and which this package
+  cannot fit, and states the cost of the `psi = "equal"` default — the
+  same constraint that buys stability can buy an extra class that is an
+  artefact of it.
+  [`?fit_lcga`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
+  says why an LCGA’s information criteria can improve monotonically with
+  K, and why that is a symptom rather than a result. Both now say how
+  many occasions each polynomial degree needs.
+  [`?class_sizes`](https://pdvalencia.github.io/mixtureEM/reference/class_sizes.md)
+  gives the two published small-class conventions and states plainly
+  that the package enforces neither, and the two comparison functions
+  document how to read the `Entropy` column — anchors, and the fact that
+  entropy is not evidence for the number of classes.
+
+- **The `categorical` and `latent` priors now carry their evidence
+  too.** The documentation justified the `variances` prior and left the
+  other two as bare defaults. Both the strength of one added observation
+  and the decision to spread it in agreement with each item’s observed
+  marginal — rather than uniformly over the cells — come from Galindo
+  Garre and Vermunt (2006), whose simulation finds that form the most
+  accurate of those studied and shows why a uniform spread degrades as
+  the number of items grows. No value changed; the package already
+  implemented the prior their results favour.
+
+- **Three small fixes.** A single collapsed pair of latent statuses is
+  now reported as “Latent class 1 and 2” rather than “Latent classes”;
+  the `@references` blocks of
+  [`classification_diagnostics()`](https://pdvalencia.github.io/mixtureEM/reference/classification_diagnostics.md),
+  [`absolute_fit()`](https://pdvalencia.github.io/mixtureEM/reference/absolute_fit.md)
+  and
+  [`bivariate_residuals()`](https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.md)
+  had been opened inside `@examples`, which swallowed the last example
+  call into the reference text; and the sample-size-adjusted BIC now
+  cites Sclove (1987) for its effective sample size.
+
+- **[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+  and
+  [`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md)
+  now accept two-level indicators that are not coded 0/1.**
+  [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+  has always recoded them for you; the longitudinal models never reached
+  that code and stopped with an error instead, so a perfectly ordinary
+  1/2 coding had to be shifted by hand. They now recode it themselves,
+  and they decide the mapping once per item across all occasions rather
+  than column by column. That distinction matters: the same item appears
+  once per occasion, and a per-column decision would map a level
+  differently at two occasions whenever one of them happened to observe
+  only one of the two levels — which, with thresholds held equal across
+  time, would silently compare different response spaces. The recode is
+  reported, naming the item and which value became 1, so it is clear
+  which response the printed probabilities describe. Items with three or
+  more levels are still an error under `measurement = "binary"`.
+
+- **Corrected standard errors now use the estimator they name on models
+  fitted with `variances_equal = TRUE`.** `se = "corrected"` needs the
+  sampling variance of the measurement parameters, and the vector it
+  built for that treated each class’s variance as free even on models
+  that hold them equal. The extra directions were ones the fit was never
+  able to move along, so the numerical information matrix came back
+  indefinite and the package silently substituted the outer-product
+  estimator — on a large and very ordinary family of models, while
+  printing a diagnostic that read like a failure. The vector now carries
+  one variance per item when the classes share it. Standard errors for
+  covariate effects on those models change slightly; expect movement in
+  the third decimal rather than changed conclusions. `se = "robust"` and
+  `se = "hessian"` never used this path and are unaffected.
+
+- **`bayes_constants$categorical` now reaches categorical distal
+  outcomes.** The constant was applied to categorical *indicators* but
+  never to a categorical *distal outcome*, whose M-step is a separate
+  engine. A class in which nobody gave a particular response therefore
+  had no finite estimate for it and the intercept ran off towards minus
+  infinity, printing as a large negative logit rather than as a bounded
+  one. The prior now enters that M-step in the same pseudo-observations
+  form the indicator M-step uses, so the constant means the same thing
+  on both, and `categorical = 0` still recovers plain maximum
+  likelihood. Estimates for categorical distal outcomes will change,
+  most visibly on classes with an unobserved response category. Models
+  with covariates alongside the outcome are unaffected: there is no
+  non-arbitrary place in covariate space to put the pseudo-observations,
+  so the prior is confined to the no-covariate case.
+
+### New: reporting a growth model
+
+- **[`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
+  now works on
+  [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+  and
+  [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
+  fits.** It printed a header and nothing else, and returned `NULL`: the
+  growth parameters existed only inside
+  [`print()`](https://rdrr.io/r/base/print.html)’s output, which cannot
+  be indexed, joined or put in a table. It now prints the growth-factor
+  means, the growth-factor variances and covariances, the residual
+  variances and the fitted trajectory, and returns them in the same long
+  data frame the other models return — `block`, `parameter`, `item`,
+  `category`, `class`, `estimate` — with `parameter` taking the values
+  `"growth_mean"`, `"growth_variance"`, `"growth_covariance"`,
+  `"growth_regression"`, `"residual_variance"` and `"fitted"`. A
+  parameter held equal across classes is repeated once per class rather
+  than reported once, so the table joins to anything else indexed by
+  class.
+
+- **[`compare_longitudinal()`](https://pdvalencia.github.io/mixtureEM/reference/compare_longitudinal.md)
+  accepts `model = "gmm"` and `model = "lcga"`.** Choosing the number of
+  trajectory classes meant looping
+  [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+  by hand and assembling the table. For the growth models the default
+  `k_range` starts at one class — the ordinary latent growth curve model
+  is the benchmark the class solutions have to beat, and reporting it is
+  asked for by name in the usual reporting checklists. `k_range` now
+  defaults to `NULL`, resolving to `1:4` for the growth models and to
+  `2:4`, as before, for `"lta"` and `"rmlca"`.
+
+- **[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)
+  takes a fitted growth model with `from_fit =`.** The bootstrap
+  likelihood-ratio test has always handled growth mixtures correctly,
+  but reaching it meant naming the emission and building the time design
+  with an internal function. Passing the fit reads the data, the design,
+  the random effects and the covariance constraints off it, so the null
+  and alternative models differ from the fit in the number of classes
+  and in nothing else.
+
+- **[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+  warns on a growth model with a collapsed variance**, as it already did
+  for the other continuous models. A degenerate fit’s log-likelihood is
+  not on the same scale as an admissible one, so the test is
+  uninterpretable in either direction.
+
+### Fixed: growth mixture models flag a collapsed variance before it reaches zero
+
+- **[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+  now judges a variance against the data rather than against the
+  estimation floor.** The check fired only once the M-step had pinned a
+  residual variance at 1e-6 or a growth-factor covariance eigenvalue at
+  its 1e-8 clip, which is the last stage of a collapse rather than the
+  diagnostic one. A class with no within-class variation left, or a
+  residual variance three orders of magnitude below the others, was
+  therefore reported as an ordinary solution — and, because a collapsed
+  variance inflates the likelihood, it could carry the best BIC of a
+  whole model set. Both are now compared with the observed variance of
+  the outcome on the same 1% rule the latent profile models use, and the
+  growth-factor side is judged on the random effects’ contribution to
+  the implied variance of the outcome rather than on the covariance’s
+  own entries, which are on the growth factors’ scale. A slope variance
+  at zero under a healthy intercept variance is still not flagged: that
+  is the `random_effects = "intercept"` model, not a degeneracy.
+
+- **The warning says what to do, and what not to do.** It now prints the
+  offending variance next to the occasion variance it is small relative
+  to, states that this fit’s BIC cannot be compared with a clean fit’s,
+  and says that raising `n_init` will not fix it and can make it worse —
+  a collapse is a property of the specification, not of the search, so
+  more starts means more chances to find the spike. The flag is stored
+  on the fit and repeated by
+  [`print()`](https://rdrr.io/r/base/print.html), so it is still visible
+  on a fit reloaded months later.
+
 ### Fixed: two estimation bugs that cost log-likelihood on every affected fit
 
 - **EM now converges before it stops.** Emissions that L-BFGS refines

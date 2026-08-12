@@ -22,6 +22,25 @@ estimated in one pass with n_steps = 1. With covariates
 present \(\alpha_k\) is the growth-factor intercept rather than its mean,
 and the reported trajectory is evaluated at the sample mean of the
 covariates.
+Applied papers usually name a growth mixture model by what the classes are
+allowed to differ in, and Ram and Grimm (2009, pp. 569-570) give the three
+levels. Means — classes differ in mean change only — is psi = &quot;equal&quot;,
+the default here. Means + Covs — classes also differ in how much
+interindividual variation there is within them — is psi = &quot;free&quot;; the
+residual variances are a separate switch, residual_equal = FALSE, and
+should not be merged with it. Means + Covs + Pattern, where classes differ
+in the shape of change as well, would need class-specific time scores;
+fit_gmm() builds one design for every class, so that level is not
+available.
+Two cautions worth carrying into any such analysis. Classes will be found
+whether or not there are groups to find: a skewed or otherwise non-normal
+outcome can be fitted by extra classes that are not subgroups of anyone (Jung
+&amp;amp; Wickrama, 2008, p. 305; Lee et al., 2023, p. 652, both citing Bauer &amp;amp;
+Curran, 2003). And as Ram and Grimm put it (p. 574), &quot;groups and differences
+among groups will be found; but whether they represent true processes that
+generated the data is unknown&quot; — the remedies they name are replication on
+new data and checking that class membership relates to other measured
+variables in the ways theory predicts.
 Contrast fit_lcga(), which fixes the growth-factor variances at zero, so
 every case in a class sits on that class's curve up to occasion-level noise.
 LCGA is the more parsimonious model and, in criminology especially, often the
@@ -50,6 +69,25 @@ estimated in one pass with n_steps = 1. With covariates
 present \(\alpha_k\) is the growth-factor intercept rather than its mean,
 and the reported trajectory is evaluated at the sample mean of the
 covariates.
+Applied papers usually name a growth mixture model by what the classes are
+allowed to differ in, and Ram and Grimm (2009, pp. 569-570) give the three
+levels. Means — classes differ in mean change only — is psi = &quot;equal&quot;,
+the default here. Means + Covs — classes also differ in how much
+interindividual variation there is within them — is psi = &quot;free&quot;; the
+residual variances are a separate switch, residual_equal = FALSE, and
+should not be merged with it. Means + Covs + Pattern, where classes differ
+in the shape of change as well, would need class-specific time scores;
+fit_gmm() builds one design for every class, so that level is not
+available.
+Two cautions worth carrying into any such analysis. Classes will be found
+whether or not there are groups to find: a skewed or otherwise non-normal
+outcome can be fitted by extra classes that are not subgroups of anyone (Jung
+&amp;amp; Wickrama, 2008, p. 305; Lee et al., 2023, p. 652, both citing Bauer &amp;amp;
+Curran, 2003). And as Ram and Grimm put it (p. 574), &quot;groups and differences
+among groups will be found; but whether they represent true processes that
+generated the data is unknown&quot; — the remedies they name are replication on
+new data and checking that class membership relates to other measured
+variables in the ways theory predicts.
 Contrast fit_lcga(), which fixes the growth-factor variances at zero, so
 every case in a class sits on that class's curve up to occasion-level noise.
 LCGA is the more parsimonious model and, in criminology especially, often the
@@ -124,6 +162,25 @@ estimated in one pass with <code>n_steps = 1</code>. With covariates
 present \(\alpha_k\) is the growth-factor <em>intercept</em> rather than its mean,
 and the reported trajectory is evaluated at the sample mean of the
 covariates.</p>
+<p>Applied papers usually name a growth mixture model by what the classes are
+allowed to differ in, and Ram and Grimm (2009, pp. 569-570) give the three
+levels. <em>Means</em> — classes differ in mean change only — is <code>psi = "equal"</code>,
+the default here. <em>Means + Covs</em> — classes also differ in how much
+interindividual variation there is within them — is <code>psi = "free"</code>; the
+residual variances are a separate switch, <code>residual_equal = FALSE</code>, and
+should not be merged with it. <em>Means + Covs + Pattern</em>, where classes differ
+in the shape of change as well, would need class-specific time scores;
+<code>fit_gmm()</code> builds one design for every class, so that level is not
+available.</p>
+<p>Two cautions worth carrying into any such analysis. Classes will be found
+whether or not there are groups to find: a skewed or otherwise non-normal
+outcome can be fitted by extra classes that are not subgroups of anyone (Jung
+&amp; Wickrama, 2008, p. 305; Lee et al., 2023, p. 652, both citing Bauer &amp;
+Curran, 2003). And as Ram and Grimm put it (p. 574), "groups and differences
+among groups will be found; but whether they represent true processes that
+generated the data is unknown" — the remedies they name are replication on
+new data and checking that class membership relates to other measured
+variables in the ways theory predicts.</p>
 <p>Contrast <code><a href="fit_lcga.html">fit_lcga()</a></code>, which fixes the growth-factor variances at zero, so
 every case in a class sits on that class's curve up to occasion-level noise.
 LCGA is the more parsimonious model and, in criminology especially, often the
@@ -178,7 +235,11 @@ otherwise.</p></dd>
 
 <dt id="arg-degree">degree<a class="anchor" aria-label="anchor" href="#arg-degree"></a></dt>
 <dd><p>Degree of the polynomial in time: <code>1</code> for a linear trajectory
-(intercept and slope), <code>2</code> for a quadratic, and so on.</p></dd>
+(intercept and slope), <code>2</code> for a quadratic, and so on. Each degree needs
+occasions to identify it — with three time points a linear pattern can be
+modelled, with four a quadratic as well, and with five a cubic (Berlin et
+al., 2014, p. 191). Asking for more than the occasions support is an error
+rather than a warning.</p></dd>
 
 
 <dt id="arg-random-effects">random_effects<a class="anchor" aria-label="anchor" href="#arg-random-effects"></a></dt>
@@ -199,7 +260,20 @@ variances free over occasions by default.</p></li>
 across classes (the default) or estimated <code>"free"</code>ly in each.
 Equality is the better default in practice as well as by convention: it is
 what BIC typically selects, and a class-specific \(\Psi\) is
-where growth mixture models most often produce a negative variance.</p></dd>
+where growth mixture models most often produce a negative variance.</p>
+<p>It is not free, though, and the cost runs the other way. Simulation work
+reported by Lee et al. (2023, p. 651) finds that equality restrictions on
+the growth-factor variances and covariances "could result in the
+over-extraction of latent classes and biased parameter estimates" — the
+within-class heterogeneity the constraint refuses to let differ between
+classes has to go somewhere, and an extra class is where it goes. So
+<code>psi = "equal"</code> buys stability and bounds the likelihood, and it can buy an
+extra class that is an artefact of the constraint. Where the number of
+classes is itself the finding, fit both and report which was used.</p>
+<p>This pulls against the collapsed-variance warning, which fires more often
+under <code>psi = "free"</code>. That is not a contradiction: they are the two sides
+of one trade-off between a model flexible enough to be realistic and one
+constrained enough to be estimable.</p></dd>
 
 
 <dt id="arg-residual">residual<a class="anchor" aria-label="anchor" href="#arg-residual"></a></dt>
@@ -279,6 +353,21 @@ growth-factor-by-covariate matrix per class.</p>
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
     <p>Muthen, B., &amp; Shedden, K. (1999). Finite mixture modeling with mixture
 outcomes using the EM algorithm. <em>Biometrics</em>, <em>55</em>(2), 463-469.</p>
+<p>Berlin, K. S., Parra, G. R., &amp; Williams, N. A. (2014). An introduction to
+latent variable mixture modeling (part 2): Longitudinal latent class growth
+analysis and growth mixture models. <em>Journal of Pediatric Psychology</em>,
+<em>39</em>(2), 188-203. <a href="https://doi.org/10.1093/jpepsy/jst085" class="external-link">doi:10.1093/jpepsy/jst085</a></p>
+<p>Jung, T., &amp; Wickrama, K. A. S. (2008). An introduction to latent class growth
+analysis and growth mixture modeling. <em>Social and Personality Psychology
+Compass</em>, <em>2</em>(1), 302-317. <a href="https://doi.org/10.1111/j.1751-9004.2007.00054.x" class="external-link">doi:10.1111/j.1751-9004.2007.00054.x</a></p>
+<p>Lee, T. K., Wickrama, K. A. S., &amp; O'Neal, C. W. (2023). An introduction to
+growth mixture models (GMM). In <em>International Encyclopedia of Education</em>
+(4th ed., Vol. 14, pp. 646-655). Elsevier.
+<a href="https://doi.org/10.1016/B978-0-12-818630-5.10076-4" class="external-link">doi:10.1016/B978-0-12-818630-5.10076-4</a></p>
+<p>Ram, N., &amp; Grimm, K. J. (2009). Growth mixture modeling: A method for
+identifying differences in longitudinal change among unobserved groups.
+<em>International Journal of Behavioral Development</em>, <em>33</em>(6), 565-576.
+<a href="https://doi.org/10.1177/0165025409343765" class="external-link">doi:10.1177/0165025409343765</a></p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -332,7 +421,7 @@ outcomes using the EM algorithm. <em>Biometrics</em>, <em>55</em>(2), 463-469.</
 <span class="r-out co"><span class="r-pr">#&gt;</span> ---------------------------------------------------------</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Log-Likelihood : -2598.50</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Rel. Entropy   : 0.6348</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Best solution  : found by 2 of 4 starts</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Best solution  : found by 2 of 4 starts that ran to convergence (of 10 requested)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> ---------------------------------------------------------</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Class Weights (Sizes):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Class 1: 54.71%</span>

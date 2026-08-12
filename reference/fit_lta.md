@@ -186,7 +186,12 @@ fit_lta(
 - n_init:
 
   Number of random starts. Latent transition models have many local
-  maxima; the default of 20 is a floor, not a recommendation.
+  maxima; the default of 20 is a floor, not a recommendation. The fit
+  reports how many starts reached the solution it kept, and warns when
+  that count is 1; the answer there is `n_init = 100`, and a maximum
+  that still does not replicate at 100 starts points at the
+  specification rather than at the search. See
+  [`vignette("estimation")`](https://pdvalencia.github.io/mixtureEM/articles/estimation.md).
 
 - max_iter, tol:
 

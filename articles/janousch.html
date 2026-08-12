@@ -221,10 +221,11 @@ and this plot is how they were arrived at.</p>
 <span><span class="co">#&gt; arise; (2) fit fewer classes, since a class describing a spike rather than a</span></span>
 <span><span class="co">#&gt; subgroup usually means the data do not support this many; or (3) keep the model</span></span>
 <span><span class="co">#&gt; and strengthen the prior with bayes_constants = list(variances = 4) -- roughly</span></span>
-<span><span class="co">#&gt; one artificial observation per class -- doubling it if the warning persists.</span></span>
-<span><span class="co">#&gt; Then check that the flagged variance is no longer far below the others and that</span></span>
-<span><span class="co">#&gt; its class mean has come off the floor or ceiling, and look at the distribution</span></span>
-<span><span class="co">#&gt; of the named item for the floor, ceiling or spike the class latched onto.</span></span></code></pre></div>
+<span><span class="co">#&gt; one artificial observation per class -- increasing it a little at a time if the</span></span>
+<span><span class="co">#&gt; warning persists. Then check that the flagged variance is no longer far below</span></span>
+<span><span class="co">#&gt; the others and that its class mean has come off the floor or ceiling, and look</span></span>
+<span><span class="co">#&gt; at the distribution of the named item for the floor, ceiling or spike the class</span></span>
+<span><span class="co">#&gt; latched onto.</span></span></code></pre></div>
 <p>That fit raises a warning: one class’s variance on
 <code>social_resources</code> has collapsed towards zero. The next
 section explains what that means and why it happens; the short version
@@ -382,10 +383,11 @@ default:</p>
 <span><span class="co">#&gt; arise; (2) fit fewer classes, since a class describing a spike rather than a</span></span>
 <span><span class="co">#&gt; subgroup usually means the data do not support this many; or (3) keep the model</span></span>
 <span><span class="co">#&gt; and strengthen the prior with bayes_constants = list(variances = 4) -- roughly</span></span>
-<span><span class="co">#&gt; one artificial observation per class -- doubling it if the warning persists.</span></span>
-<span><span class="co">#&gt; Then check that the flagged variance is no longer far below the others and that</span></span>
-<span><span class="co">#&gt; its class mean has come off the floor or ceiling, and look at the distribution</span></span>
-<span><span class="co">#&gt; of the named item for the floor, ceiling or spike the class latched onto.</span></span></code></pre></div>
+<span><span class="co">#&gt; one artificial observation per class -- increasing it a little at a time if the</span></span>
+<span><span class="co">#&gt; warning persists. Then check that the flagged variance is no longer far below</span></span>
+<span><span class="co">#&gt; the others and that its class mean has come off the floor or ceiling, and look</span></span>
+<span><span class="co">#&gt; at the distribution of the named item for the floor, ceiling or spike the class</span></span>
+<span><span class="co">#&gt; latched onto.</span></span></code></pre></div>
 <p>That fit raises the same warning the Greek model did: one class’s
 variance on <code>social_resources</code> has <strong>collapsed</strong>
 towards zero, with the class mean sitting exactly at the top of the
@@ -423,6 +425,12 @@ prior, at the same strength the Greek fit needed:</p>
 <span><span class="co">#&gt; Warning: 35 cases had no observed value on any indicator and were removed</span></span>
 <span><span class="co">#&gt; before estimation (n = 1125 analysed). Rows: 28, 46, 50, 55, 90, 94, ... (29</span></span>
 <span><span class="co">#&gt; more).</span></span>
+<span><span class="co">#&gt; Warning: The reported solution was found by 1 of 50 starts. EM climbs the peak</span></span>
+<span><span class="co">#&gt; it starts nearest, so a maximum seen once may be the best of a small sample of</span></span>
+<span><span class="co">#&gt; the likelihood surface rather than the best there is. Refit with `n_init =</span></span>
+<span><span class="co">#&gt; 100`. If the maximum still does not replicate at 100 starts, that points at the</span></span>
+<span><span class="co">#&gt; specification - most often more classes than the data support - rather than at</span></span>
+<span><span class="co">#&gt; the search.</span></span>
 <span></span>
 <span><span class="va">fit_free_means</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">items</span><span class="op">]</span>, n_classes <span class="op">=</span> <span class="fl">4</span>,</span>
 <span>                              measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
@@ -435,6 +443,12 @@ prior, at the same strength the Greek fit needed:</p>
 <span><span class="co">#&gt; Warning: 35 cases had no observed value on any indicator and were removed</span></span>
 <span><span class="co">#&gt; before estimation (n = 1125 analysed). Rows: 28, 46, 50, 55, 90, 94, ... (29</span></span>
 <span><span class="co">#&gt; more).</span></span>
+<span><span class="co">#&gt; Warning: The reported solution was found by 1 of 51 starts that ran to</span></span>
+<span><span class="co">#&gt; convergence, out of 50 requested. EM climbs the peak it starts nearest, so a</span></span>
+<span><span class="co">#&gt; maximum seen once may be the best of a small sample of the likelihood surface</span></span>
+<span><span class="co">#&gt; rather than the best there is. Refit with `n_init = 100`. If the maximum still</span></span>
+<span><span class="co">#&gt; does not replicate at 100 starts, that points at the specification - most often</span></span>
+<span><span class="co">#&gt; more classes than the data support - rather than at the search.</span></span>
 <span></span>
 <span><span class="fu"><a href="../reference/lr_test.html">lr_test</a></span><span class="op">(</span><span class="va">fit_invariant</span>, <span class="va">fit_free_means</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -481,6 +495,12 @@ profile means <em>and</em> its own variances:</p>
 <span><span class="co">#&gt; Warning: 35 cases had no observed value on any indicator and were removed</span></span>
 <span><span class="co">#&gt; before estimation (n = 1125 analysed). Rows: 28, 46, 50, 55, 90, 94, ... (29</span></span>
 <span><span class="co">#&gt; more).</span></span>
+<span><span class="co">#&gt; Warning: The reported solution was found by 1 of 51 starts that ran to</span></span>
+<span><span class="co">#&gt; convergence, out of 50 requested. EM climbs the peak it starts nearest, so a</span></span>
+<span><span class="co">#&gt; maximum seen once may be the best of a small sample of the likelihood surface</span></span>
+<span><span class="co">#&gt; rather than the best there is. Refit with `n_init = 100`. If the maximum still</span></span>
+<span><span class="co">#&gt; does not replicate at 100 starts, that points at the specification - most often</span></span>
+<span><span class="co">#&gt; more classes than the data support - rather than at the search.</span></span>
 <span></span>
 <span><span class="fu"><a href="../reference/lr_test.html">lr_test</a></span><span class="op">(</span><span class="va">fit_invariant</span>, <span class="va">fit_configural</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>

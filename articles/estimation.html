@@ -117,14 +117,217 @@ many of them found that best solution:</p>
 <span><span class="co">#&gt;   Class 2: 47.94%</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span></code></pre></div>
-<p>Read that line as a stability check. If the best solution was found
-by most of the starts, the surface has been mapped and more starts will
-not change the answer. If it was found <strong>once</strong>, raise
-<code>n_init</code> and refit: a maximum seen a single time may just be
-the best of a small sample of the surface, and a different seed could
-beat it. This is the standard multi-start report in the latent class
-literature (Hipp &amp; Bauer, 2006; Nylund-Gibson &amp; Choi, 2018).</p>
+<p><strong>Why 20.</strong> In Hipp and Bauer’s (2006) simulations of
+correctly specified models, the best solution was reached by 44% to 77%
+of the converged starts, and “in all replications the highest
+log-likelihood occurred in at least 39% of the random starts” (p. 46).
+At those rates 20 starts should find the maximum somewhere between eight
+and fifteen times, which is more than enough to <em>see</em> a stable
+maximum when there is one. Twenty also sits inside the range other
+comparisons of initialisation strategies use: Biernacki, Celeux and
+Govaert (2003) run ten repetitions throughout; Shireman, Steinley and
+Brusco (2017) recommend thirty configurations.</p>
+<p><strong>How to read the report.</strong> The applied benchmark is a
+rate, not a count. Nylund-Gibson and Choi (2018, p. 454) describe a
+log-likelihood “replicated 82 times out of the 500 requested, which is
+more than sufficient (e.g., some recommend that 3–10% is needed)”. Read
+carefully, that band says less about a 20-start search than it looks
+like it does: 3–10% of 20 is 0.6 to 2 replications, so a count of
+<strong>1 is inside the band</strong> and cannot be told apart from luck
+<em>at that sample size</em>. That is a statement about the resolution
+of a 20-start search, not a verdict on the fit — which is exactly why
+the action is to raise <code>n_init</code> rather than to conclude
+anything. At 100 starts the band is 3 to 10, and a count of 1 falls
+outside it.</p>
+<p><strong>What to do.</strong> Refit with <code>n_init = 100</code>.
+Hipp and Bauer (p. 49) put the escalation there directly: “simply
+generating 10 sets of start values will be insufficient …; instead, at
+least 50 to 100 sets of starting values will be needed. This becomes
+even more necessary with models containing more classes since they
+converge less frequently.” If the maximum still does not replicate at
+100 starts, stop raising it. “If the optimal solution is found only
+rarely, this may suggest an error in the model specification” (p. 48) —
+most often more classes than the data support. mixtureEM warns about
+this case rather than leaving it to the printed line, and the warning
+names the same number.</p>
+<p><strong>The honest limits.</strong> Twenty is a floor for small,
+well-separated models, not a guarantee. Local optima multiply as classes
+are added and as separation falls: in Shireman et al.’s simulations the
+rate of local solutions rose from 0.62 at two clusters to 0.86 at six,
+and on one real dataset of 11,782 cases, 1,000 random starts produced
+1,000 <em>distinct</em> solutions — their footnote concludes that “a
+minimal number of starting values in order to arrive at an adequate
+solution should exceed 1,000 for some data types” (p. 284). Nor is
+agreement among a handful of starts evidence of anything. A common rule
+of thumb holds that the best log-likelihood repeating twice is enough;
+Hipp and Bauer (p. 49) explicitly reject it, and in their own case study
+the best four-class solution was found by about 3% of converged starts,
+roughly 1 in 30. Two agreeing starts is not the bar.</p>
+<p><strong>When two starts count as the same solution.</strong> The
+replication count treats restarts whose log-likelihoods are within 0.01
+as having found the same maximum. That is deliberately looser than a
+numerical-identity threshold — Shireman et al. separate solutions at a
+BIC difference of 1e-16 — because the failure it avoids is real and the
+one it risks is not: genuinely different optima in these models sit
+whole units apart, while four starts landing at -6483.1620, -6483.1613,
+-6483.1612 and -6483.1607 are one optimum reported four times. At a
+tighter threshold that fit reports “found by 1 of 6”.</p>
 <p>Set <code>random_state</code> to make the search reproducible.</p>
+</div>
+<div class="section level2">
+<h2 id="how-long-em-runs-and-when-it-stops">How long EM runs, and when it stops<a class="anchor" aria-label="anchor" href="#how-long-em-runs-and-when-it-stops"></a>
+</h2>
+<p>Each start runs until the log-likelihood stops improving by more than
+<code>1e-4</code>, or until it has taken <code>max_iter = 1000</code>
+iterations, whichever comes first.</p>
+<p>The iteration budget has a direct precedent: Biernacki et al. (2003)
+budget 1,000 iterations in their comparison, and the first
+recommendation of their discussion is “for a good solution, do not skimp
+on the number of iterations” (p. 574). Their exploration moves on a
+multiplicative scale — 60, 120, 240, 480, 960 and on up — which is why
+the advice when a fit stops at the cap is to <strong>double</strong>
+<code>max_iter</code> rather than to multiply it by ten. mixtureEM’s
+non-convergence warning names the doubled value.</p>
+<p>The tolerance is a different kind of number, and it is worth being
+plain about it: <code>1e-4</code> is a pragmatic calibration against
+this package’s own reference fits, not a value taken from the
+literature. If anything the literature argues against relying on a rule
+of that form at all. Biernacki et al. (p. 568): “We do not use stopping
+criteria based on the relative change of the estimates or loglikelihood
+because the slow convergence of the EM makes such criteria hazardous.”
+Their own short runs stop instead on progress relative to progress
+already made,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">(</mo><msup><mi>L</mi><mi>q</mi></msup><mo>−</mo><msup><mi>L</mi><mrow><mi>q</mi><mo>−</mo><mn>1</mn></mrow></msup><mo stretchy="false" form="postfix">)</mo><mi>/</mi><mo stretchy="false" form="prefix">(</mo><msup><mi>L</mi><mi>q</mi></msup><mo>−</mo><msup><mi>L</mi><mn>0</mn></msup><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">(L^q - L^{q-1}) / (L^q - L^0)</annotation></semantics></math>.</p>
+<p>That objection is exactly why the hard cap exists alongside the
+tolerance rather than instead of it. A slow-converging EM can satisfy an
+absolute tolerance while still climbing; the cap makes that visible,
+because a fit that hits it says so.</p>
+</div>
+<div class="section level2">
+<h2 id="the-bootstrap-test-and-how-many-draws-it-needs">The bootstrap test and how many draws it needs<a class="anchor" aria-label="anchor" href="#the-bootstrap-test-and-how-many-draws-it-needs"></a>
+</h2>
+<p><code><a href="../reference/blrt.html">blrt()</a></code> compares <em>k</em> against <em>k</em> − 1
+classes by generating data from the smaller model, refitting both to
+each generated sample, and locating the observed likelihood-ratio
+statistic in the resulting distribution. The p-value is</p>
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><mfrac><mrow><mn>1</mn><mo>+</mo><mi>#</mi><mo stretchy="false" form="prefix">{</mo><msubsup><mi>t</mi><mi>r</mi><mo>*</mo></msubsup><mo>≥</mo><mi>t</mi><mo stretchy="false" form="postfix">}</mo></mrow><mrow><mi>B</mi><mo>+</mo><mn>1</mn></mrow></mfrac><mo>,</mo></mrow><annotation encoding="application/x-tex">
+p = \frac{1 + \#\{t^*_r \ge t\}}{B + 1},
+</annotation></semantics></math></p>
+<p>which is Davison and Hinkley’s (1997) eq. (4.11). The
+<code>+1</code>s are not a continuity correction: with them, the p-value
+is uniform on
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">{</mo><mn>1</mn><mi>/</mi><mo stretchy="false" form="prefix">(</mo><mi>B</mi><mo>+</mo><mn>1</mn><mo stretchy="false" form="postfix">)</mo><mo>,</mo><mi>…</mi><mo>,</mo><mn>1</mn><mo stretchy="false" form="postfix">}</mo></mrow><annotation encoding="application/x-tex">\{1/(B+1), \ldots, 1\}</annotation></semantics></math>
+under the null, and “in this sense the Monte Carlo test is exact”
+(p. 141).</p>
+<p><strong>Why B = 100 is the default.</strong> Dziak, Lanza and Tan
+(2014, p. 3): “Simulation evidence in McLachlan (1987) suggests that B
+should be at least 99 to obtain optimal power; we use B = 100 in this
+paper.” Davison and Hinkley agree on the floor — “it is advisable to
+take R to be at least 99” (p. 143) — and quantify what it costs. Against
+the full test, 99 replicates retain a power ratio of 0.83 at α = .05 and
+0.95 at 999, so “the loss of power with R = 99 is not serious for α ≥
+.05, and R = 999 should generally be safe”. At α = .01 the ratio at 99
+draws falls to 0.60.</p>
+<p><strong>Where 100 stops being adequate.</strong> The attainable
+p-values are 1/(B+1) apart, so at 100 draws the smallest is 0.0099 and
+the test cannot separate .04 from .06. Where the decision turns on that,
+“the critical region of a fixed-level test has been randomly displaced”
+(p. 155). <code><a href="../reference/blrt.html">blrt()</a></code> warns when the result lands within one
+step of .05 and names <code>n_reps = 999</code>.</p>
+<p><strong><code>n_init_boot = 10</code> is a compute compromise, not a
+recommendation.</strong> Each draw refits both models, so the replicate
+search is where the cost of the test lives, and 10 restarts per
+replicate is where this package puts the trade-off. No source endorses
+that number. Dziak et al. (p. 4, fn. 3) say the minimum “is not known”,
+that too few starts under the alternative “can lead to invalid results”,
+and that a local maximum there can make “the calculated likelihood ratio
+… occasionally be nonsensical negative value”; they used 50. Lee,
+Wickrama and O’Neal (2023, p. 654) make the same point from the applied
+side: “If a local solution is detected in either the k-1 class or the
+k-class model (or both), the difference between the log-likelihood
+values will be biased. In turn, this leads to biased inference
+statistics (p-values).” That negative statistic is the diagnostic, and
+<code><a href="../reference/blrt.html">blrt()</a></code> counts it: any negative draw and it warns, naming
+<code>n_init_boot = 50</code>.</p>
+<p><strong>A non-significant BLRT is not evidence that there is no extra
+class.</strong> Its power turns on class separation far more than on
+sample size. In Tekle, Gudicha and Vermunt’s (2016) Table 2,
+distinguishing two classes from three with six indicators needs 25 cases
+at high separation and 670 at low; for three against four, 1,830. Dziak
+et al. (p. 6) report power of 4% at <em>n</em> = 100 with unequal
+classes and poor measurement, against 99% with strong measurement and
+equal classes. The same test, the same number of draws.</p>
+</div>
+<div class="section level2">
+<h2 id="when-mixtureem-warns-you">When mixtureEM warns you<a class="anchor" aria-label="anchor" href="#when-mixtureem-warns-you"></a>
+</h2>
+<table class="table">
+<colgroup>
+<col width="33%">
+<col width="33%">
+<col width="33%">
+</colgroup>
+<thead><tr class="header">
+<th>Warning</th>
+<th>What it means</th>
+<th>What to do</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>EM did not converge within <code>max_iter</code>
+</td>
+<td>The estimates are wherever the algorithm had reached, which need not
+be a maximum.</td>
+<td>Refit with <code>max_iter</code> doubled. If doubling does not help,
+the model is probably weakly identified at this number of classes.</td>
+</tr>
+<tr class="even">
+<td>The solution was found by 1 start</td>
+<td>The maximum may be the best of a small sample of the surface rather
+than the best there is.</td>
+<td>Refit with <code>n_init = 100</code>. If it still does not
+replicate, suspect the specification — most often too many classes.</td>
+</tr>
+<tr class="odd">
+<td>A variance has collapsed</td>
+<td>A class has been fitted to a spike rather than to a subgroup. Its
+likelihood, and so its BIC, is not comparable with a clean fit’s.</td>
+<td>Refit with a stronger variance prior,
+<code>bayes_constants = list(variances = n_classes)</code>, or with
+fewer classes. Do <strong>not</strong> raise <code>n_init</code>: more
+starts is more chances to find the spike.</td>
+</tr>
+<tr class="even">
+<td>Probabilities at the boundary</td>
+<td>An item every member of a class answers identically. The standard
+error for that parameter is not interpretable.</td>
+<td>Read it substantively — this is often the finding — or refit with a
+stronger <code>bayes_constants = list(categorical = ...)</code> if you
+need the standard error.</td>
+</tr>
+<tr class="odd">
+<td>Latent classes have converged on the same chain</td>
+<td>The model is describing one process with the parameters of
+several.</td>
+<td>Refit with fewer classes, or with a restriction such as
+<code>mover_stayer = TRUE</code> that tells them apart.</td>
+</tr>
+<tr class="even">
+<td>The BLRT p-value is next to .05</td>
+<td>With <code>n_reps</code> draws the p-value moves in steps of 1/(B+1)
+and cannot resolve the decision.</td>
+<td>Refit with <code>n_reps = 999</code>.</td>
+</tr>
+<tr class="odd">
+<td>Negative bootstrap draws</td>
+<td>A replicate’s <em>k</em>-class fit landed below the
+(<em>k</em>−1)-class model nested inside it: the replicate search
+stopped short.</td>
+<td>Refit with <code>n_init_boot = 50</code>. Until then the p-value is
+biased.</td>
+</tr>
+</tbody>
+</table>
 </div>
 <div class="section level2">
 <h2 id="the-estimator-is-a-posterior-mode-not-maximum-likelihood">The estimator is a posterior mode, not maximum likelihood<a class="anchor" aria-label="anchor" href="#the-estimator-is-a-posterior-mode-not-maximum-likelihood"></a>
@@ -193,20 +396,63 @@ than a subgroup usually means the data do not support this many.</li>
 <strong>A stronger prior</strong>,
 <code>bayes_constants = list(variances = ...)</code>. A useful starting
 point is one artificial observation per class — that is
-<code>variances = n_classes</code> — doubling it if the warning
-persists. The warning prints that number for your model.</li>
+<code>variances = n_classes</code> — increasing it a little at a time if
+the warning persists. The warning prints that number for your
+model.</li>
 </ul>
 <p>Then check the result rather than just that the warning stopped: the
 flagged variance should no longer be far below the others, and its class
 mean should have come off the floor or ceiling of the response
 scale.</p>
-<p>Theory settles the <em>form</em> of this prior and not its size. Any
-penalty that diverges as a variance approaches zero, and grows more
-slowly than the sample, gives a consistent estimator whatever its
-constant (Chen, Tan &amp; Zhang, 2008). The choice of constant is a
-finite-sample judgement, which is why the default is deliberately weak
-and the advice above is a rule with a check rather than a number to
-copy.</p>
+<p>Two things about that prior are worth knowing, because they are what
+make the advice a rule rather than a number to copy.</p>
+<p>It is centred on each item’s <em>own</em> observed marginal variance,
+not on a fixed quantity. That is what lets one constant mean the same
+thing on a five-point scale and on an income variable: rescale an
+indicator and the prior rescales with it. A penalty pinned to a constant
+has no such property, and the penalised-likelihood literature prefers
+the data-scaled form for exactly this reason (Chen, Tan &amp; Zhang,
+2008, sec. 4).</p>
+<p>And the constant is divided among the classes, so
+<code>variances = n_classes</code> is the setting that holds it at one
+artificial observation per class at <em>every</em> number of classes —
+the way the literature applies it, the same amount to every component. A
+bare number does the opposite: it is a different amount of prior in a
+three-class model than in a six-class one. Write it as
+<code>n_classes</code> and it stays comparable across the models you are
+enumerating.</p>
+<p>Theory settles the <em>form</em> of this prior and not its size.
+Within the conditions Chen, Tan &amp; Zhang (2008) impose — which any
+fixed positive constant meets — a penalty that diverges as a variance
+approaches zero, and grows more slowly than the sample, gives a
+consistent estimator whatever its constant. That result is proved for
+<em>univariate</em> normal mixtures; the multivariate case, which is
+what this package fits, they leave open (sec. 5). So the choice of
+constant is all the more a finite-sample judgement, which is why the
+default is deliberately weak and the advice above comes with a check
+attached.</p>
+<div class="section level3">
+<h3 id="a-clean-fit-is-not-proof-that-there-is-no-spike">A clean fit is not proof that there is no spike<a class="anchor" aria-label="anchor" href="#a-clean-fit-is-not-proof-that-there-is-no-spike"></a>
+</h3>
+<p>The absence of the warning does not establish that no collapsed
+solution exists. The warning can only report on the solution the search
+actually reached, and some degenerate solutions sit in basins so narrow
+that random starts never land in them. A fit can replicate its maximum
+on every one of hundreds of starts, and still not be the highest point
+on the likelihood.</p>
+<p>This is worth checking whenever an indicator has a floor or a ceiling
+— a bounded scale with a visible pile-up of cases at an endpoint. That
+pile-up is a set of near-identical values, which is exactly what a
+collapsing class latches onto, but it attracts only starts that begin
+very close to it. Two cheap checks: refit with
+<code>bayes_constants = list(variances = n_classes)</code> and see
+whether the solution moves at all, and look at whether any class mean is
+sitting on a scale endpoint with a variance far below that item’s
+marginal. Splitting the sample into subgroups widens these basins,
+because the pile-up makes up a larger share of each smaller sample, so a
+model that looks clean on the whole sample deserves the check again on
+the parts.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="missing-data-needs-nothing-from-you">Missing data needs nothing from you<a class="anchor" aria-label="anchor" href="#missing-data-needs-nothing-from-you"></a>
@@ -238,11 +484,21 @@ directly, a <code>group</code> fit also carries
 <div class="section level2">
 <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
 </h2>
+<p>Biernacki, C., Celeux, G., &amp; Govaert, G. (2003). Choosing
+starting values for the EM algorithm for getting the highest likelihood
+in multivariate Gaussian mixture models. <em>Computational Statistics
+&amp; Data Analysis</em>, <em>41</em>(3-4), 561-575.</p>
 <p>Chen, J., Tan, X., &amp; Zhang, R. (2008). Inference for normal
 mixtures in mean and variance. <em>Statistica Sinica</em>,
 <em>18</em>(2), 443-465.</p>
+<p>Davison, A. C., &amp; Hinkley, D. V. (1997). <em>Bootstrap Methods
+and Their Application</em> (ch. 4). Cambridge University Press.</p>
 <p>Day, N. E. (1969). Estimating the components of a mixture of normal
 distributions. <em>Biometrika</em>, <em>56</em>(3), 463-474.</p>
+<p>Dziak, J. J., Lanza, S. T., &amp; Tan, X. (2014). Effect size,
+statistical power and sample size requirements for the bootstrap
+likelihood ratio test in latent class analysis. <em>Structural Equation
+Modeling</em>, <em>21</em>(4), 534-552.</p>
 <p>Galindo Garre, F., &amp; Vermunt, J. K. (2006). Avoiding boundary
 estimates in latent class analysis by Bayesian posterior mode
 estimation. <em>Behaviormetrika</em>, <em>33</em>(1), 43-59.</p>
@@ -256,11 +512,23 @@ estimation of growth mixture models. <em>Psychological Methods</em>,
 likelihood estimator in the presence of infinitely many incidental
 parameters. <em>The Annals of Mathematical Statistics</em>,
 <em>27</em>(4), 887-906.</p>
+<p>Lee, T. K., Wickrama, K. A. S., &amp; O’Neal, C. W. (2023). An
+introduction to growth mixture models (GMM). In <em>International
+Encyclopedia of Education</em> (4th ed., Vol. 14, pp. 646-655).
+Elsevier.</p>
 <p>McLachlan, G. J., &amp; Peel, D. (2000). <em>Finite Mixture
 Models</em>. Wiley.</p>
 <p>Nylund-Gibson, K., &amp; Choi, A. Y. (2018). Ten frequently asked
 questions about latent class analysis. <em>Translational Issues in
 Psychological Science</em>, <em>4</em>(4), 440-461.</p>
+<p>Shireman, E., Steinley, D., &amp; Brusco, M. J. (2017). Examining the
+effect of initialization strategies on the performance of Gaussian
+mixture modeling. <em>Behavior Research Methods</em>, <em>49</em>(1),
+282-293.</p>
+<p>Tekle, F. B., Gudicha, D. W., &amp; Vermunt, J. K. (2016). Power
+analysis for the bootstrap likelihood ratio test for the number of
+classes in latent class models. <em>Advances in Data Analysis and
+Classification</em>, <em>10</em>(2), 209-224.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

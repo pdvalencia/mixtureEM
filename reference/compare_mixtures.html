@@ -104,17 +104,47 @@ Default is <code>1</code>.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A named list with three elements:</p><ul><li><p><code>fit_table</code> Data frame with one row per K and columns <code>Classes</code>, <code>LL</code>,
-<code>Params</code>, <code>AIC</code>, <code>BIC</code>, <code>SABIC</code>, <code>Entropy</code>.</p></li>
+<code>Params</code>, <code>AIC</code>, <code>BIC</code>, <code>SABIC</code>, <code>Entropy</code> and <code>Unreplicated</code>.</p></li>
 <li><p><code>models</code> Named list of fitted <code>mixture_model</code> objects, one per K
 (names are <code>"K1"</code>, <code>"K2"</code>, etc.).</p></li>
 <li><p><code>best_k</code> Integer. The value of K with the lowest BIC.</p></li>
 </ul></div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p><strong>Reading the <code>Entropy</code> column.</strong> Relative entropy describes how cleanly a
+solution separates the classes, on a 0-to-1 scale. The usual anchors are 0.40,
+0.60 and 0.80 for low, medium and high separation (Clark &amp; Muthen, 2009, as
+reported by Lee et al., 2023, p. 653); Ram and Grimm (2009, p. 571) put the
+same point as "high values of entropy (&gt;.80) indicate that individuals are
+classified with confidence", and suggest preferring the higher-entropy model
+when choosing among models with similar BIC. Those anchors are on the same
+normalisation this package uses.</p>
+<p>Entropy is not evidence for how many classes there are, and there is no
+threshold it has to clear: "there are no set cut-off criteria for deciding
+whether the entropy is reasonably high" (Jung &amp; Wickrama, 2008, p. 312). The
+numbers above are for reading a table, and mixtureEM applies no entropy
+threshold anywhere.</p>
+<p><strong>Reading the <code>Unreplicated</code> column.</strong> <code>TRUE</code> means the reported maximum for
+that K was found by exactly one random start. Refit those values of K with
+<code>n_init = 100</code> before reporting them; see <code><a href="../articles/estimation.html">vignette("estimation")</a></code>.</p>
+    </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
     <p>Nylund, K. L., Asparouhov, T., &amp; Muthen, B. O. (2007). Deciding on the number
 of classes in latent class analysis and growth mixture modeling: A Monte
 Carlo simulation study. <em>Structural Equation Modeling</em>, <em>14</em>(4),
 535-569. <a href="https://doi.org/10.1080/10705510701575396" class="external-link">doi:10.1080/10705510701575396</a></p>
+<p>Jung, T., &amp; Wickrama, K. A. S. (2008). An introduction to latent class growth
+analysis and growth mixture modeling. <em>Social and Personality Psychology
+Compass</em>, <em>2</em>(1), 302-317. <a href="https://doi.org/10.1111/j.1751-9004.2007.00054.x" class="external-link">doi:10.1111/j.1751-9004.2007.00054.x</a></p>
+<p>Lee, T. K., Wickrama, K. A. S., &amp; O'Neal, C. W. (2023). An introduction to
+growth mixture models (GMM). In <em>International Encyclopedia of
+Education</em> (4th ed., Vol. 14, pp. 646-655). Elsevier.
+<a href="https://doi.org/10.1016/B978-0-12-818630-5.10076-4" class="external-link">doi:10.1016/B978-0-12-818630-5.10076-4</a></p>
+<p>Ram, N., &amp; Grimm, K. J. (2009). Growth mixture modeling: A method for
+identifying differences in longitudinal change among unobserved groups.
+<em>International Journal of Behavioral Development</em>, <em>33</em>(6),
+565-576. <a href="https://doi.org/10.1177/0165025409343765" class="external-link">doi:10.1177/0165025409343765</a></p>
 <p>Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
 T. D. Little (Ed.), <em>The Oxford Handbook of Quantitative Methods</em>
 (Vol. 2, pp. 551-611). Oxford University Press.</p>
@@ -134,19 +164,19 @@ T. D. Little (Ed.), <em>The Oxford Handbook of Quantitative Methods</em>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Fitting 4-class model...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> === Model Selection Summary ===</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Classes       LL Params     AIC     BIC   SABIC Entropy</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1       1 -342.102      5 694.203 707.229 691.438   1.000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2       2 -340.085     11 702.169 730.826 696.085   0.303</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3       3 -337.020     17 708.040 752.328 698.637   0.458</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4       4 -334.543     23 715.086 775.005 702.365   0.590</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Classes       LL Params     AIC     BIC   SABIC Entropy Unreplicated</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1       1 -342.102      5 694.203 707.229 691.438   1.000        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2       2 -340.085     11 702.169 730.826 696.085   0.303        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3       3 -337.020     17 708.040 752.328 698.637   0.458        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4       4 -334.543     23 715.086 775.005 702.365   0.590        FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> -&gt; Best model according to BIC: 1 classes</span>
 <span class="r-in"><span><span class="va">result</span><span class="op">$</span><span class="va">fit_table</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Classes        LL Params      AIC      BIC    SABIC   Entropy</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1       1 -342.1016      5 694.2032 707.2290 691.4378 1.0000000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2       2 -340.0846     11 702.1692 730.8261 696.0854 0.3033780</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3       3 -337.0199     17 708.0398 752.3277 698.6374 0.4575710</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4       4 -334.5428     23 715.0857 775.0046 702.3648 0.5898679</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Classes        LL Params      AIC      BIC    SABIC   Entropy Unreplicated</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1       1 -342.1016      5 694.2032 707.2290 691.4378 1.0000000        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2       2 -340.0846     11 702.1692 730.8261 696.0854 0.3033780        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3       3 -337.0199     17 708.0398 752.3277 698.6374 0.4575710        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4       4 -334.5428     23 715.0857 775.0046 702.3648 0.5898679        FALSE</span>
 <span class="r-in"><span><span class="va">result</span><span class="op">$</span><span class="va">best_k</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
 <span class="r-in"><span></span></span>

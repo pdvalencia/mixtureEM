@@ -176,10 +176,11 @@ fit_gr0 <- fit_mixture(janousch[janousch$country == "Greece", items],
 #> arise; (2) fit fewer classes, since a class describing a spike rather than a
 #> subgroup usually means the data do not support this many; or (3) keep the model
 #> and strengthen the prior with bayes_constants = list(variances = 4) -- roughly
-#> one artificial observation per class -- doubling it if the warning persists.
-#> Then check that the flagged variance is no longer far below the others and that
-#> its class mean has come off the floor or ceiling, and look at the distribution
-#> of the named item for the floor, ceiling or spike the class latched onto.
+#> one artificial observation per class -- increasing it a little at a time if the
+#> warning persists. Then check that the flagged variance is no longer far below
+#> the others and that its class mean has come off the floor or ceiling, and look
+#> at the distribution of the named item for the floor, ceiling or spike the class
+#> latched onto.
 ```
 
 That fit raises a warning: one class’s variance on `social_resources`
@@ -304,10 +305,11 @@ fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
 #> arise; (2) fit fewer classes, since a class describing a spike rather than a
 #> subgroup usually means the data do not support this many; or (3) keep the model
 #> and strengthen the prior with bayes_constants = list(variances = 4) -- roughly
-#> one artificial observation per class -- doubling it if the warning persists.
-#> Then check that the flagged variance is no longer far below the others and that
-#> its class mean has come off the floor or ceiling, and look at the distribution
-#> of the named item for the floor, ceiling or spike the class latched onto.
+#> one artificial observation per class -- increasing it a little at a time if the
+#> warning persists. Then check that the flagged variance is no longer far below
+#> the others and that its class mean has come off the floor or ceiling, and look
+#> at the distribution of the named item for the floor, ceiling or spike the class
+#> latched onto.
 ```
 
 That fit raises the same warning the Greek model did: one class’s
@@ -350,6 +352,12 @@ fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
 #> Warning: 35 cases had no observed value on any indicator and were removed
 #> before estimation (n = 1125 analysed). Rows: 28, 46, 50, 55, 90, 94, ... (29
 #> more).
+#> Warning: The reported solution was found by 1 of 50 starts. EM climbs the peak
+#> it starts nearest, so a maximum seen once may be the best of a small sample of
+#> the likelihood surface rather than the best there is. Refit with `n_init =
+#> 100`. If the maximum still does not replicate at 100 starts, that points at the
+#> specification - most often more classes than the data support - rather than at
+#> the search.
 
 fit_free_means <- fit_mixture(janousch[items], n_classes = 4,
                               measurement = "continuous",
@@ -362,6 +370,12 @@ fit_free_means <- fit_mixture(janousch[items], n_classes = 4,
 #> Warning: 35 cases had no observed value on any indicator and were removed
 #> before estimation (n = 1125 analysed). Rows: 28, 46, 50, 55, 90, 94, ... (29
 #> more).
+#> Warning: The reported solution was found by 1 of 51 starts that ran to
+#> convergence, out of 50 requested. EM climbs the peak it starts nearest, so a
+#> maximum seen once may be the best of a small sample of the likelihood surface
+#> rather than the best there is. Refit with `n_init = 100`. If the maximum still
+#> does not replicate at 100 starts, that points at the specification - most often
+#> more classes than the data support - rather than at the search.
 
 lr_test(fit_invariant, fit_free_means)
 #> 
@@ -413,6 +427,12 @@ fit_configural <- fit_mixture(janousch[items], n_classes = 4,
 #> Warning: 35 cases had no observed value on any indicator and were removed
 #> before estimation (n = 1125 analysed). Rows: 28, 46, 50, 55, 90, 94, ... (29
 #> more).
+#> Warning: The reported solution was found by 1 of 51 starts that ran to
+#> convergence, out of 50 requested. EM climbs the peak it starts nearest, so a
+#> maximum seen once may be the best of a small sample of the likelihood surface
+#> rather than the best there is. Refit with `n_init = 100`. If the maximum still
+#> does not replicate at 100 starts, that points at the specification - most often
+#> more classes than the data support - rather than at the search.
 
 lr_test(fit_invariant, fit_configural)
 #> 

@@ -208,10 +208,31 @@ fit_mixture(
 
   A mixture likelihood usually has several local maxima, so a single
   start is a coin toss rather than an estimate; the fit reports how many
-  of the starts reached the solution it kept. If that count is 1, raise
-  `n_init` and refit — a maximum found once may simply be the best of a
-  small sample of the surface. Set `random_state` to make the search
+  of the starts reached the solution it kept. If that count is 1, refit
+  with `n_init = 100` — a maximum found once may simply be the best of a
+  small sample of the surface, and if it does not replicate at 100
+  starts the problem is more likely the specification than the search
+  (Hipp & Bauer, 2006). Set `random_state` to make the search
   reproducible.
+
+  The default of 20 is a floor for small, well-separated models rather
+  than a guarantee: under a correct specification the maximum is
+  typically found by 39\\ there is one, but local optima multiply with
+  more classes and poorer separation. `max_iter` defaults to 1000,
+  following the iteration budget in Biernacki et al. (2003); when a fit
+  stops at the cap, double it.
+  [`vignette("estimation")`](https://pdvalencia.github.io/mixtureEM/articles/estimation.md)
+  gives the figures behind both numbers.
+
+  More starts are not *monotonically* better on a large model. Where
+  each EM iteration is expensive the search runs in two stages: a short
+  pass ranks the starts and only the best fraction is run to
+  convergence. That ranking is taken before the starts have converged,
+  so it can discard a slow-climbing basin that would have won, and
+  raising `n_init` changes which starts survive rather than simply
+  adding to them. A larger `n_init` can therefore land on a slightly
+  worse solution than a smaller one. On a big model, compare two or
+  three values rather than assuming the largest is best.
 
 - weights, strata, cluster:
 
@@ -239,13 +260,36 @@ fit_mixture(
   all default to `1`. Each is a number of pseudo-observations spread
   over the classes, so its influence shrinks as the sample grows.
 
+  The default of one observation, and the fact that it is spread in
+  agreement with each item's own observed marginal rather than uniformly
+  over the cells, are both taken from Galindo Garre and Vermunt (2006).
+  Their simulation compares Jeffreys, normal and two Dirichlet priors
+  against maximum likelihood and the parametric bootstrap, at a prior
+  strength of a single added case, and the marginal-preserving Dirichlet
+  has the lowest root median squared error and the best coverage in
+  every condition they study — most clearly where a true parameter is
+  near the boundary and small samples send the maximum likelihood
+  estimate to infinity. The constant Dirichlet, which spreads the same
+  one observation uniformly, degrades as the table grows: with nine
+  binary items that observation is spread over 512 cells rather than 32,
+  and its estimates shrink too far toward zero. This is why
+  `categorical` is not simply an add-one adjustment.
+
+  The `variances` prior is centred on each item's own observed marginal
+  variance rather than on a fixed number, which is what makes it mean
+  the same thing on a five-point scale and on an income variable:
+  rescaling an indicator rescales the prior with it. That invariance is
+  the reason the penalised-likelihood literature recommends a
+  data-scaled penalty over a constant one (Chen, Tan, & Zhang, 2008,
+  sec. 4).
+
   Two uses. **Reproducing an unregularized fit:** setting a constant to
   `0` removes that prior and gives plain maximum likelihood for that
   block. This is an escape hatch for matching a reference analysis, not
-  a recommended setting — the unpenalised mixture likelihood is
-  unbounded, and maximum likelihood for a mixture of normals is known to
-  be inconsistent without some such restriction (Kiefer & Wolfowitz,
-  1956).
+  a recommended setting — the unpenalised mixture likelihood for a
+  mixture of normals is unbounded, so a *global* maximum likelihood
+  estimate does not exist (Day, 1969; Kiefer & Wolfowitz, 1956) and what
+  an unregularized program reports is a local maximum.
 
   **Rescuing a collapsed fit:** if a fit warns that a class variance has
   collapsed, the prior is one of three remedies, and not the first to
@@ -254,13 +298,17 @@ fit_mixture(
   arise at all; fitting fewer classes often removes the class that was
   describing a spike. Where neither is acceptable substantively, raise
   `variances`. A useful starting point is **one artificial observation
-  per class**, i.e. `variances = n_classes`, doubling it if the warning
-  persists. State it that way rather than as a bare number: the constant
-  is divided among the classes, so a fixed value is a different amount
-  of prior at every `n_classes`. Then check the result rather than just
-  that the warning stopped — the flagged variance should no longer be
-  far below the others in the model, and its class mean should have come
-  off the floor or ceiling of the response scale.
+  per class**, i.e. `variances = n_classes`, increasing it a little at a
+  time if the warning persists. State it that way rather than as a bare
+  number: the constant is divided among the classes, so
+  `variances = n_classes` is what holds the prior at one
+  pseudo-observation per class at *every* number of classes — the way
+  the penalised-mixture literature applies it, the same amount to every
+  component — while a fixed value drifts as classes are added. Then
+  check the result rather than just that the warning stopped — the
+  flagged variance should no longer be far below the others in the
+  model, and its class mean should have come off the floor or ceiling of
+  the response scale.
 
   Raising `n_init` is *not* a remedy here. A collapsed variance is not a
   convergence failure but a property of the likelihood, which really is
@@ -268,13 +316,16 @@ fit_mixture(
   spike and report a better log-likelihood for a worse solution. For the
   same reason a flagged fit's BIC is not comparable with a clean fit's.
 
-  The theory behind the prior settles its form and not its size: a
-  penalty that diverges as a variance approaches zero and grows more
-  slowly than the sample yields a consistent estimator whatever its
-  constant (Chen, Tan, & Zhang, 2008). The choice of constant is
-  therefore a finite-sample judgement, which is why the default is
-  deliberately weak and the guidance above is a rule with a check rather
-  than a magic value.
+  The theory behind the prior settles its form and not its size: within
+  the conditions Chen, Tan, & Zhang (2008) impose — which any fixed
+  positive constant meets — a penalty that diverges as a variance
+  approaches zero and grows more slowly than the sample yields a
+  consistent estimator whatever its constant. That result is proved for
+  *univariate* normal mixtures; the multivariate case, which is what
+  this package fits, they leave open (sec. 5). The choice of constant is
+  therefore all the more a finite-sample judgement, which is why the
+  default is deliberately weak and the guidance above is a rule with a
+  check rather than a magic value.
 
   This is not a tuning menu. The defaults are the intended settings.
 
@@ -321,6 +372,23 @@ difference is a fixed constant and cancels in
 
 ## References
 
+Biernacki, C., Celeux, G., & Govaert, G. (2003). Choosing starting
+values for the EM algorithm for getting the highest likelihood in
+multivariate Gaussian mixture models. *Computational Statistics & Data
+Analysis*, *41*(3-4), 561-575.
+[doi:10.1016/S0167-9473(02)00163-9](https://doi.org/10.1016/S0167-9473%2802%2900163-9)
+(the iteration budget behind `max_iter`).
+
+Hipp, J. R., & Bauer, D. J. (2006). Local solutions in the estimation of
+growth mixture models. *Psychological Methods*, *11*(1), 36-53.
+[doi:10.1037/1082-989X.11.1.36](https://doi.org/10.1037/1082-989X.11.1.36)
+(the replication rates behind `n_init`).
+
+Shireman, E., Steinley, D., & Brusco, M. J. (2017). Examining the effect
+of initialization strategies on the performance of Gaussian mixture
+modeling. *Behavior Research Methods*, *49*(1), 282-293.
+[doi:10.3758/s13428-015-0697-6](https://doi.org/10.3758/s13428-015-0697-6)
+
 Collins, L. M., & Lanza, S. T. (2010). *Latent Class and Latent
 Transition Analysis: With Applications in the Social, Behavioral, and
 Health Sciences*. Wiley.
@@ -338,6 +406,13 @@ in latent class analysis by Bayesian posterior mode estimation.
 *Behaviormetrika*, *33*(1), 43-59.
 [doi:10.2333/bhmk.33.43](https://doi.org/10.2333/bhmk.33.43) (the priors
 behind `bayes_constants`).
+
+Chen, J., Tan, X., & Zhang, R. (2008). Inference for normal mixtures in
+mean and variance. *Statistica Sinica*, *18*(2), 443-465 (the penalty
+behind `bayes_constants$variances`).
+
+Day, N. E. (1969). Estimating the components of a mixture of normal
+distributions. *Biometrika*, *56*(3), 463-474.
 
 Kiefer, J., & Wolfowitz, J. (1956). Consistency of the maximum
 likelihood estimator in the presence of infinitely many incidental
