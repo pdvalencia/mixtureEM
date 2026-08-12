@@ -209,6 +209,20 @@ probabilities), \code{poisson} (count rates), and \code{variances}
 \code{1}. Each is a number of pseudo-observations spread over the classes,
 so its influence shrinks as the sample grows.
 
+The default of one observation, and the fact that it is spread in agreement
+with each item's own observed marginal rather than uniformly over the
+cells, are both taken from Galindo Garre and Vermunt (2006). Their
+simulation compares Jeffreys, normal and two Dirichlet priors against
+maximum likelihood and the parametric bootstrap, at a prior strength of a
+single added case, and the marginal-preserving Dirichlet has the lowest
+root median squared error and the best coverage in every condition they
+study — most clearly where a true parameter is near the boundary and small
+samples send the maximum likelihood estimate to infinity. The constant
+Dirichlet, which spreads the same one observation uniformly, degrades as
+the table grows: with nine binary items that observation is spread over 512
+cells rather than 32, and its estimates shrink too far toward zero. This is
+why \code{categorical} is not simply an add-one adjustment.
+
 The \code{variances} prior is centred on each item's own observed marginal
 variance rather than on a fixed number, which is what makes it mean the same
 thing on a five-point scale and on an income variable: rescaling an

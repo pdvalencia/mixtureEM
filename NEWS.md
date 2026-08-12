@@ -74,6 +74,15 @@ same numbers. What changed is what the package tells you about them.
   comparison functions document how to read the `Entropy` column — anchors, and
   the fact that entropy is not evidence for the number of classes.
 
+* **The `categorical` and `latent` priors now carry their evidence too.** The
+  documentation justified the `variances` prior and left the other two as bare
+  defaults. Both the strength of one added observation and the decision to
+  spread it in agreement with each item's observed marginal — rather than
+  uniformly over the cells — come from Galindo Garre and Vermunt (2006), whose
+  simulation finds that form the most accurate of those studied and shows why a
+  uniform spread degrades as the number of items grows. No value changed; the
+  package already implemented the prior their results favour.
+
 * **Three small fixes.** A single collapsed pair of latent statuses is now
   reported as "Latent class 1 and 2" rather than "Latent classes"; the
   `@references` blocks of `classification_diagnostics()`, `absolute_fit()` and
