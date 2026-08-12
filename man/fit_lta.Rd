@@ -114,7 +114,11 @@ aggregated to the primary sampling unit within stratum and used in a
 linearization sandwich, which protects inference against clustering.}
 
 \item{n_init}{Number of random starts. Latent transition models have many
-local maxima; the default of 20 is a floor, not a recommendation.}
+local maxima; the default of 20 is a floor, not a recommendation. The fit
+reports how many starts reached the solution it kept, and warns when that
+count is 1; the answer there is \code{n_init = 100}, and a maximum that still
+does not replicate at 100 starts points at the specification rather than at
+the search. See \code{vignette("estimation")}.}
 
 \item{max_iter, tol}{EM iteration limit and relative convergence tolerance.
 A mixture over chains (\code{n_classes} > 1) converges much more slowly and
