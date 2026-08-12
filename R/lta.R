@@ -109,7 +109,10 @@
 #'   spread evenly over the possible destinations. Sparse transition tables
 #'   otherwise collapse onto probabilities of exactly zero, which are awkward to
 #'   interpret and to test. The default of `1` is negligible at any realistic
-#'   sample size; set it to `0` for unsmoothed maximum likelihood.
+#'   sample size; set it to `0` for unsmoothed maximum likelihood. It governs
+#'   the status prevalences, the transition matrices and - with `n_classes` > 1 -
+#'   the class weights, and it does **not** govern the measurement model, whose
+#'   prior is `bayes_constants`.
 #' @param bayes_constants Optional named list of prior strengths for the
 #'   *measurement* model (`categorical`, `poisson`, `variances`); see
 #'   [`fit_mixture()`]. The status and transition probabilities are governed by
