@@ -227,3 +227,39 @@ test_that("a sparse origin row is reported, and pooling the occasions relieves i
   # With no prior there is nothing to report.
   expect_null(suppressWarnings(go(smoothing = 0))$smoothing_influence)
 })
+
+test_that("nothing is reported when the prior does not reach the transitions", {
+  # The same data that raises the warning above, which is what makes this a
+  # test: the origin rows are just as thin, so anything reported here would be
+  # reported on a model whose transition matrices `smoothing` never touches.
+  # With covariates they are the fitted values of a multinomial logit
+  # (.lta_mstep_tau_cov), which does not call .lta_normalise().
+  set.seed(43)
+  n  <- 90
+  p  <- rbind(c(.9, .9, .9, .9), c(.5, .1, .9, .5), c(.1, .1, .1, .1))
+  mk <- function(s) matrix(rbinom(n * 4, 1, p[s, ]), n, 4)
+  s  <- lapply(1:3, function(i) sample(1:3, n, TRUE, c(.6, .35, .05)))
+  X  <- do.call(cbind, lapply(s, mk))
+  go <- function(...) fit_lta(X, n_statuses = 3, times = 3, n_init = 5,
+                              random_state = 3, standard_errors = FALSE, ...)
+
+  quiet <- function(expr) withCallingHandlers(
+    expr, mixtureEM_smoothing = function(w)
+      stop("the smoothing warning fired on a covariate model"))
+
+  cov_fit <- suppressWarnings(quiet(go(predictors_transition = rnorm(n))))
+  expect_null(cov_fit$smoothing_influence)
+
+  # A grouping variable reaches the transitions the same way, as dummy
+  # predictors, so `group_effects` including them is the same case.
+  grp_fit <- suppressWarnings(quiet(go(
+    group = factor(sample(c("a", "b"), n, TRUE)),
+    group_effects = "transitions")))
+  expect_null(grp_fit$smoothing_influence)
+
+  # But a group that only shifts the initial prevalences leaves the transitions
+  # smoothed, so that model still reports.
+  init_fit <- suppressWarnings(go(
+    group = factor(sample(c("a", "b"), n, TRUE)), group_effects = "initial"))
+  expect_false(is.null(init_fit$smoothing_influence))
+})

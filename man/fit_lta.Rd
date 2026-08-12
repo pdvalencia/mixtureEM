@@ -138,6 +138,13 @@ the status prevalences, the transition matrices and - with \code{n_classes} > 1 
 the class weights, and it does \strong{not} govern the measurement model, whose
 prior is \code{bayes_constants}.
 
+It also does not reach the transitions once anything predicts them. With
+\code{predictors_transition}, or with a \code{group} whose \code{group_effects} include
+the transitions, each transition matrix is the fitted value of a
+multinomial logit rather than a smoothed table of counts, and \code{smoothing}
+has no effect on it. The initial status prevalences behave the same way
+under \code{predictors_initial}.
+
 The mass is one pseudo-case per \emph{origin row}, which is the prior Chung,
 Lanza and Loken (2008) use for this model, and it is spread evenly rather
 than in proportion to how often each destination is occupied: a rare origin
@@ -202,6 +209,13 @@ An object of class \code{"lta_model"} with components including \code{delta},
 \code{tau} (a list of transition matrices), \code{prevalences} (status prevalence by
 occasion), \code{gamma} (posterior status probabilities by occasion), \code{mm},
 \code{metrics} and \code{n_params}.
+
+Two diagnostics come with it. \code{boundary} lists the transition cells the data
+have driven to zero, and \code{smoothing_influence} gives, for each origin row,
+the cases expected in it and the share of the estimate the \code{smoothing}
+prior is carrying. \code{smoothing_influence} is \code{NULL} when \code{smoothing} is 0 or
+when covariates predict the transitions, since the prior does not reach
+them then.
 
 With \code{n_classes} > 1 those parameters gain a class index: \code{delta} becomes a
 classes-by-statuses matrix, \code{tau} a list of per-class lists, and

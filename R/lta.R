@@ -114,6 +114,13 @@
 #'   the class weights, and it does **not** govern the measurement model, whose
 #'   prior is `bayes_constants`.
 #'
+#'   It also does not reach the transitions once anything predicts them. With
+#'   `predictors_transition`, or with a `group` whose `group_effects` include
+#'   the transitions, each transition matrix is the fitted value of a
+#'   multinomial logit rather than a smoothed table of counts, and `smoothing`
+#'   has no effect on it. The initial status prevalences behave the same way
+#'   under `predictors_initial`.
+#'
 #'   The mass is one pseudo-case per *origin row*, which is the prior Chung,
 #'   Lanza and Loken (2008) use for this model, and it is spread evenly rather
 #'   than in proportion to how often each destination is occupied: a rare origin
@@ -167,6 +174,13 @@
 #'   `tau` (a list of transition matrices), `prevalences` (status prevalence by
 #'   occasion), `gamma` (posterior status probabilities by occasion), `mm`,
 #'   `metrics` and `n_params`.
+#'
+#'   Two diagnostics come with it. `boundary` lists the transition cells the data
+#'   have driven to zero, and `smoothing_influence` gives, for each origin row,
+#'   the cases expected in it and the share of the estimate the `smoothing`
+#'   prior is carrying. `smoothing_influence` is `NULL` when `smoothing` is 0 or
+#'   when covariates predict the transitions, since the prior does not reach
+#'   them then.
 #'
 #'   With `n_classes` > 1 those parameters gain a class index: `delta` becomes a
 #'   classes-by-statuses matrix, `tau` a list of per-class lists, and
@@ -715,8 +729,19 @@ fit_lta <- function(indicators,
 # The counterpart of .lta_boundary_cells() above: that one reports cells that
 # have collapsed *onto* the boundary, this one reports rows the prior has pulled
 # *away* from it.
+#
+# Covariates on the transitions take the whole thing out of scope. That M-step
+# is a multinomial logit fitted by .lta_mstep_tau_cov() (R/lta_covariates.R),
+# which never calls .lta_normalise(), so `smoothing` does not reach the
+# transition matrices at all on that path and there is no pull to report. A
+# grouping variable enters the same way, as dummy predictors saturated over the
+# transition rows, so `group_effects` of "both" or "transitions" is covered by
+# the same test. Without this guard the row counts are real but the prior they
+# are compared against is not applied, and the message would send the reader
+# after a `smoothing` that is doing nothing.
 .lta_smoothing_influence <- function(state, alpha) {
-  if (state$n_times < 2L || !isTRUE(alpha > 0)) return(NULL)
+  if (state$n_times < 2L || !isTRUE(alpha > 0) || !is.null(state$Z_tau))
+    return(NULL)
   C <- state$n_classes %||% 1L
   K <- state$n_statuses
   # Under `transition_invariance = "full"` the M-step pools the occasions before
