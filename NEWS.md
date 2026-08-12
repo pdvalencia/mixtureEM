@@ -102,7 +102,10 @@ same numbers. What changed is what the package tells you about them.
   transitions should be reported as indicative. The remedy it points at first is
   `transition_invariance = "full"`, which puts every occasion's cases behind the
   one pseudo-case and so adds information rather than removing a prior. The
-  per-row figures are on the fitted object as `$smoothing_influence`.
+  per-row figures are on the fitted object as `$smoothing_influence`. Nothing is
+  reported once covariates or a grouping variable predict the transitions, since
+  those are then fitted by a multinomial logit that the prior never enters —
+  which `?fit_lta` now says of `smoothing` generally.
 
 * **The transition prior's size and shape are now documented and sourced.** Both
   were choices and neither was written down: the mass is one pseudo-case per
