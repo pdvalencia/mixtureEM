@@ -1,5 +1,62 @@
 # mixtureEM (development version)
 
+## Diagnostics now say what to change, and by how much
+
+No default changed anywhere in this group, so every existing fit returns the
+same numbers. What changed is what the package tells you about them.
+
+* **An unreplicated maximum is now a warning, not a line in `print()`.** The
+  most informative local-maximum signal there is — "the best solution was found
+  by 1 of 20 starts" — was a `cat()` line, invisible to anyone working from
+  `summary()` or from the coefficients. It is now a warning that names the
+  remedy: refit with `n_init = 100`, and if the maximum still does not
+  replicate, read that as a problem with the specification rather than with the
+  search. It fires only from ten requested starts upward, below which a lone
+  replication carries no information, and it stays silent on a fit that has
+  already been flagged for a collapsed variance or a growth-factor boundary —
+  those warnings say that raising `n_init` can make matters worse, and two
+  warnings must not give opposite advice about the same argument.
+
+* **The number of restarts is now reported honestly on the staged searches.** A
+  growth mixture model at `psi = "equal"`, or a latent transition model with
+  more than one class, ranks its restarts on a short pass and carries only three
+  of them to convergence. The report counted the survivors, so a 50-start search
+  announced itself as a 10-start one; `fit_lta()` kept no counts at all. Both
+  numbers are now carried, and printed as "found by 1 of 3 starts that ran to
+  convergence (of 50 requested)".
+
+* **`compare_mixtures()` and `compare_longitudinal()` gain an `Unreplicated`
+  column**, with a line after the table naming the class counts to refit before
+  reporting. The per-model warning is suppressed inside
+  `compare_longitudinal()`, which would otherwise raise it once per K before the
+  table it belongs next to had been printed.
+
+* **The non-convergence warning names a new `max_iter`** — double the one that
+  failed — instead of saying "a larger `max_iter`", and `fit_lta()` now issues
+  it at all. It has its own EM driver, so it reported non-convergence only
+  through `print()`.
+
+* **`blrt()` warns when 100 draws cannot resolve the decision.** A bootstrap
+  p-value can only take the values 1/(B+1), 2/(B+1), …, so at 100 draws it
+  cannot separate .04 from .06; when the result lands within one step of .05 the
+  test now says so and names `n_reps = 999`. It also counts draws where the
+  larger model fitted worse than the model nested inside it — a symptom of a
+  replicate search that stopped short — reports the count as `n_negative`, and
+  recommends `n_init_boot = 50`.
+
+* **The boundary-probability note now offers a way forward**, rather than
+  stating the problem and stopping: read it substantively, since an item every
+  member of a class answers identically is often the finding, or refit with a
+  stronger `bayes_constants = list(categorical = ...)` if that parameter needs
+  an interpretable standard error.
+
+* **Three small fixes.** A single collapsed pair of latent statuses is now
+  reported as "Latent class 1 and 2" rather than "Latent classes"; the
+  `@references` blocks of `classification_diagnostics()`, `absolute_fit()` and
+  `bivariate_residuals()` had been opened inside `@examples`, which swallowed
+  the last example call into the reference text; and the sample-size-adjusted
+  BIC now cites Sclove (1987) for its effective sample size.
+
 * **`fit_lta()` and `fit_rmlca()` now accept two-level indicators that are not
   coded 0/1.** `fit_mixture()` has always recoded them for you; the longitudinal
   models never reached that code and stopped with an error instead, so a

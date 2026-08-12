@@ -123,13 +123,13 @@
 #' set.seed(1)
 #' X <- matrix(rbinom(600, 1, 0.5), ncol = 6)
 #' fit <- fit_mixture(X, n_components = 2, measurement = "binary")
+#' absolute_fit(fit)
+#'
 #' @references
 #' Langeheine, R., Pannekoek, J., & van de Pol, F. (1996). Bootstrapping
 #' goodness-of-fit measures in categorical data analysis. \emph{Sociological
 #' Methods & Research}, \emph{24}(4), 492-516.
 #' \doi{10.1177/0049124196024004004}
-#'
-#' absolute_fit(fit)
 #' @export
 absolute_fit <- function(object) {
   info <- .nested_fit_info(object)
@@ -257,13 +257,13 @@ print.absolute_fit <- function(x, ...) {
 #' set.seed(1)
 #' X <- matrix(rbinom(600, 1, 0.5), ncol = 6)
 #' fit <- fit_mixture(X, n_components = 2, measurement = "binary")
+#' bivariate_residuals(fit)
+#'
 #' @references
 #' Oberski, D. L., van Kollenburg, G. H., & Vermunt, J. K. (2013). A Monte
 #' Carlo evaluation of three methods to detect local dependence in binary
 #' data latent class models. \emph{Advances in Data Analysis and
 #' Classification}, \emph{7}(3), 267-279. \doi{10.1007/s11634-013-0146-2}
-#'
-#' bivariate_residuals(fit)
 #' @export
 bivariate_residuals <- function(object) {
   if (inherits(object, "lta_model")) {

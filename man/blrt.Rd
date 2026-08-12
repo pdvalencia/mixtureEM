@@ -43,13 +43,25 @@ strictly greater than \code{k_small}.}
 \item{measurement}{Measurement specification, as in \code{\link{fit_mixture}}
 (a single type string or a named list for mixed-type indicators).}
 
-\item{n_reps}{Number of bootstrap replications. Default \code{100}.}
+\item{n_reps}{Number of bootstrap replications. Default \code{100},
+following Dziak et al. (2014) and the general advice in Davison and
+Hinkley (1997, p. 143) that the number of replicates be at least 99. It is
+a floor rather than a target: the attainable p-values are
+\eqn{1/(B+1), 2/(B+1), \ldots}, so a decision that turns on the third
+decimal needs \code{n_reps = 999}, which recovers about 0.95 of the power
+of the full test where 99 draws recover about 0.83 (and only about 0.60 at
+\eqn{\alpha = .01}). See \code{vignette("estimation")}.}
 
 \item{n_init_base}{Random restarts when fitting the observed-data models.
-Default \code{20}.}
+Default \code{20}, as elsewhere in the package.}
 
 \item{n_init_boot}{Random restarts per bootstrap replicate. Default
-\code{10}.}
+\code{10}. This is a compute compromise rather than a recommended value:
+the two models are refitted \code{2 * n_reps} times, so the replicate
+search is where the cost of the test lives. Dziak et al. (2014) used 50
+and note that too few restarts under the alternative can make the
+likelihood ratio come out negative. \code{blrt()} counts those draws and
+warns when there are any; if it does, raise this to \code{50}.}
 
 \item{verbose}{Logical; print progress while bootstrapping. Default
 \code{TRUE}.}
@@ -66,8 +78,9 @@ which class counts to compare; everything else comes from the fit.}
 \value{
 An object of class \code{blrt_test}: a list with \code{p_value},
 \code{obs_diff} (the observed \eqn{2\,\Delta\ell} statistic),
-\code{null_dist} (the bootstrap null distribution), and the compared class
-counts. It has \code{print} and \code{plot} methods.
+\code{null_dist} (the bootstrap null distribution), \code{n_negative} (how
+many draws produced a negative statistic), and the compared class counts.
+It has \code{print} and \code{plot} methods.
 }
 \description{
 Tests whether a model with more classes fits significantly better than one
@@ -101,6 +114,14 @@ res$p_value
 
 }
 \references{
+Davison, A. C., & Hinkley, D. V. (1997). \emph{Bootstrap Methods and Their
+Application} (ch. 4). Cambridge University Press.
+
+Dziak, J. J., Lanza, S. T., & Tan, X. (2014). Effect size, statistical power
+and sample size requirements for the bootstrap likelihood ratio test in
+latent class analysis. \emph{Structural Equation Modeling}, \emph{21}(4),
+534-552. \doi{10.1080/10705511.2014.919819}
+
 McLachlan, G. J. (1987). On bootstrapping the likelihood ratio test statistic
 for the number of components in a normal mixture. \emph{Applied Statistics},
 \emph{36}(3), 318-324. \doi{10.2307/2347790}
