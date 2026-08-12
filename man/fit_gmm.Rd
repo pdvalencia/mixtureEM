@@ -37,7 +37,11 @@ one variable may be modelled.}
 otherwise.}
 
 \item{degree}{Degree of the polynomial in time: \code{1} for a linear trajectory
-(intercept and slope), \code{2} for a quadratic, and so on.}
+(intercept and slope), \code{2} for a quadratic, and so on. Each degree needs
+occasions to identify it — with three time points a linear pattern can be
+modelled, with four a quadratic as well, and with five a cubic (Berlin et
+al., 2014, p. 191). Asking for more than the occasions support is an error
+rather than a warning.}
 
 \item{random_effects}{Which growth factors vary within a class:
 \itemize{
@@ -56,7 +60,22 @@ variances free over occasions by default.
 across classes (the default) or estimated \code{"free"}ly in each.
 Equality is the better default in practice as well as by convention: it is
 what BIC typically selects, and a class-specific \eqn{\Psi} is
-where growth mixture models most often produce a negative variance.}
+where growth mixture models most often produce a negative variance.
+
+It is not free, though, and the cost runs the other way. Simulation work
+reported by Lee et al. (2023, p. 651) finds that equality restrictions on
+the growth-factor variances and covariances "could result in the
+over-extraction of latent classes and biased parameter estimates" — the
+within-class heterogeneity the constraint refuses to let differ between
+classes has to go somewhere, and an extra class is where it goes. So
+\code{psi = "equal"} buys stability and bounds the likelihood, and it can buy an
+extra class that is an artefact of the constraint. Where the number of
+classes is itself the finding, fit both and report which was used.
+
+This pulls against the collapsed-variance warning, which fires more often
+under \code{psi = "free"}. That is not a contradiction: they are the two sides
+of one trade-off between a model flexible enough to be realistic and one
+constrained enough to be estimable.}
 
 \item{residual}{Whether the residual variances are \code{"occasion"}-specific (the
 default) or \code{"constant"} across occasions.}
@@ -135,6 +154,27 @@ present \eqn{\alpha_k} is the growth-factor \emph{intercept} rather than its mea
 and the reported trajectory is evaluated at the sample mean of the
 covariates.
 
+Applied papers usually name a growth mixture model by what the classes are
+allowed to differ in, and Ram and Grimm (2009, pp. 569-570) give the three
+levels. \emph{Means} — classes differ in mean change only — is \code{psi = "equal"},
+the default here. \emph{Means + Covs} — classes also differ in how much
+interindividual variation there is within them — is \code{psi = "free"}; the
+residual variances are a separate switch, \code{residual_equal = FALSE}, and
+should not be merged with it. \emph{Means + Covs + Pattern}, where classes differ
+in the shape of change as well, would need class-specific time scores;
+\code{fit_gmm()} builds one design for every class, so that level is not
+available.
+
+Two cautions worth carrying into any such analysis. Classes will be found
+whether or not there are groups to find: a skewed or otherwise non-normal
+outcome can be fitted by extra classes that are not subgroups of anyone (Jung
+& Wickrama, 2008, p. 305; Lee et al., 2023, p. 652, both citing Bauer &
+Curran, 2003). And as Ram and Grimm put it (p. 574), "groups and differences
+among groups will be found; but whether they represent true processes that
+generated the data is unknown" — the remedies they name are replication on
+new data and checking that class membership relates to other measured
+variables in the ways theory predicts.
+
 Contrast \code{\link[=fit_lcga]{fit_lcga()}}, which fixes the growth-factor variances at zero, so
 every case in a class sits on that class's curve up to occasion-level noise.
 LCGA is the more parsimonious model and, in criminology especially, often the
@@ -157,6 +197,25 @@ fit
 \references{
 Muthen, B., & Shedden, K. (1999). Finite mixture modeling with mixture
 outcomes using the EM algorithm. \emph{Biometrics}, \emph{55}(2), 463-469.
+
+Berlin, K. S., Parra, G. R., & Williams, N. A. (2014). An introduction to
+latent variable mixture modeling (part 2): Longitudinal latent class growth
+analysis and growth mixture models. \emph{Journal of Pediatric Psychology},
+\emph{39}(2), 188-203. \doi{10.1093/jpepsy/jst085}
+
+Jung, T., & Wickrama, K. A. S. (2008). An introduction to latent class growth
+analysis and growth mixture modeling. \emph{Social and Personality Psychology
+Compass}, \emph{2}(1), 302-317. \doi{10.1111/j.1751-9004.2007.00054.x}
+
+Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
+growth mixture models (GMM). In \emph{International Encyclopedia of Education}
+(4th ed., Vol. 14, pp. 646-655). Elsevier.
+\doi{10.1016/B978-0-12-818630-5.10076-4}
+
+Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
+identifying differences in longitudinal change among unobserved groups.
+\emph{International Journal of Behavioral Development}, \emph{33}(6), 565-576.
+\doi{10.1177/0165025409343765}
 }
 \seealso{
 \code{\link[=fit_lcga]{fit_lcga()}} for the no-random-effects version and

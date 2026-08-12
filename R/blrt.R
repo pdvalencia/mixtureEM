@@ -202,6 +202,11 @@ generate_synthetic_data <- function(mm, classes, N) {
 #' \code{from_fit =} instead: the data, the time design, the random effects and
 #' the covariance constraints are all read off it, so the null and alternative
 #' models differ from the fit in the number of classes and in nothing else.
+#' That is the condition the test requires: likelihood-ratio tests "compare
+#' models that differ only in the number of classes ... but are not appropriate
+#' for comparing models that allow for different types of between-class
+#' differences" (Ram & Grimm, 2009, p. 571). Passing the fit guarantees it by
+#' construction.
 #'
 #' @param indicators Matrix or data frame of measurement items. (\code{X} is
 #'   accepted as a deprecated alias.) Not needed when \code{from_fit} is given.
@@ -264,6 +269,11 @@ generate_synthetic_data <- function(mm, classes, N) {
 #' McLachlan, G. J. (1987). On bootstrapping the likelihood ratio test statistic
 #' for the number of components in a normal mixture. \emph{Applied Statistics},
 #' \emph{36}(3), 318-324. \doi{10.2307/2347790}
+#'
+#' Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
+#' identifying differences in longitudinal change among unobserved groups.
+#' \emph{International Journal of Behavioral Development}, \emph{33}(6),
+#' 565-576. \doi{10.1177/0165025409343765}
 #'
 #' Nylund, K. L., Asparouhov, T., & Muthen, B. O. (2007). Deciding on the number
 #' of classes in latent class analysis and growth mixture modeling: A Monte

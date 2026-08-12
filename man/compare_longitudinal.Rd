@@ -32,11 +32,15 @@ outcome, in any format accepted by \code{\link[=fit_gmm]{fit_gmm()}}.}
 models, \code{degree}, \code{time_scores}, \code{random_effects}, \code{psi} or \code{residual} for
 the growth models, and \code{n_init} for any of them. Passing the same
 specification to every K is the point: the criteria in the table are only
-comparable across models that differ in nothing else.}
+comparable across models that differ in nothing else. Ram and Grimm (2009,
+p. 571) state the same rule for the tests: they "compare models that differ
+only in the number of classes ... but are not appropriate for comparing
+models that allow for different types of between-class differences".}
 }
 \value{
-A list with \code{fit_table}, the fitted \code{models} (named \code{"K2"}, \code{"K3"},
-...) and \code{best_k}, the class count with the lowest BIC.
+A list with \code{fit_table} (columns \code{Classes}, \code{LL}, \code{Params}, \code{AIC},
+\code{BIC}, \code{SABIC}, \code{Entropy} and \code{Unreplicated}), the fitted \code{models} (named
+\code{"K2"}, \code{"K3"}, ...) and \code{best_k}, the class count with the lowest BIC.
 }
 \description{
 Fits a series of models with increasing numbers of latent classes (RMLCA) or
@@ -60,10 +64,46 @@ class solutions have to beat, and reporting it is asked for by name in the
 GRoLTS reporting checklist (van de Schoot et al., 2017, item 11). It is
 therefore in the default \code{k_range} for \code{"gmm"} and \code{"lcga"} and not for the
 other two, where a one-status LTA is not a model anyone reports.
+
+The table informs the decision; it does not make it. As Ram and Grimm (2009,
+p. 571) put it, "there is not a deterministic set of rules to follow when
+selecting the best model. Rather, model selection is an art — informed by
+theory, past findings, past experience, and a variety of statistical fit
+indices."
+
+\strong{Reading the \code{Entropy} column.} Relative entropy describes how cleanly a
+solution separates its classes. The usual anchors are 0.40, 0.60 and 0.80 for
+low, medium and high separation (Clark & Muthen, 2009, as reported by Lee et
+al., 2023, p. 653), and Ram and Grimm (p. 571) suggest preferring the
+higher-entropy model when choosing among models with similar BIC. Those
+anchors are on the same normalisation this package uses. Entropy is not
+evidence for how many classes there are, though, and there is no threshold it
+has to clear — "there are no set cut-off criteria for deciding whether the
+entropy is reasonably high" (Jung & Wickrama, 2008, p. 312) — so the package
+applies none.
+
+\strong{Reading the \code{Unreplicated} column.} \code{TRUE} means that K's reported maximum
+was found by exactly one random start; refit those with \code{n_init = 100}
+before reporting. The per-model warning is suppressed inside this loop, since
+it would otherwise fire once per K.
 }
 \references{
 van de Schoot, R., Sijbrandij, M., Winter, S. D., Depaoli, S., & Vermunt,
 J. K. (2017). The GRoLTS-checklist: Guidelines for reporting on latent
 trajectory studies. \emph{Structural Equation Modeling}, \emph{24}(3),
 451-467.
+
+Jung, T., & Wickrama, K. A. S. (2008). An introduction to latent class growth
+analysis and growth mixture modeling. \emph{Social and Personality Psychology
+Compass}, \emph{2}(1), 302-317. \doi{10.1111/j.1751-9004.2007.00054.x}
+
+Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
+growth mixture models (GMM). In \emph{International Encyclopedia of
+Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
+\doi{10.1016/B978-0-12-818630-5.10076-4}
+
+Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
+identifying differences in longitudinal change among unobserved groups.
+\emph{International Journal of Behavioral Development}, \emph{33}(6),
+565-576. \doi{10.1177/0165025409343765}
 }
