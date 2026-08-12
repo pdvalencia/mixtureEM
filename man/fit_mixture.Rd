@@ -164,9 +164,19 @@ refinement.
 
 A mixture likelihood usually has several local maxima, so a single start is
 a coin toss rather than an estimate; the fit reports how many of the starts
-reached the solution it kept. If that count is 1, raise \code{n_init} and
-refit — a maximum found once may simply be the best of a small sample of
-the surface. Set \code{random_state} to make the search reproducible.
+reached the solution it kept. If that count is 1, refit with
+\code{n_init = 100} — a maximum found once may simply be the best of a
+small sample of the surface, and if it does not replicate at 100 starts the
+problem is more likely the specification than the search (Hipp & Bauer,
+2006). Set \code{random_state} to make the search reproducible.
+
+The default of 20 is a floor for small, well-separated models rather than a
+guarantee: under a correct specification the maximum is typically found by
+39\\% to 77\\% of the starts, so 20 is enough to see a stable maximum when
+there is one, but local optima multiply with more classes and poorer
+separation. \code{max_iter} defaults to 1000, following the iteration
+budget in Biernacki et al. (2003); when a fit stops at the cap, double it.
+\code{vignette("estimation")} gives the figures behind both numbers.
 
 More starts are not \emph{monotonically} better on a large model. Where each
 EM iteration is expensive the search runs in two stages: a short pass ranks
@@ -312,6 +322,22 @@ fit_mixture(items, n_classes = 3,
 
 }
 \references{
+Biernacki, C., Celeux, G., & Govaert, G. (2003). Choosing starting values for
+the EM algorithm for getting the highest likelihood in multivariate Gaussian
+mixture models. \emph{Computational Statistics & Data Analysis},
+\emph{41}(3-4), 561-575. \doi{10.1016/S0167-9473(02)00163-9}
+(the iteration budget behind \code{max_iter}).
+
+Hipp, J. R., & Bauer, D. J. (2006). Local solutions in the estimation of
+growth mixture models. \emph{Psychological Methods}, \emph{11}(1), 36-53.
+\doi{10.1037/1082-989X.11.1.36} (the replication rates behind
+\code{n_init}).
+
+Shireman, E., Steinley, D., & Brusco, M. J. (2017). Examining the effect of
+initialization strategies on the performance of Gaussian mixture modeling.
+\emph{Behavior Research Methods}, \emph{49}(1), 282-293.
+\doi{10.3758/s13428-015-0697-6}
+
 Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
 Transition Analysis: With Applications in the Social, Behavioral, and Health
 Sciences}. Wiley.

@@ -50,6 +50,17 @@ same numbers. What changed is what the package tells you about them.
   stronger `bayes_constants = list(categorical = ...)` if that parameter needs
   an interpretable standard error.
 
+* **Every default the estimator chose is now traceable to a source.**
+  `vignette("estimation")` gains three sections and a rewritten one: why
+  `n_init = 20` is a floor and what the published replication rates actually
+  say about a count of 1 (including the correction that a 3–10% band puts 1 of
+  20 *inside* it, which is an argument for more starts rather than a verdict);
+  how long EM runs and why the doubling escalation; the bootstrap test, its
+  p-value formula, and what 100 draws can and cannot resolve; and a table of
+  every warning the package raises with the action for each. Where a number
+  cannot be sourced — the `1e-4` EM tolerance, `n_init_boot = 10` — the
+  vignette says so rather than dressing it up.
+
 * **Three small fixes.** A single collapsed pair of latent statuses is now
   reported as "Latent class 1 and 2" rather than "Latent classes"; the
   `@references` blocks of `classification_diagnostics()`, `absolute_fit()` and
