@@ -469,6 +469,7 @@ fit_lta <- function(indicators,
 
   best$prevalences <- .lta_prevalences(best)
   best$boundary    <- .lta_boundary_cells(best)
+  best$smoothing_influence <- .lta_smoothing_influence(best, alpha)
   best$metrics     <- .lta_metrics(best)
   # The multi-start report the mixture models already carry. Two restarts count
   # as the same solution when their log-likelihoods are within 1e-2, the rule
@@ -494,6 +495,12 @@ fit_lta <- function(indicators,
       if (nrow(collapsed) == 1L) "" else "es",
       paste(apply(collapsed, 1, paste, collapse = " and "), collapse = "; ")),
       call. = FALSE)
+
+  # A small origin row, not a bad fit: the prior is doing what it is there to do
+  # and the only question is how much of the estimate is left over for the data.
+  # Classed so compare_longitudinal() can muffle it, as it does the replication
+  # warning - a K-range sweep would raise it once per model and drown the table.
+  .warn_smoothing_influence(best$smoothing_influence, smoothing)
 
   # Continuous indicators are checked here too: LTA runs its own EM driver, so
   # it does not pass through fit_mixture_internal() where this normally happens.
@@ -662,6 +669,100 @@ fit_lta <- function(indicators,
   out <- do.call(rbind, hits)
   if (C == 1L) out$class <- NULL
   out
+}
+
+# How much of each transition row is prior rather than data. With `alpha`
+# pseudo-cases spread over the Ka admissible destinations of a row whose
+# expected count is m, the posterior mean is the shrinkage of Fienberg &
+# Holland (1973, eq. 2.6) with weight alpha/(m + alpha), so the largest amount
+# the prior can move any cell of that row is
+#
+#     pull = [alpha / (m + alpha)] * (1 - 1/Ka)
+#
+# which is exact, not an approximation. It is reported per row and the worst row
+# is what the message names. Rows are the thing to look at rather than the
+# matrix as a whole because the number of classes divides the sample among them
+# - a row's expected count is n * pi_c * P(status k | c) - while the number of
+# occasions does not.
+#
+# The counterpart of .lta_boundary_cells() above: that one reports cells that
+# have collapsed *onto* the boundary, this one reports rows the prior has pulled
+# *away* from it.
+.lta_smoothing_influence <- function(state, alpha) {
+  if (state$n_times < 2L || !isTRUE(alpha > 0)) return(NULL)
+  C <- state$n_classes %||% 1L
+  K <- state$n_statuses
+  # Under `transition_invariance = "full"` the M-step pools the occasions before
+  # it smooths, so one pseudo-case is spread over a row with several occasions'
+  # counts in it. Pooling here too; per occasion the reported pull would be
+  # several times the real one.
+  pooled <- isTRUE(state$tau_homogeneous)
+
+  rows <- list()
+  for (c in seq_len(C)) {
+    Xi      <- if (C > 1L) state$xi_by_class[[c]] else state$xi
+    allowed <- state$tau_allowed_c[[c]]
+    groups  <- if (pooled) list(seq_along(Xi)) else as.list(seq_along(Xi))
+    for (g in groups) {
+      counts <- Reduce(`+`, Xi[g])
+      mask   <- allowed[[g[1]]]
+      for (k in seq_len(K)) {
+        a  <- mask[k, ]
+        Ka <- sum(a)
+        # A row with no admissible destination is not smoothed at all - the
+        # normaliser returns a uniform vector - and there is nothing to report.
+        if (Ka == 0L) next
+        m <- sum(counts[k, a])
+        rows[[length(rows) + 1L]] <- data.frame(
+          class = c, occasion = if (pooled) NA_integer_ else g[1], from = k,
+          n_expected = m, pull = (alpha / (m + alpha)) * (1 - 1 / Ka))
+      }
+    }
+  }
+  if (!length(rows)) return(NULL)
+  out <- do.call(rbind, rows)
+  if (C == 1L) out$class <- NULL
+  out
+}
+
+# The threshold is a reporting-precision choice: above it the prior can move a
+# transition probability by more than five percentage points, which is more than
+# the precision such probabilities are reported to. It is a calibrated rule of
+# thumb rather than a sharp boundary - it was checked against the risk of the
+# prior on sparse rows, where it fires while alpha = 1 costs 8-20% against a
+# smaller prior and goes quiet as that penalty falls to a few percent - so it is
+# never presented as a verdict on the fit.
+.lta_smoothing_tol <- 0.05
+
+# The worst row, as a phrase both the warning and the printer can use.
+.lta_worst_smoothing_row <- function(influence) {
+  if (is.null(influence) || !nrow(influence)) return(NULL)
+  w <- influence[which.max(influence$pull), ]
+  where <- sprintf("transitions out of status %d", w$from)
+  if (!is.na(w$occasion)) where <- sprintf("%s at occasion %d", where, w$occasion)
+  if (!is.null(w$class))  where <- sprintf("%s in class %d", where, w$class)
+  list(pull = w$pull, n_expected = w$n_expected, where = where)
+}
+
+.warn_smoothing_influence <- function(influence, smoothing) {
+  w <- .lta_worst_smoothing_row(influence)
+  if (is.null(w) || w$pull <= .lta_smoothing_tol) return(invisible(NULL))
+
+  msg <- sprintf(paste0(
+    "The transition prior is carrying more than %d%% of some rows: the largest ",
+    "effect is on %s, where %.1f cases are expected and `smoothing = %s` can ",
+    "move a transition probability by up to %.2f. Those transitions rest partly ",
+    "on the prior rather than on the sample, so read them as indicative. ",
+    "Reporting them at face value overstates how much the data say about that ",
+    "row; `smoothing = %s` reduces the pull, and pooling the occasions with ",
+    "`transition_invariance = \"full\"` removes it where the transitions can be ",
+    "assumed constant over time."),
+    round(100 * .lta_smoothing_tol), w$where, w$n_expected,
+    format(smoothing), w$pull, format(smoothing / 2))
+
+  warning(structure(class = c("mixtureEM_smoothing", "warning", "condition"),
+                    list(message = msg, call = NULL)))
+  invisible(NULL)
 }
 
 .lta_metrics <- function(state) {

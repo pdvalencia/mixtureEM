@@ -295,14 +295,19 @@ compare_longitudinal <- function(indicators, k_range = NULL,
     # Every fit here warns on its own about an unreplicated maximum, so a
     # four-K comparison would raise the same warning four times before the
     # table it belongs next to has even been printed. The column below carries
-    # the same information, per K, in the place the user is reading.
+    # the same information, per K, in the place the user is reading. The
+    # transition prior's warning is muffled for the same reason, and it is the
+    # more insistent of the two: adding statuses divides the sample among more
+    # origin rows, so a sweep raises it on every K above the one it starts at.
+    # print() on the chosen model still shows it.
     fit <- withCallingHandlers(
       switch(model,
         lta   = fit_lta(indicators, n_statuses = k, times = times, ...),
         rmlca = fit_rmlca(indicators, n_classes = k, times = times, ...),
         gmm   = fit_gmm(indicators, n_classes = k, times = times, ...),
         lcga  = fit_lcga(indicators, n_classes = k, times = times, ...)),
-      mixtureEM_replication = function(w) invokeRestart("muffleWarning"))
+      mixtureEM_replication = function(w) invokeRestart("muffleWarning"),
+      mixtureEM_smoothing   = function(w) invokeRestart("muffleWarning"))
 
     m <- fit$metrics
     models[[paste0("K", k)]] <- fit
@@ -541,6 +546,13 @@ print.lta_model <- function(x, ...) {
   # found this solution. It sits with the other indented metrics rather than in
   # the header block above, which is left-aligned.
   .print_replication_note(x)
+  # The boundary from the other side. The note below already names the cells the
+  # data have driven to zero; this names the row the prior is holding off it,
+  # and only when the prior is carrying enough of that row to matter.
+  sm <- .lta_worst_smoothing_row(x$smoothing_influence)
+  if (!is.null(sm) && sm$pull > .lta_smoothing_tol)
+    cat(sprintf("  Max prior pull : %.2f on %s (%.1f cases expected)\n",
+                sm$pull, sm$where, sm$n_expected))
   cat("---------------------------------------------------------\n")
   if ((x$n_classes %||% 1L) > 1L) {
     cat("Latent class sizes:\n")

@@ -85,7 +85,12 @@ test_that("1/2-coded indicators fit the same model as their 0/1 recoding", {
 test_that("the binary recode pools the occasions rather than deciding per column", {
   set.seed(22)
   n  <- 200
-  X  <- matrix(rbinom(n * 4, 1, 0.5), n, 4) + 1
+  # Two well-separated statuses of roughly equal size, so the fit has dense
+  # transition rows and nothing else to complain about.
+  s1 <- sample(1:2, n, TRUE)
+  s2 <- ifelse(runif(n) < .75, s1, 3 - s1)
+  mk <- function(s) matrix(rbinom(n * 2, 1, ifelse(s == 1, .9, .1)), n, 2)
+  X  <- cbind(mk(s1), mk(s2)) + 1
   colnames(X) <- paste0("i", rep(1:2, 2), "@T", rep(1:2, each = 2))
   # Item 1 happens to observe only the upper level at the second occasion. A
   # per-column recode would map that 2 to 0, contradicting the first occasion.
@@ -163,4 +168,62 @@ test_that("smoothing does not supply the measurement model's prior", {
             min(vapply(fit_lta(X, n_statuses = 2, times = 2, n_init = 3,
                                random_state = 1, standard_errors = FALSE)$tau,
                        min, numeric(1))))
+})
+
+# ------------------------------------------------------------------------------
+# How much of a transition row the prior is carrying
+# ------------------------------------------------------------------------------
+
+test_that("the reported pull is the Fienberg-Holland weight of the row", {
+  set.seed(41)
+  n  <- 400
+  s1 <- sample(1:2, n, TRUE)
+  s2 <- ifelse(runif(n) < .75, s1, 3 - s1)
+  mk <- function(s) matrix(rbinom(n * 3, 1, ifelse(s == 1, .85, .15)), n, 3)
+  fit <- fit_lta(cbind(mk(s1), mk(s2)), n_statuses = 2, times = 2, n_init = 3,
+                 random_state = 1, standard_errors = FALSE)
+
+  inf <- fit$smoothing_influence
+  expect_equal(nrow(inf), 2L)                       # one row per origin status
+  expect_null(inf$class)                            # dropped for a single chain
+  # pull = [alpha / (m + alpha)] * (1 - 1/Ka), exactly, with alpha = 1 and both
+  # destinations admissible.
+  expect_equal(inf$pull, (1 / (inf$n_expected + 1)) * 0.5, tolerance = 1e-12)
+  # The expected counts are the rows of the transition table the M-step formed.
+  expect_equal(sum(inf$n_expected), sum(fit$xi[[1]]), tolerance = 1e-8)
+
+  # A row this dense is nowhere near the threshold, so the fit stays quiet and
+  # the printed output is unchanged.
+  expect_lt(max(inf$pull), 0.05)
+  expect_false(any(grepl("prior pull", capture.output(print(fit)))))
+})
+
+test_that("a sparse origin row is reported, and pooling the occasions relieves it", {
+  set.seed(43)
+  n  <- 90
+  p  <- rbind(c(.9, .9, .9, .9), c(.5, .1, .9, .5), c(.1, .1, .1, .1))
+  mk <- function(s) matrix(rbinom(n * 4, 1, p[s, ]), n, 4)
+  s  <- lapply(1:3, function(i) sample(1:3, n, TRUE, c(.6, .35, .05)))
+  X  <- do.call(cbind, lapply(s, mk))
+  go <- function(...) fit_lta(X, n_statuses = 3, times = 3, n_init = 5,
+                              random_state = 3, standard_errors = FALSE, ...)
+
+  expect_warning(fit <- go(), "transitions out of status",
+                 class = "mixtureEM_smoothing")
+  expect_true(any(grepl("Max prior pull",
+                        capture.output(suppressWarnings(print(fit))))))
+
+  inf <- fit$smoothing_influence
+  expect_equal(nrow(inf), 3L * 2L)                  # 3 origin statuses x 2 pairs
+  expect_gt(max(inf$pull), 0.05)
+
+  # Pooling the occasions puts three occasions' counts behind one pseudo-case,
+  # which is the remedy the message recommends: the pull falls below the
+  # threshold and the warning goes away.
+  pooled <- suppressWarnings(go(transition_invariance = "full"))
+  expect_true(all(is.na(pooled$smoothing_influence$occasion)))
+  expect_lt(max(pooled$smoothing_influence$pull), max(inf$pull))
+
+  # With no prior there is nothing to report.
+  expect_null(suppressWarnings(go(smoothing = 0))$smoothing_influence)
 })
