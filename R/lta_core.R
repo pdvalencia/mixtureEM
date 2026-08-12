@@ -297,8 +297,20 @@
     # The measurement model is shared by the classes, so the responsibility it
     # sees is the class-mixed status posterior P(S_t = k | y_i), which is what
     # the additivity of the complete-data log-likelihood calls for.
+    #
+    # The measurement model's prior is NOT `smoothing`. `smoothing` is the
+    # Dirichlet mass on the status and transition probabilities, which are counts
+    # over K destinations; the measurement model's is a marginal-preserving prior
+    # on the item-response probabilities, which is a different prior of a
+    # different shape on a different table (Chung, Lanza & Loken 2008 make
+    # exactly this split, sec. 3). Passing `alpha` here won the `%||%` in
+    # m_step.bernoulli() and silently replaced `bayes_constants$categorical`, so
+    # `?fit_lta`'s documented division of labour between the two arguments was
+    # not the one in force, and `smoothing = 0` also stripped the measurement
+    # prior - reintroducing the boundary estimates on ρ that the prior is there
+    # to prevent.
     state$mm <- m_step(state$mm, X, .lta_mixed_gamma(E, Tn, C),
-                       weights = if (all(w == 1)) NULL else w, alpha = alpha)
+                       weights = if (all(w == 1)) NULL else w)
   }
 
   # Final E-step so the stored posteriors match the returned parameters.

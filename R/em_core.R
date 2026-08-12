@@ -56,9 +56,12 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
   resp <- exp(log_resp)
 
   # --- BAYESIAN PRIOR (Class Weights) ---
-  # An explicit `alpha` still wins — fit_lta() passes its `smoothing` argument
-  # down this path — but with none supplied the strength comes from the model's
-  # own `bayes_constants`, which is also where the emission M-steps read theirs.
+  # The strength comes from the model's own `bayes_constants`, which is also
+  # where the emission M-steps read theirs. An explicit `alpha` still overrides
+  # it, but no caller in the package supplies one: fit_lta() used to pass its
+  # `smoothing` argument down this path, which silently replaced the measurement
+  # model's own constant, and it no longer does (R/lta_core.R). The argument is
+  # kept as an override for a caller that needs one.
   K <- model_state$n_components
   alpha <- alpha %||% .bayes_alpha(model_state, "latent")
   prior_obs <- alpha / K

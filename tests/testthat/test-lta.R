@@ -101,3 +101,66 @@ test_that("the binary recode pools the occasions rather than deciding per column
   expect_equal(unname(rec[, 3]), rep(1, n))
   expect_true(all(rec %in% c(0, 1)))
 })
+
+# ------------------------------------------------------------------------------
+# The two priors are separate: `smoothing` for the chain, `bayes_constants` for
+# the measurement model
+# ------------------------------------------------------------------------------
+#
+# Four binary items, the fourth of them constant within status, so unsmoothed ML
+# drives its response probabilities to exactly 0 and 1 and the measurement prior
+# is the only thing holding them off the boundary.
+.lta_prior_fixture <- function() {
+  set.seed(11)
+  n <- 120; J <- 4
+  s1 <- sample(1:2, n, TRUE, c(.6, .4))
+  s2 <- ifelse(runif(n) < .8, s1, 3 - s1)
+  mk <- function(s) {
+    m <- matrix(0, n, J)
+    for (j in 1:J) {
+      p <- ifelse(s == 1, c(.95, .95, .95, 1.0)[j], c(.05, .05, .05, 0.0)[j])
+      m[, j] <- rbinom(n, 1, p)
+    }
+    m
+  }
+  X <- cbind(mk(s1), mk(s2))
+  colnames(X) <- c(paste0("i", 1:J, "_t1"), paste0("i", 1:J, "_t2"))
+  X
+}
+
+.lta_rho <- function(f)
+  sort(as.numeric(unlist(lapply(f$mm$models, function(m) m$parameters$pis))))
+
+test_that("bayes_constants reaches the measurement model", {
+  X  <- .lta_prior_fixture()
+  go <- function(...) fit_lta(X, n_statuses = 2, times = 2, n_init = 3,
+                              random_state = 1, standard_errors = FALSE, ...)
+
+  a <- .lta_rho(go())
+  b <- .lta_rho(go(bayes_constants = list(categorical = 5)))
+
+  # `smoothing` used to be passed into the measurement model's M-step, where it
+  # won the fallback to `bayes_constants$categorical` and made the documented
+  # argument inert: these two were identical to the last digit.
+  expect_false(isTRUE(all.equal(a, b)))
+  expect_lt(max(b), max(a))
+})
+
+test_that("smoothing does not supply the measurement model's prior", {
+  X <- .lta_prior_fixture()
+  f <- fit_lta(X, n_statuses = 2, times = 2, n_init = 3, random_state = 1,
+               smoothing = 0, standard_errors = FALSE)
+  r <- .lta_rho(f)
+
+  # `smoothing = 0` asks for unsmoothed transitions. It used to strip the
+  # measurement prior with them, sending rho to 1 and to 3.6e-10 - the boundary
+  # estimates that make interval estimates for those parameters meaningless.
+  # The default `bayes_constants$categorical` now holds them off it.
+  expect_lt(max(r), 1 - 1e-6)
+  expect_gt(min(r), 1e-4)
+  # The transitions themselves are unsmoothed, which is what was asked for.
+  expect_lt(min(vapply(f$tau, min, numeric(1))),
+            min(vapply(fit_lta(X, n_statuses = 2, times = 2, n_init = 3,
+                               random_state = 1, standard_errors = FALSE)$tau,
+                       min, numeric(1))))
+})

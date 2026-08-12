@@ -133,7 +133,10 @@ each row of the transition matrices, expressed as a number of pseudo-cases
 spread evenly over the possible destinations. Sparse transition tables
 otherwise collapse onto probabilities of exactly zero, which are awkward to
 interpret and to test. The default of \code{1} is negligible at any realistic
-sample size; set it to \code{0} for unsmoothed maximum likelihood.}
+sample size; set it to \code{0} for unsmoothed maximum likelihood. It governs
+the status prevalences, the transition matrices and - with \code{n_classes} > 1 -
+the class weights, and it does \strong{not} govern the measurement model, whose
+prior is \code{bayes_constants}.}
 
 \item{random_state}{Optional seed for reproducible starts.}
 
