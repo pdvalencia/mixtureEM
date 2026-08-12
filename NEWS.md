@@ -83,6 +83,35 @@ same numbers. What changed is what the package tells you about them.
   uniform spread degrades as the number of items grows. No value changed; the
   package already implemented the prior their results favour.
 
+* **`fit_lta()`'s `bayes_constants` now reaches the measurement model.** The two
+  priors this model uses are documented as a division of labour — `smoothing`
+  for the status prevalences and the transition matrices, `bayes_constants` for
+  the measurement model — and the code did not implement it. `smoothing` was
+  passed into the measurement model's M-step as well, where it took precedence,
+  so `bayes_constants = list(categorical = ...)` had no effect at all and
+  `smoothing = 0` quietly removed the measurement prior too, returning the
+  item-response probabilities of exactly 0 and 1 that prior exists to prevent.
+  Fits using the defaults are unchanged to every digit, both arguments being 1.
+
+* **`fit_lta()` now reports how much of each transition row comes from the prior
+  rather than from the data**, and says so when it exceeds five percentage
+  points on any row, naming the row and the size of the effect. An origin status
+  that few cases occupy is a row the one pseudo-case of smoothing carries a
+  visible share of, and the share has an exact form rather than needing to be
+  estimated. It is a reading caution, not a verdict on the fit: those
+  transitions should be reported as indicative. The remedy it points at first is
+  `transition_invariance = "full"`, which puts every occasion's cases behind the
+  one pseudo-case and so adds information rather than removing a prior. The
+  per-row figures are on the fitted object as `$smoothing_influence`.
+
+* **The transition prior's size and shape are now documented and sourced.** Both
+  were choices and neither was written down: the mass is one pseudo-case per
+  origin row rather than per cell, which is the prior Chung, Lanza and Loken
+  (2008) use for this model, and it is spread evenly over the destinations
+  rather than toward their marginal, because a rare origin row shrunk toward the
+  destination marginal would assert that everyone in it moves to the prevalent
+  status (Fienberg & Holland, 1973). No default changed.
+
 * **Three small fixes.** A single collapsed pair of latent statuses is now
   reported as "Latent class 1 and 2" rather than "Latent classes"; the
   `@references` blocks of `classification_diagnostics()`, `absolute_fit()` and

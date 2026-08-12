@@ -113,6 +113,24 @@
 #'   the status prevalences, the transition matrices and - with `n_classes` > 1 -
 #'   the class weights, and it does **not** govern the measurement model, whose
 #'   prior is `bayes_constants`.
+#'
+#'   The mass is one pseudo-case per *origin row*, which is the prior Chung,
+#'   Lanza and Loken (2008) use for this model, and it is spread evenly rather
+#'   than in proportion to how often each destination is occupied: a rare origin
+#'   row shrunk toward the destination marginal would be asserting that everyone
+#'   moves to the prevalent status, which is a confident claim to make about a
+#'   row the sample says little about, whereas an even spread is uninformative.
+#'
+#'   The cost falls on exactly those rows. On a row with few expected cases the
+#'   prior carries a visible share of the estimate - at most
+#'   \eqn{[\alpha / (m + \alpha)](1 - 1/K_a)} of it, for a row with \eqn{m}
+#'   expected cases and \eqn{K_a} reachable destinations - and the fit says so
+#'   when that share exceeds five percentage points, naming the worst row. The
+#'   remedy worth reaching for first is `transition_invariance = "full"`, which
+#'   puts every occasion's cases behind one pseudo-case; `smoothing = 0.5`
+#'   simply halves the pull. `smoothing = 0` is not a good answer, since it
+#'   removes the protection against transition probabilities of exactly zero
+#'   that the prior is there to give.
 #' @param bayes_constants Optional named list of prior strengths for the
 #'   *measurement* model (`categorical`, `poisson`, `variances`); see
 #'   [`fit_mixture()`]. The status and transition probabilities are governed by
@@ -167,6 +185,15 @@
 #' transition mixture model using the three-step specification.
 #' \emph{Structural Equation Modeling}, \emph{21}(3), 439-454.
 #' \doi{10.1080/10705511.2014.915375}
+#'
+#' Chung, H., Lanza, S. T., & Loken, E. (2008). Latent transition analysis:
+#' inference and estimation. \emph{Statistics in Medicine}, \emph{27}(11),
+#' 1834-1854. \doi{10.1002/sim.3130}
+#'
+#' Fienberg, S. E., & Holland, P. W. (1973). Simultaneous estimation of
+#' multinomial cell probabilities. \emph{Journal of the American Statistical
+#' Association}, \emph{68}(343), 683-691.
+#' \doi{10.1080/01621459.1973.10481405}
 #'
 #' @seealso [`transition_matrix()`], [`status_prevalences()`],
 #'   [`lr_test()`], [`lta_g2()`], [`fit_rmlca()`].

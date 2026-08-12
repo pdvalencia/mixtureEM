@@ -120,9 +120,35 @@
 # ------------------------------------------------------------------------------
 
 # Normalise a vector of expected counts into probabilities with a Dirichlet
-# prior of total mass `alpha` spread over the admissible cells, then re-impose
-# any structural zeros. LTA on sparse tables reaches boundary solutions
-# routinely; this is the standard smoothing remedy (Collins & Lanza, sec. 6.11).
+# prior of total mass `alpha` spread evenly over the admissible cells, then
+# re-impose any structural zeros. LTA on sparse tables reaches boundary
+# solutions routinely; this is the standard smoothing remedy (Collins & Lanza,
+# sec. 6.11).
+#
+# Two choices here are deliberate and both are sourced.
+#
+# The mass is one pseudo-case per row, not per cell. That is Chung, Lanza &
+# Loken's (2008) prior for LTA exactly - a Dirichlet with constant
+# hyper-parameter 1/L on the joint class-membership probabilities, which they
+# describe as "adding just one observation to each class at time 1" - and under
+# it the boundary solutions ML produces at n = 100 disappear with lower RMSE.
+# The add-one-per-cell family (Jeffreys, Laplace, Goodman's add-2) is markedly
+# worse on sparse transition structures, which is Fienberg & Holland's (1973)
+# own finding about adding 2 to every cell of a large sparse table.
+#
+# The spread is even, not proportional to the destinations' marginal. That is
+# the opposite of the measurement model's prior (m_step.bernoulli(), which
+# centres on the item's observed marginal) and the difference is not an
+# inconsistency. Fienberg & Holland (1973, sec. 6) shrink a cross-classified
+# table toward its independence fit, and their risk contours show that target
+# winning near an odds ratio of 1 and losing ground as the table departs from
+# independence. A transition matrix departs from independence about as far as a
+# table can: the destination marginal is dominated by the prevalent status, so
+# shrinking a rare origin row toward it asserts that everyone moves there. Even
+# is uninformative; marginal would be confidently wrong. The dilution argument
+# that makes the marginal form right for the item-response probabilities does
+# not apply either - a transition row has K cells however many items, occasions
+# or cases the model has.
 .lta_normalise <- function(counts, alpha, allowed = NULL) {
   if (is.null(allowed)) allowed <- rep(TRUE, length(counts))
   if (!any(allowed)) return(rep(1 / length(counts), length(counts)))
