@@ -96,6 +96,13 @@ test_that("an unobserved occasion drops out of the likelihood", {
   expect_equal(full[1:20, ], drop, tolerance = 1e-12)
 })
 
+# Four occasions with a marginal variance of about 2 each: enough spread that
+# the ratio test has something to be a ratio of, and no class structure, since
+# these tests plant parameters rather than estimate them.
+.sim_boundary_data <- function(n = 400, Tn = 4) {
+  outer(rnorm(n, 0, 1), rep(1, Tn)) + matrix(rnorm(n * Tn, 0, 1), n, Tn)
+}
+
 test_that("a solution on the boundary is reported rather than passed off", {
   L  <- .lcga_design(0:3, 1)
   mm <- structured_normal_model(2, L, psi = "free", residual = "occasion",
@@ -104,17 +111,65 @@ test_that("a solution on the boundary is reported rather than passed off", {
   mm$parameters$psi   <- list(matrix(c(1, 0.1, 0.1, 0.3), 2, 2),
                               matrix(c(1, 0.1, 0.1, 0.3), 2, 2))
   mm$parameters$theta <- rbind(c(0.5, 0.5, 0.5, 0.5), c(0.5, 0.5, 0.5, 0.5))
-  expect_length(.gmm_boundary(mm), 0L)
+
+  # Data whose occasions vary by about 2, so every parameter above is a healthy
+  # fraction of the spread it is compared with.
+  set.seed(11)
+  X <- .sim_boundary_data()
+  expect_length(.gmm_boundary(mm, X), 0L)
 
   floored <- mm
   floored$parameters$theta[2, 3] <- .sn_theta_floor
-  expect_match(.gmm_boundary(floored), "residual variance at zero")
-  expect_match(.gmm_boundary(floored), "class 2, occasion 3")
+  expect_match(.gmm_boundary(floored, X), "residual variance",  all = FALSE)
+  expect_match(.gmm_boundary(floored, X), "class 2 at occasion 3", all = FALSE)
 
   degenerate <- mm
   degenerate$parameters$psi[[1]] <- matrix(0, 2, 2)
-  expect_match(.gmm_boundary(degenerate), "singular in class 1")
-  expect_match(.gmm_boundary(degenerate), "fit_lcga")
+  expect_match(.gmm_boundary(degenerate, X), "growth factors in class 1",
+               all = FALSE)
+  expect_match(.gmm_boundary(degenerate, X), "fit_lcga", all = FALSE)
+})
+
+test_that("a collapse is caught relative to the data, not only at the floor", {
+  # The failure this check exists for does not reach the M-step's floor. A
+  # residual variance three orders of magnitude below the occasion's observed
+  # variance, or a class with no random-effect variation left, is already a
+  # spurious optimum -- and it wins on BIC -- while every parameter is still
+  # comfortably above 1e-6 and every eigenvalue above 1e-8.
+  set.seed(12)
+  X  <- .sim_boundary_data()
+  s2 <- apply(X, 2, stats::var)
+
+  L  <- .lcga_design(0:3, 1)
+  mm <- structured_normal_model(2, L, psi = "free", residual = "occasion",
+                                residual_equal = FALSE)
+  mm$parameters$alpha <- rbind(c(1, 0.5), c(3, 0.1))
+  mm$parameters$psi   <- list(matrix(c(1, 0.1, 0.1, 0.3), 2, 2),
+                              matrix(c(1, 0.1, 0.1, 0.3), 2, 2))
+  mm$parameters$theta <- rbind(rep(0.5, 4), rep(0.5, 4))
+
+  collapsed <- mm
+  collapsed$parameters$theta[1, 4] <- s2[4] * 8e-4
+  expect_gt(collapsed$parameters$theta[1, 4], .sn_theta_floor * 10)
+  flag <- .gmm_boundary(collapsed, X)
+  expect_length(flag, 1L)
+  expect_match(flag, "class 1 at occasion 4")
+  expect_match(flag, "0.08%")
+
+  # The whole of Psi, not one entry of it. A slope variance at zero under a
+  # healthy intercept variance is the random_effects = "intercept" model and
+  # must not be flagged; the whole of a class's Psi going to zero must be.
+  slope_only <- mm
+  slope_only$parameters$psi[[1]] <- matrix(c(1, 0, 0, 1e-5), 2, 2)
+  expect_length(.gmm_boundary(slope_only, X), 0L)
+
+  tiny <- mm
+  tiny$parameters$psi[[2]] <- matrix(c(1e-4, 0, 0, 1e-5), 2, 2)
+  expect_gt(min(eigen(tiny$parameters$psi[[2]])$values), 1e-7)
+  expect_match(.gmm_boundary(tiny, X), "growth factors in class 2")
+
+  # Without the data the floor tests still run, and only those.
+  expect_length(.gmm_boundary(collapsed, NULL), 0L)
 })
 
 test_that("fitting random effects to data that have none warns and collapses", {
@@ -132,9 +187,12 @@ test_that("fitting random effects to data that have none warns and collapses", {
 
   expect_warning(
     fit <- fit_gmm(Y, times = 4, n_classes = 2, n_init = 5, random_state = 3),
-    "boundary of the parameter space")
-  expect_match(fit$growth$boundary, "singular in class")
+    "A variance has collapsed towards zero")
+  expect_match(fit$growth$boundary, "no within-class variation left")
   expect_lt(max(diag(fit$growth$psi[[1]])), 0.05)
+
+  # And it is still there on a later print(), not only as a transient warning.
+  expect_output(print(fit), "WARNING - collapsed variance")
 })
 
 # ------------------------------------------------------------------------------
@@ -344,4 +402,110 @@ test_that("predictors of class membership ride the existing machinery", {
   expect_equal(fit$metrics$n_params, 13L)
   expect_true(all(is.finite(fit$sm$parameters$beta)))
   expect_equal(unname(fit$sm$parameters$beta[2, ]), c(0, 0))
+})
+
+# ------------------------------------------------------------------------------
+# Reporting: the parameters as a table, class enumeration, the BLRT
+# ------------------------------------------------------------------------------
+
+test_that("measurement_summary() returns the growth parameters as a table", {
+  set.seed(141)
+  Y <- .sim_gmm(n = 400)
+  fit <- fit_gmm(Y, times = 4, n_classes = 2, n_init = 5, random_state = 1)
+
+  out <- capture.output(tab <- measurement_summary(fit))
+  expect_s3_class(tab, "data.frame")
+  expect_named(tab, c("block", "parameter", "item", "category", "class",
+                      "estimate"))
+  expect_setequal(unique(tab$parameter),
+                  c("growth_mean", "growth_variance", "growth_covariance",
+                    "residual_variance", "fitted"))
+
+  # The table is the printed output, not a second calculation of it. as.vector()
+  # of a K x p matrix walks class fastest within parameter, which is the order
+  # the rows are built in and the order measurement_summary.default() uses.
+  gm <- tab[tab$parameter == "growth_mean", ]
+  expect_equal(gm$estimate, as.vector(fit$growth$means))
+  expect_setequal(gm$item, fit$growth$factor_names)
+
+  # A parameter held equal across classes is repeated, not dropped: one row per
+  # class is what makes the table joinable to anything else per class.
+  gv <- tab[tab$parameter == "growth_variance", ]
+  expect_equal(nrow(gv), 2L * length(fit$growth$random_names))
+  expect_equal(gv$estimate[gv$class == 1], gv$estimate[gv$class == 2])
+  expect_match(paste(out, collapse = "\n"), "held equal across classes")
+
+  # And an LCGA gets the same treatment through the same method.
+  l <- fit_lcga(Y, times = 4, n_classes = 2, family = "gaussian", n_init = 5,
+                random_state = 1)
+  ltab <- capture.output(lt <- measurement_summary(l))
+  expect_setequal(unique(lt$parameter),
+                  c("growth_mean", "residual_variance", "fitted"))
+  expect_equal(lt$estimate[lt$parameter == "growth_mean"],
+               as.vector(l$growth$coefficients))
+})
+
+test_that("compare_longitudinal() enumerates growth classes from one class up", {
+  set.seed(143)
+  Y <- .sim_gmm(n = 300)
+
+  res <- suppressMessages(
+    compare_longitudinal(Y, model = "gmm", times = 4, k_range = 1:2,
+                         n_init = 3, random_state = 1, verbose = FALSE))
+
+  expect_equal(res$fit_table$Classes, 1:2)
+  expect_named(res$models, c("K1", "K2"))
+  expect_s3_class(res$models$K2, "gmm")
+  # The one-class model is the latent growth curve model, and it has no
+  # classification, so its entropy cell is empty rather than a misleading 1.
+  expect_true(is.na(res$fit_table$Entropy[1]))
+  expect_lt(res$fit_table$BIC[2], res$fit_table$BIC[1])
+
+  # The default range starts at one class for a growth model and at two for the
+  # others, which is the only place the two differ.
+  expect_equal(formals(compare_longitudinal)$k_range, NULL)
+})
+
+test_that("blrt() reads a growth specification off the fitted model", {
+  set.seed(147)
+  Y <- .sim_gmm(n = 200)
+  fit <- fit_gmm(Y, times = 4, n_classes = 2, psi = "free",
+                 residual = "constant", random_effects = "intercept",
+                 n_init = 3, random_state = 1)
+
+  spec <- .blrt_growth_spec(fit)
+  expect_equal(spec$measurement, "structured_normal")
+  expect_equal(spec$indicators, fit$data, ignore_attr = TRUE)
+  expect_equal(spec$args$design, fit$growth$design)
+  expect_equal(spec$args$psi, "free")
+  expect_equal(spec$args$residual, "constant")
+  expect_equal(spec$args$random_effects, "intercept")
+
+  # An LCGA carries a family instead of a covariance structure.
+  l <- fit_lcga(Y, times = 4, n_classes = 2, family = "gaussian", n_init = 3,
+                random_state = 1)
+  lspec <- .blrt_growth_spec(l)
+  expect_equal(lspec$measurement, "lcga")
+  expect_equal(lspec$args$family, "gaussian")
+
+  # Anything else is told where its specification does belong.
+  X <- matrix(rbinom(200, 1, 0.5), 50, 4)
+  flat <- fit_mixture(X, n_classes = 2, measurement = "binary", n_init = 2)
+  expect_error(.blrt_growth_spec(flat), "fit_gmm() or fit_lcga()", fixed = TRUE)
+})
+
+test_that("the BLRT runs end to end on a growth model", {
+  skip_on_cran()
+  set.seed(149)
+  Y <- .sim_gmm(n = 200)
+  fit <- fit_gmm(Y, times = 4, n_classes = 1, n_init = 3, random_state = 1)
+
+  res <- suppressMessages(suppressWarnings(
+    blrt(k_small = 1, k_large = 2, from_fit = fit, n_reps = 3,
+         n_init_base = 3, n_init_boot = 2, verbose = FALSE)))
+
+  expect_s3_class(res, "blrt_test")
+  expect_length(res$null_dist, 3L)
+  expect_gt(res$obs_diff, 0)
+  expect_true(is.finite(res$p_value))
 })

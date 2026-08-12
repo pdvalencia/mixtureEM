@@ -135,6 +135,48 @@ generate_synthetic_data <- function(mm, classes, N) {
   }
 }
 
+# The descriptor and engine arguments that reproduce a fitted growth model at a
+# different number of classes.
+#
+# Everything here is already on the fitted object; the only thing missing was a
+# door. Building it by hand meant calling .lcga_design(), which is internal, and
+# knowing which of the emission's fields are engine arguments -- so in practice
+# the BLRT was unreachable for the models whose class enumeration is most often
+# the research question.
+#
+# The covariates on the growth factors come across too. They are exogenous and
+# are not resampled (see generate_synthetic_data()), so a replicate has one case
+# per original case, which is what the BLRT does anyway.
+.blrt_growth_spec <- function(fit) {
+  if (!inherits(fit, c("gmm", "lcga")))
+    stop(sprintf(
+      paste0("`from_fit` takes a model fitted by fit_gmm() or fit_lcga(); ",
+             "this is a %s. For every other model the specification is the ",
+             "`measurement` argument, which blrt() already takes."),
+      paste(class(fit), collapse = "/")), call. = FALSE)
+
+  g <- fit$growth
+  if (is.null(fit$data))
+    stop("`from_fit` needs the fitted model's data, which this object does ",
+         "not carry.", call. = FALSE)
+
+  args <- if (inherits(fit, "lcga"))
+    list(design = g$design, family = g$family)
+  else
+    list(design                  = g$design,
+         random_effects          = g$random_effects,
+         psi                     = if (isTRUE(g$psi_equal)) "equal" else "free",
+         residual                = if (isTRUE(g$residual_constant)) "constant"
+                                   else "occasion",
+         residual_equal          = isTRUE(g$residual_equal),
+         growth_covariates       = fit$mm$xmat,
+         growth_covariates_equal = isTRUE(g$covariate_equal))
+
+  list(indicators  = fit$data,
+       measurement = if (inherits(fit, "lcga")) "lcga" else "structured_normal",
+       args        = args)
+}
+
 # ------------------------------------------------------------------------------
 # MAIN BLRT FUNCTION
 # ------------------------------------------------------------------------------
@@ -154,8 +196,19 @@ generate_synthetic_data <- function(mm, classes, N) {
 #' model to build the reference distribution. \code{blrt()} is the preferred
 #' name; \code{calc_blrt()} is retained for backward compatibility.
 #'
+#' A growth model is specified by a design matrix in time and a covariance
+#' structure rather than by a measurement string, which is more than a
+#' \code{measurement =} argument can carry. Pass the fitted model itself with
+#' \code{from_fit =} instead: the data, the time design, the random effects and
+#' the covariance constraints are all read off it, so the null and alternative
+#' models differ from the fit in the number of classes and in nothing else.
+#'
 #' @param indicators Matrix or data frame of measurement items. (\code{X} is
-#'   accepted as a deprecated alias.)
+#'   accepted as a deprecated alias.) Not needed when \code{from_fit} is given.
+#' @param from_fit A model fitted by \code{\link{fit_gmm}} or
+#'   \code{\link{fit_lcga}}, whose data and specification are used for both
+#'   models and every replicate. \code{k_small} and \code{k_large} still say
+#'   which class counts to compare; everything else comes from the fit.
 #' @param k_small Number of classes in the smaller (null) model.
 #' @param k_large Number of classes in the larger (alternative) model. Must be
 #'   strictly greater than \code{k_small}.
@@ -199,14 +252,29 @@ generate_synthetic_data <- function(mm, classes, N) {
 #' @export
 blrt <- function(indicators, k_small, k_large, measurement = "binary",
                  n_reps = 100, n_init_base = 20, n_init_boot = 10,
-                 verbose = TRUE, ..., X = NULL) {
+                 verbose = TRUE, ..., from_fit = NULL, X = NULL) {
 
-  if (!is.null(X) && missing(indicators)) indicators <- X
+  supplied <- !missing(indicators)
+  if (!is.null(X) && !supplied) {
+    indicators <- X
+    supplied   <- TRUE
+  }
 
   if (k_small >= k_large)
     stop(sprintf(
       "k_large (%d) must be strictly greater than k_small (%d) for the BLRT.",
       k_large, k_small), call. = FALSE)
+
+  # A growth model's specification arrives as an object rather than a string.
+  # The engine arguments are prepended to `...` rather than appended so that
+  # anything the caller passes explicitly still wins.
+  extra <- list(...)
+  if (!is.null(from_fit)) {
+    spec        <- .blrt_growth_spec(from_fit)
+    if (!supplied) indicators <- spec$indicators
+    measurement <- spec$measurement
+    extra       <- utils::modifyList(spec$args, extra)
+  }
 
   # Resolve single-type or mixed-type measurement once, so the observed fits and
   # every bootstrap replicate share the same indicators and descriptor.
@@ -214,16 +282,19 @@ blrt <- function(indicators, k_small, k_large, measurement = "binary",
   Xd          <- mm$indicators
   measurement <- mm$descriptor
 
+  # One place that calls the engine, so the observed fits and the replicates
+  # cannot drift apart in what they were given.
+  fit_engine <- function(data, k, ...)
+    do.call(fit_mixture_internal,
+            c(list(X = data, n_components = k, measurement = measurement),
+              list(...), extra))
+
   if (verbose)
     message(sprintf("BLRT: comparing %d vs %d classes with %d bootstrap draws...",
                     k_small, k_large, n_reps))
 
-  null_model <- fit_mixture_internal(Xd, n_components = k_small,
-                                     measurement = measurement,
-                                     n_init = n_init_base, ...)
-  alt_model  <- fit_mixture_internal(Xd, n_components = k_large,
-                                     measurement = measurement,
-                                     n_init = n_init_base, ...)
+  null_model <- fit_engine(Xd, k_small, n_init = n_init_base)
+  alt_model  <- fit_engine(Xd, k_large, n_init = n_init_base)
 
   obs_diff  <- 2 * (alt_model$metrics$ll - null_model$metrics$ll)
   null_dist <- numeric(n_reps)
@@ -236,12 +307,10 @@ blrt <- function(indicators, k_small, k_large, measurement = "binary",
 
     # refine = FALSE: replicates only need the likelihood ratio, not polished
     # estimates, which makes each draw far cheaper without affecting the p-value.
-    m_null_gen <- fit_mixture_internal(X_gen, n_components = k_small,
-                                       measurement = measurement,
-                                       n_init = n_init_boot, refine = FALSE, ...)
-    m_alt_gen  <- fit_mixture_internal(X_gen, n_components = k_large,
-                                       measurement = measurement,
-                                       n_init = n_init_boot, refine = FALSE, ...)
+    m_null_gen <- fit_engine(X_gen, k_small, n_init = n_init_boot,
+                             refine = FALSE)
+    m_alt_gen  <- fit_engine(X_gen, k_large, n_init = n_init_boot,
+                             refine = FALSE)
 
     null_dist[i] <- 2 * (m_alt_gen$metrics$ll - m_null_gen$metrics$ll)
 

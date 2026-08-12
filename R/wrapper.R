@@ -184,6 +184,13 @@ sort_model_classes <- function(model_state) {
 #' models. Results are broken down by latent class. Handles both flat and
 #' nested (mixed) measurement models.
 #'
+#' For a growth model — \code{\link{fit_gmm}} or \code{\link{fit_lcga}} — the
+#' measurement parameters are the growth-factor means, their variances and
+#' covariances, the residual variances and the fitted trajectory, and those are
+#' what the table holds. A parameter held equal across classes is repeated once
+#' per class rather than reported once, so the table can be joined to anything
+#' else indexed by class; the constraint is stated in the printed heading.
+#'
 #' @param object A fitted \code{mixture_model} object returned by
 #'   \code{\link{fit_mixture}}.
 #' @param ... Passed to methods.
@@ -192,9 +199,12 @@ sort_model_classes <- function(model_state) {
 #'   response category (polytomous items only, \code{NA} otherwise), and
 #'   class: columns \code{block} (sub-model name for mixed measurement
 #'   models, \code{NA} otherwise), \code{parameter} (\code{"probability"},
-#'   \code{"mean"}, or \code{"rate"}), \code{item}, \code{category},
-#'   \code{class}, and \code{estimate}. The same numbers are printed as
-#'   formatted tables.
+#'   \code{"mean"}, or \code{"rate"}; for a growth model
+#'   \code{"growth_mean"}, \code{"growth_variance"},
+#'   \code{"growth_covariance"}, \code{"growth_regression"},
+#'   \code{"residual_variance"} or \code{"fitted"}), \code{item},
+#'   \code{category}, \code{class}, and \code{estimate}. The same numbers are
+#'   printed as formatted tables.
 #'
 #' @examples
 #' set.seed(1)
