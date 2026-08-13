@@ -12,6 +12,7 @@ add_outcome(
   slopes = c("pooled", "class_specific"),
   correction = c("auto", "BCH", "ML", "none"),
   se = c("corrected", "robust", "hessian"),
+  assignment = c("proportional", "modal"),
   max_iter = 1000,
   ...
 )
@@ -38,6 +39,16 @@ for categorical outcomes; or set \code{"BCH"}, \code{"ML"}, \code{"none"} direct
 
 \item{se}{Standard-error estimator passed on to the third step:
 \code{"corrected"} (default), \code{"robust"}, or \code{"hessian"}.}
+
+\item{assignment}{How step 1's posteriors are turned into the assigned-class
+variable whose classification error the correction inverts.
+\code{"proportional"} (default) gives every case a weight in every class equal
+to its posterior probability; \code{"modal"} assigns each case to its most
+likely class outright. The default follows Bakk, Tekle and Vermunt (2013),
+who compared the two rules across 54 simulation conditions and found
+proportional at least as accurate everywhere and clearly better when the
+classes are poorly separated. Use \code{"modal"} when reproducing an analysis
+whose classes were assigned that way.}
 
 \item{max_iter}{Maximum iterations for the step-3 estimation.}
 
@@ -66,6 +77,15 @@ summary(fit_out)
 Bakk, Z., & Vermunt, J. K. (2016). Robustness of stepwise latent class
 modeling with continuous distal outcomes. \emph{Structural Equation
 Modeling}, \emph{23}(1), 20–31. \doi{10.1080/10705511.2014.955104}
+
+Bolck, A., Croon, M., & Hagenaars, J. (2004). Estimating latent structure
+models with categorical variables: One-step versus three-step estimators.
+\emph{Political Analysis}, \emph{12}(1), 3–27. \doi{10.1093/pan/mph001}
+
+Bakk, Z., Tekle, F. B., & Vermunt, J. K. (2013). Estimating the association
+between latent class membership and external variables using bias-adjusted
+three-step approaches. \emph{Sociological Methodology}, \emph{43}(1),
+272–311. \doi{10.1177/0081175012470644}
 }
 \seealso{
 \code{\link[=add_covariates]{add_covariates()}} for predictors of class membership;

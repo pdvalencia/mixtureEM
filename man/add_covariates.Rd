@@ -9,6 +9,7 @@ add_covariates(
   predictors,
   correction = c("ML", "BCH", "none"),
   se = c("corrected", "robust", "hessian"),
+  assignment = c("proportional", "modal"),
   max_iter = 1000,
   ...
 )
@@ -28,6 +29,16 @@ Vermunt, 2010), \code{"BCH"}, or \code{"none"}.}
 \item{se}{Standard-error estimator passed on to the third step:
 \code{"corrected"} (default), \code{"robust"}, or \code{"hessian"}.}
 
+\item{assignment}{How step 1's posteriors are turned into the assigned-class
+variable whose classification error the correction inverts.
+\code{"proportional"} (default) gives every case a weight in every class equal
+to its posterior probability; \code{"modal"} assigns each case to its most
+likely class outright. The default follows Bakk, Tekle and Vermunt (2013),
+who compared the two rules across 54 simulation conditions and found
+proportional at least as accurate everywhere and clearly better when the
+classes are poorly separated. Use \code{"modal"} when reproducing an analysis
+whose classes were assigned that way.}
+
 \item{max_iter}{Maximum iterations for the step-3 estimation.}
 
 \item{...}{Currently unused.}
@@ -43,6 +54,18 @@ to class membership with the bias-adjusted three-step approach (Vermunt,
 2010). The measurement model is reused exactly as fitted — no re-estimation,
 and no risk of landing on a different solution — so this is both faster and
 conceptually cleaner than re-specifying the model with \code{predictors}.
+}
+\details{
+A case missing a predictor is retained, not deleted: the missing value is
+completed under the class-invariant Gaussian marginal of the predictors
+(Sterba, 2014), so the analysis keeps its full N. An analysis that listwise
+deletes them is fitted to fewer cases; check the reported N before comparing
+coefficients with a published set.
+
+\code{se = "corrected"} (the default) is the Bakk, Oberski and Vermunt (2014)
+estimator, which propagates the uncertainty in the step-1 estimates as well as
+the step-3 sampling variability. \code{se = "robust"} reports only the latter; use
+it when reproducing an analysis whose standard errors were computed that way.
 }
 \examples{
 set.seed(1)
@@ -61,6 +84,15 @@ three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450–469.
 Bakk, Z., Oberski, D. L., & Vermunt, J. K. (2014). Relating latent class
 assignments to external variables: Standard errors for correct inference.
 \emph{Political Analysis}, \emph{22}(4), 520–540. \doi{10.1093/pan/mpu003}
+
+Bolck, A., Croon, M., & Hagenaars, J. (2004). Estimating latent structure
+models with categorical variables: One-step versus three-step estimators.
+\emph{Political Analysis}, \emph{12}(1), 3–27. \doi{10.1093/pan/mph001}
+
+Bakk, Z., Tekle, F. B., & Vermunt, J. K. (2013). Estimating the association
+between latent class membership and external variables using bias-adjusted
+three-step approaches. \emph{Sociological Methodology}, \emph{43}(1),
+272–311. \doi{10.1177/0081175012470644}
 }
 \seealso{
 \code{\link[=add_outcome]{add_outcome()}} for distal outcomes; \code{\link[=fit_mixture]{fit_mixture()}} to fit the

@@ -12,6 +12,7 @@ fit_mixture_internal(
   structural = NULL,
   n_steps = 1,
   correction = "none",
+  assignment = c("proportional", "modal"),
   n_init = 20,
   max_iter = 1000,
   random_state = NULL,

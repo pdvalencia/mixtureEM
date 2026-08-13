@@ -20,6 +20,7 @@ fit_mixture(
   variances_equal = FALSE,
   n_steps = 1,
   correction = "none",
+  assignment = c("proportional", "modal"),
   n_init = 20,
   max_iter = 1000,
   random_state = NULL,
@@ -156,6 +157,12 @@ or \code{outcome} is supplied and left unset, otherwise 1.}
 \code{"ML"}, or \code{"BCH"}. When left unset for a 3-step structural
 model, a recommended default is chosen (ML for predictors and categorical
 outcomes, BCH for continuous outcomes).}
+
+\item{assignment}{How step 1's posteriors are turned into the assigned-class
+variable whose classification error the correction inverts:
+\code{"proportional"} (default; each case carries its posterior probability
+in every class) or \code{"modal"} (each case is assigned to its most likely
+class outright). See \code{\link{add_covariates}}.}
 
 \item{n_init, max_iter, random_state, order_by_size, refine}{Estimation
 controls: number of random starts (default 20), maximum EM iterations, RNG

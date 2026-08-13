@@ -83,8 +83,9 @@ entropy is reasonably high" (Jung & Wickrama, 2008, p. 312) — so the package
 applies none.
 
 \strong{Reading the \code{Unreplicated} column.} \code{TRUE} means that K's reported maximum
-was found by exactly one random start; refit those with \code{n_init = 100}
-before reporting. The per-model warning is suppressed inside this loop, since
+was found by exactly one random start; refit those with more starts
+(\code{n_init = 100} is the usual next step) before reporting. The per-model
+warning is suppressed inside this loop, since
 it would otherwise fire once per K.
 }
 \references{

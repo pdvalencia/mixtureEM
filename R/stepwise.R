@@ -54,7 +54,8 @@
 # joint posteriors) change. Callers are responsible for having run fit_em()
 # with Y = NULL first so $log_resp holds measurement-only posteriors.
 .apply_structural_steps <- function(model_state, X, Y, n_steps, correction,
-                                    max_iter, se) {
+                                    max_iter, se,
+                                    assignment = "proportional") {
   if (is.null(Y) || is.null(model_state$sm)) return(model_state)
 
   if (n_steps == 2) {
@@ -69,9 +70,10 @@
 
   } else if (n_steps == 3) {
     if (correction == "ML") {
-      model_state <- fit_ml(model_state, X, Y, max_iter = max_iter, se = se)
+      model_state <- fit_ml(model_state, X, Y, max_iter = max_iter, se = se,
+                            assignment = assignment)
     } else if (correction == "BCH") {
-      model_state <- fit_bch(model_state, X, Y)
+      model_state <- fit_bch(model_state, X, Y, assignment = assignment)
     } else {
       # correction = "none": plain 2-step update on the structural model.
       # The measurement model is already frozen at this point; the SM is fit on
@@ -193,6 +195,38 @@
   model_state
 }
 
+# The block of fit indices under the header, shared by print.mixture_model()
+# and print.lta_model() so the two cannot show different sets.
+#
+# The six are exactly the columns of compare_mixtures()'s fit_table. That is the
+# point of the choice: a user who prints one model and a user who compares a
+# range must never see two different sets of numbers for the same fit. Nothing
+# else belongs here.
+#
+# `suffix` labels which set of metrics `m` is (a three-step fit has two).
+# `flag_bic` marks the BIC of a fit whose variances collapsed, where the number
+# is inflated by the spike and is not comparable with a clean fit's.
+.print_fit_indices <- function(m, suffix = "", flag_bic = FALSE,
+                               entropy_note = "") {
+  if (is.null(m)) return(invisible(NULL))
+  labs <- paste0(c("Log-Likelihood", "Parameters", "AIC", "BIC", "SABIC",
+                   "Rel. Entropy"), suffix)
+  w    <- max(nchar(labs))
+  line <- function(i, v) cat(sprintf("  %-*s : %s\n", w, labs[i], v))
+
+  line(1, sprintf("%.2f", m$ll))
+  line(2, sprintf("%d", as.integer(m$n_params)))
+  line(3, sprintf("%.2f", m$aic))
+  line(4, paste0(sprintf("%.2f", m$bic),
+                 if (isTRUE(flag_bic))
+                   " (inflated by the variance collapse; see note below)"
+                 else ""))
+  line(5, sprintf("%.2f", m$sabic))
+  if (!is.null(m$entropy) && is.finite(m$entropy))
+    line(6, paste0(sprintf("%.4f", m$entropy), entropy_note))
+  invisible(NULL)
+}
+
 # How many restarts reached the reported solution, printed under the
 # log-likelihood. A maximum found once is weaker evidence than the same maximum
 # found repeatedly, and the difference is the main thing a user can act on: if
@@ -211,7 +245,8 @@
   else
     sprintf("%d of %d starts", nr, n)
   cat(sprintf("  Best solution  : found by %s%s\n", detail,
-              if (nr == 1L) " - refit with n_init = 100" else ""))
+              if (nr == 1L)
+                paste0(" - ", .replication_advice(req %||% n)) else ""))
   invisible(NULL)
 }
 
@@ -232,6 +267,16 @@
   n  <- metrics$n_requested %||% metrics$n_starts
   if (is.null(nr) || is.null(n) || !is.finite(nr) || !is.finite(n)) return(NA)
   nr == 1L && n >= 10L
+}
+
+# The advice depends on how many starts were actually asked for. Telling a user
+# who ran n_init = 200 to "refit with n_init = 100" is worse than saying
+# nothing. The threshold matches .is_unreplicated()'s.
+.replication_advice <- function(n_req) {
+  if (!is.null(n_req) && is.finite(n_req) && n_req >= 100L)
+    "more starts are unlikely to help; a maximum that does not replicate at this many starts points at the specification, most often more classes than the data support"
+  else
+    "refit with n_init = 100 before reporting"
 }
 
 # The same fact as a warning, because the printed note above is invisible to
@@ -259,10 +304,8 @@
   msg <- sprintf(paste0(
     "The reported solution was found by %s. EM climbs the peak it starts ",
     "nearest, so a maximum seen once may be the best of a small sample of the ",
-    "likelihood surface rather than the best there is. Refit with ",
-    "`n_init = 100`. If the maximum still does not replicate at 100 starts, ",
-    "that points at the specification - most often more classes than the data ",
-    "support - rather than at the search."), count)
+    "likelihood surface rather than the best there is: %s."),
+    count, .replication_advice(n_req))
 
   warning(structure(class = c("mixtureEM_replication", "warning", "condition"),
                     list(message = msg, call = NULL)))

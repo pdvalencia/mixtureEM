@@ -31,7 +31,7 @@ get_modal_resp <- function(resp) {
 #   feature of the BCH correction for poorly-separated classes (Bakk et al.,
 #   2013) and must not be clipped to zero.
 #
-fit_bch <- function(model_state, X, Y) {
+fit_bch <- function(model_state, X, Y, assignment = "proportional") {
 
   if (inherits(model_state$sm, c("covariate", "distal_regression", "distal_pooled"))) {
     warning(paste(
@@ -50,17 +50,25 @@ fit_bch <- function(model_state, X, Y) {
   e_res   <- e_step(model_state, X, NULL)
   resp    <- exp(e_res$log_resp)          # n x K posterior probabilities
 
-  # Classification error matrix C (proportional base).
-  # C[j, k] = P(assigned approx j | true = k), built from soft assignment.
-  # Columns index the true class and sum to 1.
-  C <- t(resp) %*% (resp * weights)
-  C <- sweep(C, 2, colSums(resp * weights), "/")
+  # The assignment rule decides what the classification-error matrix is a table
+  # of. Under proportional assignment a case contributes its posterior
+  # probability to every class; under modal it contributes 1 to its most likely
+  # class and 0 elsewhere (Bolck, Croon & Hagenaars, 2004; Vermunt, 2010). Both
+  # are consistent; they differ in finite samples because the modal table sits
+  # closer to the identity, so inverting it applies a smaller correction.
+  A <- if (assignment == "modal") get_modal_resp(resp) else resp
+
+  # Classification error matrix C.
+  # C[j, k] = P(assigned approx j | true = k), built from the assigned-class
+  # variable A. Columns index the true class and sum to 1.
+  C <- t(A) %*% (A * weights)
+  C <- sweep(C, 2, colSums(A * weights), "/")
 
   # BCH weight matrix: D = t(C^{-1})
   D <- t(pinv(C))
 
-  # Apply to proportional weights. Negative weights are retained intentionally.
-  bch_resp <- resp %*% D
+  # Apply to the assignment weights. Negative weights are retained intentionally.
+  bch_resp <- A %*% D
 
   model_state$sm <- init_params(model_state$sm, Y, bch_resp)
   model_state$sm <- m_step(model_state$sm, Y, bch_resp)
@@ -153,7 +161,8 @@ fit_bch <- function(model_state, X, Y) {
 # W sums to 1 per row and is passed to m_step as classification weights.
 # Convergence LL = sum_i w_i * sum_k resp1[i,k] * log Z_mat[i,k].
 fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
-                   rel_tol = 1e-10, se = "corrected") {
+                   rel_tol = 1e-10, se = "corrected",
+                   assignment = "proportional") {
 
   if (inherits(model_state$sm, c("distal_continuous", "distal_continuous_regression"))) {
     warning(paste(
@@ -191,19 +200,26 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   e_res_step1 <- e_step(model_state, X_clean, NULL)
   resp_step1  <- exp(e_res_step1$log_resp)        # n_clean x K
 
-  # Proportional classification error matrix.
-  C_prop     <- t(resp_step1 * w_clean) %*% resp_step1   # K x K (symmetric)
-  Nk         <- colSums(resp_step1 * w_clean)
+  # The assigned-class variable whose classification error the correction
+  # inverts. Under proportional assignment it is the posterior itself; under
+  # modal it is the indicator of the most likely class (Bolck, Croon &
+  # Hagenaars, 2004; Vermunt, 2010). Everything downstream of the frozen
+  # posteriors reads A1.
+  A1 <- if (assignment == "modal") get_modal_resp(resp_step1) else resp_step1
+
+  # Classification error matrix.
+  C_prop     <- t(A1 * w_clean) %*% A1                    # K x K (symmetric)
+  Nk         <- colSums(A1 * w_clean)
   C_row_norm <- sweep(C_prop, 1, Nk, "/")                 # K x K, row-normalised
 
   # Initialise structural model.
-  model_state$sm <- init_params(model_state$sm, Y_clean, resp_step1)
-  model_state$sm <- m_step(model_state$sm, Y_clean, resp_step1, weights = w_clean)
+  model_state$sm <- init_params(model_state$sm, Y_clean, A1)
+  model_state$sm <- m_step(model_state$sm, Y_clean, A1, weights = w_clean)
 
   # Weighted class proportions; computed once for discrete models and reused
   # both in the EM loop and in the variance estimation block below.
   if (inherits(model_state$sm, c("distal_pooled", "distal_regression"))) {
-    pi_k_clean <- colSums(resp_step1 * w_clean) / sum(w_clean)
+    pi_k_clean <- colSums(A1 * w_clean) / sum(w_clean)
   }
 
   prev_ll <- -Inf
@@ -229,8 +245,8 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
       po_given_x <- exp(log_sm)                      # n_clean x K
       Z_mat      <- sweep(po_given_x, 2, pi_k_clean, "*") %*% C_row_norm
       current_ll <- sum(w_clean * rowSums(
-        resp_step1 * log(pmax(Z_mat, 1e-300))))
-      RC <- resp_step1 / pmax(Z_mat, 1e-300)
+        A1 * log(pmax(Z_mat, 1e-300))))
+      RC <- A1 / pmax(Z_mat, 1e-300)
       W  <- sweep(po_given_x, 2, pi_k_clean, "*") *
         (RC %*% t(C_row_norm))
     } else {
@@ -239,8 +255,8 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
       sm_prob <- sm_prob / rowSums(sm_prob)
       Z_mat   <- sm_prob %*% C_row_norm
       current_ll <- sum(w_clean * rowSums(
-        resp_step1 * log(pmax(Z_mat, 1e-300))))
-      R <- resp_step1 / pmax(Z_mat, 1e-300)
+        A1 * log(pmax(Z_mat, 1e-300))))
+      R <- A1 / pmax(Z_mat, 1e-300)
       W <- sm_prob * (R %*% t(C_row_norm))
     }
 
@@ -289,7 +305,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   # it here is enough.
   if (inherits(model_state$sm, "covariate")) {
     model_state <- .attach_step3_covariate_vcov(
-      model_state, X_clean, Y_clean, resp_step1, C_row_norm, w_clean, se = se)
+      model_state, X_clean, Y_clean, A1, C_row_norm, w_clean, se = se)
   }
 
   # A covariate block inside a nested structural model shares its step-three
@@ -317,7 +333,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
         matrix(theta, nrow = beta_pooled_dim[1], ncol = beta_pooled_dim[2])
       po_x <- exp(log_likelihood(sm_tmp, Y_clean))
       Z_m  <- sweep(po_x, 2, pi_k_clean, "*") %*% C_row_norm
-      sum(w_clean * rowSums(resp_step1 * log(pmax(Z_m, 1e-300))))
+      sum(w_clean * rowSums(A1 * log(pmax(Z_m, 1e-300))))
     }
 
     H_marg <- matrix(0, n_theta, n_theta)
@@ -343,7 +359,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
       Zp <- sweep(exp(log_likelihood(sm_p, Y_clean)), 2, pi_k_clean, "*") %*% C_row_norm
       Zm <- sweep(exp(log_likelihood(sm_m, Y_clean)), 2, pi_k_clean, "*") %*% C_row_norm
       score_mat[, j] <- rowSums(
-        resp_step1 * (log(pmax(Zp, 1e-300)) - log(pmax(Zm, 1e-300)))
+        A1 * (log(pmax(Zp, 1e-300)) - log(pmax(Zm, 1e-300)))
       ) / (2 * eps_nd)
     }
 
@@ -377,7 +393,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
           array(theta, dim = betas_dim[2:3])
         po_x <- exp(log_likelihood(sm_tmp, Y_clean))
         Z_m  <- sweep(po_x, 2, pi_k_clean, "*") %*% C_row_norm
-        sum(w_clean * rowSums(resp_step1 * log(pmax(Z_m, 1e-300))))
+        sum(w_clean * rowSums(A1 * log(pmax(Z_m, 1e-300))))
       }
 
       H_k <- matrix(0, n_per_class, n_per_class)
@@ -401,7 +417,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
         Zp <- sweep(exp(log_likelihood(sm_p, Y_clean)), 2, pi_k_clean, "*") %*% C_row_norm
         Zm <- sweep(exp(log_likelihood(sm_m, Y_clean)), 2, pi_k_clean, "*") %*% C_row_norm
         score_k[, j] <- rowSums(
-          resp_step1 * (log(pmax(Zp, 1e-300)) - log(pmax(Zm, 1e-300)))
+          A1 * (log(pmax(Zp, 1e-300)) - log(pmax(Zm, 1e-300)))
         ) / (2 * eps_nd)
       }
 

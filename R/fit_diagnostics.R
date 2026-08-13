@@ -470,7 +470,8 @@ plot.bivariate_residuals <- function(x, max_shade = 4, main = NULL, ...) {
 #'   the classification `error`, `n` and expected/modal class sizes attached as
 #'   attributes. For a latent transition model, a list of such tables.
 #' @seealso [`classification_diagnostics()`], which prints this alongside the
-#'   average posterior probabilities.
+#'   average posterior probabilities; [`class_assignments()`] for the per-case
+#'   assignment this table aggregates.
 #' @examples
 #' set.seed(1)
 #' X <- matrix(rbinom(600, 1, 0.5), ncol = 6)

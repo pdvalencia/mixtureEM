@@ -60,3 +60,7 @@ growth mixture models (GMM). In \emph{International Encyclopedia of
 Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
 \doi{10.1016/B978-0-12-818630-5.10076-4}
 }
+\seealso{
+\code{\link[=class_assignments]{class_assignments()}} for the per-case assignment the
+\code{n_modal} column counts.
+}

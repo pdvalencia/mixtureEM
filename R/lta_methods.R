@@ -59,6 +59,59 @@ transition_matrix <- function(object, occasion = NULL, class = NULL) {
   out
 }
 
+#' @rdname class_assignments
+#'
+#' @details
+#' For a latent transition model the assignment is of latent *status*, and a
+#' status assignment is made at every occasion rather than once per case — the
+#' same convention [`status_prevalences()`] and the entropy in
+#' [`fit_lta()`]'s `metrics` already follow. Supply `occasion` to work with one
+#' occasion at the shape the mixture methods return; omit it for all of them at
+#' once. To assign the latent *class* of a mixture latent Markov model, use
+#' `object$class_posterior`.
+#'
+#' @param occasion For an `lta_model`, the index of a single occasion. Omit for
+#'   every occasion, which `type = "both"` does not support.
+#' @export
+class_assignments.lta_model <- function(object,
+                                        type = c("modal", "posterior", "both"),
+                                        occasion = NULL, ...) {
+  type <- match.arg(type)
+  gam  <- object$gamma
+  labs <- object$longitudinal$time_labels
+  st   <- paste0("Status ", seq_len(object$n_statuses))
+
+  if (!is.null(occasion)) {
+    if (length(occasion) != 1L || !occasion %in% seq_along(gam))
+      stop("`occasion` must be a single index between 1 and ", length(gam),
+           ".", call. = FALSE)
+    g <- gam[[occasion]]
+    modal <- max.col(g, ties.method = "first")
+    if (type == "modal") return(modal)
+    colnames(g) <- st
+    if (type == "posterior") return(g)
+    return(data.frame(status      = modal,
+                      probability = g[cbind(seq_len(nrow(g)), modal)],
+                      g,
+                      check.names = FALSE))
+  }
+
+  if (type == "both")
+    stop("`type = \"both\"` needs a single `occasion`: an LTA case has one ",
+         "status per occasion, not one overall.", call. = FALSE)
+
+  if (type == "posterior") {
+    out <- lapply(gam, function(g) { colnames(g) <- st; g })
+    names(out) <- labs
+    return(out)
+  }
+
+  out <- vapply(gam, max.col, ties.method = "first",
+                FUN.VALUE = integer(nrow(gam[[1]])))
+  colnames(out) <- labs
+  out
+}
+
 # Class labels, naming the stayer where there is one. The stayer is the last
 # class by construction; see .lta_tau_allowed().
 .lta_class_labels <- function(object) {
@@ -229,8 +282,9 @@ lta_g2 <- function(object) {
 #' applies none.
 #'
 #' **Reading the `Unreplicated` column.** `TRUE` means that K's reported maximum
-#' was found by exactly one random start; refit those with `n_init = 100`
-#' before reporting. The per-model warning is suppressed inside this loop, since
+#' was found by exactly one random start; refit those with more starts
+#' (`n_init = 100` is the usual next step) before reporting. The per-model
+#' warning is suppressed inside this loop, since
 #' it would otherwise fire once per K.
 #'
 #' @param indicators The repeated indicators, in any format accepted by
@@ -326,10 +380,14 @@ compare_longitudinal <- function(indicators, k_range = NULL,
     message("\n=== Model Selection Summary ===")
     print(format(tab, digits = 4))
     flagged <- tab$Classes[which(tab$Unreplicated)]
-    if (length(flagged))
-      message(sprintf(paste0("Unreplicated maximum at K = %s - refit those ",
-                             "with n_init = 100 before reporting."),
-                      paste(flagged, collapse = ", ")))
+    if (length(flagged)) {
+      # Every K in one call is fitted at the same `n_init`, so the advice is
+      # read off the first flagged model rather than repeated per row.
+      m1 <- models[[paste0("K", flagged[1])]]$metrics
+      message(sprintf("Unreplicated maximum at K = %s - %s.",
+                      paste(flagged, collapse = ", "),
+                      .replication_advice(m1$n_requested %||% m1$n_starts)))
+    }
     message(sprintf("\n-> Best model according to BIC: %d", best))
   }
   list(fit_table = tab, models = models, best_k = best)
@@ -535,11 +593,9 @@ print.lta_model <- function(x, ...) {
     cat(sprintf("Case weights       : frequency counts (%s cases in %d rows)\n",
                 format(x$n_eff), length(x$weights_vec)))
   cat("---------------------------------------------------------\n")
-  cat(sprintf("  Log-Likelihood : %.2f\n", x$metrics$ll))
-  cat(sprintf("  Parameters     : %d\n", x$metrics$n_params))
-  cat(sprintf("  BIC            : %.2f\n", x$metrics$bic))
-  cat(sprintf("  Rel. Entropy   : %.4f%s\n", x$metrics$entropy,
-              if (is.null(x$metrics$class_entropy)) "" else " (status)"))
+  .print_fit_indices(
+    x$metrics,
+    entropy_note = if (is.null(x$metrics$class_entropy)) "" else " (status)")
   if (!is.null(x$metrics$class_entropy))
     cat(sprintf("                   %.4f (class)\n", x$metrics$class_entropy))
   # The quiet channel the mixture models have had all along: how many restarts
