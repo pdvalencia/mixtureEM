@@ -64,7 +64,8 @@ threshold anywhere.
 
 \strong{Reading the \code{Unreplicated} column.} \code{TRUE} means the reported maximum for
 that K was found by exactly one random start. Refit those values of K with
-\code{n_init = 100} before reporting them; see \code{vignette("estimation")}.
+more starts (\code{n_init = 100} is the usual next step) before reporting them;
+see \code{vignette("estimation")}.
 }
 \examples{
 set.seed(1)

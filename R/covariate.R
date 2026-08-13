@@ -25,10 +25,22 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 # `weights`. The two are algebraically equivalent, and folding the mass into the
 # weights keeps this fitter free of special cases.
 #
-# Estimation uses data augmentation: one "ghost" observation per class placed at
-# the column means with weight 0.01, which makes complete separation impossible
-# during optimisation. The Hessian is then recomputed on the original data only
-# so that standard errors are not artificially shrunk by the pseudo-data.
+# Estimation uses data augmentation, in one of two forms.
+#
+# With `alpha = 0` the augmentation is one "ghost" observation per class placed
+# at the column means with weight 0.01, which makes complete separation
+# impossible during optimisation. The Hessian is then recomputed on the original
+# data only so that standard errors are not artificially shrunk by the
+# pseudo-data.
+#
+# With `alpha > 0` the ghost is replaced by the Dirichlet prior on the class
+# probabilities, written as fractional pseudo-data so this fitter needs no
+# special case: one row per class per unique covariate pattern, each with weight
+# alpha / (K * U0). That adds alpha / K cases to each class, spread evenly over
+# the covariate patterns, which makes the class sizes slightly more equal and the
+# covariate effects slightly smaller. Unlike the ghost, these rows *do* enter the
+# Hessian: they are part of the objective being maximised, so they belong in its
+# curvature, and the standard errors shrink accordingly.
 #
 # Returns the K x D coefficient matrix (last row zero), the ((K-1)D)^2 Hessian on
 # the free parameters, and the fitted n x K probabilities.
@@ -36,7 +48,8 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 # `start` warm-starts the optimiser from a previous coefficient matrix. Inside an
 # EM loop successive M-steps move the coefficients very little, so starting from
 # the last iteration's values cuts the work sharply without changing the optimum.
-.fit_mnl <- function(Z, resp, weights = NULL, augment = TRUE, start = NULL) {
+.fit_mnl <- function(Z, resp, weights = NULL, augment = TRUE, start = NULL,
+                     alpha = 0) {
   K <- ncol(resp)
   D <- ncol(Z)
   w_vec <- if (!is.null(weights)) weights else rep(1, nrow(Z))
@@ -48,7 +61,20 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
                 prob = matrix(1 / max(K, 1L), nrow(Z), K)))
   }
 
-  if (isTRUE(augment)) {
+  # Does the prior enter the curvature? Only when it is the thing doing the
+  # augmenting; the ghost never does.
+  prior_rows <- isTRUE(augment) && alpha > 0
+
+  if (prior_rows) {
+    Zu      <- unique(Z)
+    U0      <- nrow(Zu)
+    w_prior <- alpha / (K * U0)
+    Z_pri    <- Zu[rep(seq_len(U0), times = K), , drop = FALSE]
+    resp_pri <- diag(K)[rep(seq_len(K), each = U0), , drop = FALSE]
+    Z_aug    <- rbind(Z, Z_pri)
+    resp_aug <- rbind(resp, resp_pri)
+    w_aug    <- c(w_vec, rep(w_prior, K * U0))
+  } else if (isTRUE(augment)) {
     Z_aug    <- rbind(Z, matrix(colMeans(Z), nrow = K, ncol = D, byrow = TRUE))
     resp_aug <- rbind(resp, diag(K))
     w_aug    <- c(w_vec, rep(0.01, K))
@@ -82,11 +108,17 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 
   prob <- probs_for(beta, Z)
 
+  # Rows the Hessian is taken over: data alone under the ghost, data plus the
+  # prior rows when the prior is what augmented the fit.
+  Z_h    <- if (prior_rows) Z_aug else Z
+  w_h    <- if (prior_rows) w_aug else w_vec
+  prob_h <- if (prior_rows) probs_for(beta, Z_aug) else prob
+
   H <- matrix(0, (K - 1) * D, (K - 1) * D)
   for (k in seq_len(K - 1)) {
     for (j in seq_len(K - 1)) {
-      W    <- prob[, k] * ((if (k == j) 1 else 0) - prob[, j]) * w_vec
-      H_kj <- -t(Z) %*% sweep(Z, 1, W, "*")
+      W    <- prob_h[, k] * ((if (k == j) 1 else 0) - prob_h[, j]) * w_h
+      H_kj <- -t(Z_h) %*% sweep(Z_h, 1, W, "*")
       H[((k - 1) * D + 1):(k * D), ((j - 1) * D + 1):(j * D)] <- H_kj
     }
   }
@@ -106,7 +138,14 @@ m_step.covariate <- function(model_state, X, resp, weights = NULL, ...) {
   D <- ncol(X_mat)
   w_vec <- if(!is.null(weights)) weights else rep(1, nrow(X_mat))
 
-  mnl        <- .fit_mnl(X_mat, resp, weights = w_vec, augment = TRUE)
+  # `bayes_constants$latent` is the Dirichlet prior on the class probabilities.
+  # It applies wherever those probabilities are estimated, and a covariate model
+  # is where they are estimated as a regression rather than as K-1 free weights;
+  # reading it here is what stops the prior from silently lapsing the moment
+  # covariates enter.
+  alpha      <- .bayes_alpha(model_state, "latent")
+  mnl        <- .fit_mnl(X_mat, resp, weights = w_vec, augment = TRUE,
+                         alpha = alpha)
   beta_final <- mnl$beta
   prob       <- mnl$prob
   H          <- mnl$hessian

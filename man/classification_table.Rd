@@ -38,5 +38,6 @@ classification_table(fit)
 }
 \seealso{
 \code{\link[=classification_diagnostics]{classification_diagnostics()}}, which prints this alongside the
-average posterior probabilities.
+average posterior probabilities; \code{\link[=class_assignments]{class_assignments()}} for the per-case
+assignment this table aggregates.
 }

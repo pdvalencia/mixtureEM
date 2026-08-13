@@ -428,6 +428,9 @@ measurement_summary.default <- function(object, ...) {
 #' Nagin, D. S. (2005). \emph{Group-Based Modeling of Development}. Harvard
 #' University Press.
 #'
+#' @seealso [`class_assignments()`] for the per-case assignment these
+#'   diagnostics summarise.
+#'
 #' @export
 classification_diagnostics <- function(object, ...)
   UseMethod("classification_diagnostics")
@@ -485,6 +488,9 @@ classification_diagnostics.default <- function(object, ...) {
 #'   \code{\link{fit_mixture}}.
 #' @param ... Passed to methods.
 #'
+#' @seealso [`class_assignments()`] for the per-case assignment the
+#'   \code{n_modal} column counts.
+#'
 #' @return A data frame with one row per class: \code{class},
 #'   \code{proportion} (model-estimated class weight), \code{n_expected}
 #'   (proportion times the analysed sample size), and \code{n_modal} (cases
@@ -524,6 +530,96 @@ class_sizes.mixture_model <- function(object, ...) {
     n_expected = as.vector(object$weights) * n_tot,
     n_modal    = vapply(seq_len(K), function(k) sum(w[modal == k]), numeric(1))
   )
+}
+
+#' Class Assignments for Each Case
+#'
+#' @description
+#' The class each case is assigned to, and the posterior probabilities behind
+#' that assignment. This is the accessor for the per-case classification, so
+#' that reaching it does not mean indexing into the fitted object's internals.
+#'
+#' @details
+#' Modal class assignment discards classification error. Do not use the returned
+#' class as though it were an observed variable in a subsequent regression,
+#' ANOVA or t-test: doing so attenuates the association, severely when the
+#' classes are not well separated (Bolck, Croon & Hagenaars, 2004; Vermunt,
+#' 2010; Bakk, Tekle & Vermunt, 2013). Use [`add_covariates()`] and
+#' [`add_outcome()`], which correct for it. This function is for plotting,
+#' exporting and describing a solution.
+#'
+#' @param object A fitted model: a \code{mixture_model} (including the growth
+#'   models) or an \code{lta_model}.
+#' @param type What to return. \code{"modal"} (default) gives the assigned
+#'   class; \code{"posterior"} the full matrix of posterior probabilities;
+#'   \code{"both"} a data frame carrying the assignment, its probability, and
+#'   the posterior columns.
+#' @param ... Passed to methods.
+#'
+#' @return For \code{"modal"}, an integer vector of length n. For
+#'   \code{"posterior"}, an n-by-K matrix with the class labels as column names.
+#'   For \code{"both"}, a data frame with \code{class}, \code{probability} (the
+#'   assigned class's posterior probability, i.e. a per-case classification
+#'   certainty), and then the K posterior columns.
+#'
+#' @references
+#' Bolck, A., Croon, M., & Hagenaars, J. (2004). Estimating latent structure
+#' models with categorical variables: One-step versus three-step estimators.
+#' \emph{Political Analysis}, \emph{12}(1), 3–27. \doi{10.1093/pan/mph001}
+#'
+#' Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
+#' three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450–469.
+#' \doi{10.1093/pan/mpq025}
+#'
+#' Bakk, Z., Tekle, F. B., & Vermunt, J. K. (2013). Estimating the association
+#' between latent class membership and external variables using bias-adjusted
+#' three-step approaches. \emph{Sociological Methodology}, \emph{43}(1),
+#' 272–311. \doi{10.1177/0081175012470644}
+#'
+#' @seealso [`class_sizes()`], [`classification_table()`],
+#'   [`classification_diagnostics()`].
+#'
+#' @examples
+#' set.seed(1)
+#' X   <- matrix(rbinom(500, 1, 0.5), nrow = 100)
+#' fit <- fit_mixture(X, n_classes = 2)
+#' table(class_assignments(fit))
+#' head(class_assignments(fit, "both"))
+#' # To relate the classes to an external variable, do not regress on the
+#' # assigned class - use the bias-adjusted third step instead:
+#' # add_outcome(fit, y)
+#'
+#' @export
+class_assignments <- function(object, type = c("modal", "posterior", "both"),
+                              ...)
+  UseMethod("class_assignments")
+
+#' @rdname class_assignments
+#' @export
+class_assignments.default <- function(object,
+                                      type = c("modal", "posterior", "both"),
+                                      ...) {
+  type <- match.arg(type)
+  if (is.null(object$log_resp))
+    stop("`object` carries no posterior class probabilities, so there is ",
+         "nothing to assign from.", call. = FALSE)
+
+  resp <- exp(object$log_resp)
+  # ties.method = "first" matches get_modal_resp() in R/corrections.R. The two
+  # must not disagree: one is what the user sees, the other is what the modal
+  # three-step correction is a table of.
+  modal <- max.col(resp, ties.method = "first")
+  if (type == "modal") return(modal)
+
+  # The same labels the plotting methods use, so a posterior column and a plot
+  # legend name the same class the same way.
+  colnames(resp) <- paste("Class", seq_len(ncol(resp)))
+  if (type == "posterior") return(resp)
+
+  data.frame(class       = modal,
+             probability = resp[cbind(seq_len(nrow(resp)), modal)],
+             resp,
+             check.names = FALSE)
 }
 
 # Weighted average posterior probability by modal class. The weights matter
@@ -771,7 +867,8 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
   out <- list(ref_class  = ref_class,
               n_classes  = K,
               n_steps    = object$n_steps,
-              correction = object$correction)
+              correction = object$correction,
+              assignment = object$assignment)
 
   cat("=========================================================\n")
   cat("             STRUCTURAL MODEL SUMMARY                    \n")
@@ -1469,7 +1566,9 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #' @importFrom utils setTxtProgressBar txtProgressBar
 fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
                                  measurement = "binary", structural = NULL,
-                                 n_steps = 1, correction = "none", n_init = 20,
+                                 n_steps = 1, correction = "none",
+                                 assignment = c("proportional", "modal"),
+                                 n_init = 20,
                                  max_iter = 1000, random_state = NULL,
                                  order_by_size = TRUE, weights = NULL,
                                  weight_type = c("sampling", "frequency"),
@@ -1481,6 +1580,7 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 
   weight_type <- match.arg(weight_type)
   se          <- match.arg(se)
+  assignment  <- match.arg(assignment)
   bayes_constants <- .resolve_bayes_constants(bayes_constants)
 
   if (is.data.frame(X)) X <- as.matrix(X)
@@ -1684,6 +1784,10 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
     else NULL,
     n_steps               = n_steps,
     correction            = correction,
+    # Which rule turned the step-1 posteriors into the assigned-class variable
+    # the correction inverts. Kept on the fit so a saved object still says which
+    # rule produced it.
+    assignment            = assignment,
     sample_weights        = weights,
     weight_type           = weight_type,
     n_eff                 = n_eff,
@@ -1731,7 +1835,8 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
       model_state$step1_metrics <- .step1_metrics(model_state)
 
     model_state <- .apply_structural_steps(model_state, X, Y, n_steps,
-                                           correction, max_iter, se)
+                                           correction, max_iter, se,
+                                           assignment = assignment)
   }
 
   # Class sorting, display names, and combined-model metrics (see
@@ -2151,6 +2256,11 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   \code{"ML"}, or \code{"BCH"}. When left unset for a 3-step structural
 #'   model, a recommended default is chosen (ML for predictors and categorical
 #'   outcomes, BCH for continuous outcomes).
+#' @param assignment How step 1's posteriors are turned into the assigned-class
+#'   variable whose classification error the correction inverts:
+#'   \code{"proportional"} (default; each case carries its posterior probability
+#'   in every class) or \code{"modal"} (each case is assigned to its most likely
+#'   class outright). See \code{\link{add_covariates}}.
 #' @param weights,strata,cluster Optional survey design: sampling
 #'   \code{weights}, and \code{strata}/\code{cluster} identifiers enabling
 #'   design-based (linearization) standard errors.
@@ -2363,6 +2473,7 @@ fit_mixture <- function(indicators = NULL,
                         variances_equal = FALSE,
                         n_steps = 1,
                         correction = "none",
+                        assignment = c("proportional", "modal"),
                         n_init = 20,
                         max_iter = 1000,
                         random_state = NULL,
@@ -2378,6 +2489,7 @@ fit_mixture <- function(indicators = NULL,
                         ...) {
 
   se            <- match.arg(se)
+  assignment    <- match.arg(assignment)
   outcome_type  <- match.arg(outcome_type)
   slopes        <- match.arg(slopes)
   group_effects <- match.arg(group_effects)
@@ -2404,7 +2516,8 @@ fit_mixture <- function(indicators = NULL,
     return(fit_mixture_internal(
       X = indicators, Y = Y, n_components = n_classes,
       measurement = measurement, structural = structural,
-      n_steps = n_steps, correction = correction, n_init = n_init,
+      n_steps = n_steps, correction = correction, assignment = assignment,
+      n_init = n_init,
       max_iter = max_iter, random_state = random_state,
       order_by_size = order_by_size, weights = weights,
       weight_type = weight_type,
@@ -2594,7 +2707,8 @@ fit_mixture <- function(indicators = NULL,
   fit <- do.call(fit_mixture_internal, c(list(
     X = X_use, Y = Y_use, n_components = n_classes,
     measurement = measurement_engine, structural = structural_engine,
-    n_steps = n_steps, correction = correction, n_init = n_init,
+    n_steps = n_steps, correction = correction, assignment = assignment,
+    n_init = n_init,
     max_iter = max_iter, random_state = random_state,
     order_by_size = order_by_size, weights = weights,
     weight_type = weight_type,
@@ -2638,8 +2752,11 @@ fit_mixture <- function(indicators = NULL,
 #'
 #' @description
 #' Prints a compact overview of the fitted model including: number of classes,
-#' estimation method, convergence status, log-likelihood, relative entropy,
-#' and estimated class proportions. For full parameter tables, use
+#' estimation method, convergence status, the fit indices, and estimated class
+#' proportions. The indices shown are the same ones
+#' \code{\link{compare_mixtures}} tabulates, so one printed model and a table
+#' over a range of K can be read together; lower AIC, BIC and SABIC are better.
+#' For full parameter tables, use
 #' \code{\link{summary.mixture_model}} (structural parameters) or
 #' \code{\link{measurement_summary}} (item parameters).
 #'
@@ -2664,7 +2781,10 @@ print.mixture_model <- function(x, ...) {
   cat("=========================================================\n")
   cat(sprintf("Classes Estimated  : %d\n", x$n_components))
   cat(sprintf("Estimation Method  : %d-step\n", x$n_steps))
-  if (x$n_steps == 3) cat(sprintf("Correction Method  : %s\n", x$correction))
+  if (x$n_steps == 3)
+    cat(sprintf("Correction Method  : %s%s\n", x$correction,
+                if (!is.null(x$assignment) && x$correction != "none")
+                  sprintf(" (%s assignment)", x$assignment) else ""))
   cat(sprintf("Converged          : %s (in %d iterations)\n", x$converged, x$n_iter))
   # Deleted cases are reported on their own line, ahead of the FIML summary, so
   # the printed sample size can always be reconciled with the input data.
@@ -2691,13 +2811,13 @@ print.mixture_model <- function(x, ...) {
     cat(sprintf("Case Weights       : frequency counts (%s cases in %d rows)\n",
                 format(x$n_eff), length(x$sample_weights)))
   cat("---------------------------------------------------------\n")
-  if (!is.null(x$step1_metrics)) {
-    cat(sprintf("  Log-Likelihood (Step 1) : %.2f\n", x$step1_metrics$ll))
-    cat(sprintf("  Rel. Entropy   (Step 1) : %.4f\n", x$step1_metrics$entropy))
-  } else {
-    cat(sprintf("  Log-Likelihood : %.2f\n", x$metrics$ll))
-    cat(sprintf("  Rel. Entropy   : %.4f\n", x$metrics$entropy))
-  }
+  # A three-step fit carries two sets of metrics. Every line below is read off
+  # one of them, never a mixture of the two: pairing a step-1 log-likelihood
+  # with a step-3 BIC is worse than printing no criteria at all.
+  .print_fit_indices(x$step1_metrics %||% x$metrics,
+                     suffix    = if (!is.null(x$step1_metrics)) " (Step 1)" else "",
+                     flag_bic  = !is.null(x$degenerate) ||
+                       length(x$growth$boundary) > 0L)
   .print_replication_note(x)
   cat("---------------------------------------------------------\n")
   cat("Class Weights (Sizes):\n")
@@ -2736,7 +2856,8 @@ print.mixture_model <- function(x, ...) {
 #'
 #' **Reading the `Unreplicated` column.** `TRUE` means the reported maximum for
 #' that K was found by exactly one random start. Refit those values of K with
-#' `n_init = 100` before reporting them; see `vignette("estimation")`.
+#' more starts (`n_init = 100` is the usual next step) before reporting them;
+#' see `vignette("estimation")`.
 #'
 #' @param X A numeric matrix or data frame of indicator variables.
 #' @param k_range Integer vector of class numbers to fit. All values must be >= 1. Default is \code{1:5}.
@@ -2835,10 +2956,14 @@ compare_mixtures <- function(X, k_range = 1:5, measurement = "binary",
   printed[num] <- lapply(printed[num], round, 3)
   print(printed)
   flagged <- fit_table$Classes[which(fit_table$Unreplicated)]
-  if (length(flagged))
-    cat(sprintf(paste0("\nUnreplicated maximum at K = %s - refit those with ",
-                       "n_init = 100 before reporting.\n"),
-                paste(flagged, collapse = ", ")))
+  if (length(flagged)) {
+    # Every K in one call is fitted at the same `n_init`, so the advice is read
+    # off the first flagged model rather than repeated per row.
+    m1 <- models[[paste0("K", flagged[1])]]$metrics
+    cat(sprintf("\nUnreplicated maximum at K = %s - %s.\n",
+                paste(flagged, collapse = ", "),
+                .replication_advice(m1$n_requested %||% m1$n_starts)))
+  }
   cat(sprintf("\n-> Best model according to BIC: %d classes\n", best_bic_k))
   return(list(fit_table = fit_table, models = models, best_k = best_bic_k))
 }

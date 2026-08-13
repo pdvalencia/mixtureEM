@@ -68,3 +68,7 @@ Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
 Nagin, D. S. (2005). \emph{Group-Based Modeling of Development}. Harvard
 University Press.
 }
+\seealso{
+\code{\link[=class_assignments]{class_assignments()}} for the per-case assignment these
+diagnostics summarise.
+}

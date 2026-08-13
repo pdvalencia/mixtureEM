@@ -84,15 +84,25 @@
 }
 
 # Shared execution: attach the structural model and run steps 2-3 only.
-.add_structural <- function(fit, Y_use, engine, correction, se, max_iter) {
+.add_structural <- function(fit, Y_use, engine, correction, se, max_iter,
+                            assignment = "proportional") {
   fit$sm         <- build_emission(engine, n_components = fit$n_components)
+  # The structural model is built here rather than in fit_mixture_internal(), so
+  # it has to be handed the fit's prior strengths on the way past; without this
+  # `bayes_constants` would apply on the one-call three-step path and silently
+  # lapse on this one.
+  fit$sm         <- .attach_bayes_constants(
+    fit$sm, .resolve_bayes_constants(fit$bayes_constants))
   fit            <- .mirror_design_onto_sm(fit)
   fit$n_steps    <- 3L
   fit$correction <- correction
+  # Kept on the fit so a saved object still says which assignment rule produced
+  # the correction it reports.
+  fit$assignment <- assignment
 
   fit <- .apply_structural_steps(fit, X = fit$data, Y = Y_use, n_steps = 3L,
                                  correction = correction, max_iter = max_iter,
-                                 se = se)
+                                 se = se, assignment = assignment)
   # order_by_size = FALSE: re-sorting here could relabel classes relative to
   # the unconditional fit the user has already inspected and reported.
   .finalize_model_state(fit, X = fit$data, Y = Y_use, order_by_size = FALSE)
@@ -117,8 +127,29 @@
 #'   Vermunt, 2010), `"BCH"`, or `"none"`.
 #' @param se Standard-error estimator passed on to the third step:
 #'   `"corrected"` (default), `"robust"`, or `"hessian"`.
+#' @param assignment How step 1's posteriors are turned into the assigned-class
+#'   variable whose classification error the correction inverts.
+#'   `"proportional"` (default) gives every case a weight in every class equal
+#'   to its posterior probability; `"modal"` assigns each case to its most
+#'   likely class outright. The default follows Bakk, Tekle and Vermunt (2013),
+#'   who compared the two rules across 54 simulation conditions and found
+#'   proportional at least as accurate everywhere and clearly better when the
+#'   classes are poorly separated. Use `"modal"` when reproducing an analysis
+#'   whose classes were assigned that way.
 #' @param max_iter Maximum iterations for the step-3 estimation.
 #' @param ... Currently unused.
+#'
+#' @details
+#' A case missing a predictor is retained, not deleted: the missing value is
+#' completed under the class-invariant Gaussian marginal of the predictors
+#' (Sterba, 2014), so the analysis keeps its full N. An analysis that listwise
+#' deletes them is fitted to fewer cases; check the reported N before comparing
+#' coefficients with a published set.
+#'
+#' `se = "corrected"` (the default) is the Bakk, Oberski and Vermunt (2014)
+#' estimator, which propagates the uncertainty in the step-1 estimates as well as
+#' the step-3 sampling variability. `se = "robust"` reports only the latter; use
+#' it when reproducing an analysis whose standard errors were computed that way.
 #'
 #' @return A `mixture_model` with the class-membership regression attached.
 #'   Use [summary()] for odds ratios and omnibus tests; [coef()],
@@ -132,6 +163,15 @@
 #' Bakk, Z., Oberski, D. L., & Vermunt, J. K. (2014). Relating latent class
 #' assignments to external variables: Standard errors for correct inference.
 #' \emph{Political Analysis}, \emph{22}(4), 520–540. \doi{10.1093/pan/mpu003}
+#'
+#' Bolck, A., Croon, M., & Hagenaars, J. (2004). Estimating latent structure
+#' models with categorical variables: One-step versus three-step estimators.
+#' \emph{Political Analysis}, \emph{12}(1), 3–27. \doi{10.1093/pan/mph001}
+#'
+#' Bakk, Z., Tekle, F. B., & Vermunt, J. K. (2013). Estimating the association
+#' between latent class membership and external variables using bias-adjusted
+#' three-step approaches. \emph{Sociological Methodology}, \emph{43}(1),
+#' 272–311. \doi{10.1177/0081175012470644}
 #'
 #' @seealso [add_outcome()] for distal outcomes; [fit_mixture()] to fit the
 #'   unconditional model.
@@ -148,10 +188,12 @@
 add_covariates <- function(fit, predictors,
                            correction = c("ML", "BCH", "none"),
                            se = c("corrected", "robust", "hessian"),
+                           assignment = c("proportional", "modal"),
                            max_iter = 1000, ...) {
   corr_set        <- !missing(correction)
   correction      <- match.arg(correction)
   se              <- match.arg(se)
+  assignment      <- match.arg(assignment)
   predictors_expr <- substitute(predictors)
 
   if (missing(predictors) || is.null(predictors))
@@ -168,7 +210,8 @@ add_covariates <- function(fit, predictors,
     .as_named_covariates(predictors, predictors_expr, "predictor"))
   Y_use <- .align_structural_rows(Y_use, fit, "predictors")
 
-  .add_structural(fit, Y_use, "predict_class", correction, se, max_iter)
+  .add_structural(fit, Y_use, "predict_class", correction, se, max_iter,
+                  assignment = assignment)
 }
 
 #' Examine a Distal Outcome on a Fitted Model
@@ -194,6 +237,15 @@ add_covariates <- function(fit, predictors,
 #'   for categorical outcomes; or set `"BCH"`, `"ML"`, `"none"` directly.
 #' @param se Standard-error estimator passed on to the third step:
 #'   `"corrected"` (default), `"robust"`, or `"hessian"`.
+#' @param assignment How step 1's posteriors are turned into the assigned-class
+#'   variable whose classification error the correction inverts.
+#'   `"proportional"` (default) gives every case a weight in every class equal
+#'   to its posterior probability; `"modal"` assigns each case to its most
+#'   likely class outright. The default follows Bakk, Tekle and Vermunt (2013),
+#'   who compared the two rules across 54 simulation conditions and found
+#'   proportional at least as accurate everywhere and clearly better when the
+#'   classes are poorly separated. Use `"modal"` when reproducing an analysis
+#'   whose classes were assigned that way.
 #' @param max_iter Maximum iterations for the step-3 estimation.
 #' @param ... Currently unused.
 #'
@@ -204,6 +256,15 @@ add_covariates <- function(fit, predictors,
 #' Bakk, Z., & Vermunt, J. K. (2016). Robustness of stepwise latent class
 #' modeling with continuous distal outcomes. \emph{Structural Equation
 #' Modeling}, \emph{23}(1), 20–31. \doi{10.1080/10705511.2014.955104}
+#'
+#' Bolck, A., Croon, M., & Hagenaars, J. (2004). Estimating latent structure
+#' models with categorical variables: One-step versus three-step estimators.
+#' \emph{Political Analysis}, \emph{12}(1), 3–27. \doi{10.1093/pan/mph001}
+#'
+#' Bakk, Z., Tekle, F. B., & Vermunt, J. K. (2013). Estimating the association
+#' between latent class membership and external variables using bias-adjusted
+#' three-step approaches. \emph{Sociological Methodology}, \emph{43}(1),
+#' 272–311. \doi{10.1177/0081175012470644}
 #'
 #' @seealso [add_covariates()] for predictors of class membership;
 #'   [fit_mixture()] to fit the unconditional model.
@@ -222,11 +283,13 @@ add_outcome <- function(fit, outcome, covariates = NULL,
                         slopes = c("pooled", "class_specific"),
                         correction = c("auto", "BCH", "ML", "none"),
                         se = c("corrected", "robust", "hessian"),
+                        assignment = c("proportional", "modal"),
                         max_iter = 1000, ...) {
   outcome_type <- match.arg(outcome_type)
   slopes       <- match.arg(slopes)
   correction   <- match.arg(correction)
   se           <- match.arg(se)
+  assignment   <- match.arg(assignment)
   cov_expr     <- substitute(covariates)
 
   if (missing(outcome) || is.null(outcome))
@@ -246,5 +309,6 @@ add_outcome <- function(fit, outcome, covariates = NULL,
 
   Y_use <- .align_structural_rows(spec$Y, fit, "outcome")
 
-  .add_structural(fit, Y_use, spec$engine, correction, se, max_iter)
+  .add_structural(fit, Y_use, spec$engine, correction, se, max_iter,
+                  assignment = assignment)
 }

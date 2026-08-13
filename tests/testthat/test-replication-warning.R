@@ -38,6 +38,29 @@ test_that("an unreplicated maximum warns, names 100, and reports both counts", {
   expect_match(conditionMessage(w), "out of 50 requested")
 })
 
+test_that("the advice scales with how many starts were asked for", {
+  # Telling a user who ran n_init = 200 to refit with 100 is worse than saying
+  # nothing, so above the threshold the message changes what it recommends.
+  low <- list(metrics = list(n_replicated = 1L, n_requested = 20L,
+                             n_starts = 20L))
+  w <- tryCatch(.check_replication(low), warning = function(w) w)
+  expect_match(conditionMessage(w), "n_init = 100", fixed = TRUE)
+
+  high <- list(metrics = list(n_replicated = 1L, n_requested = 200L,
+                              n_starts = 200L))
+  w2 <- tryCatch(.check_replication(high), warning = function(w) w)
+  expect_false(grepl("n_init = 100", conditionMessage(w2), fixed = TRUE))
+  expect_match(conditionMessage(w2), "unlikely to help")
+
+  # The printed note reads off the same helper.
+  expect_match(paste(capture.output(.print_replication_note(low)),
+                     collapse = " "),
+               "n_init = 100", fixed = TRUE)
+  expect_false(grepl("n_init = 100",
+                     paste(capture.output(.print_replication_note(high)),
+                           collapse = " "), fixed = TRUE))
+})
+
 test_that("a fit below the threshold stays silent", {
   fit <- list(metrics = list(n_replicated = 1L, n_requested = 5L,
                              n_starts = 5L))

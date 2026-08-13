@@ -1,5 +1,84 @@
 # mixtureEM (development version)
 
+## Two defaults change: the class-membership prior now reaches step 3
+
+`bayes_constants$latent` is documented as the Dirichlet prior on the class
+probabilities. It applied when those probabilities were estimated as K-1 free
+weights, and silently stopped applying the moment covariates entered and they
+became a regression instead. That leak is now closed: the prior applies to the
+class-membership regression too, written as fractional pseudo-data — one row per
+class per unique covariate pattern, weight `latent / (K * U)`, adding
+`latent / K` cases to each class.
+
+Two consequences, both deliberate:
+
+* **Covariate coefficients move.** Every one of them shrinks slightly towards
+  zero, because the prior makes the class sizes slightly more equal.
+* **Their standard errors move.** They shrink, because unlike the "ghost"
+  observation the prior replaces, these rows are part of the objective being
+  maximised and so enter the information matrix.
+
+`bayes_constants = list(latent = 0)` restores the previous behaviour exactly, in
+both the coefficients and the standard errors; the ghost observation that guards
+against complete separation is kept in that case, as before.
+
+## The three-step corrections take an `assignment` argument
+
+`add_covariates()`, `add_outcome()` and `fit_mixture()` gain
+`assignment = c("proportional", "modal")`: how step 1's posteriors are turned
+into the assigned-class variable whose classification error the BCH and ML
+corrections invert. **The default does not change** — `"proportional"` follows
+Bakk, Tekle and Vermunt (2013), who found it at least as accurate as modal
+assignment across 54 simulation conditions and clearly better when the classes
+are poorly separated. Use `assignment = "modal"` when reproducing an analysis
+whose classes were assigned that way. The rule in force is stored on the fit and
+printed next to the correction, so a saved model still says which one produced
+it.
+
+`add_covariates()` also now documents two things that matter when comparing
+coefficients with a published set: a case missing a predictor is retained and
+completed under the class-invariant Gaussian marginal rather than listwise
+deleted, so the analysed N can differ; and `se = "corrected"` carries the step-1
+uncertainty where `se = "robust"` reports only the step-3 sampling variability.
+
+## New: `class_assignments()`
+
+The per-case classification now has an accessor, so reaching it no longer means
+writing `max.col(fit$log_resp)` by hand. `type = "modal"` gives the assigned
+class, `"posterior"` the full matrix, and `"both"` a data frame carrying the
+assignment together with its probability — a per-case classification certainty.
+It works on `mixture_model`, the growth models, and `lta_model`, where the
+assignment is of latent status and an `occasion` argument picks one out.
+
+Its documentation carries the warning that is the reason it exists: do not use
+the returned class as though it were an observed variable in a subsequent
+regression, ANOVA or t-test. Use `add_covariates()` and `add_outcome()`, which
+correct for the classification error that discards.
+
+## `print()` now shows the full set of fit indices
+
+`print()` on a fitted model showed the log-likelihood and relative entropy;
+reading its BIC meant reaching into `fit$metrics` or running a one-model
+`compare_mixtures()`. It now prints `Log-Likelihood`, `Parameters`, `AIC`,
+`BIC`, `SABIC` and `Rel. Entropy` — exactly the columns `compare_mixtures()`
+tabulates, so printing one model and comparing a range of K can never show two
+different sets of numbers for the same fit. `print()` on a latent transition
+model gains the two indices it was missing.
+
+On a three-step fit the criteria are read off the same set of metrics as the
+log-likelihood above them, never a mixture of the two. On a fit whose variances
+collapsed, the BIC line says so where it appears, since that number is inflated
+by the spike and is not comparable with a clean fit's.
+
+## The `n_init` advice now scales with what was asked for
+
+The "refit with `n_init = 100`" advice fired whenever the maximum was found by a
+single start, whatever `n_init` had been — so a user who ran `n_init = 200` was
+told to refit with 100. At 100 requested starts and above, the message now says
+instead that more starts are unlikely to help and that a maximum which does not
+replicate points at the specification. This applies to `print()`, the warning,
+`compare_mixtures()` and `compare_longitudinal()`, which share one helper.
+
 ## Diagnostics now say what to change, and by how much
 
 No default changed anywhere in this group, so every existing fit returns the

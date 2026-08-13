@@ -17,8 +17,11 @@ Invisibly returns \code{x}. Called for its printed side-effect.
 }
 \description{
 Prints a compact overview of the fitted model including: number of classes,
-estimation method, convergence status, log-likelihood, relative entropy,
-and estimated class proportions. For full parameter tables, use
+estimation method, convergence status, the fit indices, and estimated class
+proportions. The indices shown are the same ones
+\code{\link{compare_mixtures}} tabulates, so one printed model and a table
+over a range of K can be read together; lower AIC, BIC and SABIC are better.
+For full parameter tables, use
 \code{\link{summary.mixture_model}} (structural parameters) or
 \code{\link{measurement_summary}} (item parameters).
 }
