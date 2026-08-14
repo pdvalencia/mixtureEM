@@ -85,6 +85,46 @@ test_that("with a classification table at the identity the two rules agree", {
   expect_equal(m("modal"), none, tolerance = 1e-6)
 })
 
+test_that("modal assignment still corrects when the classes overlap", {
+  # The test above cannot see whether the modal correction does anything: it
+  # chooses data whose classification table *is* the identity, so both rules
+  # agree however the table was built. This one is the complement, and it is
+  # the guard that matters. A modal assignment matrix has a single 1 per row,
+  # so crossing it with itself gives a diagonal - and a classification table
+  # that comes out as the identity by construction rather than because the
+  # classes are well separated. The correction would then invert nothing and
+  # hand back the naive modal means, silently, on every dataset.
+  d    <- .sim_assignment_data()
+  fit0 <- suppressMessages(suppressWarnings(
+    fit_mixture(d$items, n_classes = 2, n_init = 5, random_state = 9)))
+
+  resp  <- exp(fit0$log_resp)
+  modal <- get_modal_resp(resp)
+
+  # The premise: these classes genuinely overlap, so there is something for the
+  # correction to correct. Without this the assertions below would pass
+  # vacuously on data that happened to separate.
+  expect_gt(max(abs(resp - modal)), 0.05)
+
+  bch_modal <- as.vector(suppressMessages(suppressWarnings(
+    add_outcome(fit0, d$bmi, correction = "BCH", assignment = "modal")
+  )$sm$parameters$means))
+
+  # What the naive modal means are: assign each case to its most likely class
+  # and average the outcome within class, with no correction at all. This is
+  # exactly what a no-op correction returns.
+  naive <- colSums(modal * d$bmi) / colSums(modal)
+
+  expect_gt(max(abs(bch_modal - naive)), 0.01)
+
+  # And the two rules must part company here, where the table is not the
+  # identity - the whole reason the argument exists.
+  bch_prop <- as.vector(suppressMessages(suppressWarnings(
+    add_outcome(fit0, d$bmi, correction = "BCH", assignment = "proportional")
+  )$sm$parameters$means))
+  expect_gt(max(abs(bch_modal - bch_prop)), 0.01)
+})
+
 # ------------------------------------------------------------------------------
 # Part 2 - the step-three prior on the class probabilities
 # ------------------------------------------------------------------------------

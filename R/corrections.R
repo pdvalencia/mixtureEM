@@ -59,10 +59,15 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional") {
   A <- if (assignment == "modal") get_modal_resp(resp) else resp
 
   # Classification error matrix C.
-  # C[j, k] = P(assigned approx j | true = k), built from the assigned-class
-  # variable A. Columns index the true class and sum to 1.
-  C <- t(A) %*% (A * weights)
-  C <- sweep(C, 2, colSums(A * weights), "/")
+  # C[j, k] = P(assigned approx j | true = k). Columns index the true class and
+  # sum to 1. The true class is never observed, so its column weights are always
+  # the posteriors; only the assigned variable A changes with the rule. Writing
+  # it as A crossed with `resp` rather than A crossed with itself matters: a
+  # modal A has a single 1 per row, so t(A) %*% A is diagonal and would make C
+  # the identity, turning the correction into a no-op. Under proportional
+  # assignment A *is* `resp` and the two expressions are the same matrix.
+  C <- t(A) %*% (resp * weights)
+  C <- sweep(C, 2, colSums(resp * weights), "/")
 
   # BCH weight matrix: D = t(C^{-1})
   D <- t(pinv(C))
@@ -147,8 +152,11 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional") {
 #
 # P(a_i | x=k) is fixed from the proportional classification table built from
 # step-1 posteriors:
-#   C_prop[j,k]     = sum_i w_i * resp1[i,j] * resp1[i,k]   (K x K, symmetric)
+#   C_prop[j,k]     = sum_i w_i * resp1[i,j] * A1[i,k]      (K x K)
 #   C_row_norm[j,k] = C_prop[j,k] / sum_k C_prop[j,k]        = P(a=k | x=j)
+#
+# A1 is the assigned-class variable: resp1 itself under proportional assignment
+# (where C_prop is symmetric), or the modal indicator under modal.
 #
 # For individual i under proportional (soft) assignment:
 #   P(a_i | x=j) = sum_k resp1[i,k] * C_row_norm[j,k]
@@ -207,9 +215,15 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   # posteriors reads A1.
   A1 <- if (assignment == "modal") get_modal_resp(resp_step1) else resp_step1
 
-  # Classification error matrix.
-  C_prop     <- t(A1 * w_clean) %*% A1                    # K x K (symmetric)
-  Nk         <- colSums(A1 * w_clean)
+  # Classification error matrix. Rows index the true class, which is never
+  # observed and so is always weighted by the posteriors; columns index the
+  # assigned variable A1, which is what the rule changes. As in fit_bch(), A1
+  # must be crossed with `resp_step1` and not with itself -- a modal A1 has one
+  # 1 per row, so t(A1) %*% A1 is diagonal and C_row_norm would come out as the
+  # identity, leaving the correction with nothing to invert. Under proportional
+  # assignment A1 is `resp_step1` and this is the same matrix as before.
+  C_prop     <- t(resp_step1 * w_clean) %*% A1            # K x K
+  Nk         <- colSums(resp_step1 * w_clean)
   C_row_norm <- sweep(C_prop, 1, Nk, "/")                 # K x K, row-normalised
 
   # Initialise structural model.
