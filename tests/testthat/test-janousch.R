@@ -47,13 +47,30 @@ test_that("a collapsed class variance is detected and named", {
   # one, which is what makes it detectable: the variance lands orders of
   # magnitude below the item's own spread with the class mean pinned at the
   # top of the scale.
-  expect_warning(
+  # Caught with a calling handler rather than expect_warning() so that the fit
+  # still completes and the message itself is available to assert on below.
+  msg <- NULL
+  withCallingHandlers(
     fit <- fit_mixture(janousch[items], n_classes = 4,
                        measurement = "continuous",
                        group = janousch$country, group_effects = "prevalence",
                        n_steps = 1, n_init = 50, max_iter = 2000,
                        random_state = 11),
-    "collapsed towards zero")
+    warning = function(w) {
+      if (grepl("collapsed towards zero", conditionMessage(w), fixed = TRUE)) {
+        msg <<- conditionMessage(w)
+        invokeRestart("muffleWarning")
+      }
+    })
+  expect_false(is.null(msg))
+
+  # R truncates a condition message at getOption("warning.length"), which
+  # defaults to 1000 bytes, so a longer warning loses its tail -- and the tail
+  # is where the remedies are. Both remedies named in the message must survive
+  # inside that budget.
+  expect_lt(nchar(msg), 1000)
+  expect_match(msg, "variances_equal", fixed = TRUE)
+  expect_match(msg, "bayes_constants", fixed = TRUE)
 
   expect_false(is.null(fit$degenerate))
   expect_true("social_resources" %in% fit$degenerate$item)

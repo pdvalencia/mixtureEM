@@ -305,9 +305,12 @@ lta_g2 <- function(object) {
 #'   only in the number of classes ... but are not appropriate for comparing
 #'   models that allow for different types of between-class differences".
 #'
-#' @return A list with `fit_table` (columns `Classes`, `LL`, `Params`, `AIC`,
-#'   `BIC`, `SABIC`, `Entropy` and `Unreplicated`), the fitted `models` (named
-#'   `"K2"`, `"K3"`, ...) and `best_k`, the class count with the lowest BIC.
+#' @return An object of class `mixture_comparison`, a list with `fit_table`
+#'   (columns `Classes`, `LL`, `Params`, `AIC`, `BIC`, `SABIC`, `Entropy` and
+#'   `Unreplicated`), the fitted `models` (named `"K2"`, `"K3"`, ...) and
+#'   `best_k`, the class count with the lowest BIC. It indexes exactly as a
+#'   plain list; [`plot()`][plot.mixture_comparison] draws the criteria
+#'   against K.
 #' @references
 #' van de Schoot, R., Sijbrandij, M., Winter, S. D., Depaoli, S., & Vermunt,
 #' J. K. (2017). The GRoLTS-checklist: Guidelines for reporting on latent
@@ -390,7 +393,10 @@ compare_longitudinal <- function(indicators, k_range = NULL,
     }
     message(sprintf("\n-> Best model according to BIC: %d", best))
   }
-  list(fit_table = tab, models = models, best_k = best)
+  # Same class as compare_mixtures() returns, so one plot method serves both.
+  out <- list(fit_table = tab, models = models, best_k = best)
+  class(out) <- "mixture_comparison"
+  out
 }
 
 # ------------------------------------------------------------------------------

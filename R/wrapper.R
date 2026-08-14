@@ -2355,7 +2355,9 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   — while a fixed value drifts as classes are added. Then check the result
 #'   rather than just that the warning stopped — the flagged variance should no
 #'   longer be far below the others in the model, and its class mean should have
-#'   come off the floor or ceiling of the response scale.
+#'   come off the floor or ceiling of the response scale. It is worth looking at
+#'   the distribution of the named item as well, for the floor, ceiling or spike
+#'   the class latched onto.
 #'
 #'   Raising \code{n_init} is \emph{not} a remedy here. A collapsed variance is
 #'   not a convergence failure but a property of the likelihood, which really is
@@ -2870,12 +2872,15 @@ print.mixture_model <- function(x, ...) {
 #'   Default is \code{1}.
 #' @param ... Additional arguments passed to \code{\link{fit_mixture}}.
 #'
-#' @return A named list with three elements:
+#' @return An object of class `mixture_comparison`: a named list with three
+#'   elements, which can be indexed exactly as a plain list.
 #'   * `fit_table` Data frame with one row per K and columns `Classes`, `LL`,
 #'     `Params`, `AIC`, `BIC`, `SABIC`, `Entropy` and `Unreplicated`.
 #'   * `models` Named list of fitted `mixture_model` objects, one per K
 #'     (names are `"K1"`, `"K2"`, etc.).
 #'   * `best_k` Integer. The value of K with the lowest BIC.
+#'
+#'   [`plot()`][plot.mixture_comparison] draws the criteria against K.
 #'
 #' @examples
 #' set.seed(1)
@@ -2965,7 +2970,11 @@ compare_mixtures <- function(X, k_range = 1:5, measurement = "binary",
                 .replication_advice(m1$n_requested %||% m1$n_starts)))
   }
   cat(sprintf("\n-> Best model according to BIC: %d classes\n", best_bic_k))
-  return(list(fit_table = fit_table, models = models, best_k = best_bic_k))
+  # Classed purely so that plot() has something to dispatch on. The list is
+  # unchanged otherwise, and `result$fit_table` behaves exactly as before.
+  out <- list(fit_table = fit_table, models = models, best_k = best_bic_k)
+  class(out) <- "mixture_comparison"
+  return(out)
 }
 
 #' Extract Covariate Odds Ratios from a Fitted Mixture Model
@@ -2983,11 +2992,31 @@ compare_mixtures <- function(X, k_range = 1:5, measurement = "binary",
 #'   \code{1}.
 #' @param covariate_names Optional character vector of predictor names to
 #'   override the column names stored in the model. Default is \code{NULL}.
+#' @param exponentiate Logical. When \code{TRUE} (the default) the coefficients
+#'   are returned as odds ratios; when \code{FALSE}, as the multinomial-logit
+#'   coefficients themselves, relative to \code{ref_class}.
 #' @param ... Currently unused. Present for S3 method compatibility.
 #'
-#' @return A K x D numeric matrix of odds ratios, where rows are latent
-#'   classes and columns are predictors (including the intercept). The
-#'   reference class row will always show \code{1.000}.
+#' @details
+#' The printed summary reports odds ratios because that is the scale these
+#' effects are interpreted and published on, and the default here matches it.
+#' \code{coef(fit, exponentiate = FALSE)} and
+#' \code{\link[=vcov.mixture_model]{vcov}} give the log-scale estimates and
+#' their standard errors, for anyone who needs to compare them against another
+#' program or pool them across analyses. Both scales are exact —
+#' \code{log(coef(fit))} has always recovered the coefficients, since the odds
+#' ratios are returned at full double precision; the argument makes that
+#' discoverable rather than a trick.
+#'
+#' @return A K x D numeric matrix, where rows are latent classes and columns
+#'   are predictors (including the intercept). With \code{exponentiate = TRUE}
+#'   these are odds ratios and the reference class row is all \code{1}; with
+#'   \code{exponentiate = FALSE} they are log-odds coefficients and that row is
+#'   all \code{0}.
+#'
+#' @seealso \code{\link[=confint.mixture_model]{confint}} for intervals on the
+#'   odds-ratio scale, and \code{\link[=vcov.mixture_model]{vcov}} for the
+#'   log-scale standard errors.
 #'
 #' @examples
 #' set.seed(1)
@@ -2998,18 +3027,20 @@ compare_mixtures <- function(X, k_range = 1:5, measurement = "binary",
 #'                    structural = "covariate",
 #'                    n_steps = 3, correction = "ML", n_init = 5)
 #' coef(fit)
+#' coef(fit, exponentiate = FALSE)
 #'
 #' @export
-coef.mixture_model <- function(object, ref_class = 1, covariate_names = NULL, ...) {
+coef.mixture_model <- function(object, ref_class = 1, covariate_names = NULL,
+                               exponentiate = TRUE, ...) {
   if (is.null(object$sm) || !inherits(object$sm, "covariate"))
     stop("No covariate model.")
   K     <- object$n_components
   betas <- object$sm$parameters$beta
   if (!is.null(covariate_names))
     colnames(betas) <- c("Intercept", covariate_names)
-  betas_ref   <- sweep(betas, 2, betas[ref_class, ], "-")
-  odds_ratios <- exp(betas_ref)
-  rownames(odds_ratios) <- paste("Class", 1:K)
-  rownames(odds_ratios)[ref_class] <- paste("Class", ref_class, "(Ref)")
-  return(odds_ratios)
+  betas_ref <- sweep(betas, 2, betas[ref_class, ], "-")
+  out       <- if (isTRUE(exponentiate)) exp(betas_ref) else betas_ref
+  rownames(out) <- paste("Class", 1:K)
+  rownames(out)[ref_class] <- paste("Class", ref_class, "(Ref)")
+  return(out)
 }

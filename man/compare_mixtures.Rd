@@ -31,7 +31,8 @@ Default is \code{1}.}
 \item{...}{Additional arguments passed to \code{\link{fit_mixture}}.}
 }
 \value{
-A named list with three elements:
+An object of class \code{mixture_comparison}: a named list with three
+elements, which can be indexed exactly as a plain list.
 \itemize{
 \item \code{fit_table} Data frame with one row per K and columns \code{Classes}, \code{LL},
 \code{Params}, \code{AIC}, \code{BIC}, \code{SABIC}, \code{Entropy} and \code{Unreplicated}.
@@ -39,6 +40,8 @@ A named list with three elements:
 (names are \code{"K1"}, \code{"K2"}, etc.).
 \item \code{best_k} Integer. The value of K with the lowest BIC.
 }
+
+\code{\link[=plot.mixture_comparison]{plot()}} draws the criteria against K.
 }
 \description{
 Fits a sequence of measurement-only mixture models, one for each value of
