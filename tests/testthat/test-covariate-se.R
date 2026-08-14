@@ -336,3 +336,71 @@ test_that("a survey design still reaches the meat of the sandwich", {
   expect_match(fit$sm$parameters$V_method, "survey-linearized")
 })
 
+
+# ------------------------------------------------------------------------------
+# The estimates are recoverable on the log scale
+# ------------------------------------------------------------------------------
+#
+# The printed output reports odds ratios, which is the scale these effects are
+# published on. What these two check is that the log-scale quantities behind it
+# can still be got at, at full precision, by anyone comparing against another
+# program.
+
+test_that("confint() returns full precision and still prints to three decimals", {
+  fit <- .cse_fit(.cse_sim())
+  ci  <- confint(fit)
+
+  # The defect this replaced rounded inside the returned object, which put a
+  # 0.001 floor under any comparison of these numbers with another program's.
+  or <- ci$z$OR
+  expect_false(isTRUE(all.equal(or, round(or, 3), tolerance = 0)))
+
+  # And the console output is unchanged, because the rounding moved into the
+  # print method rather than disappearing.
+  out <- paste(capture.output(print(ci)), collapse = "\n")
+  expect_match(out, "CONFIDENCE INTERVALS FOR ODDS RATIOS", fixed = TRUE)
+  expect_match(out, sprintf("%7.3f", or[2]), fixed = TRUE)
+})
+
+test_that("vcov() gives the standard errors and coef() the log-scale estimates", {
+  fit <- .cse_fit(.cse_sim())
+  K   <- fit$n_components
+  D   <- ncol(fit$sm$parameters$beta)
+
+  V  <- vcov(fit)
+  se <- sqrt(diag(V))
+  expect_equal(dim(V), c((K - 1L) * D, (K - 1L) * D))
+  expect_length(se, (K - 1L) * D)
+  expect_true(all(is.finite(se)))
+  expect_true(all(se > 0))
+  expect_equal(attr(V, "method"), fit$sm$parameters$V_method)
+
+  # The anchor class is found rather than assumed, because sort_model_classes()
+  # reorders the classes after estimation and can put it in any row. The rows of
+  # vcov() must be the classes that are *not* the anchor, in order, and must
+  # line up with the coefficients taken against that same reference.
+  ref  <- attr(V, "ref_class")
+  free <- setdiff(seq_len(K), ref)
+  expect_true(all(fit$sm$parameters$beta[ref, ] == 0))
+  expect_equal(rownames(V),
+               paste(rep(paste("Class", free), each = D),
+                     colnames(fit$sm$parameters$beta), sep = ":"))
+  b <- coef(fit, exponentiate = FALSE, ref_class = ref)
+  expect_true(all(b[ref, ] == 0))
+
+  # The alignment check with teeth: against the same reference, confint()'s
+  # half-width on the log scale is z * se, so these standard errors must
+  # reproduce the intervals confint() already prints. This only holds if the
+  # rows of vcov() and the rows of coef() name the same coefficients.
+  ci <- suppressWarnings(confint(fit, ref_class = ref))
+  half <- unlist(lapply(names(ci), function(nm)
+    log(ci[[nm]]$Upper[free]) - log(ci[[nm]]$OR[free])))
+  expect_equal(sort(half), sort(unname(qnorm(0.975) * se)), tolerance = 1e-8)
+
+  # exponentiate = FALSE is exactly the log of the default, and the default is
+  # exactly today's behaviour.
+  expect_equal(log(coef(fit)), coef(fit, exponentiate = FALSE),
+               tolerance = 1e-12)
+  expect_equal(coef(fit), exp(coef(fit, exponentiate = FALSE)),
+               tolerance = 1e-12)
+})

@@ -4,7 +4,7 @@
 \alias{coef.mixture_model}
 \title{Extract Covariate Odds Ratios from a Fitted Mixture Model}
 \usage{
-\method{coef}{mixture_model}(object, ref_class = 1, covariate_names = NULL, ...)
+\method{coef}{mixture_model}(object, ref_class = 1, covariate_names = NULL, exponentiate = TRUE, ...)
 }
 \arguments{
 \item{object}{A fitted \code{mixture_model} object with a covariate
@@ -17,18 +17,35 @@ class odds ratios are expressed relative to this class. Default is
 \item{covariate_names}{Optional character vector of predictor names to
 override the column names stored in the model. Default is \code{NULL}.}
 
+\item{exponentiate}{Logical. When \code{TRUE} (the default) the coefficients
+are returned as odds ratios; when \code{FALSE}, as the multinomial-logit
+coefficients themselves, relative to \code{ref_class}.}
+
 \item{...}{Currently unused. Present for S3 method compatibility.}
 }
 \value{
-A K x D numeric matrix of odds ratios, where rows are latent
-classes and columns are predictors (including the intercept). The
-reference class row will always show \code{1.000}.
+A K x D numeric matrix, where rows are latent classes and columns
+are predictors (including the intercept). With \code{exponentiate = TRUE}
+these are odds ratios and the reference class row is all \code{1}; with
+\code{exponentiate = FALSE} they are log-odds coefficients and that row is
+all \code{0}.
 }
 \description{
 Extracts the logistic regression coefficients from a covariate structural
 model and returns them as a matrix of odds ratios, centered on a reference
 class. Only available when the model was fitted with
 \code{structural = "covariate"}.
+}
+\details{
+The printed summary reports odds ratios because that is the scale these
+effects are interpreted and published on, and the default here matches it.
+\code{coef(fit, exponentiate = FALSE)} and
+\code{\link[=vcov.mixture_model]{vcov}} give the log-scale estimates and
+their standard errors, for anyone who needs to compare them against another
+program or pool them across analyses. Both scales are exact —
+\code{log(coef(fit))} has always recovered the coefficients, since the odds
+ratios are returned at full double precision; the argument makes that
+discoverable rather than a trick.
 }
 \examples{
 set.seed(1)
@@ -39,5 +56,11 @@ fit <- fit_mixture(X, Y = Z, n_components = 2, measurement = "binary",
                    structural = "covariate",
                    n_steps = 3, correction = "ML", n_init = 5)
 coef(fit)
+coef(fit, exponentiate = FALSE)
 
+}
+\seealso{
+\code{\link[=confint.mixture_model]{confint}} for intervals on the
+odds-ratio scale, and \code{\link[=vcov.mixture_model]{vcov}} for the
+log-scale standard errors.
 }

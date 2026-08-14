@@ -25,8 +25,13 @@
 #'
 #' @return A named list with one data frame per predictor variable (including
 #'   the intercept). Each data frame has columns `OR` (odds ratio), `Lower`,
-#'   and `Upper` (confidence bounds), with one row per latent class. Values
-#'   are rounded to three decimal places.
+#'   and `Upper` (confidence bounds), with one row per latent class. Values are
+#'   returned at full precision and rounded only for display, so
+#'   \code{log(confint(fit)$age$OR)} recovers the log-odds coefficient exactly.
+#'
+#' @seealso \code{\link[=coef.mixture_model]{coef}} for the coefficients
+#'   themselves, on either scale, and \code{\link[=vcov.mixture_model]{vcov}}
+#'   for their covariance matrix.
 #'
 #' @examples
 #' set.seed(1)
@@ -139,10 +144,14 @@ confint.mixture_model <- function(object, parm = NULL, level = 0.95,
   res_list <- vector("list", D)
   names(res_list) <- cov_names
 
+  # Full precision in the object; rounding is print.mixture_confint()'s job.
+  # Rounding here destroyed three decimals of a stored result for no benefit,
+  # and put a 0.001 floor under any comparison of these numbers with another
+  # program's -- larger than the disagreement being measured.
   for (v in seq_len(D)) {
-    df <- data.frame(OR    = round(OR[, v], 3),
-                     Lower = round(LB[, v], 3),
-                     Upper = round(UB[, v], 3),
+    df <- data.frame(OR    = OR[, v],
+                     Lower = LB[, v],
+                     Upper = UB[, v],
                      row.names = row_labels)
     res_list[[v]] <- df
   }
@@ -154,6 +163,112 @@ confint.mixture_model <- function(object, parm = NULL, level = 0.95,
   class(res_list) <- c("mixture_confint", "list")
 
   return(res_list)
+}
+
+#' Covariance Matrix of the Class-Membership Coefficients
+#'
+#' @description
+#' Returns the variance-covariance matrix of the multinomial-logit coefficients
+#' for covariate effects on latent class membership, so that
+#' \code{sqrt(diag(vcov(fit)))} gives their standard errors. This is the
+#' log-scale companion to \code{\link[=confint.mixture_model]{confint}}, which
+#' reports intervals on the odds-ratio scale — it exists so that the standard
+#' errors can be got at directly, for comparing against another program or for
+#' pooling estimates, rather than reconstructed from an interval width.
+#'
+#' Which estimator it comes from depends on how the model was fitted: the
+#' survey-robust or step-3 corrected covariance when one was computed, and the
+#' Q-function Hessian otherwise. The estimator is named in the \code{method}
+#' attribute, exactly as \code{confint()} reports it.
+#'
+#' @param object A fitted \code{mixture_model} object with a covariate
+#'   structural model (fitted with \code{structural = "covariate"}).
+#' @param ... Currently unused. Present for S3 method compatibility.
+#'
+#' @return A square numeric matrix over the free coefficients, of dimension
+#'   \code{(K - 1) * D} where \code{K} is the number of classes and \code{D} the
+#'   number of predictors including the intercept. Rows and columns are named
+#'   \code{"Class k:predictor"}. The estimator's name is carried in the
+#'   \code{method} attribute and the reference class in \code{ref_class}.
+#'
+#' @section Which contrast these are variances of:
+#' One class is pinned at zero to identify the model, and the free coefficients
+#' are the other \code{K - 1} classes relative to \strong{that} class. Which
+#' class it is depends on the fit, because the classes are reordered by size
+#' after estimation, so it is reported in the \code{ref_class} attribute rather
+#' than fixed. This is not necessarily the same contrast as
+#' \code{coef()}'s and \code{confint()}'s \code{ref_class} argument, which
+#' defaults to class 1: pair these standard errors with
+#' \code{coef(fit, exponentiate = FALSE, ref_class = attr(vcov(fit), "ref_class"))},
+#' whose non-reference rows are then exactly the coefficients they belong to.
+#'
+#' @seealso \code{\link[=coef.mixture_model]{coef}}, whose
+#'   \code{exponentiate = FALSE} gives the coefficients these are the variances
+#'   of, and \code{\link[=confint.mixture_model]{confint}}.
+#'
+#' @examples
+#' set.seed(1)
+#' X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
+#' Z <- matrix(rnorm(100), nrow = 100)
+#' colnames(Z) <- "age"
+#' fit <- fit_mixture(X, Y = Z, n_components = 2, measurement = "binary",
+#'                    structural = "covariate",
+#'                    n_steps = 3, correction = "ML", n_init = 5)
+#' sqrt(diag(vcov(fit)))
+#'
+#' @export
+vcov.mixture_model <- function(object, ...) {
+  if (is.null(object$sm) || !inherits(object$sm, "covariate"))
+    stop("No covariate model.")
+
+  K     <- object$n_components
+  betas <- object$sm$parameters$beta
+  D     <- ncol(betas)
+  p     <- (K - 1L) * D
+  if (p < 1L) stop("No free covariate coefficients.")
+
+  # Same preference order as confint(): a computed covariance beats an inverted
+  # Hessian, so the two accessors can never disagree about which estimator the
+  # fit carries.
+  V_robust <- object$sm$parameters$V_robust
+  if (!is.null(V_robust)) {
+    method <- object$sm$parameters$V_method %||% "Survey-robust (linearization)"
+    V      <- V_robust
+  } else {
+    method <- object$sm$parameters$V_method %||% "Q-function Hessian"
+    H      <- object$sm$parameters$hessian
+    if (is.null(H)) stop("Hessian missing. Refit model.")
+    V <- pinv(-H)
+  }
+
+  if (nrow(V) < K * D)
+    stop("Stored covariance is smaller than the coefficient vector. Refit model.")
+
+  # Everything upstream stores the K*D layout with the anchor class's block
+  # padded out -- zeros in V_robust, a large negative diagonal in the Hessian.
+  # That padding is not a variance, so it is dropped rather than returned as a
+  # row of zeros a caller might take a square root of.
+  #
+  # Which block it is has to be found rather than assumed. `.fit_mnl()` pins the
+  # last class, but `sort_model_classes()` then reorders the classes by size and
+  # permutes `beta`, `hessian` and `V_robust` through the same index map, so on
+  # a fitted object the anchor sits wherever the sort left it. It is the row of
+  # `beta` that is identically zero, which is what pinning it means; the
+  # fallback is the parameterisation's own default, for a model that never
+  # reached the sort.
+  anchor <- which(apply(betas, 1, function(r) all(r == 0)))
+  if (length(anchor) != 1L) anchor <- K
+  free <- setdiff(seq_len(K), anchor)
+  idx  <- as.vector(vapply(free, function(k) ((k - 1L) * D + 1L):(k * D),
+                           integer(D)))
+  V <- V[idx, idx, drop = FALSE]
+
+  cov_names <- colnames(betas) %||% paste0("V", seq_len(D))
+  nms <- paste(rep(paste("Class", free), each = D), cov_names, sep = ":")
+  dimnames(V) <- list(nms, nms)
+  attr(V, "method")    <- method
+  attr(V, "ref_class") <- anchor
+  V
 }
 
 #' @export

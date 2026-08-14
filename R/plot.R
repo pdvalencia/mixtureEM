@@ -254,3 +254,150 @@ plot.mixture_model <- function(x, main = "Latent Class / Profile Plot",
 
   invisible(x)
 }
+
+# ==============================================================================
+# Elbow plot for a compare_mixtures() / compare_longitudinal() sweep
+# ==============================================================================
+
+#' Elbow Plot for a Model-Selection Sweep
+#'
+#' @description
+#' Plots the information criteria from [`compare_mixtures()`] or
+#' [`compare_longitudinal()`] against the number of classes, which is the
+#' picture the fit table is usually read as. Masyn (2013) describes the reading:
+#' plot the criteria against K and look for the point of diminishing returns
+#' rather than taking the raw minimum, because the BIC often keeps falling
+#' slowly as classes are added without those classes being substantively
+#' distinct. The minimum is marked so it can be seen, not so it can be obeyed.
+#'
+#' The plot informs the decision; it does not make it. Ram and Grimm (2009,
+#' p. 571) put it that "model selection is an art" — the criteria are one input
+#' alongside class size, interpretability and the substantive question.
+#'
+#' @param x A `mixture_comparison` object, as returned by
+#'   [`compare_mixtures()`] or [`compare_longitudinal()`].
+#' @param indices Character vector, any subset of `"BIC"`, `"AIC"` and
+#'   `"SABIC"`. Default `"BIC"` alone. All three are \eqn{-2\ell} plus a penalty
+#'   and so share one axis; the log-likelihood and the entropy are deliberately
+#'   not allowed on it, being on a different scale entirely.
+#' @param entropy Logical. When `TRUE`, relative entropy is drawn in a second
+#'   panel below, on a fixed 0-1 axis. It gets its own panel rather than a
+#'   right-hand axis, since a twin axis would invite reading the two against
+#'   each other, which is exactly the comparison it must not support: entropy
+#'   measures how well separated the classes are, not how well the model fits,
+#'   and it is not a model-selection criterion.
+#' @param main Optional title for the top panel.
+#' @param ... Currently unused. Present for S3 method compatibility.
+#'
+#' @return `x`, invisibly. Called for the plot.
+#'
+#' @references
+#' Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
+#' T. D. Little (Ed.), \emph{The Oxford Handbook of Quantitative Methods}
+#' (Vol. 2, pp. 551-611). Oxford University Press.
+#'
+#' Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
+#' identifying differences in longitudinal change among unobserved groups.
+#' \emph{International Journal of Behavioral Development}, \emph{33}(6),
+#' 565-576. \doi{10.1177/0165025409343765}
+#'
+#' @seealso [`compare_mixtures()`], [`compare_longitudinal()`]
+#'
+#' @examples
+#' set.seed(1)
+#' X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
+#' result <- compare_mixtures(X, k_range = 1:4, measurement = "binary",
+#'                            n_init = 5)
+#' plot(result)
+#' plot(result, indices = c("BIC", "AIC"), entropy = TRUE)
+#'
+#' @export
+plot.mixture_comparison <- function(x, indices = "BIC", entropy = FALSE,
+                                    main = NULL, ...) {
+  tab <- x$fit_table
+  if (is.null(tab) || !nrow(tab))
+    stop("Nothing to plot: the comparison has no fit table.", call. = FALSE)
+
+  indices <- match.arg(indices, c("BIC", "AIC", "SABIC"), several.ok = TRUE)
+  missing_cols <- setdiff(indices, names(tab))
+  if (length(missing_cols))
+    stop(sprintf("The fit table has no %s column.",
+                 paste(missing_cols, collapse = " or ")), call. = FALSE)
+
+  K     <- tab$Classes
+  # `%in% TRUE` rather than the column itself, so an NA cell reads as "not
+  # flagged" instead of propagating into every pch it touches.
+  unrep <- if (is.null(tab$Unreplicated)) rep(FALSE, length(K))
+           else tab$Unreplicated %in% TRUE
+
+  # Colour is never the only channel that distinguishes the lines: line type and
+  # plotting symbol vary with it, so the plot survives a greyscale print and a
+  # colour-vision-deficient reader.
+  cols     <- rep(.okabe_ito, length.out = length(indices))
+  ltys     <- rep(c(1, 2, 4),   length.out = length(indices))
+  pch_fill <- rep(c(16, 17, 15), length.out = length(indices))
+  pch_open <- rep(c(1, 2, 0),    length.out = length(indices))
+
+  old_par <- par(no.readonly = TRUE)
+  on.exit(par(old_par), add = TRUE)
+  # Bottom margin has to hold the axis, the axis label and the sub-caption
+  # under it. mfrow shares one `mar` across both panels, so the two-panel case
+  # takes the same allowance and its second panel simply has room to spare.
+  if (isTRUE(entropy)) par(mfrow = c(2, 1), mar = c(5.4, 4.2, 2.6, 1))
+  else                 par(mar = c(5.4, 4.2, 3, 1))
+
+  Y <- as.matrix(tab[, indices, drop = FALSE])
+  ylim <- range(Y[is.finite(Y)])
+  plot(range(K), ylim, type = "n", xaxt = "n", xlab = "Number of classes",
+       ylab = if (length(indices) == 1L) indices else "Information criterion",
+       main = main %||% "Information criteria by number of classes")
+  axis(1, at = K)
+
+  for (j in seq_along(indices)) {
+    y <- Y[, j]
+    lines(K, y, col = cols[j], lty = ltys[j], lwd = 1.8)
+    # An unreplicated maximum is not a fitted value to be trusted at face
+    # value, so it is drawn hollow rather than solid.
+    points(K, y, col = cols[j], pch = ifelse(unrep, pch_open[j], pch_fill[j]),
+           cex = 1.2, lwd = 1.5)
+    if (any(is.finite(y))) {
+      i <- which.min(y)
+      points(K[i], y[i], col = cols[j],
+             pch = if (unrep[i]) pch_open[j] else pch_fill[j], cex = 2.1,
+             lwd = 1.8)
+      # Only the first index gets a guide line. One per index would turn the
+      # panel into a grid and imply the criteria are voting.
+      if (j == 1L)
+        abline(v = K[i], lty = 3, col = adjustcolor(cols[j], alpha.f = 0.5))
+    }
+  }
+
+  if (length(indices) > 1L)
+    legend("topright", legend = indices, col = cols, lty = ltys,
+           pch = pch_fill, lwd = 1.8, bty = "n", cex = 0.85)
+
+  sub <- "Larger symbol marks the minimum; read the elbow, not the minimum alone."
+  if (any(unrep))
+    sub <- paste(sub, "Hollow symbols: maximum found by a single start.")
+  mtext(sub, side = 1, line = 3.9, cex = 0.72, col = "grey30")
+
+  if (isTRUE(entropy)) {
+    ent <- tab$Entropy
+    if (is.null(ent)) {
+      warning("The fit table has no Entropy column; the second panel is empty.",
+              call. = FALSE)
+      ent <- rep(NA_real_, length(K))
+    }
+    # Fixed 0-1 limits. Autoscaling would magnify a range of a few hundredths
+    # into a dramatic-looking curve.
+    plot(range(K), c(0, 1), type = "n", xaxt = "n", ylim = c(0, 1),
+         xlab = "Number of classes", ylab = "Relative entropy",
+         main = "Classification certainty")
+    axis(1, at = K)
+    lines(K, ent, col = .okabe_ito[3], lty = 1, lwd = 1.8)
+    points(K, ent, col = .okabe_ito[3],
+           pch = ifelse(unrep, 1, 16), cex = 1.2, lwd = 1.5)
+  }
+
+  invisible(x)
+}

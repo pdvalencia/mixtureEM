@@ -261,7 +261,9 @@ penalised-mixture literature applies it, the same amount to every component
 — while a fixed value drifts as classes are added. Then check the result
 rather than just that the warning stopped — the flagged variance should no
 longer be far below the others in the model, and its class mean should have
-come off the floor or ceiling of the response scale.
+come off the floor or ceiling of the response scale. It is worth looking at
+the distribution of the named item as well, for the floor, ceiling or spike
+the class latched onto.
 
 Raising \code{n_init} is \emph{not} a remedy here. A collapsed variance is
 not a convergence failure but a property of the likelihood, which really is

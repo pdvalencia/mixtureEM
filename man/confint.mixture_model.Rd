@@ -35,8 +35,9 @@ other classes are expressed relative to this class. Default is \code{1}.}
 \value{
 A named list with one data frame per predictor variable (including
 the intercept). Each data frame has columns \code{OR} (odds ratio), \code{Lower},
-and \code{Upper} (confidence bounds), with one row per latent class. Values
-are rounded to three decimal places.
+and \code{Upper} (confidence bounds), with one row per latent class. Values are
+returned at full precision and rounded only for display, so
+\code{log(confint(fit)$age$OR)} recovers the log-odds coefficient exactly.
 }
 \description{
 Computes confidence intervals for the odds ratios of covariate effects on
@@ -66,4 +67,9 @@ boot <- bootstrap_covariates(fit, X, Z, n_reps = 200)
 confint(fit, boot_results = boot)
 }
 
+}
+\seealso{
+\code{\link[=coef.mixture_model]{coef}} for the coefficients
+themselves, on either scale, and \code{\link[=vcov.mixture_model]{vcov}}
+for their covariance matrix.
 }

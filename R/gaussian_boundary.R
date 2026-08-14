@@ -164,27 +164,23 @@
   prior_hint <- if (is.na(K)) "bayes_constants = list(variances = <n_classes>)"
                 else sprintf("bayes_constants = list(variances = %d)", K)
 
+  # R truncates a condition message at getOption("warning.length"), which
+  # defaults to 1000 bytes and which RStudio does not raise -- so a warning
+  # written to full length loses its tail in the console most applied users are
+  # in, and the tail is where the remedies are. This message is therefore kept
+  # under that limit at the worst case .gaussian_boundary_lines() can produce,
+  # and the reasoning it used to carry lives in ?fit_mixture instead. The
+  # asymmetry with .print_degenerate_note() is deliberate: cat() has no limit, so
+  # the printed note and the help file are the long form and this is the short
+  # one. The flagged cells come first because they are the only content the user
+  # cannot get anywhere else, and so must never be what gets cut.
   warning(sprintf(
     paste0("A class variance has collapsed towards zero: %s. ",
-           "The likelihood of a mixture of normals is unbounded in this ",
-           "direction, so this solution can score better than any meaningful ",
-           "one while describing a handful of near-identical cases rather ",
-           "than a subgroup. Do not interpret it as it stands, and do not ",
-           "compare its BIC with a clean fit's -- it is inflated by the spike. ",
-           "This is not a convergence failure, so raising n_init will not fix ",
-           "it and can make it worse. Three ways out, to choose between on ",
-           "substantive grounds: (1) hold each item's variance equal across ",
-           "classes with variances_equal = TRUE, which bounds the likelihood ",
-           "so the problem cannot arise; (2) fit fewer classes, since a class ",
-           "describing a spike rather than a subgroup usually means the data ",
-           "do not support this many; or (3) keep the model and strengthen the ",
-           "prior with %s -- roughly one artificial observation per class -- ",
-           "increasing it a little at a time if the warning persists. Then ",
-           "check that the flagged ",
-           "variance is no longer far below the others and that its class mean ",
-           "has come off the floor or ceiling, and look at the distribution of ",
-           "the named item for the floor, ceiling or spike the class latched ",
-           "onto."),
+           "These estimates are not interpretable, and this fit's BIC cannot ",
+           "be compared with a clean fit's. Three ways out, to choose between ",
+           "on substantive grounds: (1) variances_equal = TRUE; (2) fewer ",
+           "classes; or (3) a stronger prior, %s. ",
+           "See ?fit_mixture for why, and what to check afterwards."),
     paste(.gaussian_boundary_lines(flagged), collapse = "; "), prior_hint),
     call. = FALSE)
   fit

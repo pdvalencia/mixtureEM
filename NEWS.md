@@ -508,6 +508,58 @@ matched to within 0.001.
   for that comparison: the seed was pinning a degenerate configural solution
   rather than curing a search failure, and it has been removed.
 
+## New: `plot()` on a model-selection sweep
+
+`compare_mixtures()` and `compare_longitudinal()` now return an object of class
+`mixture_comparison`, and `plot()` on it draws the information criteria against
+the number of classes — the elbow plot the fit table was already being read as.
+The returned object indexes exactly as the plain list it was, so
+`result$fit_table`, `result$models` and `result$best_k` are unchanged.
+
+`indices` takes any subset of `"BIC"`, `"AIC"` and `"SABIC"`; the
+log-likelihood and the entropy are deliberately not allowed on that axis, being
+on a different scale. `entropy = TRUE` puts relative entropy in a second panel
+below on a fixed 0-1 axis rather than on a twin axis, which would invite reading
+it as a fit criterion. Each line's minimum is marked, and a K whose maximum was
+found by a single random start is drawn hollow. Following Masyn (2013), the plot
+is for reading the point of diminishing returns rather than obeying the
+minimum — the BIC often keeps falling slowly as classes are added.
+
+## The coefficients and standard errors are now recoverable on the log scale
+
+No printed output changes anywhere in this group. The odds ratios, intervals and
+p-values in `print()`, `summary()` and `confint()` are what applied researchers
+report and they are shown exactly as before. What changes is that the log-scale
+quantities behind them can now be got at.
+
+* **`confint()` no longer rounds inside the object it returns.** It rounded the
+  odds ratio and both bounds to three decimals *in the data*, not just for
+  display, which destroyed precision in a stored result and put a 0.001 floor
+  under any comparison of these numbers against another program's — larger than
+  the disagreement such a comparison is usually trying to measure. Values are
+  now returned at full precision and rounded only by the print method.
+* **New `vcov()` method**, so `sqrt(diag(vcov(fit)))` gives the standard errors
+  of the class-membership coefficients. It returns the `(K - 1) * D` matrix over
+  the free coefficients, names its rows and columns `"Class k:predictor"`, and
+  carries the estimator's name in a `method` attribute as `confint()` already
+  does. The class the coefficients are taken against is reported in a
+  `ref_class` attribute rather than assumed, since the classes are reordered by
+  size after estimation.
+* **`coef()` gains `exponentiate`.** The default `TRUE` is exactly the existing
+  behaviour. `FALSE` returns the multinomial-logit coefficients themselves. This
+  is only convenience over `log(coef(fit))`, which already worked, but it makes
+  the log scale discoverable from the documentation.
+
+## Minor improvements
+
+* The collapsed-class-variance warning is shorter, so it is no longer cut off by
+  R's default `warning.length` of 1000 bytes — which is what most consoles use,
+  and which meant the remedies at the end of the message were the part that
+  disappeared. It now names the flagged cells, says the fit is not interpretable
+  and its BIC not comparable, and lists the three remedies; the reasoning it
+  dropped was already in `?fit_mixture`, which it points at. No default and no
+  number changes.
+
 # mixtureEM 0.2.0
 
 ## New: stepwise analyses on a fitted model

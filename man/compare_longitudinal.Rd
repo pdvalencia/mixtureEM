@@ -38,9 +38,12 @@ only in the number of classes ... but are not appropriate for comparing
 models that allow for different types of between-class differences".}
 }
 \value{
-A list with \code{fit_table} (columns \code{Classes}, \code{LL}, \code{Params}, \code{AIC},
-\code{BIC}, \code{SABIC}, \code{Entropy} and \code{Unreplicated}), the fitted \code{models} (named
-\code{"K2"}, \code{"K3"}, ...) and \code{best_k}, the class count with the lowest BIC.
+An object of class \code{mixture_comparison}, a list with \code{fit_table}
+(columns \code{Classes}, \code{LL}, \code{Params}, \code{AIC}, \code{BIC}, \code{SABIC}, \code{Entropy} and
+\code{Unreplicated}), the fitted \code{models} (named \code{"K2"}, \code{"K3"}, ...) and
+\code{best_k}, the class count with the lowest BIC. It indexes exactly as a
+plain list; \code{\link[=plot.mixture_comparison]{plot()}} draws the criteria
+against K.
 }
 \description{
 Fits a series of models with increasing numbers of latent classes (RMLCA) or
