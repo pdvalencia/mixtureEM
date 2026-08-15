@@ -206,9 +206,19 @@ test_that("the diagnostics decline models they are not defined for", {
   Y <- matrix(rnorm(400), ncol = 4)
   g <- fit_mixture(Y, n_components = 2, measurement = "continuous", n_init = 2)
   expect_message(expect_null(absolute_fit(g)), "categorical")
-  expect_message(expect_null(bivariate_residuals(g)), "categorical")
+  # A plain continuous measurement model gets the modification-index
+  # statistic instead of a refusal.
+  expect_s3_class(bivariate_residuals(g), "bivariate_residuals_gaussian")
   # The classification table reads only the posterior, so it applies here.
   expect_s3_class(classification_table(g), "classification_table")
+
+  # A continuous model with missing data has no bivariate-normal augmented
+  # density defined here, and neither does one nested inside a mixed or
+  # repeated-measures measurement model.
+  Ym <- Y; Ym[1, 1] <- NA
+  gm <- fit_mixture(Ym, n_components = 2,
+                    measurement = "continuous_nan", n_init = 2)
+  expect_message(expect_null(bivariate_residuals(gm)), "missing data")
 
   X <- .diag_sim(n = 200)
   Xm <- X; Xm[1:10, 2] <- NA
@@ -229,6 +239,54 @@ test_that("the diagnostics decline models they are not defined for", {
                     structural = "covariate", n_steps = 1, n_init = 2)
   expect_message(expect_null(absolute_fit(cv)), "covariates")
   expect_message(expect_null(bivariate_residuals(cv)), "covariates")
+})
+
+# ------------------------------------------------------------------------------
+# Local dependence, continuous indicators
+# ------------------------------------------------------------------------------
+
+test_that("the modification index flags the one planted local dependence", {
+  # Two classes, five indicators, one seed. Items 1 and 2 carry a within-class
+  # residual correlation of 0.4 in class 1 only; every other pair, and every
+  # pair in class 2, is independent. The misspecified conditional-independence
+  # fit should flag exactly the planted pair, in exactly the class it was
+  # planted in.
+  set.seed(123)
+  n <- 800
+  k <- sample(1:2, n, replace = TRUE)
+  X <- matrix(rnorm(n * 5), n, 5)
+  # Induce the class-1 residual correlation between items 1 and 2 by mixing in
+  # a shared latent shock, scaled so cor(X[,1], X[,2]) = 0.4 among class 1.
+  shock <- rnorm(n)
+  rho <- 0.4
+  in1 <- k == 1
+  X[in1, 1] <- sqrt(rho) * shock[in1] + sqrt(1 - rho) * X[in1, 1]
+  X[in1, 2] <- sqrt(rho) * shock[in1] + sqrt(1 - rho) * X[in1, 2]
+  X[, 1] <- X[, 1] + 2 * (k - 1)   # separate the two classes on every item
+  X[, 2] <- X[, 2] + 2 * (k - 1)
+  X[, 3] <- X[, 3] + 2 * (k - 1)
+  X[, 4] <- X[, 4] + 2 * (k - 1)
+  X[, 5] <- X[, 5] + 2 * (k - 1)
+
+  fit <- fit_mixture(X, n_components = 2, measurement = "continuous",
+                     n_init = 5, random_state = 1)
+  bvr <- bivariate_residuals(fit)
+  expect_s3_class(bvr, "bivariate_residuals_gaussian")
+
+  # sort_model_classes() orders classes largest-to-smallest, so find which
+  # fitted class corresponds to the planted (originally "class 1") group by
+  # matching item-1 means against the two simulated centres.
+  planted <- which.min(abs(fit$mm$parameters$means[, 1] - 0))
+
+  all_mi <- as.vector(bvr$mi)
+  planted_mi <- bvr$mi[2, 1, planted]
+  expect_equal(planted_mi, max(all_mi, na.rm = TRUE))
+  expect_lt(bvr$p_value[2, 1, planted], 0.05)
+
+  null_mi <- all_mi[!is.na(all_mi)]
+  null_mi <- null_mi[null_mi != planted_mi]
+  null_p  <- stats::pchisq(null_mi, df = 1, lower.tail = FALSE)
+  expect_gt(mean(null_p > 0.05), 0.75)
 })
 
 test_that("lta_g2() still reports what it always did", {
