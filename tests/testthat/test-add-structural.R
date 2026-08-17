@@ -231,3 +231,49 @@ test_that("outcome takes one column, and says so when given more", {
   expect_identical(colnames(spec$Y), "bmi")
   expect_identical(ncol(spec$Y), 1L)
 })
+
+# The `data =` form is a way of naming columns and nothing else: it must land on
+# the same numbers as extracting the columns by hand.
+
+test_that("the formula form and the hand-extracted form agree exactly", {
+  d  <- .sim_step3_data()
+  df <- data.frame(d$covs, bmi = d$bmi)
+
+  fit0 <- suppressMessages(suppressWarnings(
+    fit_mixture(d$items, n_classes = 2, n_init = 5, random_state = 9)))
+
+  covA <- suppressMessages(add_covariates(fit0, df[, c("age", "sexo")]))
+  covB <- suppressMessages(add_covariates(fit0, ~ age + sexo, data = df))
+  covC <- suppressMessages(add_covariates(fit0, c("age", "sexo"), data = df))
+  expect_equal(coef(covA), coef(covB), tolerance = 1e-12)
+  expect_equal(coef(covA), coef(covC), tolerance = 1e-12)
+  expect_equal(covA$metrics$ll, covB$metrics$ll, tolerance = 1e-12)
+
+  outA <- suppressMessages(add_outcome(fit0, df$bmi))
+  outB <- suppressMessages(add_outcome(fit0, ~ bmi, data = df))
+  expect_equal(outA$sm$parameters$means, outB$sm$parameters$means,
+               tolerance = 1e-12)
+  expect_equal(outA$metrics$ll, outB$metrics$ll, tolerance = 1e-12)
+})
+
+test_that("a column missing from `data` is named in the error", {
+  d  <- .sim_step3_data()
+  df <- data.frame(d$covs, bmi = d$bmi)
+  fit0 <- suppressMessages(suppressWarnings(
+    fit_mixture(d$items, n_classes = 2, n_init = 5, random_state = 9)))
+
+  expect_error(add_covariates(fit0, ~ age + income, data = df), "income")
+  expect_error(add_covariates(fit0, c("age", "income"), data = df), "income")
+  expect_error(add_outcome(fit0, ~ weight, data = df), "weight")
+  expect_error(add_outcome(fit0, ~ bmi), "`data` must be supplied")
+})
+
+test_that("add_outcome's formula must name exactly one outcome", {
+  d  <- .sim_step3_data()
+  df <- data.frame(d$covs, bmi = d$bmi)
+  fit0 <- suppressMessages(suppressWarnings(
+    fit_mixture(d$items, n_classes = 2, n_init = 5, random_state = 9)))
+
+  expect_error(add_outcome(fit0, ~ bmi + age, data = df),
+               "exactly one distal outcome")
+})

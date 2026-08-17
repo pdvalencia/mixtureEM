@@ -11,6 +11,7 @@ add_covariates(
   se = c("corrected", "robust", "hessian"),
   assignment = c("proportional", "modal"),
   max_iter = 1000,
+  data = NULL,
   ...
 )
 }
@@ -40,6 +41,10 @@ classes are poorly separated. Use \code{"modal"} when reproducing an analysis
 whose classes were assigned that way.}
 
 \item{max_iter}{Maximum iterations for the step-3 estimation.}
+
+\item{data}{Optional data frame to take the covariates from, in which case
+\code{predictors} may be a one-sided formula (\code{~ age + sex}) or a vector of
+column names instead of the columns themselves.}
 
 \item{...}{Currently unused.}
 }
@@ -74,6 +79,10 @@ age   <- rnorm(100)
 fit   <- fit_mixture(items, n_classes = 2)
 fit_cov <- add_covariates(fit, age)
 summary(fit_cov)
+
+# The same covariate named in a formula against its data frame
+df <- data.frame(age = age, sex = rbinom(100, 1, 0.5))
+fit_cov2 <- add_covariates(fit, ~ age + sex, data = df)
 
 }
 \references{
