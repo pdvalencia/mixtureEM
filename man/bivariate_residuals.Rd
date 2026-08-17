@@ -8,12 +8,17 @@ bivariate_residuals(object)
 }
 \arguments{
 \item{object}{A model fitted by \code{\link[=fit_mixture]{fit_mixture()}} or \code{\link[=fit_rmlca]{fit_rmlca()}} with
-categorical indicators.}
+categorical indicators, or with a plain continuous measurement model.}
 }
 \value{
-An object of class \code{bivariate_residuals}: a lower-triangular
-indicator-by-indicator matrix, \code{NA} on and above the diagonal; or \code{NULL}
-(with a message) when the statistic does not apply.
+For categorical indicators, an object of class
+\code{bivariate_residuals}: a lower-triangular indicator-by-indicator matrix,
+\code{NA} on and above the diagonal. For a continuous measurement model, an
+object of class \code{bivariate_residuals_gaussian} holding the modification
+index and expected parameter change per pair per class, the model-implied
+residual covariance and correlation, and a count of pairs where the
+information matrix needed the outer-product fallback.
+\code{NULL} (with a message) when neither applies.
 }
 \description{
 A local measure of fit: for each pair of categorical indicators, the Pearson
@@ -37,7 +42,29 @@ p_b(s|k)}.
 With missing data each pair is computed on the cases observing both items,
 and the expected counts are scaled to that pair's total. This is a
 pairwise-complete statistic rather than a full-information one, so read it
-as descriptive when missingness is heavy.
+as descriptive when missingness is heavy. Its chi-square reference is also
+unreliable in a way the modification index below is not (Oberski et al.,
+2013): read a categorical bivariate residual as a ranking of which pairs
+strain the model, not as a calibrated test.
+
+For a plain continuous (Gaussian) measurement model with no missing data, a
+different statistic is returned instead: for each item pair and class, the
+modification index (Sorbom, 1989) for freeing the within-class residual
+covariance of that pair, with its variance adjusted for the model's other
+parameters, following Oberski, van Kollenburg and Vermunt (2013). It is
+computed separately in each class, because a residual dependence can run in
+opposite directions in different classes and a pooled statistic would
+average it away. Another program's "bivariate residual" for continuous
+indicators is deliberately \emph{not} adjusted for the model's other parameters,
+so the two do not agree numerically; the modification index is preferred
+here on the evidence of Oberski et al.'s simulation, in which a bivariate
+residual referred to chi-square gave below-nominal size and inadequate
+power, while the modification index reproduced its nominal distribution and
+was the more powerful of the two adequate methods. Detection is reliable
+only when the offending effects are few and the measurement model is
+strong (Janssen, van Laar, de Rooij, Kuha & Bakk, 2019); unmodelled
+within-class dependence is worth taking seriously mainly because it can
+manufacture spurious classes (Bauer & Curran, 2004).
 }
 \examples{
 set.seed(1)
@@ -51,6 +78,18 @@ Oberski, D. L., van Kollenburg, G. H., & Vermunt, J. K. (2013). A Monte
 Carlo evaluation of three methods to detect local dependence in binary
 data latent class models. \emph{Advances in Data Analysis and
 Classification}, \emph{7}(3), 267-279. \doi{10.1007/s11634-013-0146-2}
+
+Sorbom, D. (1989). Model modification. \emph{Psychometrika}, \emph{54},
+371-384.
+
+Janssen, J. H. M., van Laar, S., de Rooij, M., Kuha, J., & Bakk, Z. (2019).
+The detection of local dependence in the presence of one continuous latent
+variable: A comparison of different statistics. \emph{Structural Equation
+Modeling}, \emph{26}(2), 280-290.
+
+Bauer, D. J., & Curran, P. J. (2004). The integration of continuous and
+discrete latent variable models: Potential problems and promising
+opportunities. \emph{Psychological Methods}, \emph{9}(1), 3-29.
 }
 \seealso{
 \code{\link[=absolute_fit]{absolute_fit()}}, \code{\link[=classification_table]{classification_table()}}.

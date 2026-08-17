@@ -421,20 +421,8 @@ NULL
   if (method == "outer")
     return(list(V = outer_v(), method = "outer", fallback = FALSE))
 
-  p  <- length(par)
-  h  <- .step1_fd_step * pmax(1, abs(par))
   ll <- function(v) sum(w * .step1_ll_case(model_state, X, v))
-
-  H <- matrix(0, p, p)
-  for (a in seq_len(p)) {
-    for (b in a:p) {
-      ea <- numeric(p); ea[a] <- h[a]
-      eb <- numeric(p); eb[b] <- h[b]
-      H[a, b] <- H[b, a] <-
-        (ll(par + ea + eb) - ll(par + ea - eb) -
-           ll(par - ea + eb) + ll(par - ea - eb)) / (4 * h[a] * h[b])
-    }
-  }
+  H  <- .step1_fd_hessian(ll, par)
 
   V1 <- pinv(-H)
   V1 <- (V1 + t(V1)) / 2
@@ -452,6 +440,27 @@ NULL
     return(list(V = outer_v(), method = "outer", fallback = TRUE))
   }
   list(V = V1, method = "hessian", fallback = FALSE)
+}
+
+# Symmetric numerical Hessian of a scalar function of the step-one parameter
+# vector, by the four-point central second difference, on the same relative
+# step every other step-one derivative uses. Kept in one place because
+# .step1_variance() and the VLMR test (R/vlmr.R) need the same matrix: the
+# former negates and inverts it, the latter passes it on as Vuong's `A`.
+.step1_fd_hessian <- function(ll, par) {
+  p <- length(par)
+  h <- .step1_fd_step * pmax(1, abs(par))
+  H <- matrix(0, p, p)
+  for (a in seq_len(p)) {
+    for (b in a:p) {
+      ea <- numeric(p); ea[a] <- h[a]
+      eb <- numeric(p); eb[b] <- h[b]
+      H[a, b] <- H[b, a] <-
+        (ll(par + ea + eb) - ll(par + ea - eb) -
+           ll(par - ea + eb) + ll(par - ea - eb)) / (4 * h[a] * h[b])
+    }
+  }
+  H
 }
 
 # Case-level step-one log-likelihood at an arbitrary theta1.

@@ -295,6 +295,12 @@ lta_g2 <- function(object) {
 #' @param model `"lta"` (default), `"rmlca"`, `"gmm"` or `"lcga"`.
 #' @param times Number of occasions; required for wide input.
 #' @param verbose Print progress.
+#' @param vlmr Whether to add the Vuong-Lo-Mendell-Rubin test of K against K+1:
+#'   `"none"` (the default), `"standard"`, `"robust"` or `"both"`. See
+#'   [`compare_mixtures()`] for what the two forms are and why the test is off
+#'   by default. It is unavailable for `model = "lta"`, whose latent variable is
+#'   a status per occasion rather than one class per case; those rows come back
+#'   `NA` with a message.
 #' @param ... Further arguments passed to the fitting function, such as
 #'   `measurement`, `time_invariance` or `tau_homogeneous` for the categorical
 #'   models, `degree`, `time_scores`, `random_effects`, `psi` or `residual` for
@@ -333,8 +339,11 @@ lta_g2 <- function(object) {
 #' @export
 compare_longitudinal <- function(indicators, k_range = NULL,
                                  model = c("lta", "rmlca", "gmm", "lcga"),
-                                 times = NULL, verbose = TRUE, ...) {
+                                 times = NULL, verbose = TRUE,
+                                 vlmr = c("none", "standard", "robust",
+                                          "both"), ...) {
   model <- match.arg(model)
+  vlmr  <- match.arg(vlmr)
   growth <- model %in% c("gmm", "lcga")
   if (is.null(k_range)) k_range <- if (growth) 1:4 else 2:4
   if (any(k_range < 1L))
@@ -378,6 +387,11 @@ compare_longitudinal <- function(indicators, k_range = NULL,
   }
 
   tab <- do.call(rbind, rows)
+  tab <- tab[order(tab$Classes), , drop = FALSE]
+  rownames(tab) <- NULL
+  # `lta` is the one model here that does not ride the mixture engine, so
+  # .vlmr_pair() declines it by class rather than by a special case.
+  if (vlmr != "none") tab <- .vlmr_augment(tab, models, vlmr)
   best <- tab$Classes[which.min(tab$BIC)]
   if (verbose) {
     message("\n=== Model Selection Summary ===")
@@ -395,6 +409,10 @@ compare_longitudinal <- function(indicators, k_range = NULL,
   }
   # Same class as compare_mixtures() returns, so one plot method serves both.
   out <- list(fit_table = tab, models = models, best_k = best)
+  if (vlmr != "none") {
+    out$vlmr <- attr(tab, "vlmr_detail")
+    attr(out$fit_table, "vlmr_detail") <- NULL
+  }
   class(out) <- "mixture_comparison"
   out
 }
