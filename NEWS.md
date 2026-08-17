@@ -1,5 +1,26 @@
 # mixtureEM (development version)
 
+## `add_covariates()` and `add_outcome()` accept a formula and `data`
+
+Both functions gain a `data` argument, so the columns can be named instead of
+extracted:
+
+```r
+add_covariates(fit, ~ T1age + T1sex + T1SHexp, data = df)
+add_outcome(fit, ~ T3NHR_1, data = df)
+```
+
+`predictors` and `covariates` also accept a character vector of column names.
+`add_outcome()`'s formula must name exactly one column, since one call fits one
+distal outcome.
+
+This is a matter of typing, and nothing more. The existing calling style —
+`add_covariates(fit, df[, c("T1age", "T1sex")])`, `add_outcome(fit, df$T3NHR_1)`
+— is unaffected and unchanged, with no deprecation and no message: passing a
+computed vector such as `scale(y)` is often the right thing to do, because the
+variable is not a column of anything. Both forms meet at the same code as soon
+as the columns are in hand, and every estimate is identical either way.
+
 ## Two defaults change: the class-membership prior now reaches step 3
 
 `bayes_constants$latent` is documented as the Dirichlet prior on the class

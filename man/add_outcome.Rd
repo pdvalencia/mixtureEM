@@ -14,6 +14,7 @@ add_outcome(
   se = c("corrected", "robust", "hessian"),
   assignment = c("proportional", "modal"),
   max_iter = 1000,
+  data = NULL,
   ...
 )
 }
@@ -52,6 +53,10 @@ whose classes were assigned that way.}
 
 \item{max_iter}{Maximum iterations for the step-3 estimation.}
 
+\item{data}{Optional data frame to take the variables from, in which case
+\code{outcome} may be a one-sided formula naming one column (\code{~ bmi}), and
+\code{covariates} a one-sided formula or a vector of column names.}
+
 \item{...}{Currently unused.}
 }
 \value{
@@ -71,6 +76,10 @@ bmi   <- rnorm(100, mean = 25)
 fit   <- fit_mixture(items, n_classes = 2)
 fit_out <- add_outcome(fit, bmi)
 summary(fit_out)
+
+# The same outcome named in a formula against its data frame
+df <- data.frame(bmi = bmi)
+fit_out2 <- add_outcome(fit, ~ bmi, data = df)
 
 }
 \references{

@@ -83,6 +83,58 @@
   Y
 }
 
+# Resolve a one-sided formula or a character vector of column names against a
+# `data` argument, returning the named columns as a data frame. This is the only
+# thing the `data =` form adds: both verbs rejoin their existing path the moment
+# it returns, so nothing downstream knows which form the user typed.
+.columns_from_data <- function(spec, data, arg_name) {
+  if (!is.data.frame(data)) {
+    coerced <- try(as.data.frame(data, stringsAsFactors = FALSE),
+                   silent = TRUE)
+    if (inherits(coerced, "try-error"))
+      stop("`data` must be a data frame, or something coercible to one.",
+           call. = FALSE)
+    data <- coerced
+  }
+
+  if (is.character(spec)) {
+    absent <- setdiff(spec, names(data))
+    if (length(absent))
+      stop(sprintf("`%s` names %s not found in `data`: %s.", arg_name,
+                   if (length(absent) > 1L) "columns" else "a column",
+                   paste(absent, collapse = ", ")), call. = FALSE)
+    return(data[, spec, drop = FALSE])
+  }
+
+  if (!inherits(spec, "formula") || length(spec) != 2L)
+    stop(sprintf(paste0("When `data` is supplied, `%s` must be a one-sided ",
+                        "formula (~ x + y) or a character vector of column ",
+                        "names."), arg_name), call. = FALSE)
+
+  absent <- setdiff(all.vars(spec), names(data))
+  if (length(absent))
+    stop(sprintf("`%s` names %s not found in `data`: %s.", arg_name,
+                 if (length(absent) > 1L) "columns" else "a column",
+                 paste(absent, collapse = ", ")), call. = FALSE)
+
+  # na.action = na.pass: a case missing a structural variable is kept (it is
+  # completed at step 3, see the details of add_covariates()), and dropping
+  # rows here would break the one-row-per-case alignment that
+  # .align_structural_rows() goes on to check.
+  mf <- stats::model.frame(spec, data = data, na.action = stats::na.pass)
+  attr(mf, "terms") <- NULL
+  mf
+}
+
+# Guard the case of a formula with no `data` to resolve it against, which is the
+# likeliest way to mistype the new form.
+.check_data_form <- function(spec, data, arg_name) {
+  if (is.null(data) && inherits(spec, "formula"))
+    stop(sprintf("`%s` is a formula, so `data` must be supplied as well.",
+                 arg_name), call. = FALSE)
+  invisible(NULL)
+}
+
 # Shared execution: attach the structural model and run steps 2-3 only.
 .add_structural <- function(fit, Y_use, engine, correction, se, max_iter,
                             assignment = "proportional") {
@@ -137,6 +189,9 @@
 #'   classes are poorly separated. Use `"modal"` when reproducing an analysis
 #'   whose classes were assigned that way.
 #' @param max_iter Maximum iterations for the step-3 estimation.
+#' @param data Optional data frame to take the covariates from, in which case
+#'   `predictors` may be a one-sided formula (`~ age + sex`) or a vector of
+#'   column names instead of the columns themselves.
 #' @param ... Currently unused.
 #'
 #' @details
@@ -184,12 +239,16 @@
 #' fit_cov <- add_covariates(fit, age)
 #' summary(fit_cov)
 #'
+#' # The same covariate named in a formula against its data frame
+#' df <- data.frame(age = age, sex = rbinom(100, 1, 0.5))
+#' fit_cov2 <- add_covariates(fit, ~ age + sex, data = df)
+#'
 #' @export
 add_covariates <- function(fit, predictors,
                            correction = c("ML", "BCH", "none"),
                            se = c("corrected", "robust", "hessian"),
                            assignment = c("proportional", "modal"),
-                           max_iter = 1000, ...) {
+                           max_iter = 1000, data = NULL, ...) {
   corr_set        <- !missing(correction)
   correction      <- match.arg(correction)
   se              <- match.arg(se)
@@ -200,11 +259,19 @@ add_covariates <- function(fit, predictors,
     stop("`predictors` is required: the covariates that predict class ",
          "membership.", call. = FALSE)
 
+  .check_data_form(predictors, data, "predictors")
+
   fit <- .check_stepwise_fit(fit, "add_covariates")
 
   if (!corr_set)
     message(sprintf("Using '%s' bias correction (set `correction` to override).",
                     correction))
+
+  if (!is.null(data) &&
+      (inherits(predictors, "formula") || is.character(predictors))) {
+    predictors      <- .columns_from_data(predictors, data, "predictors")
+    predictors_expr <- NULL
+  }
 
   Y_use <- prepare_covariates(
     .as_named_covariates(predictors, predictors_expr, "predictor"))
@@ -247,6 +314,9 @@ add_covariates <- function(fit, predictors,
 #'   classes are poorly separated. Use `"modal"` when reproducing an analysis
 #'   whose classes were assigned that way.
 #' @param max_iter Maximum iterations for the step-3 estimation.
+#' @param data Optional data frame to take the variables from, in which case
+#'   `outcome` may be a one-sided formula naming one column (`~ bmi`), and
+#'   `covariates` a one-sided formula or a vector of column names.
 #' @param ... Currently unused.
 #'
 #' @return A `mixture_model` with the distal-outcome model attached. Use
@@ -277,6 +347,10 @@ add_covariates <- function(fit, predictors,
 #' fit_out <- add_outcome(fit, bmi)
 #' summary(fit_out)
 #'
+#' # The same outcome named in a formula against its data frame
+#' df <- data.frame(bmi = bmi)
+#' fit_out2 <- add_outcome(fit, ~ bmi, data = df)
+#'
 #' @export
 add_outcome <- function(fit, outcome, covariates = NULL,
                         outcome_type = c("auto", "continuous", "categorical"),
@@ -284,7 +358,7 @@ add_outcome <- function(fit, outcome, covariates = NULL,
                         correction = c("auto", "BCH", "ML", "none"),
                         se = c("corrected", "robust", "hessian"),
                         assignment = c("proportional", "modal"),
-                        max_iter = 1000, ...) {
+                        max_iter = 1000, data = NULL, ...) {
   outcome_type <- match.arg(outcome_type)
   slopes       <- match.arg(slopes)
   correction   <- match.arg(correction)
@@ -296,7 +370,26 @@ add_outcome <- function(fit, outcome, covariates = NULL,
     stop("`outcome` is required: the distal outcome to relate to the classes.",
          call. = FALSE)
 
+  .check_data_form(outcome, data, "outcome")
+  .check_data_form(covariates, data, "covariates")
+
   fit <- .check_stepwise_fit(fit, "add_outcome")
+
+  # A character `outcome` is a categorical outcome, not a column name — hence
+  # the formula-only test here, where `predictors` and `covariates` take either.
+  if (!is.null(data) && inherits(outcome, "formula")) {
+    outcome <- .columns_from_data(outcome, data, "outcome")
+    if (ncol(outcome) != 1L)
+      stop(sprintf(paste0("`outcome` must name exactly one distal outcome, ",
+                          "but %d were named (%s). Fit them one at a time."),
+                   ncol(outcome), paste(names(outcome), collapse = ", ")),
+           call. = FALSE)
+  }
+  if (!is.null(data) &&
+      (inherits(covariates, "formula") || is.character(covariates))) {
+    covariates <- .columns_from_data(covariates, data, "covariates")
+    cov_expr   <- NULL
+  }
 
   spec <- .build_outcome_spec(outcome, covariates, outcome_type, slopes,
                               cov_expr)
