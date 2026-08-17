@@ -10,6 +10,7 @@ compare_longitudinal(
   model = c("lta", "rmlca", "gmm", "lcga"),
   times = NULL,
   verbose = TRUE,
+  vlmr = c("none", "standard", "robust", "both"),
   ...
 )
 }
@@ -26,6 +27,13 @@ outcome, in any format accepted by \code{\link[=fit_gmm]{fit_gmm()}}.}
 \item{times}{Number of occasions; required for wide input.}
 
 \item{verbose}{Print progress.}
+
+\item{vlmr}{Whether to add the Vuong-Lo-Mendell-Rubin test of K against K+1:
+\code{"none"} (the default), \code{"standard"}, \code{"robust"} or \code{"both"}. See
+\code{\link[=compare_mixtures]{compare_mixtures()}} for what the two forms are and why the test is off
+by default. It is unavailable for \code{model = "lta"}, whose latent variable is
+a status per occasion rather than one class per case; those rows come back
+\code{NA} with a message.}
 
 \item{...}{Further arguments passed to the fitting function, such as
 \code{measurement}, \code{time_invariance} or \code{tau_homogeneous} for the categorical
