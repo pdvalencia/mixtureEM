@@ -79,6 +79,14 @@
 #' the M-step and measured the curvature of the \emph{Q function} rather than of
 #' the step-3 log-likelihood, and so was smaller still.
 #'
+#' \code{"corrected"} is the statistically right answer and is the default for
+#' that reason. \code{"robust"} is the \emph{comparability} setting: another
+#' program reports the step-3 sandwich alone, so reproducing its standard errors
+#' requires \code{se = "robust"}. A user checking mixtureEM against it under the
+#' default will see wider intervals and may report a discrepancy, but the
+#' difference is a difference in estimator — the corrected form carries step-1
+#' uncertainty that the sandwich alone omits — and not a bug in either program.
+#'
 #' How much this matters depends almost entirely on how well separated the
 #' classes are. A 250-replication coverage study on the design of Bakk et al.
 #' (\code{data-raw/covariate_se_simulation.R} in the package sources) gives, for
@@ -180,6 +188,17 @@ NULL
   Zk <- pmax(P %*% Cn, 1e-300)
   list(P = P, W = P * ((resp1 / Zk) %*% t(Cn)), Zk = Zk, Cn = Cn)
 }
+
+# The bread and the meat below run over the observed rows only. The step-3
+# multinomial logit is fitted with a prior — bayes_constants$latent written as
+# fractional pseudo-rows, one per class per unique covariate pattern
+# (see .fit_mnl() in R/covariate.R) — and those rows are deliberately absent
+# here, so the reported variance is the unpenalised sandwich evaluated at a
+# penalised point estimate. The prior contributes O(1) curvature against the
+# data's O(n), so the mismatch is O(1/n), and it is conservative: leaving the
+# prior out of the bread makes -H3 smaller and hence the interval wider. The
+# coverage table in the step3_se documentation was measured with the prior
+# active, so it is empirical evidence that the difference is immaterial.
 
 # n x ((K-1)*D) matrix of case-level scores, blocked by class.
 .step3_scores <- function(pieces, Zmat, w, K) {

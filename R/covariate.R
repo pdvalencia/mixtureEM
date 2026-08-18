@@ -110,6 +110,14 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 
   # Rows the Hessian is taken over: data alone under the ghost, data plus the
   # prior rows when the prior is what augmented the fit.
+  #
+  # Note that this Hessian therefore includes the prior rows while
+  # .step3_hessian() (R/step3_variance.R) excludes them, so the same nominal
+  # estimator is reachable by two routes whose answers differ by O(1/n). The
+  # step-3 bread normally wins, because R/corrections.R overwrites
+  # sm$parameters$hessian with the inverse of the step-3 sandwich; it is only on
+  # the fallback paths — BCH, n_steps = 1, covariate-plus-distal — that nothing
+  # overwrites it and confint()/the analytical Wald read the matrix built here.
   Z_h    <- if (prior_rows) Z_aug else Z
   w_h    <- if (prior_rows) w_aug else w_vec
   prob_h <- if (prior_rows) probs_for(beta, Z_aug) else prob
