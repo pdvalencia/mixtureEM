@@ -6,16 +6,21 @@
 \usage{
 \method{plot}{mixture_model}(
   x,
-  main = "Latent Class / Profile Plot",
+  type = c("profile", "bar"),
+  main = NULL,
   class_labels = NULL,
   colors = NULL,
+  scale = c("total", "within"),
   ...
 )
 }
 \arguments{
 \item{x}{A fitted \code{mixture_model} object.}
 
-\item{main}{Plot title.}
+\item{type}{Either \code{"profile"} (the default line plot) or \code{"bar"}, the
+standardized profile bar chart described above.}
+
+\item{main}{Plot title. Defaults to a title chosen for \code{type}.}
 
 \item{class_labels}{Optional character vector of labels for the classes.
 Defaults to "Class 1", "Class 2", ...}
@@ -23,17 +28,39 @@ Defaults to "Class 1", "Class 2", ...}
 \item{colors}{Optional vector of colours (one per class). Defaults to the
 Okabe-Ito palette, recycled if necessary.}
 
+\item{scale}{For \code{type = "bar"} only, the denominator of the z-score.
+\code{"total"} (the default) divides by the weighted observed SD of the
+indicator, which is what standardizing the indicators means in the applied
+literature and is what makes the figure invariant to pre-standardization.
+\code{"within"} divides by the model-implied within-class SD pooled over
+classes, giving a Cohen's-d-like reading against residual rather than total
+dispersion. \code{"within"} is arguably the more informative quantity; it is not
+the default because it is not what applied papers plot.}
+
 \item{...}{Currently unused; present for S3 compatibility.}
 }
 \value{
 The fitted model, invisibly.
 }
 \description{
-Draws a profile plot of the measurement model: one line per latent class,
+Draws the measurement model in one of two ways.
+
+\code{type = "profile"} (the default) is a line plot: one line per latent class,
 with every indicator placed on a common [0, 1] axis. Binary indicators are
 shown as endorsement probabilities; continuous indicators are min-max scaled
 against their observed range; polytomous indicators are summarised by their
 expected category and scaled to [0, 1]. Rescaled items are marked with "*".
+
+\code{type = "bar"} is the grouped bar chart of standardized class means that
+applied latent-profile papers publish, and requires an all-continuous
+measurement model. Indicators sit on the x-axis with one bar per class inside
+each group; a bar above the zero line is an above-average conditional mean
+and one below it a below-average mean. Heights are z-scores rather than the
+profile plot's min-max scaling, which is hostage to a single extreme
+observation and has no meaningful origin. Because a z-score is scale-free,
+the figure is the same whether or not the indicators were standardized before
+fitting, so standardization is a display choice here rather than a step in
+preparing the data.
 
 Uses only base graphics and the colour-blind-friendly Okabe-Ito palette.
 }
