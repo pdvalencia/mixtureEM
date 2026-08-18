@@ -7,7 +7,9 @@
 test_that("modal assignment matches max.col, and 'both' has K + 2 columns", {
   set.seed(1)
   X   <- matrix(rbinom(500, 1, 0.5), nrow = 100)
-  fit <- suppressWarnings(fit_mixture(X, n_classes = 2, n_init = 5,
+  fit <- suppressWarnings(fit_mixture(X, n_classes = 2,
+                                      measurement = "binary",
+                                      n_init = 5,
                                       random_state = 1))
 
   expect_identical(class_assignments(fit),

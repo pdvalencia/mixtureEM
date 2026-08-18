@@ -7,7 +7,9 @@
 test_that("print() shows the same six indices compare_mixtures() tabulates", {
   set.seed(1)
   X   <- matrix(rbinom(600, 1, 0.5), ncol = 6)
-  fit <- suppressWarnings(fit_mixture(X, n_classes = 2, n_init = 5,
+  fit <- suppressWarnings(fit_mixture(X, n_classes = 2,
+                                      measurement = "binary",
+                                      n_init = 5,
                                       random_state = 1))
   out <- capture.output(print(fit))
 
@@ -27,7 +29,9 @@ test_that("a three-step fit reads its criteria off the step it reports", {
   items <- sapply(1:5, function(j) rbinom(n, 1, ifelse(cl == 1, 0.8, 0.2)))
   y     <- rnorm(n, 25 + 2 * cl)
   fit0  <- suppressMessages(suppressWarnings(
-    fit_mixture(items, n_classes = 2, n_init = 5, random_state = 2)))
+    fit_mixture(items, n_classes = 2,
+                measurement = "binary",
+                n_init = 5, random_state = 2)))
   fit3  <- suppressMessages(suppressWarnings(add_outcome(fit0, y)))
 
   out <- capture.output(print(fit3))

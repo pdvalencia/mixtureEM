@@ -105,7 +105,7 @@ not, agreeing with BIC.
 
 ```{r chosen, eval = has_polca}
 set.seed(4)
-fit <- fit_mixture(ratings, n_classes = 3, n_init = 30)
+fit <- fit_mixture(ratings, n_classes = 3, measurement = "binary", n_init = 30)
 fit
 class_sizes(fit)
 classification_diagnostics(fit)

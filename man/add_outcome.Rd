@@ -73,7 +73,7 @@ risk of landing on a different solution.
 set.seed(1)
 items <- matrix(rbinom(300, 1, 0.5), nrow = 100)
 bmi   <- rnorm(100, mean = 25)
-fit   <- fit_mixture(items, n_classes = 2)
+fit   <- fit_mixture(items, n_classes = 2, measurement = "binary")
 fit_out <- add_outcome(fit, bmi)
 summary(fit_out)
 

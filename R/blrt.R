@@ -218,7 +218,9 @@ generate_synthetic_data <- function(mm, classes, N) {
 #' @param k_large Number of classes in the larger (alternative) model. Must be
 #'   strictly greater than \code{k_small}.
 #' @param measurement Measurement specification, as in \code{\link{fit_mixture}}
-#'   (a single type string or a named list for mixed-type indicators).
+#'   (a single type string or a named list for mixed-type indicators). Required,
+#'   except when \code{from_fit} is supplied, which reads the specification off
+#'   the fitted model.
 #' @param n_reps Number of bootstrap replications. Default \code{100},
 #'   following Dziak et al. (2014) and the general advice in Davison and
 #'   Hinkley (1997, p. 143) that the number of replicates be at least 99. It is
@@ -281,11 +283,12 @@ generate_synthetic_data <- function(mm, classes, N) {
 #' 535-569. \doi{10.1080/10705510701575396}
 #'
 #' @export
-blrt <- function(indicators, k_small, k_large, measurement = "binary",
+blrt <- function(indicators, k_small, k_large, measurement,
                  n_reps = 100, n_init_base = 20, n_init_boot = 10,
                  verbose = TRUE, ..., from_fit = NULL, X = NULL) {
 
-  supplied <- !missing(indicators)
+  supplied            <- !missing(indicators)
+  measurement_missing <- missing(measurement)
   if (!is.null(X) && !supplied) {
     indicators <- X
     supplied   <- TRUE
@@ -306,6 +309,10 @@ blrt <- function(indicators, k_small, k_large, measurement = "binary",
     measurement <- spec$measurement
     extra       <- utils::modifyList(spec$args, extra)
   }
+
+  # `from_fit` reads the descriptor off the fitted object above, so the argument
+  # is only required on the path that has nothing else to read it from.
+  if (measurement_missing && is.null(from_fit)) .require_measurement(indicators)
 
   # Resolve single-type or mixed-type measurement once, so the observed fits and
   # every bootstrap replicate share the same indicators and descriptor.

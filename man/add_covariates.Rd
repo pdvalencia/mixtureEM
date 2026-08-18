@@ -76,7 +76,7 @@ it when reproducing an analysis whose standard errors were computed that way.
 set.seed(1)
 items <- matrix(rbinom(300, 1, 0.5), nrow = 100)
 age   <- rnorm(100)
-fit   <- fit_mixture(items, n_classes = 2)
+fit   <- fit_mixture(items, n_classes = 2, measurement = "binary")
 fit_cov <- add_covariates(fit, age)
 summary(fit_cov)
 

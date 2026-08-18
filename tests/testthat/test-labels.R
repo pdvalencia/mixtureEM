@@ -45,7 +45,9 @@ test_that("summary tables shorten long dummy names but return full names", {
     age = rnorm(n)
   )
 
-  fit  <- suppressMessages(fit_mixture(items, n_classes = 2, n_init = 3,
+  fit  <- suppressMessages(fit_mixture(items, n_classes = 2,
+                                       measurement = "binary",
+                                       n_init = 3,
                                        random_state = 4))
   fitc <- suppressMessages(add_covariates(fit, covs))
 
@@ -67,7 +69,9 @@ test_that("measurement_summary shortens very long indicator names", {
   set.seed(5)
   items <- matrix(rbinom(400, 1, 0.5), nrow = 100)
   colnames(items) <- paste0("an_extremely_verbose_indicator_name_number_", 1:4)
-  fit <- suppressMessages(fit_mixture(items, n_classes = 2, n_init = 2,
+  fit <- suppressMessages(fit_mixture(items, n_classes = 2,
+                                      measurement = "binary",
+                                      n_init = 2,
                                       random_state = 6))
   out_lines <- capture.output(msdf <- measurement_summary(fit))
   expect_true(any(grepl("Abbreviated names:", out_lines, fixed = TRUE)))

@@ -13,7 +13,9 @@
 
 test_that("measurement_summary returns a long data frame of item parameters", {
   d    <- .sim_summary_data()
-  fit  <- suppressMessages(fit_mixture(d$items, n_classes = 2, n_init = 3,
+  fit  <- suppressMessages(fit_mixture(d$items, n_classes = 2,
+                                       measurement = "binary",
+                                       n_init = 3,
                                        random_state = 2))
   msdf <- expect_invisible(measurement_summary(fit))
 
@@ -32,7 +34,9 @@ test_that("measurement_summary returns a long data frame of item parameters", {
 
 test_that("class_sizes reports proportions and counts", {
   d   <- .sim_summary_data()
-  fit <- suppressMessages(fit_mixture(d$items, n_classes = 2, n_init = 3,
+  fit <- suppressMessages(fit_mixture(d$items, n_classes = 2,
+                                      measurement = "binary",
+                                      n_init = 3,
                                       random_state = 2))
   cs  <- class_sizes(fit)
 
@@ -45,7 +49,9 @@ test_that("class_sizes reports proportions and counts", {
 
 test_that("summary returns coefficient and outcome tables invisibly", {
   d    <- .sim_summary_data()
-  fit  <- suppressMessages(fit_mixture(d$items, n_classes = 2, n_init = 3,
+  fit  <- suppressMessages(fit_mixture(d$items, n_classes = 2,
+                                       measurement = "binary",
+                                       n_init = 3,
                                        random_state = 2))
 
   # No structural model: NULL, with the notice.

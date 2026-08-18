@@ -23,10 +23,14 @@ test_that("add_covariates reproduces the one-call 3-step ML fit exactly", {
   d <- .sim_step3_data()
 
   fitA <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, predictors = d$covs,
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                predictors = d$covs,
                 n_steps = 3, correction = "ML", n_init = 5, random_state = 9)))
   fit0 <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, n_init = 5, random_state = 9)))
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                n_init = 5, random_state = 9)))
   fitB <- suppressMessages(add_covariates(fit0, d$covs))
 
   # Same solution, same class order.
@@ -73,11 +77,15 @@ test_that("add_outcome reproduces one-call BCH and ML outcome fits", {
   d <- .sim_step3_data()
 
   fit0 <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, n_init = 5, random_state = 9)))
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                n_init = 5, random_state = 9)))
 
   # Continuous outcome, BCH (the auto default).
   fitC <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, outcome = d$bmi,
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                outcome = d$bmi,
                 n_steps = 3, correction = "BCH", n_init = 5, random_state = 9)))
   fitD <- suppressMessages(add_outcome(fit0, d$bmi))
   expect_identical(fitD$correction, "BCH")
@@ -88,7 +96,9 @@ test_that("add_outcome reproduces one-call BCH and ML outcome fits", {
 
   # Categorical outcome, ML (the auto default).
   fitE <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, outcome = d$grp,
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                outcome = d$grp,
                 n_steps = 3, correction = "ML", n_init = 5, random_state = 9)))
   fitF <- suppressMessages(suppressWarnings(add_outcome(fit0, d$grp)))
   expect_identical(fitF$correction, "ML")
@@ -100,7 +110,9 @@ test_that("a conditional fit can be reused: the structural model is replaced", {
   d <- .sim_step3_data()
 
   fit0  <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, n_init = 5, random_state = 9)))
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                n_init = 5, random_state = 9)))
   fitB  <- suppressMessages(add_covariates(fit0, d$covs))
 
   # Reference: outcome added to the clean unconditional fit.
@@ -121,7 +133,9 @@ test_that("covariate rows are aligned with cases removed at fitting time", {
   items[c(3, 117), ] <- NA   # two cases with no observed indicator
 
   fit0 <- suppressWarnings(suppressMessages(
-    fit_mixture(items, n_classes = 2, n_init = 3, random_state = 5)))
+    fit_mixture(items, n_classes = 2,
+                measurement = "binary",
+                n_init = 3, random_state = 5)))
   expect_identical(fit0$missing_data$n_empty_rows, 2L)
 
   # Full-length covariates: matching rows dropped, with a message.
@@ -154,20 +168,26 @@ test_that("add_covariates and add_outcome reject unusable fits", {
 
   # One-step conditional fits cannot serve as a step-1 solution.
   fit1 <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, predictors = d$covs,
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                predictors = d$covs,
                 n_steps = 1, n_init = 3, random_state = 5)))
   expect_error(add_outcome(fit1, d$bmi), "one step")
 
   # Group-as-predictor fits must go through fit_mixture(group=, predictors=).
   fitg <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, group = d$grp,
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                group = d$grp,
                 group_effects = "prevalence", n_steps = 3, n_init = 3,
                 random_state = 5)))
   expect_error(add_covariates(fitg, d$covs), "group")
 
   # Missing structural data.
   fit0 <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, n_init = 3, random_state = 5)))
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                n_init = 3, random_state = 5)))
   expect_error(add_covariates(fit0), "`predictors` is required")
   expect_error(add_outcome(fit0), "`outcome` is required")
 })
@@ -216,11 +236,15 @@ test_that("outcome takes one column, and says so when given more", {
   # The old failure was a coercion error naming doubles or xtfrm, which said
   # nothing about the cause.
   expect_error(
-    suppressMessages(fit_mixture(d$items, n_classes = 2, outcome = two,
+    suppressMessages(fit_mixture(d$items, n_classes = 2,
+                                 measurement = "binary",
+                                 outcome = two,
                                  n_init = 3, random_state = 5)),
     "single distal outcome")
   expect_error(
-    suppressMessages(fit_mixture(d$items, n_classes = 2, outcome = as.matrix(two),
+    suppressMessages(fit_mixture(d$items, n_classes = 2,
+                                 measurement = "binary",
+                                 outcome = as.matrix(two),
                                  n_init = 3, random_state = 5)),
     "single distal outcome")
 
@@ -240,7 +264,9 @@ test_that("the formula form and the hand-extracted form agree exactly", {
   df <- data.frame(d$covs, bmi = d$bmi)
 
   fit0 <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, n_init = 5, random_state = 9)))
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                n_init = 5, random_state = 9)))
 
   covA <- suppressMessages(add_covariates(fit0, df[, c("age", "sexo")]))
   covB <- suppressMessages(add_covariates(fit0, ~ age + sexo, data = df))
@@ -260,7 +286,9 @@ test_that("a column missing from `data` is named in the error", {
   d  <- .sim_step3_data()
   df <- data.frame(d$covs, bmi = d$bmi)
   fit0 <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, n_init = 5, random_state = 9)))
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                n_init = 5, random_state = 9)))
 
   expect_error(add_covariates(fit0, ~ age + income, data = df), "income")
   expect_error(add_covariates(fit0, c("age", "income"), data = df), "income")
@@ -272,7 +300,9 @@ test_that("add_outcome's formula must name exactly one outcome", {
   d  <- .sim_step3_data()
   df <- data.frame(d$covs, bmi = d$bmi)
   fit0 <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, n_init = 5, random_state = 9)))
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                n_init = 5, random_state = 9)))
 
   expect_error(add_outcome(fit0, ~ bmi + age, data = df),
                "exactly one distal outcome")

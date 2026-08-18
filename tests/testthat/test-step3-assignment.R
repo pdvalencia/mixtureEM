@@ -37,7 +37,9 @@
 test_that("proportional assignment reproduces the pre-argument results", {
   d    <- .sim_assignment_data()
   fit0 <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, n_init = 5, random_state = 9)))
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                n_init = 5, random_state = 9)))
 
   # Recorded before the `assignment` argument was threaded through fit_bch().
   # Proportional assignment leaves A equal to the posteriors, so the correction
@@ -70,7 +72,9 @@ test_that("with a classification table at the identity the two rules agree", {
   y <- rnorm(n, c(0, 5, 10)[cl], 0.5)
 
   fit0 <- suppressMessages(suppressWarnings(
-    fit_mixture(items, n_classes = 3, n_init = 10, random_state = 3)))
+    fit_mixture(items, n_classes = 3,
+                measurement = "binary",
+                n_init = 10, random_state = 3)))
   resp <- exp(fit0$log_resp)
   skip_if_not(max(abs(resp - get_modal_resp(resp))) < 1e-6,
               "the simulated classes did not separate cleanly enough")
@@ -96,7 +100,9 @@ test_that("modal assignment still corrects when the classes overlap", {
   # hand back the naive modal means, silently, on every dataset.
   d    <- .sim_assignment_data()
   fit0 <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, n_init = 5, random_state = 9)))
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                n_init = 5, random_state = 9)))
 
   resp  <- exp(fit0$log_resp)
   modal <- get_modal_resp(resp)
@@ -135,7 +141,9 @@ test_that("bayes_constants$latent = 0 reproduces the unpenalised step three", {
   # these are the numbers the package produced before the prior reached step
   # three. Recorded from that version.
   fit0 <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, n_init = 5, random_state = 9,
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                n_init = 5, random_state = 9,
                 bayes_constants = list(latent = 0))))
   fc <- suppressMessages(suppressWarnings(
     add_covariates(fit0, d$covs, correction = "ML")))
@@ -155,7 +163,9 @@ test_that("the prior shrinks both the coefficients and their standard errors", {
   # and a sign error is what would break it.
   d    <- .sim_assignment_data()
   fit0 <- suppressMessages(suppressWarnings(
-    fit_mixture(d$items, n_classes = 2, n_init = 5, random_state = 9)))
+    fit_mixture(d$items, n_classes = 2,
+                measurement = "binary",
+                n_init = 5, random_state = 9)))
   fit_off <- fit0
   fit_off$bayes_constants <- list(latent = 0)
 

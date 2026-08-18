@@ -7,7 +7,7 @@
 compare_mixtures(
   X,
   k_range = 1:5,
-  measurement = "binary",
+  measurement,
   n_init = 10,
   n_steps = 1,
   vlmr = c("none", "standard", "robust", "both"),
@@ -19,9 +19,9 @@ compare_mixtures(
 
 \item{k_range}{Integer vector of class numbers to fit. All values must be >= 1. Default is \code{1:5}.}
 
-\item{measurement}{Character string specifying the measurement model type.
-See \code{\link{fit_mixture}} for accepted values. Default is
-\code{"binary"}.}
+\item{measurement}{Character string or named list specifying the measurement
+model type. Required; see \code{\link{fit_mixture}} for the accepted values
+and for why there is no default.}
 
 \item{n_init}{Positive integer. Number of random restarts per model.
 Default is \code{10}.}

@@ -499,7 +499,7 @@ classification_diagnostics.default <- function(object, ...) {
 #' @examples
 #' set.seed(1)
 #' X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
-#' fit <- fit_mixture(X, n_classes = 2)
+#' fit <- fit_mixture(X, n_classes = 2, measurement = "binary")
 #' class_sizes(fit)
 #'
 #' @references
@@ -582,7 +582,7 @@ class_sizes.mixture_model <- function(object, ...) {
 #' @examples
 #' set.seed(1)
 #' X   <- matrix(rbinom(500, 1, 0.5), nrow = 100)
-#' fit <- fit_mixture(X, n_classes = 2)
+#' fit <- fit_mixture(X, n_classes = 2, measurement = "binary")
 #' table(class_assignments(fit))
 #' head(class_assignments(fit, "both"))
 #' # To relate the classes to an external variable, do not regress on the
@@ -1921,6 +1921,54 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #   measurement = list(binary = c("q1", "q2"), continuous = c("score1"))
 #   measurement = list(binary = 1:3, continuous = 4:5)
 #
+# The suggestion in the missing-argument error, and nowhere else. This is a hint
+# for the message text; it must never be used to choose a model. That is the
+# whole point of requiring the argument: the storage mode of a column does not
+# determine its measurement model.
+.measurement_hint <- function(X) {
+  if (is.null(X)) return(NULL)
+  M <- try(as.matrix(X), silent = TRUE)
+  if (inherits(M, "try-error")) return(NULL)
+  v <- suppressWarnings(as.numeric(M))
+  v <- v[is.finite(v)]
+  if (!length(v)) return(NULL)
+  ncat <- apply(M, 2, function(z) length(unique(z[!is.na(z)])))
+  if (all(ncat == 2L))                                            "binary"
+  else if (all(v == round(v)) && all(v >= 0) && all(ncat <= 10L))  "categorical"
+  else if (all(v == round(v)) && all(v >= 0))                      "count"
+  else                                                             "continuous"
+}
+
+# Raised when `measurement` is not supplied. There is deliberately no default:
+# a 1-5 column is a legitimate categorical, continuous or count indicator and
+# the class solution differs across the three, so a default would settle a
+# modelling question by inspecting storage mode, and would make a script's
+# meaning depend on the data it happens to be run against.
+.require_measurement <- function(X) {
+  hint <- .measurement_hint(X)
+  msg  <- paste0(
+    "`measurement` must be specified. Valid types: \"binary\", ",
+    "\"categorical\", \"continuous\", \"count\".")
+  if (!is.null(hint)) {
+    M    <- as.matrix(X)
+    ncat <- apply(M, 2, function(z) length(unique(z[!is.na(z)])))
+    why  <- switch(
+      hint,
+      binary      = "all take two values",
+      categorical = sprintf("all take at most %d distinct whole-number values",
+                            max(ncat)),
+      count       = "all are non-negative whole numbers",
+      continuous  = "are not all whole numbers")
+    msg <- paste0(msg, sprintf(
+      "\nYour %d indicator columns %s, so you probably want\n  measurement = \"%s\"",
+      ncol(M), why, hint))
+  }
+  stop(paste0(msg,
+              "\nFor mixed types:\n",
+              "  measurement = list(binary = 1:5, continuous = 6:8)"),
+       call. = FALSE)
+}
+
 # Columns are grouped in the order given so the engine's block structure lines
 # up; column names are preserved for display.
 .normalize_measurement <- function(measurement, indicators) {
@@ -2146,6 +2194,17 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   mixed-type model, a named list mapping each type to the columns it governs
 #'   by name or index, e.g.
 #'   \code{list(binary = c("q1","q2"), continuous = "score")}.
+#'
+#'   \strong{Required; there is no default.} The storage mode of a column does
+#'   not determine its measurement model: a 1-5 column is a legitimate
+#'   \code{"categorical"}, \code{"continuous"} or \code{"count"} indicator, and
+#'   the class solution differs across the three. Inferring the type from the
+#'   data would settle a modelling question by inspecting storage mode, and
+#'   would make a script's meaning depend on the data it happens to be run
+#'   against; a constant default is the same guess with the data-dependence
+#'   removed. Omitting the argument is an error that lists the valid types and
+#'   suggests one based on your columns — as a hint for you to confirm, not a
+#'   choice the package makes.
 #'
 #'   \strong{Missing values need no special handling.} Any indicator containing
 #'   \code{NA} is estimated by full-information maximum likelihood under the
@@ -2482,10 +2541,10 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'
 #' \dontrun{
 #' # Class membership predicted by a covariate (3-step, ML by default)
-#' fit_mixture(X, n_classes = 2, predictors = age)
+#' fit_mixture(X, n_classes = 2, measurement = "binary", predictors = age)
 #'
 #' # Distal outcome with a class-specific covariate slope
-#' fit_mixture(X, n_classes = 2, outcome = bmi,
+#' fit_mixture(X, n_classes = 2, measurement = "binary", outcome = bmi,
 #'             outcome_covariates = age, slopes = "class_specific")
 #'
 #' # Mixed-type indicators
@@ -2496,7 +2555,7 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #' @export
 fit_mixture <- function(indicators = NULL,
                         n_classes = 2,
-                        measurement = "binary",
+                        measurement,
                         predictors = NULL,
                         outcome = NULL,
                         outcome_covariates = NULL,
@@ -2532,6 +2591,7 @@ fit_mixture <- function(indicators = NULL,
   weight_type   <- match.arg(weight_type)
   steps_set     <- !missing(n_steps)
   corr_set      <- !missing(correction)
+  measurement_missing <- missing(measurement)
 
   # Capture the unevaluated expressions the user supplied so that a single
   # covariate passed as a bare vector (e.g. data$age or data[, "age"]) can be
@@ -2544,6 +2604,12 @@ fit_mixture <- function(indicators = NULL,
     !is.null(structural)
   if (!is.null(X) && is.null(indicators)) indicators <- X
   if (!is.null(n_components))              n_classes  <- n_components
+
+  # Checked here rather than in the signature: there is no default, because the
+  # storage mode of a column does not determine its measurement model. Comes
+  # before the legacy bridge below, which would otherwise pass the missing
+  # argument straight through to the engine's own "binary" default.
+  if (measurement_missing) .require_measurement(indicators)
 
   if (legacy) {
     message("Note: `X`, `Y`, `n_components`, and `structural` are the legacy ",
@@ -2941,9 +3007,9 @@ print.mixture_model <- function(x, ...) {
 #'
 #' @param X A numeric matrix or data frame of indicator variables.
 #' @param k_range Integer vector of class numbers to fit. All values must be >= 1. Default is \code{1:5}.
-#' @param measurement Character string specifying the measurement model type.
-#'   See \code{\link{fit_mixture}} for accepted values. Default is
-#'   \code{"binary"}.
+#' @param measurement Character string or named list specifying the measurement
+#'   model type. Required; see \code{\link{fit_mixture}} for the accepted values
+#'   and for why there is no default.
 #' @param n_init Positive integer. Number of random restarts per model.
 #'   Default is \code{10}.
 #' @param n_steps Integer. Estimation method: \code{1}, \code{2}, or \code{3}.
@@ -3022,10 +3088,11 @@ print.mixture_model <- function(x, ...) {
 #' variables. \emph{Biometrika}, \emph{48}(3/4), 419-426.
 #'
 #' @export
-compare_mixtures <- function(X, k_range = 1:5, measurement = "binary",
+compare_mixtures <- function(X, k_range = 1:5, measurement,
                              n_init = 10, n_steps = 1,
                              vlmr = c("none", "standard", "robust", "both"),
                              ...) {
+  if (missing(measurement)) .require_measurement(X)
   vlmr <- match.arg(vlmr)
   # k=0 would silently fit a degenerate model with LL=-Inf; negative
   # k values crash deep in initialisation with a cryptic error.
