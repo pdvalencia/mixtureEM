@@ -129,23 +129,117 @@
   do.call(cbind, plot_data)
 }
 
+# ------------------------------------------------------------------------------
+# Standardized profile heights for the bar chart
+# ------------------------------------------------------------------------------
+# A [classes x items] matrix of z-scored conditional means. The profile plot's
+# min-max scaling is hostage to a single extreme observation and has no
+# meaningful origin; a z-score has both a scale-free unit and a zero that means
+# "the average case". The property that earns the extra code path is that the
+# picture is unchanged by standardizing the indicators before fitting, so
+# standardization becomes a display choice rather than a data-preparation step.
+#
+# Denominators:
+#   "total"  -> the weighted observed SD of the column, which is what "we
+#               standardized the indicators" means in the applied literature
+#               and is what makes the figure invariant to pre-standardization.
+#   "within" -> the model-implied within-class SD, pooled over classes by their
+#               weights. Reads as a Cohen's-d-like effect against residual
+#               rather than total dispersion, and is the more informative of the
+#               two; it is not the default only because it is not what applied
+#               papers plot.
+.profile_bar_heights <- function(x, scale = "total") {
+
+  mm <- x$mm
+  if (!(class(mm)[1] %in% c("gaussian_diag", "gaussian_diag_nan",
+                            "gaussian_unit", "gaussian_unit_nan")))
+    stop("plot(type = \"bar\") standardizes conditional means, so it needs an ",
+         "all-continuous measurement model. This fit has ", class(mm)[1],
+         " emissions; use type = \"profile\", which places indicators of any ",
+         "type on a common axis.", call. = FALSE)
+
+  if (is.null(x$data))
+    stop("Raw indicators are not stored on this fit, so conditional means ",
+         "cannot be standardized against the observed data. Refit with the ",
+         "current version, or use type = \"profile\".", call. = FALSE)
+
+  means <- mm$parameters$means
+  cols  <- colnames(means) %||% paste0("Cont_", seq_len(ncol(means)))
+  # Match the observed columns by name, exactly as .prepare_profile_data() does.
+  # An unnamed indicator matrix leaves the means unnamed too, and there the
+  # columns are in fitting order and can only be matched positionally.
+  matched <- match(cols, colnames(x$data))
+  if (anyNA(matched) && ncol(means) == ncol(x$data))
+    matched <- seq_len(ncol(means))
+  if (anyNA(matched))
+    stop("Could not match the class means to the stored indicators by name, ",
+         "so they cannot be standardized. Use type = \"profile\".",
+         call. = FALSE)
+
+  w  <- x$sample_weights %||% rep(1, nrow(x$data))
+  H  <- means
+  for (j in seq_len(ncol(means))) {
+    obs <- x$data[, matched[j]]
+    ok  <- !is.na(obs)
+    wj  <- w[ok]; oj <- obs[ok]
+    m_j <- sum(wj * oj) / sum(wj)
+
+    s_j <- if (identical(scale, "within")) {
+      # Unit-variance models fix the within-class variance at 1 by definition.
+      if (is.null(mm$parameters$covariances)) 1
+      else sqrt(sum(x$weights * mm$parameters$covariances[, j]))
+    } else {
+      sqrt(sum(wj * (oj - m_j)^2) / sum(wj))
+    }
+    if (!is.finite(s_j) || s_j <= 0) s_j <- 1  # a constant column: leave centred
+
+    H[, j] <- (means[, j] - m_j) / s_j
+  }
+
+  colnames(H) <- cols
+  H
+}
+
 #' Profile Plot for a Fitted Mixture Model
 #'
 #' @description
-#' Draws a profile plot of the measurement model: one line per latent class,
+#' Draws the measurement model in one of two ways.
+#'
+#' `type = "profile"` (the default) is a line plot: one line per latent class,
 #' with every indicator placed on a common \[0, 1\] axis. Binary indicators are
 #' shown as endorsement probabilities; continuous indicators are min-max scaled
 #' against their observed range; polytomous indicators are summarised by their
 #' expected category and scaled to \[0, 1\]. Rescaled items are marked with "*".
 #'
+#' `type = "bar"` is the grouped bar chart of standardized class means that
+#' applied latent-profile papers publish, and requires an all-continuous
+#' measurement model. Indicators sit on the x-axis with one bar per class inside
+#' each group; a bar above the zero line is an above-average conditional mean
+#' and one below it a below-average mean. Heights are z-scores rather than the
+#' profile plot's min-max scaling, which is hostage to a single extreme
+#' observation and has no meaningful origin. Because a z-score is scale-free,
+#' the figure is the same whether or not the indicators were standardized before
+#' fitting, so standardization is a display choice here rather than a step in
+#' preparing the data.
+#'
 #' Uses only base graphics and the colour-blind-friendly Okabe-Ito palette.
 #'
 #' @param x A fitted \code{mixture_model} object.
-#' @param main Plot title.
+#' @param type Either `"profile"` (the default line plot) or `"bar"`, the
+#'   standardized profile bar chart described above.
+#' @param main Plot title. Defaults to a title chosen for `type`.
 #' @param class_labels Optional character vector of labels for the classes.
 #'   Defaults to "Class 1", "Class 2", ...
 #' @param colors Optional vector of colours (one per class). Defaults to the
 #'   Okabe-Ito palette, recycled if necessary.
+#' @param scale For `type = "bar"` only, the denominator of the z-score.
+#'   `"total"` (the default) divides by the weighted observed SD of the
+#'   indicator, which is what standardizing the indicators means in the applied
+#'   literature and is what makes the figure invariant to pre-standardization.
+#'   `"within"` divides by the model-implied within-class SD pooled over
+#'   classes, giving a Cohen's-d-like reading against residual rather than total
+#'   dispersion. `"within"` is arguably the more informative quantity; it is not
+#'   the default because it is not what applied papers plot.
 #' @param ... Currently unused; present for S3 compatibility.
 #'
 #' @return The fitted model, invisibly.
@@ -156,12 +250,22 @@
 #' fit <- fit_mixture(X, n_classes = 2, measurement = "binary")
 #' plot(fit)
 #'
-#' @importFrom graphics par matplot axis text legend mtext
+#' @importFrom graphics par matplot axis text legend mtext barplot abline
 #' @export
-plot.mixture_model <- function(x, main = "Latent Class / Profile Plot",
-                               class_labels = NULL, colors = NULL, ...) {
+plot.mixture_model <- function(x, type = c("profile", "bar"), main = NULL,
+                               class_labels = NULL, colors = NULL,
+                               scale = c("total", "within"), ...) {
 
   if (is.null(x$mm)) stop("No measurement model to plot.")
+
+  type  <- match.arg(type)
+  scale <- match.arg(scale)
+
+  if (identical(type, "bar"))
+    return(.plot_profile_bar(x, main = main, class_labels = class_labels,
+                             colors = colors, scale = scale))
+
+  if (is.null(main)) main <- "Latent Class / Profile Plot"
 
   if (is.null(x$data) && .has_continuous(x$mm))
     message("Raw indicators are not stored on this fit, so continuous items ",
@@ -251,6 +355,83 @@ plot.mixture_model <- function(x, main = "Latent Class / Profile Plot",
       side = 1, line = mar_bottom - 1.2, adj = 0, cex = 0.8, font = 3,
       col = "grey30"
     )
+
+  invisible(x)
+}
+
+# The grouped bar chart behind plot(type = "bar"). Groups are indicators and
+# bars within a group are classes, which is the arrangement applied latent
+# profile papers use: the reader compares classes on one indicator at a time.
+# barplot(beside = TRUE) reads a matrix as one group per *column* and one bar
+# per *row*, so the [classes x items] matrix goes in untransposed. It draws a
+# negative height downward from zero on its own, so the only things to add are
+# the zero line itself and a symmetric ylim.
+.plot_profile_bar <- function(x, main = NULL, class_labels = NULL,
+                              colors = NULL, scale = "total") {
+
+  H <- .profile_bar_heights(x, scale = scale)
+
+  n_classes <- nrow(H)
+  n_items   <- ncol(H)
+
+  if (is.null(main))
+    main <- "Standardized Class Profiles"
+
+  my_colors <- if (is.null(colors)) rep(.okabe_ito, length.out = n_classes)
+               else rep(colors, length.out = n_classes)
+
+  base_labels <- if (is.null(class_labels)) paste("Class", seq_len(n_classes))
+                 else class_labels
+  labels <- .class_plot_labels(base_labels, x$weights)
+
+  item_labels <- .shorten_labels(colnames(H), width = 16L)
+  # Rotate only when the names are long enough to collide; indicators are often
+  # named "a" or "x1", and a 45-degree one-character label just looks broken.
+  rotate <- max(nchar(item_labels)) > 8L
+
+  old_par <- par(no.readonly = TRUE)
+  on.exit(par(old_par))
+  # Same reasoning as the profile plot: the right margin is sized by the legend
+  # it holds and the bottom margin by the item names, which need room only in
+  # proportion to their length when they are rotated.
+  mar_right  <- min(3 + 0.45 * max(nchar(labels)), 18)
+  mar_bottom <- if (rotate)
+    max(6, min(3.5 + 0.4 * max(nchar(item_labels)), 12)) else 4
+  par(mar = c(mar_bottom, 4.5, 4, mar_right), xpd = TRUE)
+
+  lim  <- max(abs(H), na.rm = TRUE)
+  if (!is.finite(lim) || lim == 0) lim <- 1
+  ylim <- c(-1.1 * lim, 1.1 * lim)
+
+  y_lab <- if (identical(scale, "within"))
+    "Class mean (SD within class)" else "Class mean (SD)"
+
+  at <- barplot(
+    H, beside = TRUE, col = my_colors, border = NA, names.arg = rep("", n_items),
+    ylim = ylim, ylab = y_lab, main = main, las = 1
+  )
+
+  abline(h = 0, col = "grey20")
+
+  # One label per indicator group, centred under its cluster of bars. The offset
+  # is measured from the plotting region barplot actually established, not from
+  # the requested ylim -- barplot extends the region past it, so an ylim-based
+  # offset drops the labels well below the axis.
+  centres <- colMeans(at)
+  text(
+    x      = centres,
+    y      = par("usr")[3] - 0.03 * diff(par("usr")[3:4]),
+    labels = item_labels,
+    srt    = if (rotate) 45 else 0,
+    adj    = if (rotate) 1 else c(0.5, 1),
+    cex    = 0.9
+  )
+
+  x_pos <- par("usr")[2] + 0.02 * diff(par("usr")[1:2])
+  legend(
+    x = x_pos, y = par("usr")[4], legend = labels, fill = my_colors,
+    border = NA, bty = "n", cex = 0.9, title = "Class"
+  )
 
   invisible(x)
 }
