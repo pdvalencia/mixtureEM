@@ -1,5 +1,53 @@
 # mixtureEM (development version)
 
+## Bivariate residuals can now be calibrated by bootstrap
+
+`bivariate_residuals()` takes `n_reps`, which replaces the statistic's
+chi-square reference with a parametric bootstrap and attaches a matrix of
+p-values that the print method shows beside each residual.
+
+The reference distribution is the problem being solved. In the simulation of
+Oberski, van Kollenburg and Vermunt (2013), a bivariate residual referred to
+chi-square rejected at a nominal five percent in zero of two hundred samples in
+*every one* of eight null conditions; its empirical mean was between 0.25 and
+0.36 where the reference has 1. A statistic that never rejects under a true
+model also says little under a false one, so a low bivariate residual is not
+evidence of good fit — and the ranking it supports is the least powerful of the
+three methods those authors compared. The documentation now says all of this
+plainly, along with two limits it had not stated: power falls as the classes
+separate, and under a missing-at-random mechanism a large residual is ambiguous
+between local dependence and selection bias.
+
+The default `n_reps = 0` is the previous behaviour at the previous cost, and
+returns bit-identical residuals. `100` is the recommended working value and
+`500` the publication-grade one.
+
+## A standardized profile bar chart
+
+`plot(fit, type = "bar")` draws the grouped bar chart applied latent-profile
+papers publish: indicators along the x-axis, one bar per class within each
+group, and a zero line separating above-average from below-average conditional
+means. It requires an all-continuous measurement model; `type` defaults to
+`"profile"`, so the existing figure is unchanged.
+
+Bar heights are z-scores rather than the profile plot's min-max scaling, which
+is hostage to a single extreme observation and has no meaningful origin. A
+z-score is scale-free, so the figure comes out the same whether or not the
+indicators were standardized before fitting — standardizing becomes a display
+choice rather than a step in preparing the data. `scale = "within"` divides by
+the model-implied within-class standard deviation instead, giving a
+Cohen's-d-like reading against residual rather than total dispersion.
+
+## Step-3 standard errors: which one to compare against another program
+
+The `se` documentation now records that `"corrected"`, the default, is the
+statistically right answer, while `"robust"` is the *comparability* setting.
+Another program reports the step-3 sandwich alone, so reproducing its standard
+errors requires asking for `"robust"`; under the default a user checking
+mixtureEM against it sees wider intervals, and that difference is a difference
+in estimator — the corrected form carries step-1 uncertainty the sandwich omits
+— rather than a bug in either program. No estimates or standard errors change.
+
 ## `measurement` is now required
 
 `fit_mixture()`, `compare_mixtures()` and `blrt()` no longer default
