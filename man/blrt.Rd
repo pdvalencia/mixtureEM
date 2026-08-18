@@ -9,7 +9,7 @@ blrt(
   indicators,
   k_small,
   k_large,
-  measurement = "binary",
+  measurement,
   n_reps = 100,
   n_init_base = 20,
   n_init_boot = 10,
@@ -41,7 +41,9 @@ accepted as a deprecated alias.) Not needed when \code{from_fit} is given.}
 strictly greater than \code{k_small}.}
 
 \item{measurement}{Measurement specification, as in \code{\link{fit_mixture}}
-(a single type string or a named list for mixed-type indicators).}
+(a single type string or a named list for mixed-type indicators). Required,
+except when \code{from_fit} is supplied, which reads the specification off
+the fitted model.}
 
 \item{n_reps}{Number of bootstrap replications. Default \code{100},
 following Dziak et al. (2014) and the general advice in Davison and

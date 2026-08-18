@@ -7,7 +7,7 @@
 fit_mixture(
   indicators = NULL,
   n_classes = 2,
-  measurement = "binary",
+  measurement,
   predictors = NULL,
   outcome = NULL,
   outcome_covariates = NULL,
@@ -51,6 +51,17 @@ string for all of them — \code{"binary"}, \code{"categorical"},
 mixed-type model, a named list mapping each type to the columns it governs
 by name or index, e.g.
 \code{list(binary = c("q1","q2"), continuous = "score")}.
+
+\strong{Required; there is no default.} The storage mode of a column does
+not determine its measurement model: a 1-5 column is a legitimate
+\code{"categorical"}, \code{"continuous"} or \code{"count"} indicator, and
+the class solution differs across the three. Inferring the type from the
+data would settle a modelling question by inspecting storage mode, and
+would make a script's meaning depend on the data it happens to be run
+against; a constant default is the same guess with the data-dependence
+removed. Omitting the argument is an error that lists the valid types and
+suggests one based on your columns — as a hint for you to confirm, not a
+choice the package makes.
 
 \strong{Missing values need no special handling.} Any indicator containing
 \code{NA} is estimated by full-information maximum likelihood under the
@@ -355,10 +366,10 @@ fit <- fit_mixture(X, n_classes = 2, measurement = "binary")
 
 \dontrun{
 # Class membership predicted by a covariate (3-step, ML by default)
-fit_mixture(X, n_classes = 2, predictors = age)
+fit_mixture(X, n_classes = 2, measurement = "binary", predictors = age)
 
 # Distal outcome with a class-specific covariate slope
-fit_mixture(X, n_classes = 2, outcome = bmi,
+fit_mixture(X, n_classes = 2, measurement = "binary", outcome = bmi,
             outcome_covariates = age, slopes = "class_specific")
 
 # Mixed-type indicators

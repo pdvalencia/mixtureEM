@@ -1,5 +1,33 @@
 # mixtureEM (development version)
 
+## `measurement` is now required
+
+`fit_mixture()`, `compare_mixtures()` and `blrt()` no longer default
+`measurement` to `"binary"`. Omitting it is an error that lists the valid
+types, shows the mixed-type syntax, and suggests a type read off your columns:
+
+```
+`measurement` must be specified. Valid types: "binary", "categorical",
+"continuous", "count".
+Your 8 indicator columns all take two values, so you probably want
+  measurement = "binary"
+For mixed types:
+  measurement = list(binary = 1:5, continuous = 6:8)
+```
+
+The suggestion is a hint to confirm, not a choice the package makes. The
+storage mode of a column does not determine its measurement model: a 1-5
+column is a legitimate `"categorical"`, `"continuous"` or `"count"` indicator,
+and the class solution differs across the three. Inferring the type would
+settle a modelling question by inspecting storage mode and would make a
+script's meaning depend on the data it is run against; a constant default is
+the same guess with the data-dependence removed.
+
+This breaks any call that relied on the default. The fix is to add
+`measurement = "binary"`, which reproduces the previous behaviour exactly.
+`blrt(from_fit = )` is unaffected, since it reads the specification off the
+fitted model.
+
 ## Continuous indicators default to equal variances across classes
 
 `fit_mixture(measurement = "continuous")` and `compare_mixtures(measurement =

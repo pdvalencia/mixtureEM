@@ -63,7 +63,7 @@ exporting and describing a solution.
 \examples{
 set.seed(1)
 X   <- matrix(rbinom(500, 1, 0.5), nrow = 100)
-fit <- fit_mixture(X, n_classes = 2)
+fit <- fit_mixture(X, n_classes = 2, measurement = "binary")
 table(class_assignments(fit))
 head(class_assignments(fit, "both"))
 # To relate the classes to an external variable, do not regress on the

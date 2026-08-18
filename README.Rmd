@@ -58,7 +58,8 @@ the class sizes:
 library(mixtureEM)
 
 items <- ventura_leon[, 7:22]   # the 16 infidelity items
-fit <- fit_mixture(items, n_classes = 4, n_init = 20, random_state = 1)
+fit <- fit_mixture(items, n_classes = 4, measurement = "binary",
+                   n_init = 20, random_state = 1)
 class_sizes(fit)
 ```
 

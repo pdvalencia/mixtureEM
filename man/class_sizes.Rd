@@ -46,7 +46,7 @@ drop it if it cannot, and report the number either way.
 \examples{
 set.seed(1)
 X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
-fit <- fit_mixture(X, n_classes = 2)
+fit <- fit_mixture(X, n_classes = 2, measurement = "binary")
 class_sizes(fit)
 
 }
