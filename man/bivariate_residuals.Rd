@@ -4,16 +4,32 @@
 \alias{bivariate_residuals}
 \title{Bivariate Residuals}
 \usage{
-bivariate_residuals(object)
+bivariate_residuals(object, n_reps = 0, n_init_boot = 10, verbose = FALSE)
 }
 \arguments{
 \item{object}{A model fitted by \code{\link[=fit_mixture]{fit_mixture()}} or \code{\link[=fit_rmlca]{fit_rmlca()}} with
 categorical indicators, or with a plain continuous measurement model.}
+
+\item{n_reps}{Number of parametric bootstrap replicates used to calibrate the
+residuals. The default, \code{0}, computes the residuals alone and is the
+cheaper, uncalibrated diagnostic. \code{100} is the recommended working value
+and gives a Monte Carlo standard error of about 0.022 at \eqn{p = 0.05},
+which is adequate for flagging a pair; \code{500}, the number Oberski et al.
+used, is the publication-grade setting. Ignored for a continuous
+measurement model.}
+
+\item{n_init_boot}{Random starts per bootstrap replicate. Replicates are
+refit without the final refinement step, since a replicate needs a
+residual rather than polished estimates.}
+
+\item{verbose}{Report bootstrap progress.}
 }
 \value{
 For categorical indicators, an object of class
 \code{bivariate_residuals}: a lower-triangular indicator-by-indicator matrix,
-\code{NA} on and above the diagonal. For a continuous measurement model, an
+\code{NA} on and above the diagonal. When \code{n_reps > 0} a matrix of bootstrap
+p-values, laid out the same way, is attached as the \code{"p"} attribute and
+printed beside each residual. For a continuous measurement model, an
 object of class \code{bivariate_residuals_gaussian} holding the modification
 index and expected parameter change per pair per class, the model-implied
 residual covariance and correlation, and a count of pairs where the
@@ -38,14 +54,52 @@ full response-pattern table and so remain usable with many indicators: the
 model-implied two-way margin follows in closed form from conditional
 independence, \eqn{P(y_a = r, y_b = s) = \sum_k \gamma_k\, p_a(r|k)\,
 p_b(s|k)}.
+}
+\section{How much to trust it}{
+
+The chi-square reference for this statistic does not work, and the evidence
+is blunt. Over the eight null conditions of Oberski et al. (2013, Table 1) --
+loadings of .5 and .8 crossed with n of 200, 500, 1000 and 5000, 200 samples
+each -- a bivariate residual referred to chi-square rejected at a nominal 5
+percent level in \strong{zero of 200 samples in every one of the eight}. Its
+empirical mean ran between 0.25 and 0.36 against the 1 that a
+\eqn{\chi^2_1} has, and its variance between 0.1 and 0.2 against 2. Three
+consequences follow, and all three matter more than the usual hedging
+suggests:
+
+\itemize{
+\item \strong{A low bivariate residual is not evidence of good fit.} A statistic
+that never rejects when the model is true also has nothing to say when it
+is. This is the authors' own closing point.
+\item \strong{The ranking is weaker than it looks.} In their Figure 1 the naive
+bivariate residual has uniformly the lowest power of the three methods
+compared. It is adequate only against a residual correlation of about
+-0.4; it needs n of 5000 or more for correlations of \eqn{\pm 0.2} and
+-0.2, and it almost never detects \eqn{\pm 0.05}. All three methods lose
+power as the loadings grow, so well-separated classes hide local
+dependence rather than expose it.
+\item \strong{With missing data a large value is ambiguous.} Under MAR the
+observed side of any residual statistic carries selection bias
+(Asparouhov & Muthen, 2015), so a large residual may be reporting the
+missingness mechanism rather than local dependence.
+}
+
+\code{n_reps} replaces the broken reference distribution with a parametric
+bootstrap, which in the same simulation held between 0.020 and 0.085 against
+a nominal 0.05. Use it before drawing any conclusion from the size of a
+residual.
+
+Note that the statistic bootstrapped is the one this function computes,
+\eqn{\chi^2} divided by its degrees of freedom, and not a raw Pearson
+\eqn{\chi^2}. For binary items the degrees of freedom are 1 and the two
+coincide; for polytomous items they do not, so do not compare the number
+printed here against a raw chi-square table. The bootstrap is applied to
+whatever statistic is computed, so it is calibrated either way.
 
 With missing data each pair is computed on the cases observing both items,
 and the expected counts are scaled to that pair's total. This is a
 pairwise-complete statistic rather than a full-information one, so read it
-as descriptive when missingness is heavy. Its chi-square reference is also
-unreliable in a way the modification index below is not (Oberski et al.,
-2013): read a categorical bivariate residual as a ranking of which pairs
-strain the model, not as a calibrated test.
+as descriptive when missingness is heavy.
 
 For a plain continuous (Gaussian) measurement model with no missing data, a
 different statistic is returned instead: for each item pair and class, the
@@ -66,6 +120,7 @@ strong (Janssen, van Laar, de Rooij, Kuha & Bakk, 2019); unmodelled
 within-class dependence is worth taking seriously mainly because it can
 manufacture spurious classes (Bauer & Curran, 2004).
 }
+
 \examples{
 set.seed(1)
 X <- matrix(rbinom(600, 1, 0.5), ncol = 6)
@@ -90,6 +145,14 @@ Modeling}, \emph{26}(2), 280-290.
 Bauer, D. J., & Curran, P. J. (2004). The integration of continuous and
 discrete latent variable models: Potential problems and promising
 opportunities. \emph{Psychological Methods}, \emph{9}(1), 3-29.
+
+van Kollenburg, G. H., Mulder, J., & Vermunt, J. K. (2015). Assessing model
+fit in latent class analysis when asymptotics do not hold.
+\emph{Methodology}, \emph{11}(2), 65-79.
+
+Asparouhov, T., & Muthen, B. (2015). Residual associations in latent class
+and latent transition analysis. \emph{Structural Equation Modeling},
+\emph{22}(2), 169-177.
 }
 \seealso{
 \code{\link[=absolute_fit]{absolute_fit()}}, \code{\link[=classification_table]{classification_table()}}.

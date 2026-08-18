@@ -247,13 +247,50 @@ print.absolute_fit <- function(x, ...) {
 #' independence, \eqn{P(y_a = r, y_b = s) = \sum_k \gamma_k\, p_a(r|k)\,
 #' p_b(s|k)}.
 #'
+#' @section How much to trust it:
+#' The chi-square reference for this statistic does not work, and the evidence
+#' is blunt. Over the eight null conditions of Oberski et al. (2013, Table 1) --
+#' loadings of .5 and .8 crossed with n of 200, 500, 1000 and 5000, 200 samples
+#' each -- a bivariate residual referred to chi-square rejected at a nominal 5
+#' percent level in **zero of 200 samples in every one of the eight**. Its
+#' empirical mean ran between 0.25 and 0.36 against the 1 that a
+#' \eqn{\chi^2_1} has, and its variance between 0.1 and 0.2 against 2. Three
+#' consequences follow, and all three matter more than the usual hedging
+#' suggests:
+#'
+#' \itemize{
+#'   \item **A low bivariate residual is not evidence of good fit.** A statistic
+#'     that never rejects when the model is true also has nothing to say when it
+#'     is. This is the authors' own closing point.
+#'   \item **The ranking is weaker than it looks.** In their Figure 1 the naive
+#'     bivariate residual has uniformly the lowest power of the three methods
+#'     compared. It is adequate only against a residual correlation of about
+#'     -0.4; it needs n of 5000 or more for correlations of \eqn{\pm 0.2} and
+#'     -0.2, and it almost never detects \eqn{\pm 0.05}. All three methods lose
+#'     power as the loadings grow, so well-separated classes hide local
+#'     dependence rather than expose it.
+#'   \item **With missing data a large value is ambiguous.** Under MAR the
+#'     observed side of any residual statistic carries selection bias
+#'     (Asparouhov & Muthen, 2015), so a large residual may be reporting the
+#'     missingness mechanism rather than local dependence.
+#' }
+#'
+#' `n_reps` replaces the broken reference distribution with a parametric
+#' bootstrap, which in the same simulation held between 0.020 and 0.085 against
+#' a nominal 0.05. Use it before drawing any conclusion from the size of a
+#' residual.
+#'
+#' Note that the statistic bootstrapped is the one this function computes,
+#' \eqn{\chi^2} divided by its degrees of freedom, and not a raw Pearson
+#' \eqn{\chi^2}. For binary items the degrees of freedom are 1 and the two
+#' coincide; for polytomous items they do not, so do not compare the number
+#' printed here against a raw chi-square table. The bootstrap is applied to
+#' whatever statistic is computed, so it is calibrated either way.
+#'
 #' With missing data each pair is computed on the cases observing both items,
 #' and the expected counts are scaled to that pair's total. This is a
 #' pairwise-complete statistic rather than a full-information one, so read it
-#' as descriptive when missingness is heavy. Its chi-square reference is also
-#' unreliable in a way the modification index below is not (Oberski et al.,
-#' 2013): read a categorical bivariate residual as a ranking of which pairs
-#' strain the model, not as a calibrated test.
+#' as descriptive when missingness is heavy.
 #'
 #' For a plain continuous (Gaussian) measurement model with no missing data, a
 #' different statistic is returned instead: for each item pair and class, the
@@ -276,9 +313,22 @@ print.absolute_fit <- function(x, ...) {
 #'
 #' @param object A model fitted by [`fit_mixture()`] or [`fit_rmlca()`] with
 #'   categorical indicators, or with a plain continuous measurement model.
+#' @param n_reps Number of parametric bootstrap replicates used to calibrate the
+#'   residuals. The default, `0`, computes the residuals alone and is the
+#'   cheaper, uncalibrated diagnostic. `100` is the recommended working value
+#'   and gives a Monte Carlo standard error of about 0.022 at \eqn{p = 0.05},
+#'   which is adequate for flagging a pair; `500`, the number Oberski et al.
+#'   used, is the publication-grade setting. Ignored for a continuous
+#'   measurement model.
+#' @param n_init_boot Random starts per bootstrap replicate. Replicates are
+#'   refit without the final refinement step, since a replicate needs a
+#'   residual rather than polished estimates.
+#' @param verbose Report bootstrap progress.
 #' @return For categorical indicators, an object of class
 #'   `bivariate_residuals`: a lower-triangular indicator-by-indicator matrix,
-#'   `NA` on and above the diagonal. For a continuous measurement model, an
+#'   `NA` on and above the diagonal. When `n_reps > 0` a matrix of bootstrap
+#'   p-values, laid out the same way, is attached as the `"p"` attribute and
+#'   printed beside each residual. For a continuous measurement model, an
 #'   object of class `bivariate_residuals_gaussian` holding the modification
 #'   index and expected parameter change per pair per class, the model-implied
 #'   residual covariance and correlation, and a count of pairs where the
@@ -308,8 +358,22 @@ print.absolute_fit <- function(x, ...) {
 #' Bauer, D. J., & Curran, P. J. (2004). The integration of continuous and
 #' discrete latent variable models: Potential problems and promising
 #' opportunities. \emph{Psychological Methods}, \emph{9}(1), 3-29.
+#'
+#' van Kollenburg, G. H., Mulder, J., & Vermunt, J. K. (2015). Assessing model
+#' fit in latent class analysis when asymptotics do not hold.
+#' \emph{Methodology}, \emph{11}(2), 65-79.
+#'
+#' Asparouhov, T., & Muthen, B. (2015). Residual associations in latent class
+#' and latent transition analysis. \emph{Structural Equation Modeling},
+#' \emph{22}(2), 169-177.
 #' @export
-bivariate_residuals <- function(object) {
+bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10,
+                                verbose = FALSE) {
+  n_reps <- as.integer(n_reps)
+  if (is.na(n_reps) || n_reps < 0L)
+    stop("`n_reps` must be a non-negative number of bootstrap draws.",
+         call. = FALSE)
+
   if (inherits(object, "lta_model")) {
     message("Bivariate residuals are not available for latent transition ",
             "models: the two-way margin of a pair of items at different ",
@@ -337,8 +401,16 @@ bivariate_residuals <- function(object) {
 
   items <- .fit_item_probs(object$mm, ncol(X), colnames(X))
   if (is.null(items)) {
-    if (identical(class(object$mm)[1], "gaussian_diag"))
+    if (identical(class(object$mm)[1], "gaussian_diag")) {
+      # The continuous branch returns a modification index, which already has a
+      # usable reference distribution and needs no bootstrap.
+      if (n_reps > 0L)
+        message("`n_reps` is ignored for a continuous measurement model: the ",
+                "modification index returned there reproduces its nominal ",
+                "chi-square distribution, which is the reason the bootstrap ",
+                "exists for the categorical statistic.")
       return(.bivariate_mi_gaussian(object))
+    }
     message("Bivariate residuals require categorical indicators throughout, ",
             "or a plain continuous (Gaussian) measurement model with no ",
             "missing data, mixing with categorical items, or repeated-",
@@ -346,8 +418,20 @@ bivariate_residuals <- function(object) {
     return(NULL)
   }
 
+  bvr <- .bvr_matrix(items, X, object$sample_weights, gamma)
+
+  if (n_reps > 0L)
+    attr(bvr, "p") <- .bvr_bootstrap(object, bvr, n_reps, n_init_boot, verbose)
+
+  class(bvr) <- c("bivariate_residuals", "matrix", "array")
+  bvr
+}
+
+# The residual matrix itself, given the pieces the caller has already resolved.
+# Split out of bivariate_residuals() so that a bootstrap replicate is scored by
+# exactly the same code as the observed data rather than by a copy of it.
+.bvr_matrix <- function(items, X, w, gamma) {
   J   <- length(items)
-  w   <- object$sample_weights
   nms <- vapply(items, `[[`, character(1), "name")
   bvr <- matrix(NA_real_, J, J, dimnames = list(nms, nms))
 
@@ -379,20 +463,79 @@ bivariate_residuals <- function(object) {
                             (length(ib$categories) - 1L))
   }
 
-  class(bvr) <- c("bivariate_residuals", "matrix", "array")
   bvr
+}
+
+# Parametric bootstrap p-values for the residual matrix. The reference
+# distribution is generated the way blrt() generates its own: draw class
+# memberships from the fitted class weights, generate responses from the fitted
+# measurement model, refit, and score the replicate. The classes of a replicate
+# need no alignment to the classes of the observed fit -- the residual is a
+# function of the two-way margins, which are invariant to relabelling the
+# classes, so align_classes() would only cost time.
+.bvr_bootstrap <- function(object, obs, n_reps, n_init_boot, verbose) {
+  K <- object$n_components
+  N <- nrow(object$data)
+  J <- nrow(obs)
+
+  ge <- matrix(0L, J, J)   # replicates at least as extreme as the observed
+  ok <- matrix(0L, J, J)   # replicates that produced a residual at all
+
+  if (verbose)
+    message(sprintf("Bivariate residuals: %d bootstrap draws...", n_reps))
+
+  for (i in seq_len(n_reps)) {
+    classes <- sample(seq_len(K), size = N, replace = TRUE,
+                      prob = object$weights)
+    X_gen   <- generate_synthetic_data(object$mm, classes, N)
+    colnames(X_gen) <- colnames(object$data)
+
+    # refine = FALSE for the same reason blrt() uses it: a replicate needs a
+    # residual, not polished estimates, and the refinement is the expensive part.
+    rep_fit <- try(fit_mixture_internal(
+      X = X_gen, n_components = K,
+      measurement = object$measurement_descriptor,
+      n_init = n_init_boot, refine = FALSE), silent = TRUE)
+    if (inherits(rep_fit, "try-error")) next
+
+    items_r <- .fit_item_probs(rep_fit$mm, ncol(X_gen), colnames(X_gen))
+    gamma_r <- .marginal_class_weights(rep_fit)
+    if (is.null(items_r) || is.null(gamma_r)) next
+
+    boot <- .bvr_matrix(items_r, X_gen, rep_fit$sample_weights, gamma_r)
+
+    good <- !is.na(boot) & !is.na(obs)
+    ok[good] <- ok[good] + 1L
+    ge[good] <- ge[good] + (boot[good] >= obs[good])
+
+    if (verbose && (i %% max(1L, n_reps %/% 10L) == 0L))
+      message(sprintf("  %d / %d draws complete", i, n_reps))
+  }
+
+  p <- ifelse(ok > 0L, ge / ok, NA_real_)
+  dimnames(p) <- dimnames(obs)
+  p
 }
 
 #' @export
 print.bivariate_residuals <- function(x, digits = 4, ...) {
+  p <- attr(x, "p")
   m <- unclass(x)
+  attr(m, "p") <- NULL
   J <- nrow(m)
   cat("=========================================================\n")
   cat("               BIVARIATE RESIDUALS                       \n")
   cat("=========================================================\n")
   cat("Pearson chi-square per item pair, divided by its df.\n")
-  cat("Values well above 1 flag a pair whose association the\n")
-  cat("classes do not reproduce (local dependence).\n\n")
+  if (is.null(p)) {
+    cat("Ranks which pairs strain the model. NOT a calibrated\n")
+    cat("test: referred to chi-square this statistic almost\n")
+    cat("never rejects, so a low value is not evidence of fit.\n")
+    cat("Use n_reps for bootstrap p-values.\n\n")
+  } else {
+    cat("Bootstrap p-value in brackets (proportion of replicates\n")
+    cat("at least as extreme). Small p flags local dependence.\n\n")
+  }
 
   if (J < 2L) {
     cat("A single indicator: no pairs.\n")
@@ -402,15 +545,21 @@ print.bivariate_residuals <- function(x, digits = 4, ...) {
 
   # Lower triangle only: the matrix is symmetric by
   # construction and the diagonal is not a residual.
+  cell <- function(i, j) {
+    v <- formatC(m[i, j], format = "f", digits = digits)
+    if (is.null(p) || is.na(p[i, j])) v
+    else sprintf("%s [%.2f]", v, p[i, j])
+  }
+
   lab_w <- max(nchar(rownames(m)))
   col_w <- max(9L, max(nchar(colnames(m)[-J])) + 1L)
+  if (!is.null(p)) col_w <- col_w + 7L   # room for the bracketed p-value
   cat(sprintf("%-*s", lab_w, ""))
   for (j in seq_len(J - 1L)) cat(sprintf("%*s", col_w, colnames(m)[j]))
   cat("\n")
   for (i in 2:J) {
     cat(sprintf("%-*s", lab_w, rownames(m)[i]))
-    for (j in seq_len(i - 1L))
-      cat(sprintf("%*s", col_w, formatC(m[i, j], format = "f", digits = digits)))
+    for (j in seq_len(i - 1L)) cat(sprintf("%*s", col_w, cell(i, j)))
     cat("\n")
   }
 

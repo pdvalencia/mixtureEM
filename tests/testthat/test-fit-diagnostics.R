@@ -299,6 +299,40 @@ test_that("lta_g2() still reports what it always did", {
   expect_equal(g2$df, af$df)
 })
 
+test_that("the bootstrap attaches calibrated p-values without moving the residuals", {
+  fit <- .diag_fit(.diag_sim())
+
+  plain <- bivariate_residuals(fit)
+  boot  <- bivariate_residuals(fit, n_reps = 3)
+
+  # The residuals themselves are a function of the fit, not of the bootstrap.
+  stripped <- unclass(boot)
+  attr(stripped, "p") <- NULL
+  expect_equal(unclass(plain), stripped)
+
+  p <- attr(boot, "p")
+  expect_false(is.null(p))
+  expect_null(attr(plain, "p"))
+  expect_equal(dim(p), dim(unclass(plain)))
+  expect_equal(dimnames(p), dimnames(unclass(plain)))
+
+  # A proportion of replicates, so it lives on [0, 1], and it is defined
+  # exactly where the residual is.
+  expect_true(all(p >= 0 & p <= 1, na.rm = TRUE))
+  expect_equal(is.na(p[lower.tri(p)]), is.na(unclass(plain)[lower.tri(p)]))
+
+  expect_output(print(boot), "Bootstrap p-value")
+  expect_error(bivariate_residuals(fit, n_reps = -1), "non-negative")
+})
+
+test_that("the continuous branch says it is ignoring n_reps", {
+  set.seed(11)
+  Xc  <- cbind(a = rnorm(200), b = rnorm(200) + 1, c = rnorm(200))
+  fit <- fit_mixture(Xc, n_classes = 2, measurement = "continuous", n_init = 2)
+
+  expect_message(bivariate_residuals(fit, n_reps = 3), "ignored")
+})
+
 test_that("the diagnostics print without error", {
   fit <- .diag_fit(.diag_sim())
   expect_output(print(absolute_fit(fit)), "L-squared")
