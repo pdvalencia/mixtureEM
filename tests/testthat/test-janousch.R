@@ -14,7 +14,7 @@ test_that("per-country LPA prevalences resemble Janousch et al. (2022) Figs 1-3"
   # Switzerland: 3-profile solution, 22.1/42.9/34.9%.
   set.seed(1)
   fit_ch <- fit_mixture(janousch[janousch$country == "Switzerland", items],
-                         n_classes = 3, measurement = "continuous",
+                         n_classes = 3, measurement = "continuous", variances_equal = FALSE,
                          n_init = 30, max_iter = 2000)
   expect_true(fit_ch$converged)
   expect_equal(sort(fit_ch$weights, decreasing = TRUE),
@@ -23,7 +23,7 @@ test_that("per-country LPA prevalences resemble Janousch et al. (2022) Figs 1-3"
   # Germany: 4-profile solution, 15.7/44.2/27.3/12.7%.
   set.seed(1)
   fit_de <- fit_mixture(janousch[janousch$country == "Germany", items],
-                         n_classes = 4, measurement = "continuous",
+                         n_classes = 4, measurement = "continuous", variances_equal = FALSE,
                          n_init = 30, max_iter = 2000)
   expect_true(fit_de$converged)
   expect_equal(sort(fit_de$weights, decreasing = TRUE),
@@ -52,7 +52,7 @@ test_that("a collapsed class variance is detected and named", {
   msg <- NULL
   withCallingHandlers(
     fit <- fit_mixture(janousch[items], n_classes = 4,
-                       measurement = "continuous",
+                       measurement = "continuous", variances_equal = FALSE,
                        group = janousch$country, group_effects = "prevalence",
                        n_steps = 1, n_init = 50, max_iter = 2000,
                        random_state = 11),
@@ -85,7 +85,7 @@ test_that("a collapsed class variance is detected and named", {
   # the value that clears it; the rule is a place to start plus a check, not a
   # number that always works first time.
   fit5 <- fit_mixture(janousch[items], n_classes = 4,
-                      measurement = "continuous",
+                      measurement = "continuous", variances_equal = FALSE,
                       group = janousch$country, group_effects = "prevalence",
                       n_steps = 1, n_init = 50, max_iter = 2000,
                       random_state = 11,
@@ -113,14 +113,14 @@ test_that("measurement invariance across countries is rejected, as in the paper"
   # solutions estimated under different constraints, or two degenerate ones
   # against each other, produces a number but not a test.
   fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
-                               measurement = "continuous",
+                               measurement = "continuous", variances_equal = FALSE,
                                group = janousch$country,
                                group_effects = "prevalence",
                                n_steps = 1, n_init = 50, max_iter = 2000,
                                random_state = 11,
                                bayes_constants = list(variances = 5))
   fit_configural <- fit_mixture(janousch[items], n_classes = 4,
-                                measurement = "continuous",
+                                measurement = "continuous", variances_equal = FALSE,
                                 group = janousch$country,
                                 group_effects = "both",
                                 n_steps = 1, n_init = 50, max_iter = 2000,
@@ -141,13 +141,13 @@ test_that("lr_test() refuses to interpret a degenerate fit", {
 
   suppressWarnings(
     fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
-                                 measurement = "continuous",
+                                 measurement = "continuous", variances_equal = FALSE,
                                  group = janousch$country,
                                  group_effects = "prevalence",
                                  n_steps = 1, n_init = 50, max_iter = 2000,
                                  random_state = 11))
   fit_configural <- fit_mixture(janousch[items], n_classes = 4,
-                                measurement = "continuous",
+                                measurement = "continuous", variances_equal = FALSE,
                                 group = janousch$country,
                                 group_effects = "both",
                                 n_steps = 1, n_init = 50, max_iter = 2000,

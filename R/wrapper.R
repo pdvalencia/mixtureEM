@@ -2249,6 +2249,26 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   \code{group_invariant_params} to give a variance that is free across groups
 #'   but shared by the classes within each. Passed through to the measurement
 #'   model, so it is also available on an ordinary single-group fit.
+#'
+#'   \strong{This is the default when \code{measurement} is continuous}, and
+#'   \code{variances_equal = FALSE} recovers the class-varying parameterisation
+#'   the package used previously. The reason is that the unrestricted
+#'   normal-mixture likelihood is \emph{unbounded}: send a class mean to any
+#'   single data point and that class's variance to zero and the likelihood
+#'   diverges, so no maximum likelihood estimate exists and what the EM reports
+#'   is a local optimum whose properties are not guaranteed. Holding the
+#'   variances equal across classes bounds the likelihood, and the constrained
+#'   estimator is consistent (Day, 1969; Hathaway, 1985). Freeing them also
+#'   invites classes that describe non-normality in a single population rather
+#'   than distinct subgroups (Bauer & Curran, 2003).
+#'
+#'   The restriction is substantive and testable, and you are expected to fit
+#'   both and compare rather than accept either blindly. It is not offered as
+#'   the \emph{safe} choice but as the well-posed one: when the homoscedastic
+#'   model is wrong, it fails visibly — a genuinely heteroscedastic class splits
+#'   into two, and the comparison against the free model says so. When the free
+#'   model is wrong it fails silently, as a boundary solution that gets written
+#'   up as a finding.
 #' @param n_steps Estimation strategy: 1 (simultaneous), 2, or 3 (recommended
 #'   when a structural model is present). Defaults to 3 when \code{predictors}
 #'   or \code{outcome} is supplied and left unset, otherwise 1.
@@ -2339,9 +2359,12 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   not exist (Day, 1969; Kiefer & Wolfowitz, 1956) and what an unregularized
 #'   program reports is a local maximum.
 #'
-#'   \strong{Rescuing a collapsed fit:} if a fit warns that a class variance has
-#'   collapsed, the prior is one of three remedies, and not the first to reach
-#'   for. Constraining the variances to be equal across classes
+#'   \strong{Rescuing a collapsed fit:} this situation is now rare, because a
+#'   continuous measurement model holds the variances equal across classes by
+#'   default and that bounds the likelihood; it arises when you have explicitly
+#'   passed \code{variances_equal = FALSE}. If a fit warns that a class variance
+#'   has collapsed, the prior is one of three remedies, and not the first to
+#'   reach for. Constraining the variances to be equal across classes
 #'   (\code{variances_equal = TRUE}) bounds the likelihood so the problem cannot
 #'   arise at all; fitting fewer classes often removes the class that was
 #'   describing a spike. Where neither is acceptable substantively, raise
@@ -2428,7 +2451,18 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #' (the penalty behind \code{bayes_constants$variances}).
 #'
 #' Day, N. E. (1969). Estimating the components of a mixture of normal
-#' distributions. \emph{Biometrika}, \emph{56}(3), 463-474.
+#' distributions. \emph{Biometrika}, \emph{56}(3), 463-474
+#' (the unbounded likelihood behind the \code{variances_equal} default).
+#'
+#' Hathaway, R. J. (1985). A constrained formulation of maximum-likelihood
+#' estimation for normal mixture distributions. \emph{The Annals of
+#' Statistics}, \emph{13}(2), 795-800 (consistency of the constrained
+#' estimator).
+#'
+#' Bauer, D. J., & Curran, P. J. (2003). Distributional assumptions of growth
+#' mixture models: Implications for overextraction of latent trajectory
+#' classes. \emph{Psychological Methods}, \emph{8}(3), 338-363.
+#' \doi{10.1037/1082-989X.8.3.338}
 #'
 #' Kiefer, J., & Wolfowitz, J. (1956). Consistency of the maximum likelihood
 #' estimator in the presence of infinitely many incidental parameters.
@@ -2472,7 +2506,7 @@ fit_mixture <- function(indicators = NULL,
                         group_effects = c("both", "measurement", "prevalence", "none"),
                         group_invariant_items = NULL,
                         group_invariant_params = NULL,
-                        variances_equal = FALSE,
+                        variances_equal = NULL,
                         n_steps = 1,
                         correction = "none",
                         assignment = c("proportional", "modal"),
@@ -2550,6 +2584,22 @@ fit_mixture <- function(indicators = NULL,
     stop("`group_invariant_params` constrains the measurement model across ",
          "groups, which only `group_effects = \"both\"` or \"measurement\" ",
          "frees in the first place.", call. = FALSE)
+  # A continuous measurement model defaults to the homoscedastic
+  # parameterisation (Day 1969; Hathaway 1985: the unrestricted likelihood is
+  # unbounded, so only the constrained problem has an MLE). Resolved here rather
+  # than in the signature because the gate below rejects
+  # `variances_equal = TRUE` for any other measurement type, and a bare TRUE
+  # default would fire it on every categorical fit. An explicit TRUE still
+  # reaches the gate and is still rejected; only the unset case is resolved from
+  # the descriptor. `gaussian_model()`'s own default deliberately stays FALSE:
+  # it is reached by the growth, time-block and group-block paths as well, and
+  # flipping it there would silently change LCGA, GMM and RMLCA. Only the
+  # user-facing entry points resolve the default.
+  if (is.null(variances_equal))
+    variances_equal <- is.character(measurement) && length(measurement) == 1L &&
+      measurement %in% c("continuous", "continuous_nan",
+                         "gaussian_diag", "gaussian_diag_nan")
+
   if (isTRUE(variances_equal) &&
       !(is.character(measurement) && length(measurement) == 1L &&
         measurement %in% c("continuous", "continuous_nan",
@@ -2993,13 +3043,24 @@ compare_mixtures <- function(X, k_range = 1:5, measurement = "binary",
   X           <- mm$indicators
   measurement <- mm$descriptor
 
+  # The same homoscedastic default fit_mixture() resolves, for the same reason
+  # (Day 1969; Hathaway 1985). Without it the sweep would compare a different
+  # model family than the one a subsequent fit_mixture() call would estimate.
+  dots <- list(...)
+  if (!"variances_equal" %in% names(dots))
+    dots$variances_equal <- is.character(measurement) &&
+      length(measurement) == 1L &&
+      measurement %in% c("continuous", "continuous_nan",
+                         "gaussian_diag", "gaussian_diag_nan")
+
   results <- list()
   models  <- list()
   for (k in k_range) {
     cat(sprintf("Fitting %d-class model...\n", k))
-    fit <- fit_mixture_internal(X = X, Y = NULL, n_components = k,
-                                measurement = measurement,
-                                n_steps = n_steps, n_init = n_init, ...)
+    fit <- do.call(fit_mixture_internal,
+                   c(list(X = X, Y = NULL, n_components = k,
+                          measurement = measurement,
+                          n_steps = n_steps, n_init = n_init), dots))
     models[[paste0("K", k)]] <- fit
     results[[k]] <- data.frame(
       Classes = k, LL = fit$metrics$ll, Params = fit$metrics$n_params,
