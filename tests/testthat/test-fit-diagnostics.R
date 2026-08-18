@@ -204,7 +204,8 @@ test_that("the classification table reconciles both sets of margins", {
 test_that("the diagnostics decline models they are not defined for", {
   set.seed(5)
   Y <- matrix(rnorm(400), ncol = 4)
-  g <- fit_mixture(Y, n_components = 2, measurement = "continuous", n_init = 2)
+  g <- fit_mixture(Y, n_components = 2, measurement = "continuous",
+                   variances_equal = FALSE, n_init = 2)
   expect_message(expect_null(absolute_fit(g)), "categorical")
   # A plain continuous measurement model gets the modification-index
   # statistic instead of a refusal.
@@ -268,7 +269,7 @@ test_that("the modification index flags the one planted local dependence", {
   X[, 4] <- X[, 4] + 2 * (k - 1)
   X[, 5] <- X[, 5] + 2 * (k - 1)
 
-  fit <- fit_mixture(X, n_components = 2, measurement = "continuous",
+  fit <- fit_mixture(X, n_components = 2, measurement = "continuous", variances_equal = FALSE,
                      n_init = 5, random_state = 1)
   bvr <- bivariate_residuals(fit)
   expect_s3_class(bvr, "bivariate_residuals_gaussian")

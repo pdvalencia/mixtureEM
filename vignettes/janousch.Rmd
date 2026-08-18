@@ -42,6 +42,10 @@ The original analysis handled the substantial item-level missingness with a
 full-information ML estimator rather than deleting incomplete cases, and so do
 we — without having to ask for it. `fit_mixture()` detects the missing values
 and models them directly; `measurement = "continuous"` is all that is needed.
+Every fit below also passes `variances_equal = FALSE`. A continuous measurement
+model now holds each item's variance equal across the classes by default,
+because that bounds the likelihood; this analysis deliberately frees them,
+since the variance collapse that follows is the thing the vignette is about.
 In practical terms: instead of dropping an adolescent who skipped one item —
 which is what listwise deletion, the default in many packages, would do — the
 model uses every answer that adolescent *did* give.
@@ -70,7 +74,7 @@ for a real analysis.
 ```{r fit-switzerland}
 set.seed(1)
 fit_ch <- fit_mixture(janousch[janousch$country == "Switzerland", items],
-                       n_classes = 3, measurement = "continuous",
+                       n_classes = 3, measurement = "continuous", variances_equal = FALSE,
                        n_init = 30, max_iter = 2000)
 class_sizes(fit_ch)
 ```
@@ -103,7 +107,7 @@ size attached. Those names — "Non-Resilient", "Moderately Resilient",
 ```{r fit-germany}
 set.seed(1)
 fit_de <- fit_mixture(janousch[janousch$country == "Germany", items],
-                       n_classes = 4, measurement = "continuous",
+                       n_classes = 4, measurement = "continuous", variances_equal = FALSE,
                        n_init = 30, max_iter = 2000)
 class_sizes(fit_de)
 ```
@@ -114,7 +118,7 @@ Moderately Resilient 44.2%, Untroubled 27.3%, Resilient 12.7%).
 ```{r fit-greece}
 set.seed(1)
 fit_gr0 <- fit_mixture(janousch[janousch$country == "Greece", items],
-                       n_classes = 4, measurement = "continuous",
+                       n_classes = 4, measurement = "continuous", variances_equal = FALSE,
                        n_init = 30, max_iter = 2000)
 ```
 
@@ -153,7 +157,7 @@ enough:
 ```{r fit-greece-clean}
 set.seed(1)
 fit_gr <- fit_mixture(janousch[janousch$country == "Greece", items],
-                       n_classes = 4, measurement = "continuous",
+                       n_classes = 4, measurement = "continuous", variances_equal = FALSE,
                        n_init = 30, max_iter = 2000,
                        bayes_constants = list(variances = 5))
 class_sizes(fit_gr)
@@ -208,7 +212,7 @@ Let us fit the restricted model first, exactly as one would by default:
 
 ```{r invariance-default, cache = TRUE}
 fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
-                             measurement = "continuous",
+                             measurement = "continuous", variances_equal = FALSE,
                              group = janousch$country,
                              group_effects = "prevalence",
                              n_steps = 1, n_init = 50, max_iter = 2000,
@@ -243,7 +247,7 @@ The remedy is the same stronger prior, at the same strength the Greek fit needed
 
 ```{r invariance, cache = TRUE}
 fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
-                             measurement = "continuous",
+                             measurement = "continuous", variances_equal = FALSE,
                              group = janousch$country,
                              group_effects = "prevalence",
                              n_steps = 1, n_init = 50, max_iter = 2000,
@@ -251,7 +255,7 @@ fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
                              bayes_constants = list(variances = 5))
 
 fit_free_means <- fit_mixture(janousch[items], n_classes = 4,
-                              measurement = "continuous",
+                              measurement = "continuous", variances_equal = FALSE,
                               group = janousch$country,
                               group_effects = "both",
                               group_invariant_params = "covariances",
@@ -292,7 +296,7 @@ own variances:
 
 ```{r configural, cache = TRUE}
 fit_configural <- fit_mixture(janousch[items], n_classes = 4,
-                              measurement = "continuous",
+                              measurement = "continuous", variances_equal = FALSE,
                               group = janousch$country,
                               group_effects = "both",
                               n_steps = 1, n_init = 50, max_iter = 2000,

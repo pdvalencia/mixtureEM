@@ -1,5 +1,31 @@
 # mixtureEM (development version)
 
+## Continuous indicators default to equal variances across classes
+
+`fit_mixture(measurement = "continuous")` and `compare_mixtures(measurement =
+"continuous")` now fit the homoscedastic latent profile model, holding each
+item's variance equal across the classes. This changes the estimates, the fit
+indices and the class solution of any continuous fit that did not set
+`variances_equal`. `variances_equal = FALSE` recovers the previous behaviour
+exactly.
+
+The reason is that the unrestricted normal-mixture likelihood is unbounded:
+send a class mean to any single data point and that class's variance to zero
+and the likelihood diverges, so no maximum likelihood estimate exists and what
+the EM reports is a local optimum. Holding the variances equal bounds the
+likelihood, and the constrained estimator is consistent (Day, 1969; Hathaway,
+1985). Freeing them also invites classes that describe non-normality in a
+single population rather than distinct subgroups (Bauer & Curran, 2003).
+
+The restriction is substantive and testable, and the expectation is that you
+fit both and compare. It is not the safe choice but the well-posed one: the
+homoscedastic model fails visibly, by splitting a genuinely heteroscedastic
+class in two, while the free model fails silently, as a boundary solution that
+gets written up as a finding.
+
+Only the two user-facing entry points resolve this default. The growth,
+time-block and group-block paths — LCGA, GMM and RMLCA — are unchanged.
+
 ## `add_covariates()` and `add_outcome()` accept a formula and `data`
 
 Both functions gain a `data` argument, so the columns can be named instead of

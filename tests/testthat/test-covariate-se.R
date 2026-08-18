@@ -162,7 +162,8 @@ test_that("step-1 packing round-trips for every supported measurement family", {
       measurement = "categorical"),
     continuous = list(X = matrix(rnorm(n * 4, ifelse(rep(cls, 4) == 1, 1, -1)),
                                  n, 4),
-                      measurement = "continuous"),
+                      measurement = "continuous",
+                      variances_equal = FALSE),
     count = list(X = matrix(rpois(n * 4, ifelse(rep(cls, 4) == 1, 4, 1)), n, 4),
                  measurement = "count")
   )
@@ -173,6 +174,7 @@ test_that("step-1 packing round-trips for every supported measurement family", {
     sp  <- specs[[nm]]
     fit <- suppressMessages(fit_mixture(sp$X, n_classes = 2,
                                         measurement = sp$measurement,
+                                        variances_equal = sp$variances_equal,
                                         n_init = 3, random_state = 2))
     par <- .step1_pack(fit)
     expect_false(is.null(par), info = nm)
