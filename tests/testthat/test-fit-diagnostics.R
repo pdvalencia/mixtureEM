@@ -118,16 +118,83 @@ test_that("the closed-form bivariate margin equals the enumerated one", {
   for (b in 2:4) for (a in seq_len(b - 1L)) {
     ra <- items[[a]]$categories; rb <- items[[b]]$categories
     # Marginalise the full table down to this pair, the definition the closed
-    # form sum_k gamma_k p_a(r|k) p_b(s|k) is a shortcut for.
+    # form sum_k gk p_a(r|k) p_b(s|k) is a shortcut for, gk here being
+    # colSums(resp * w) rather than fit$weights -- with no missing data the
+    # two agree only up to the E-step/M-step lag left by EM's own convergence
+    # tolerance, which is where the looser bound below comes from, not from
+    # any imprecision in the closed form itself.
     p_ab <- tapply(tb$p, list(factor(tb$cells[, a], ra),
                               factor(tb$cells[, b], rb)), sum)
     o_ab <- tapply(o_all, list(factor(tb$cells[, a], ra),
                                factor(tb$cells[, b], rb)), sum)
     ref  <- sum((o_ab - N * p_ab)^2 / (N * p_ab)) /
       ((length(ra) - 1L) * (length(rb) - 1L))
-    expect_equal(unclass(bvr)[b, a], ref, tolerance = 1e-10,
-                 label = sprintf("BVR[%d,%d]", b, a))
+    expect_lt(abs(unclass(bvr)[b, a] - ref), 1e-3)
   }
+})
+
+test_that("the expected-count fix leaves complete data untouched", {
+  # With no missing data every pair keeps every case, so the posterior-weighted
+  # class totals used for the expected counts and the plain marginal class
+  # weights give the same expected table up to the E-step/M-step lag EM's own
+  # convergence tolerance leaves behind -- this is the property that makes the
+  # fix invisible, to a few significant digits, on the data most users have.
+  fit   <- .diag_fit(.diag_sim(), bayes_constants = list(latent = 0))
+  bvr   <- unclass(bivariate_residuals(fit))
+  items <- .categorical_item_probs(fit$mm)
+  gamma <- fit$weights
+  w     <- fit$sample_weights
+
+  for (b in 2:4) for (a in seq_len(b - 1L)) {
+    ia <- items[[a]]; ib <- items[[b]]
+    fa <- factor(fit$data[, a], levels = ia$categories)
+    fb <- factor(fit$data[, b], levels = ib$categories)
+    obs <- tapply(w, list(fa, fb), sum); obs[is.na(obs)] <- 0
+    prob <- crossprod(ia$probs * gamma, ib$probs)
+    expected <- sum(w) * prob
+    ref <- sum((obs - expected)^2 / expected) /
+      ((length(ia$categories) - 1L) * (length(ib$categories) - 1L))
+    expect_lt(abs(bvr[b, a] - ref), 1e-3)
+  }
+})
+
+test_that("missing data on one indicator moves only that indicator's pairs", {
+  # Blank about 10% of column "a" only, then compare the fixed formula against
+  # the old marginal-weight one on the *same* fit -- isolating what the
+  # formula change does from what refitting on different data would do. Pairs
+  # not touching "a" keep every case, so their retained-subset posterior and
+  # the marginal class weights agree up to EM's own convergence lag; only
+  # pairs with "a" are computed on a subsample whose class composition can
+  # genuinely differ from the full sample's.
+  set.seed(9)
+  X <- .diag_sim(n = 800, seed = 9)
+  drop <- sample(nrow(X), floor(0.10 * nrow(X)))
+  X[drop, "a"] <- NA
+
+  fit   <- .diag_fit(X)
+  items <- .categorical_item_probs(fit$mm)
+  gamma <- fit$weights
+  w     <- fit$sample_weights
+  resp  <- exp(fit$log_resp)
+
+  old_bvr <- function(a, b) {
+    ia <- items[[a]]; ib <- items[[b]]
+    keep <- !is.na(fit$data[, a]) & !is.na(fit$data[, b])
+    fa <- factor(fit$data[keep, a], levels = ia$categories)
+    fb <- factor(fit$data[keep, b], levels = ib$categories)
+    obs <- tapply(w[keep], list(fa, fb), sum); obs[is.na(obs)] <- 0
+    expected <- sum(w[keep]) * crossprod(ia$probs * gamma, ib$probs)
+    sum((obs - expected)^2 / expected) /
+      ((length(ia$categories) - 1L) * (length(ib$categories) - 1L))
+  }
+
+  bvr <- unclass(bivariate_residuals(fit))
+
+  touches_a <- c(b = 2L, c = 3L, d = 4L)
+  moved <- vapply(touches_a, function(j) abs(bvr[j, 1L] - old_bvr(1L, j)), 0)
+  unmoved <- abs(bvr[3L, 2L] - old_bvr(2L, 3L))
+
+  expect_true(all(moved > 10 * unmoved))
 })
 
 test_that("a one-class model's BVR is the ordinary test of independence", {

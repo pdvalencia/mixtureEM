@@ -1,5 +1,27 @@
 # mixtureEM (development version)
 
+## Fixed: bivariate residuals with missing data flagged the wrong pairs
+
+`bivariate_residuals()` compares, for every pair of indicators, how often
+respondents actually gave each combination of answers against how often the
+fitted model expects them to. When one of the two indicators had missing data,
+the expected counts were computed from the class sizes for the whole sample,
+while the observed counts came only from the respondents who answered both
+items — two different groups of people being held to the same yardstick. The
+practical effect was that an indicator with a lot of missing data could make an
+otherwise unremarkable pair look like the worst-fitting one in the whole model,
+simply because of who was missing, not because the two items were actually
+related in a way the model misses. Both counts are now built from the same
+people: whoever answered both items in the pair, with the expected counts
+computed from their own posterior class membership rather than the sample
+average. Results are unchanged when there is no missing data anywhere; with
+missing data, some residuals move by an order of magnitude, and the pairs worth
+worrying about can change. The printed and returned object now also reports a
+single "Total BVR" figure summarizing local dependence across the whole model,
+and the bootstrap calibration in `n_reps` respects each replicate's missing-data
+pattern, exact when the missingness is completely random and an approximation
+otherwise.
+
 ## `outcome_contrasts()`: which classes differ on a distal outcome
 
 The new `outcome_contrasts(fit, ref = NULL)` reports class-vs-class differences

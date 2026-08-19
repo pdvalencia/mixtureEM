@@ -278,7 +278,11 @@ print.absolute_fit <- function(x, ...) {
 #' `n_reps` replaces the broken reference distribution with a parametric
 #' bootstrap, which in the same simulation held between 0.020 and 0.085 against
 #' a nominal 0.05. Use it before drawing any conclusion from the size of a
-#' residual.
+#' residual. Each bootstrap replicate is blanked out in the same cells as the
+#' real data, so a p-value from missing data is exact when the data are
+#' missing completely at random and an approximation otherwise -- the
+#' replicate's missingness cannot reproduce a dependence on class or response
+#' that the real gaps might carry.
 #'
 #' Note that the statistic bootstrapped is the one this function computes,
 #' \eqn{\chi^2} divided by its degrees of freedom, and not a raw Pearson
@@ -288,9 +292,14 @@ print.absolute_fit <- function(x, ...) {
 #' whatever statistic is computed, so it is calibrated either way.
 #'
 #' With missing data each pair is computed on the cases observing both items,
-#' and the expected counts are scaled to that pair's total. This is a
-#' pairwise-complete statistic rather than a full-information one, so read it
-#' as descriptive when missingness is heavy.
+#' and the expected counts are evaluated at those cases' own posterior class
+#' membership rather than at the class proportions for the whole sample. This
+#' matters whenever the two subsets differ -- an item that is missing more
+#' often for one class than another otherwise makes an unrelated pair of items
+#' look locally dependent, when what actually happened is that missingness
+#' changed who is left in the comparison. This is a pairwise-complete
+#' statistic rather than a full-information one, so still read it as
+#' descriptive when missingness is heavy.
 #'
 #' For a plain continuous (Gaussian) measurement model with no missing data, a
 #' different statistic is returned instead: for each item pair and class, the
@@ -328,7 +337,10 @@ print.absolute_fit <- function(x, ...) {
 #'   `bivariate_residuals`: a lower-triangular indicator-by-indicator matrix,
 #'   `NA` on and above the diagonal. When `n_reps > 0` a matrix of bootstrap
 #'   p-values, laid out the same way, is attached as the `"p"` attribute and
-#'   printed beside each residual. For a continuous measurement model, an
+#'   printed beside each residual. The sum of all pairwise residuals is
+#'   attached as the `"total"` attribute and printed as "Total BVR", a single
+#'   headline number for how much local dependence the model as a whole is
+#'   carrying. For a continuous measurement model, an
 #'   object of class `bivariate_residuals_gaussian` holding the modification
 #'   index and expected parameter change per pair per class, the model-implied
 #'   residual covariance and correlation, and a count of pairs where the
@@ -418,11 +430,13 @@ bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10,
     return(NULL)
   }
 
-  bvr <- .bvr_matrix(items, X, object$sample_weights, gamma)
+  resp <- exp(object$log_resp)
+  bvr <- .bvr_matrix(items, X, object$sample_weights, resp)
 
   if (n_reps > 0L)
     attr(bvr, "p") <- .bvr_bootstrap(object, bvr, n_reps, n_init_boot, verbose)
 
+  attr(bvr, "total") <- sum(bvr, na.rm = TRUE)
   class(bvr) <- c("bivariate_residuals", "matrix", "array")
   bvr
 }
@@ -430,7 +444,13 @@ bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10,
 # The residual matrix itself, given the pieces the caller has already resolved.
 # Split out of bivariate_residuals() so that a bootstrap replicate is scored by
 # exactly the same code as the observed data rather than by a copy of it.
-.bvr_matrix <- function(items, X, w, gamma) {
+#
+# resp: n x K posterior class probabilities. The expected two-way margin is
+# evaluated at the posterior composition of the cases actually retained for
+# each pair, not at the marginal class weights gamma -- the two agree only
+# when the retained subset is the whole sample, i.e. when neither item has
+# missing data.
+.bvr_matrix <- function(items, X, w, resp) {
   J   <- length(items)
   nms <- vapply(items, `[[`, character(1), "name")
   bvr <- matrix(NA_real_, J, J, dimnames = list(nms, nms))
@@ -447,10 +467,11 @@ bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10,
     obs <- tapply(w[keep], list(fa, fb), sum)
     obs[is.na(obs)] <- 0
 
-    # Model-implied margin: t(P_a) diag(gamma) P_b, which is the closed form of
-    # sum_k gamma_k p_a(r|k) p_b(s|k).
-    prob <- crossprod(ia$probs * gamma, ib$probs)
-    expected <- sum(w[keep]) * prob
+    # Model-implied margin over the retained cases: t(P_a) diag(gk) P_b, where
+    # gk = sum_i w_i P(class = k | y_i) is the posterior-weighted class total
+    # among cases with both items observed.
+    gk <- colSums(resp[keep, , drop = FALSE] * w[keep])
+    expected <- crossprod(ia$probs * gk, ib$probs)
 
     # A cell the model calls impossible contributes nothing if no case took it,
     # and an infinite chi-square if one did. Both are the right answer; what is
@@ -489,6 +510,12 @@ bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10,
                       prob = object$weights)
     X_gen   <- generate_synthetic_data(object$mm, classes, N)
     colnames(X_gen) <- colnames(object$data)
+    # Match the observed missingness pattern, cell for cell, so the replicate
+    # is scored on data shaped the same way as the observed fit. Exact under
+    # MCAR; under MAR or MNAR this only approximates the true reference
+    # distribution, since the replicate's missingness carries none of the
+    # dependence on class or response that generated the real gaps.
+    X_gen[is.na(object$data)] <- NA
 
     # refine = FALSE for the same reason blrt() uses it: a replicate needs a
     # residual, not polished estimates, and the refinement is the expensive part.
@@ -502,7 +529,8 @@ bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10,
     gamma_r <- .marginal_class_weights(rep_fit)
     if (is.null(items_r) || is.null(gamma_r)) next
 
-    boot <- .bvr_matrix(items_r, X_gen, rep_fit$sample_weights, gamma_r)
+    boot <- .bvr_matrix(items_r, X_gen, rep_fit$sample_weights,
+                        exp(rep_fit$log_resp))
 
     good <- !is.na(boot) & !is.na(obs)
     ok[good] <- ok[good] + 1L
@@ -567,6 +595,8 @@ print.bivariate_residuals <- function(x, digits = 4, ...) {
   cat(sprintf("\nLargest: %s x %s = %.4f\n",
               rownames(m)[worst[1]], colnames(m)[worst[2]],
               m[worst[1], worst[2]]))
+  total <- attr(x, "total")
+  if (!is.null(total)) cat(sprintf("Total BVR: %.4f\n", total))
   cat("=========================================================\n")
   invisible(x)
 }
