@@ -107,6 +107,38 @@ test_that("X2, G2 and Cressie-Read match their enumerated definitions", {
   expect_equal(af$df, 36L - af$n_params - 1L)
 })
 
+test_that("absolute fit with missing data reduces to the complete-data numbers", {
+  # A cheap guard against the MAR branch ever touching the complete-data path:
+  # g2, x2 and cressie_read for a fit with no missing data must be exactly what
+  # they were before this branch existed.
+  fit <- .diag_fit(.diag_sim())
+  af  <- absolute_fit(fit)
+  expect_null(af$mar)
+  expect_true(is.finite(af$dissimilarity))
+
+  # The same data with a handful of cells set to NA takes the MAR branch and
+  # returns an object rather than NULL, with the df the MAR formula implies.
+  X  <- .diag_sim()
+  Xm <- X
+  Xm[1:5, 1] <- NA
+  fit_na <- fit_mixture(Xm, n_components = 2, measurement = list(
+    poly = list(model = "categorical_nan", n_columns = 2, max_val = 3),
+    bin  = list(model = "binary_nan", n_columns = 2)),
+    n_init = 5, random_state = 7)
+  af_na <- absolute_fit(fit_na)
+  expect_s3_class(af_na, "absolute_fit")
+  expect_true(af_na$mar)
+  W <- 3 * 3 * 2 * 2
+  expect_equal(af_na$df, W - 1L - af_na$n_params)
+
+  mt <- mcar_test(fit_na)
+  expect_s3_class(mt, "mcar_test")
+  expect_equal(mt$df, af_na$df_mcar - af_na$df)
+  expect_equal(mt$stat, af_na$g2_mcar - af_na$g2)
+
+  expect_message(expect_null(mcar_test(fit)), "complete")
+})
+
 test_that("the closed-form bivariate margin equals the enumerated one", {
   fit   <- .diag_fit(.diag_sim())
   bvr   <- bivariate_residuals(fit)
@@ -295,7 +327,13 @@ test_that("the diagnostics decline models they are not defined for", {
                      poly = list(model = "categorical_nan", n_columns = 2,
                                  max_val = 3),
                      bin  = list(model = "binary_nan", n_columns = 2)))
-  expect_message(expect_null(absolute_fit(m)), "missing data")
+  # Absolute fit now works with missing data, computed under MAR, and returns
+  # an object with a smaller df than the complete-data case would give.
+  af <- absolute_fit(m)
+  expect_s3_class(af, "absolute_fit")
+  expect_true(af$mar)
+  expect_equal(af$df, prod(sapply(.categorical_item_probs(m$mm), function(it)
+    length(it$categories))) - 1L - af$n_params)
   # Bivariate residuals survive missingness: each pair uses the cases that
   # observe both items.
   expect_false(anyNA(unclass(bivariate_residuals(m))[lower.tri(diag(4))]))

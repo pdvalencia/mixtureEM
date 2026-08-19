@@ -12,8 +12,12 @@ absolute_fit(object)
 }
 \value{
 An object of class \code{absolute_fit} with elements \code{g2}, \code{x2},
-\code{cressie_read}, \code{df}, the corresponding \code{p_value}s, \code{n_cells} and
-\code{n_patterns}; or \code{NULL} (with a message) when the statistics do not apply.
+\code{cressie_read}, \code{df}, the corresponding \code{p_value}s, \code{dissimilarity},
+\code{n_cells} and \code{n_patterns}; or \code{NULL} (with a message) when the
+statistics do not apply. With missing data, also \code{g2_mcar}, \code{x2_mcar},
+\code{cressie_read_mcar}, \code{df_mcar} and \code{p_value_mcar} for the block computed
+under MCAR, \code{ll_sat} for the saturated model's log-likelihood, and
+\code{mar = TRUE}.
 }
 \description{
 Compares the observed response-pattern frequencies with those the model
@@ -24,13 +28,30 @@ Pearson \eqn{X^2}, and the Cressie-Read statistic (\eqn{\lambda = 2/3}),
 each on \eqn{df = W - P - 1} degrees of freedom, where \eqn{W} is the number
 of cells in the table and \eqn{P} the number of free parameters.
 
-The statistics are defined only for fully categorical indicators observed
-without missingness. Even then they should be read with care: the table has
-\eqn{W} cells and is usually extremely sparse, so the chi-square reference
-distribution is unreliable and the value is best used to compare models
-rather than to test one in isolation. \code{\link[=blrt]{blrt()}} tests a model against one
-with fewer classes without relying on that reference distribution.
+The statistics require fully categorical indicators. Even then they should
+be read with care: the table has \eqn{W} cells and is usually extremely
+sparse, so the chi-square reference distribution is unreliable and the
+value is best used to compare models rather than to test one in isolation.
+\code{\link[=blrt]{blrt()}} tests a model against one with fewer classes without relying on
+that reference distribution.
 }
+\section{Missing data}{
+
+With one or more missing values (categorical, plain \code{fit_mixture()} models
+only), the statistics are computed under the missing-at-random (MAR)
+assumption instead: the model is compared not to the raw response table,
+which no longer exists once cases have different items observed, but to a
+saturated model fit to the same partition of the data by which items each
+case observed. \code{df} is smaller than in the complete-data case
+(\eqn{df = W - 1 - P}) because the saturated baseline already accounts for
+the missingness pattern. A short block giving the model's fit jointly with
+the stronger missing-completely-at-random (MCAR) assumption is printed
+underneath; use \code{\link[=mcar_test]{mcar_test()}} to test that assumption on its own. This
+can be slow, or refused outright, once the number of indicator categories
+crossed together grows large -- the same \eqn{W} that already makes the
+complete-data table sparse.
+}
+
 \examples{
 set.seed(1)
 X <- matrix(rbinom(600, 1, 0.5), ncol = 6)
@@ -46,5 +67,6 @@ Methods & Research}, \emph{24}(4), 492-516.
 }
 \seealso{
 \code{\link[=bivariate_residuals]{bivariate_residuals()}} for the local counterpart,
-\code{\link[=classification_table]{classification_table()}}, \code{\link[=blrt]{blrt()}}.
+\code{\link[=classification_table]{classification_table()}}, \code{\link[=blrt]{blrt()}}, \code{\link[=mcar_test]{mcar_test()}} for testing the
+missingness mechanism on its own.
 }
