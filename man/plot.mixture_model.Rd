@@ -6,7 +6,7 @@
 \usage{
 \method{plot}{mixture_model}(
   x,
-  type = c("profile", "bar"),
+  type = c("profile", "bar", "line"),
   main = NULL,
   class_labels = NULL,
   colors = NULL,
@@ -17,8 +17,10 @@
 \arguments{
 \item{x}{A fitted \code{mixture_model} object.}
 
-\item{type}{Either \code{"profile"} (the default line plot) or \code{"bar"}, the
-standardized profile bar chart described above.}
+\item{type}{One of \code{"profile"} (the default min-max line plot), \code{"bar"} (the
+standardized profile bar chart) or \code{"line"} (the same standardized profile
+drawn as lines), all described above. \code{"bar"} and \code{"line"} require an
+all-continuous measurement model.}
 
 \item{main}{Plot title. Defaults to a title chosen for \code{type}.}
 
@@ -28,7 +30,8 @@ Defaults to "Class 1", "Class 2", ...}
 \item{colors}{Optional vector of colours (one per class). Defaults to the
 Okabe-Ito palette, recycled if necessary.}
 
-\item{scale}{For \code{type = "bar"} only, the denominator of the z-score.
+\item{scale}{For \code{type = "bar"} and \code{type = "line"}, the denominator of the
+z-score.
 \code{"total"} (the default) divides by the weighted observed SD of the
 indicator, which is what standardizing the indicators means in the applied
 literature and is what makes the figure invariant to pre-standardization.
@@ -43,7 +46,7 @@ the default because it is not what applied papers plot.}
 The fitted model, invisibly.
 }
 \description{
-Draws the measurement model in one of two ways.
+Draws the measurement model in one of three ways.
 
 \code{type = "profile"} (the default) is a line plot: one line per latent class,
 with every indicator placed on a common [0, 1] axis. Binary indicators are
@@ -61,6 +64,16 @@ observation and has no meaningful origin. Because a z-score is scale-free,
 the figure is the same whether or not the indicators were standardized before
 fitting, so standardization is a display choice here rather than a step in
 preparing the data.
+
+\code{type = "line"} draws those same z-scores as one connected line per class,
+with a zero reference line, and likewise requires an all-continuous
+measurement model. It answers a different question from the bar chart off the
+same numbers: bars group by indicator and invite comparing classes one
+indicator at a time, while a line follows a single class across all of them
+and shows the \emph{shape} of its profile — whether two classes differ in level or
+in pattern. Prefer it over \code{type = "profile"} whenever every indicator is
+continuous, since the min-max axis there has no meaningful origin and its
+shape depends on the sample's most extreme observation.
 
 Uses only base graphics and the colour-blind-friendly Okabe-Ito palette.
 }

@@ -1,5 +1,23 @@
 # mixtureEM (development version)
 
+## The standardized profile can now be drawn as lines
+
+`plot(fit, type = "line")` draws the same z-scored conditional means as
+`type = "bar"`, but as one connected line per class with a zero reference line.
+Like the bar chart it needs an all-continuous measurement model, and it takes
+the same `scale` argument.
+
+The two are different readings of the same numbers. Bars group by indicator, so
+the eye compares classes one indicator at a time; a line follows a single class
+across all of them, which is what shows whether two classes differ in level or
+in pattern. That is the reading "profile" names in the applied literature, and
+until now the only line plot on offer was the default `type = "profile"`, whose
+min-max axis has no meaningful origin and whose shape moves with the sample's
+most extreme observation. For an all-continuous model, prefer `"line"`.
+
+One helper computes the heights for both renderers, so the two can never
+disagree about a number.
+
 ## Bivariate residuals can now be calibrated by bootstrap
 
 `bivariate_residuals()` takes `n_reps`, which replaces the statistic's

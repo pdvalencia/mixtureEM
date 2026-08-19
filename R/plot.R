@@ -148,13 +148,17 @@
 #               rather than total dispersion, and is the more informative of the
 #               two; it is not the default only because it is not what applied
 #               papers plot.
-.profile_bar_heights <- function(x, scale = "total") {
+#
+# `type` names the renderer that asked, so the two error messages below name the
+# argument the user actually passed rather than always naming the bar chart.
+.profile_bar_heights <- function(x, scale = "total", type = "bar") {
 
   mm <- x$mm
   if (!(class(mm)[1] %in% c("gaussian_diag", "gaussian_diag_nan",
                             "gaussian_unit", "gaussian_unit_nan")))
-    stop("plot(type = \"bar\") standardizes conditional means, so it needs an ",
-         "all-continuous measurement model. This fit has ", class(mm)[1],
+    stop("plot(type = \"", type, "\") standardizes conditional means, so it ",
+         "needs an all-continuous measurement model. This fit has ",
+         class(mm)[1],
          " emissions; use type = \"profile\", which places indicators of any ",
          "type on a common axis.", call. = FALSE)
 
@@ -162,16 +166,16 @@
     stop("Raw indicators are not stored on this fit, so conditional means ",
          "cannot be standardized against the observed data. Refit with the ",
          "current version, or use type = \"profile\".", call. = FALSE)
+  # (`type` is unused past this point; the heights themselves do not depend on
+  # which renderer will draw them, which is the reason there is one helper.)
 
   means <- mm$parameters$means
   cols  <- colnames(means) %||% paste0("Cont_", seq_len(ncol(means)))
   # Match the observed columns by name, exactly as .prepare_profile_data() does.
   # An unnamed indicator matrix leaves the means unnamed too, and there the
   # columns are in fitting order and can only be matched positionally.
-  matched <- match(cols, colnames(x$data))
-  if (anyNA(matched) && ncol(means) == ncol(x$data))
-    matched <- seq_len(ncol(means))
-  if (anyNA(matched))
+  matched <- .match_indicator_columns(cols, x$data)
+  if (is.null(matched))
     stop("Could not match the class means to the stored indicators by name, ",
          "so they cannot be standardized. Use type = \"profile\".",
          call. = FALSE)
@@ -203,7 +207,7 @@
 #' Profile Plot for a Fitted Mixture Model
 #'
 #' @description
-#' Draws the measurement model in one of two ways.
+#' Draws the measurement model in one of three ways.
 #'
 #' `type = "profile"` (the default) is a line plot: one line per latent class,
 #' with every indicator placed on a common \[0, 1\] axis. Binary indicators are
@@ -222,17 +226,30 @@
 #' fitting, so standardization is a display choice here rather than a step in
 #' preparing the data.
 #'
+#' `type = "line"` draws those same z-scores as one connected line per class,
+#' with a zero reference line, and likewise requires an all-continuous
+#' measurement model. It answers a different question from the bar chart off the
+#' same numbers: bars group by indicator and invite comparing classes one
+#' indicator at a time, while a line follows a single class across all of them
+#' and shows the *shape* of its profile — whether two classes differ in level or
+#' in pattern. Prefer it over `type = "profile"` whenever every indicator is
+#' continuous, since the min-max axis there has no meaningful origin and its
+#' shape depends on the sample's most extreme observation.
+#'
 #' Uses only base graphics and the colour-blind-friendly Okabe-Ito palette.
 #'
 #' @param x A fitted \code{mixture_model} object.
-#' @param type Either `"profile"` (the default line plot) or `"bar"`, the
-#'   standardized profile bar chart described above.
+#' @param type One of `"profile"` (the default min-max line plot), `"bar"` (the
+#'   standardized profile bar chart) or `"line"` (the same standardized profile
+#'   drawn as lines), all described above. `"bar"` and `"line"` require an
+#'   all-continuous measurement model.
 #' @param main Plot title. Defaults to a title chosen for `type`.
 #' @param class_labels Optional character vector of labels for the classes.
 #'   Defaults to "Class 1", "Class 2", ...
 #' @param colors Optional vector of colours (one per class). Defaults to the
 #'   Okabe-Ito palette, recycled if necessary.
-#' @param scale For `type = "bar"` only, the denominator of the z-score.
+#' @param scale For `type = "bar"` and `type = "line"`, the denominator of the
+#'   z-score.
 #'   `"total"` (the default) divides by the weighted observed SD of the
 #'   indicator, which is what standardizing the indicators means in the applied
 #'   literature and is what makes the figure invariant to pre-standardization.
@@ -252,7 +269,8 @@
 #'
 #' @importFrom graphics par matplot axis text legend mtext barplot abline
 #' @export
-plot.mixture_model <- function(x, type = c("profile", "bar"), main = NULL,
+plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
+                               main = NULL,
                                class_labels = NULL, colors = NULL,
                                scale = c("total", "within"), ...) {
 
@@ -264,6 +282,10 @@ plot.mixture_model <- function(x, type = c("profile", "bar"), main = NULL,
   if (identical(type, "bar"))
     return(.plot_profile_bar(x, main = main, class_labels = class_labels,
                              colors = colors, scale = scale))
+
+  if (identical(type, "line"))
+    return(.plot_profile_line(x, main = main, class_labels = class_labels,
+                              colors = colors, scale = scale))
 
   if (is.null(main)) main <- "Latent Class / Profile Plot"
 
@@ -432,6 +454,97 @@ plot.mixture_model <- function(x, type = c("profile", "bar"), main = NULL,
     x = x_pos, y = par("usr")[4], legend = labels, fill = my_colors,
     border = NA, bty = "n", cex = 0.9, title = "Class"
   )
+
+  invisible(x)
+}
+
+# The line plot behind plot(type = "line"): the bar chart's z-scores, drawn as
+# one connected line per class instead of one bar per class.
+#
+# It exists alongside the bar chart because the two answer different questions
+# off the same numbers. Bars group by indicator and invite comparing classes
+# within an indicator; a line follows one class across all of them and shows the
+# *shape* of its profile - which is what "profile" means in the applied
+# literature, and what a reader looks for when asking whether two classes differ
+# in level or in pattern. The default type = "profile" already draws lines, but
+# on a min-max axis, where the shape is hostage to a single extreme observation
+# and the vertical position has no meaning beyond rank within the sample range.
+#
+# Two things differ from the min-max renderer. The y-axis is symmetric about
+# zero rather than [0, 1], and zero is drawn, because on a z-score scale it is
+# the sample average and every reading is relative to it. There are no "*"
+# suffixes on the item names: every column is standardized the same way, so that
+# is a fact about the axis, stated once in its label, not a mark on each item.
+.plot_profile_line <- function(x, main = NULL, class_labels = NULL,
+                               colors = NULL, scale = "total") {
+
+  H <- .profile_bar_heights(x, scale = scale, type = "line")
+
+  n_classes <- nrow(H)
+  n_items   <- ncol(H)
+
+  if (is.null(main)) main <- "Standardized Class Profiles"
+
+  my_colors <- if (is.null(colors)) rep(.okabe_ito, length.out = n_classes)
+               else rep(colors, length.out = n_classes)
+  my_shapes <- rep(15:20, length.out = n_classes)
+
+  base_labels <- if (is.null(class_labels)) paste("Class", seq_len(n_classes))
+                 else class_labels
+  labels <- .class_plot_labels(base_labels, x$weights)
+
+  item_labels <- .shorten_labels(colnames(H), width = 30L)
+
+  old_par <- par(no.readonly = TRUE)
+  on.exit(par(old_par))
+  mar_right  <- min(3 + 0.45 * max(nchar(labels)), 18)
+  mar_bottom <- max(6, min(3.5 + 0.4 * max(nchar(item_labels)), 12))
+  mar_left   <- max(4.5, min(2 + 0.25 * nchar(item_labels[1]), 8))
+  par(mar = c(mar_bottom, mar_left, 4, mar_right), xpd = TRUE)
+
+  lim <- max(abs(H), na.rm = TRUE)
+  if (!is.finite(lim) || lim == 0) lim <- 1
+
+  y_lab <- if (identical(scale, "within"))
+    "Class mean (SD within class)" else "Class mean (SD)"
+
+  matplot(
+    x    = seq_len(n_items),
+    y    = t(H),
+    type = "b",
+    pch  = my_shapes,
+    lty  = 1,
+    lwd  = 2,
+    col  = my_colors,
+    ylim = c(-1.1 * lim, 1.1 * lim),
+    xlim = c(0.75, n_items + 0.25),
+    xaxt = "n",
+    xlab = "",
+    ylab = y_lab,
+    main = main,
+    bty  = "l",
+    las  = 1
+  )
+
+  abline(h = 0, col = "grey20")
+
+  axis(1, at = seq_len(n_items), labels = FALSE)
+  text(
+    x      = seq_len(n_items),
+    y      = par("usr")[3] - 0.05 * diff(par("usr")[3:4]),
+    labels = item_labels,
+    srt    = 45,
+    adj    = 1,
+    cex    = 0.9
+  )
+
+  x_pos <- par("usr")[2] + 0.02 * diff(par("usr")[1:2])
+  legend(
+    x = x_pos, y = par("usr")[4], legend = labels, col = my_colors,
+    pch = my_shapes, lty = 1, lwd = 2, bty = "n", cex = 0.9, title = "Class"
+  )
+
+  .cat_label_legend(item_labels, indent = "")
 
   invisible(x)
 }
