@@ -246,7 +246,7 @@
     sprintf("%d of %d starts", nr, n)
   cat(sprintf("  Best solution  : found by %s%s\n", detail,
               if (nr == 1L)
-                paste0(" - ", .replication_advice(req %||% n)) else ""))
+                paste0(" - ", .replication_advice(req %||% n, n)) else ""))
   invisible(NULL)
 }
 
@@ -269,14 +269,44 @@
   nr == 1L && n >= 10L
 }
 
-# The advice depends on how many starts were actually asked for. Telling a user
-# who ran n_init = 200 to "refit with n_init = 100" is worse than saying
-# nothing. The threshold matches .is_unreplicated()'s.
-.replication_advice <- function(n_req) {
-  if (!is.null(n_req) && is.finite(n_req) && n_req >= 100L)
-    "more starts are unlikely to help; a maximum that does not replicate at this many starts points at the specification, most often more classes than the data support"
-  else
-    "refit with n_init = 100 before reporting"
+# The advice depends on how many starts were actually asked for, and on how many
+# of them were run out to convergence. Telling a user who ran n_init = 200 to
+# "refit with n_init = 100" is worse than saying nothing.
+#
+# The two counts must both be consulted, because the strongest reading - that
+# the search is large enough that the fault lies in the specification rather
+# than in the search - is a claim about restarts that were actually run out, and
+# on a staged search those are a fraction of the ones requested (see
+# fit_em(): the survivors are the better of `frac` of them, subject to a floor).
+# A rule on the requested count alone would tell a user whose 100 requested
+# starts were refined 20 at a time that the maximum "does not replicate at this
+# many starts", when it was never tested against a hundred of them. So the
+# requested count decides whether the search was large enough to be worth
+# discussing (matching .is_unreplicated()'s threshold), and the converged count
+# decides which of the two readings is available.
+#
+# `n_conv` may be NULL from a caller that carries only the requested count, in
+# which case the two are equal, which is what they are on an unstaged search.
+.replication_advice <- function(n_req, n_conv = NULL) {
+  if (is.null(n_req) || !is.finite(n_req) || n_req < 100L)
+    return("refit with n_init = 100 before reporting")
+
+  if (is.null(n_conv) || !is.finite(n_conv)) n_conv <- n_req
+
+  if (n_conv < 100L)
+    return(sprintf(paste0(
+      "the maximum failed to replicate among the %d restart%s run out to ",
+      "convergence, which is a thinner test than the %d requested makes it ",
+      "sound - a staged search refines only the most promising of them - so ",
+      "raise n_init further before reading anything into it"),
+      n_conv, if (n_conv == 1L) "" else "s", n_req))
+
+  paste0("a search this large that still does not replicate is more likely to ",
+         "be telling you about the specification than about the search. Look ",
+         "at how well separated the classes are, at how heavily parameterised ",
+         "the within-class structure is, and at whether there are more classes ",
+         "than the data support. More starts can still help: models with many ",
+         "classes or many free parameters may need several hundred")
 }
 
 # The same fact as a warning, because the printed note above is invisible to
@@ -305,7 +335,7 @@
     "The reported solution was found by %s. EM climbs the peak it starts ",
     "nearest, so a maximum seen once may be the best of a small sample of the ",
     "likelihood surface rather than the best there is: %s."),
-    count, .replication_advice(n_req))
+    count, .replication_advice(n_req, n_conv))
 
   warning(structure(class = c("mixtureEM_replication", "warning", "condition"),
                     list(message = msg, call = NULL)))

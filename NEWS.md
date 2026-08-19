@@ -193,14 +193,30 @@ log-likelihood above them, never a mixture of the two. On a fit whose variances
 collapsed, the BIC line says so where it appears, since that number is inflated
 by the spike and is not comparable with a clean fit's.
 
-## The `n_init` advice now scales with what was asked for
+## The `n_init` advice now scales with the search that actually ran
 
 The "refit with `n_init = 100`" advice fired whenever the maximum was found by a
 single start, whatever `n_init` had been — so a user who ran `n_init = 200` was
-told to refit with 100. At 100 requested starts and above, the message now says
-instead that more starts are unlikely to help and that a maximum which does not
-replicate points at the specification. This applies to `print()`, the warning,
-`compare_mixtures()` and `compare_longitudinal()`, which share one helper.
+told to refit with 100. The advice now reads both of the counts the fit carries,
+the restarts requested and the restarts run out to convergence, and says one of
+three things.
+
+Below 100 requested it is unchanged. Above 100 requested but with fewer than 100
+run out to convergence — which is the ordinary case on a staged search, where
+only the most promising restarts are refined — it says that the maximum failed
+to replicate among the restarts that were run out, that this is a thinner test
+than the requested count makes it sound, and that `n_init` should be raised
+further before anything is read into it. Only when 100 or more restarts reached
+convergence does it raise the specification: how well separated the classes are,
+how heavily parameterised the within-class structure is, and whether there are
+more classes than the data support.
+
+The strongest reading is now hedged where it was asserted. The number of random
+starts a mixture needs grows with the number of classes, the number of free
+parameters and how poorly the classes separate, so the message no longer claims
+that more starts are unlikely to help, and no longer ranks over-extraction ahead
+of the other causes. This applies to `print()`, the warning, `compare_mixtures()`
+and `compare_longitudinal()`, which share one helper. No number changes.
 
 ## Diagnostics now say what to change, and by how much
 
