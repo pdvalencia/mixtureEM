@@ -1,5 +1,30 @@
 # mixtureEM (development version)
 
+## Documentation: four clarifications, no behaviour change
+
+`?fit_mixture` now says outright that the EM convergence rule is fixed and
+not user-adjustable, and why: a looser rule was tried and measured to cost
+real log-likelihood, and worse, to degrade the multi-start search itself by
+ranking candidate starts on numbers too coarse to tell a good solution from
+a mediocre one. `fit_lta()` and `fit_rmlca()` are cross-referenced -- the
+former has its own, genuinely adjustable `tol` because a chain mixture needs
+one, the latter rides `fit_mixture()`'s fixed rule because it estimates
+through it.
+
+`?fit_mixture`'s `group` argument now spells out how to let a covariate's
+effect on class membership vary by group without using `group` at all --
+build the interaction directly into `predictors`, e.g.
+`model.matrix(~ grade * factor(year))[, -1]` -- since class moderation by a
+covariate and a `group`-based multiple-group model answer different
+questions and are easy to reach for interchangeably by mistake.
+
+`?bivariate_residuals` now says that, for categorical indicators, its
+statistic agrees closely with what another program reports under the same
+name, now that the expected-count fix above removes the one place they
+disagreed. `?fit_mixture`'s `n_init` documentation gives a measured runtime
+figure, so a search of 200 or 1000 starts can be budgeted for rather than
+guessed at.
+
 ## `absolute_fit()` now works with missing data, and `mcar_test()` is new
 
 Until now, `absolute_fit()` simply refused to run once any indicator had a

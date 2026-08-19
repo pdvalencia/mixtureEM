@@ -103,7 +103,10 @@
 #'   rule is a relative one and would otherwise stop the fit mid-climb. The
 #'   restarts are then staged - a short first pass ranks them and only the best
 #'   three run on to convergence - so the tighter rule does not multiply the
-#'   cost of the search. Supplying either argument overrides all of this.
+#'   cost of the search. Supplying either argument overrides all of this. (Unlike [`fit_mixture()`],
+#'   whose EM tolerance is fixed and not user-adjustable, `tol` here is a
+#'   real, respected argument, because a chain mixture converges slowly
+#'   enough that the fixed rule would not do.)
 #' @param smoothing How much smoothing to apply to the status prevalences and to
 #'   each row of the transition matrices, expressed as a number of pseudo-cases
 #'   spread evenly over the possible destinations. Sparse transition tables
