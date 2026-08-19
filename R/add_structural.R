@@ -310,7 +310,12 @@ add_covariates <- function(fit, predictors,
 #'   picks `"BCH"` for continuous outcomes (Bakk & Vermunt, 2016) and `"ML"`
 #'   for categorical outcomes; or set `"BCH"`, `"ML"`, `"none"` directly.
 #' @param se Standard-error estimator passed on to the third step:
-#'   `"corrected"` (default), `"robust"`, or `"hessian"`.
+#'   `"corrected"` (default), `"robust"`, or `"hessian"`. It governs the
+#'   covariate part of the third step. A continuous distal outcome under
+#'   `correction = "BCH"` always reports a sandwich clustered on the case,
+#'   whatever this is set to: the expanded data set carries one weighted
+#'   record per class per case, so a case-clustered sandwich is the only
+#'   estimator that prices the information the correction gives up.
 #' @param assignment How step 1's posteriors are turned into the assigned-class
 #'   variable whose classification error the correction inverts.
 #'   `"proportional"` (default) gives every case a weight in every class equal

@@ -137,27 +137,42 @@ m_step.distal_continuous_pooled <- function(model_state, X, resp, weights = NULL
   # to keep the log_likelihood method working unchanged.
   vars <- matrix(sigma2, nrow = K, ncol = 1)
 
-  # 4. Model-based SEs: sqrt( sigma^2 * diag(B^{-1}) )
+  # 4. Standard errors: a sandwich clustered on the case.
   #
-  #    Replace the naive sandwich variance estimator   sqrt(diag(B^{-1} M B^{-1}))
-  #    with the model-based estimator    sqrt(sigma^2 * diag(B^{-1})).
+  #    The expanded data set carries K weighted records per person, so the
+  #    records are not independent and a record-level sandwich would count
+  #    each person K times over. The answer is to cluster the meat on the
+  #    person -- sum each person's K record scores into one score before
+  #    squaring -- not to abandon the sandwich, which is what this code did
+  #    until the BCH standard errors were traced against another program's.
   #
-  #    Rationale: the BCH expanded dataset has K weighted records per
-  #    person.  The naive sandwich treats those K records as independent,
-  #    inflating the meat by roughly K.  The model-based SE assumes the
-  #    normal linear model Y ~ N(X theta, sigma^2 I) with BCH weights,
-  #    giving Var(theta) = sigma^2 (U^T W U)^{-1} = sigma^2 B^{-1}.
-  #    This provides the correct model-based standard errors.
+  #    Dropping the meat is not conservative. B = U'WU is built from the
+  #    *signed* BCH weights, and the whole point of inverting the
+  #    classification table is that undoing classification error costs
+  #    information; sigma^2 B^{-1} prices that loss as though this were an
+  #    ordinary least-squares fit, and so understates every standard error.
+  #    The clustered sandwich keeps it:
   #
-  #    Note: We report SEs for the absolute intercepts rather than pairwise contrasts.
-  #    Both are correct; they differ only in parameterisation.  The
-  #    contrast SE is recoverable as sqrt(V[k,k] + V[1,1] - 2*V[k,1])
-  #    where V = sigma^2 * B^{-1}.
-  ses <- sqrt(pmax(sigma2 * diag(B_inv), 1e-8))
+  #      s_i = sum_k w_ik (y_i - u_ik' theta) u_ik
+  #      V   = B^{-1} ( sum_i s_i s_i' ) B^{-1}
+  #
+  #    Note: We report SEs for the absolute intercepts rather than pairwise
+  #    contrasts. Both are correct; they differ only in parameterisation. The
+  #    contrast SE is recoverable as sqrt(V[k,k] + V[1,1] - 2*V[k,1]).
+  scores  <- U * (W_flat * resids)
+  # rowsum() over the case index folds each person's K records into one score.
+  s_case  <- rowsum(scores, rep.int(seq_len(N_v), K), reorder = FALSE)
+  meat    <- crossprod(s_case)
+  cov_theta <- B_inv %*% meat %*% B_inv
+  ses <- sqrt(pmax(diag(cov_theta), 1e-8))
 
   model_state$parameters$beta_pooled <- matrix(as.vector(theta), nrow = 1)
   model_state$parameters$covariances <- vars
   model_state$parameters$ses         <- matrix(ses, nrow = 1)
+  # The omnibus Wald tests and the pairwise class contrasts read cov_theta.
+  # It is built here, from the same U, W and mask the estimates came from, so
+  # that the covariance and the coefficients it belongs to cannot drift apart.
+  model_state$parameters$cov_theta   <- cov_theta
 
   return(model_state)
 }

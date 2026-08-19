@@ -117,24 +117,12 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional") {
     }
   }
 
-  # For distal_continuous_pooled: store the full model-based covariance matrix
-  # of theta = [intercepts, slopes] for use in the omnibus Wald test.
-  if (inherits(model_state$sm, "distal_continuous_pooled") &&
-      !is.null(model_state$sm$parameters$beta_pooled)) {
-    sigma2_p <- model_state$sm$parameters$covariances[1, 1]
-    K_p      <- model_state$sm$n_components
-    mod_p    <- model_state$sm$moderated
-    Y_p      <- as.numeric(Y[, 1])
-    Z_p      <- if (ncol(Y) > 1L) as.matrix(Y[, -1, drop = FALSE]) else
-      matrix(0, nrow = length(Y_p), ncol = 0)
-    N_p      <- length(Y_p)
-    U_p      <- .distal_U(Z_p, K_p, N_p, mod_p)
-    W_p    <- as.vector(bch_resp)
-    UWU_p  <- t(U_p) %*% sweep(U_p, 1, W_p, "*")
-    diag(UWU_p) <- diag(UWU_p) + 1e-6
-    B_inv_p <- pinv(UWU_p)
-    model_state$sm$parameters$cov_theta <- sigma2_p * B_inv_p
-  }
+  # distal_continuous_pooled's cov_theta used to be rebuilt here, and that copy
+  # of the design was built over every row rather than over the rows with an
+  # observed outcome that m_step actually fits -- so on data with a partly
+  # missing outcome the covariance carried far more information than the
+  # estimates did. m_step() now builds it alongside the coefficients, from the
+  # same U, W and mask, and there is no second copy to drift.
 
   return(model_state)
 }
