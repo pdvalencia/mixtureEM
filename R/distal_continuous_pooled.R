@@ -1,9 +1,63 @@
 # ==============================================================================
-# S3 Distal Continuous Pooled Model (Pooled Slopes, Class-Varying Intercepts)
+# S3 Distal Continuous Pooled Model (Pooled + Class-Specific Slopes, Class-Varying
+# Intercepts)
 # ==============================================================================
 
-distal_continuous_pooled_model <- function(n_components, ...) {
-  state <- list(n_components = n_components, parameters = list())
+# Expand the N x D_cov covariate matrix Z into the N*K x L design used to
+# estimate intercepts, pooled slopes and class-specific ("moderated") slopes
+# jointly. `mod` is an integer vector of column indices into Z (1-indexed)
+# naming the covariates that get their own slope per class; every other
+# covariate gets one slope shared across classes.
+#
+#     cols 1 .. K                    class intercepts
+#     cols K+1 .. K+D_pool           pooled slopes, in covariate-column order
+#     then, per moderated covariate, a block of K columns (class 1 .. K)
+#
+# Shared by m_step.distal_continuous_pooled() and the BCH covariance
+# computation in R/corrections.R, which must reproduce this exact layout or
+# the two would silently drift apart.
+.distal_U <- function(Z, K, N, mod = integer(0)) {
+  D_cov  <- ncol(Z)
+  pooled <- setdiff(seq_len(D_cov), mod)
+  D_pool <- length(pooled)
+  L      <- K + D_pool + K * length(mod)
+
+  U <- matrix(0, nrow = N * K, ncol = L)
+  for (k in seq_len(K)) {
+    idx <- ((k - 1L) * N + 1L):(k * N)
+    U[idx, k] <- 1
+    if (D_pool > 0) U[idx, (K + 1L):(K + D_pool)] <- Z[, pooled, drop = FALSE]
+    for (j in seq_along(mod)) {
+      col       <- K + D_pool + (j - 1L) * K + k
+      U[idx, col] <- Z[, mod[j]]
+    }
+  }
+  U
+}
+
+# Full-length permutation of a theta/ses/cov_theta index set under
+# `sort_model_classes()`'s class reordering: intercepts and each moderated
+# covariate's class block are permuted by `new_order`; pooled-slope columns
+# are left in place. `L` is the total column count (ncol(beta_pooled) or
+# nrow(cov_theta), which are the same value).
+.distal_pooled_reorder_idx <- function(sm, new_order, L) {
+  K      <- sm$n_components
+  mod    <- sm$moderated %||% integer(0)
+  D_mod  <- length(mod)
+  D_pool <- L - K - K * D_mod
+
+  idx <- new_order
+  if (D_pool > 0) idx <- c(idx, K + seq_len(D_pool))
+  for (j in seq_len(D_mod)) {
+    block_start <- K + D_pool + (j - 1L) * K
+    idx <- c(idx, block_start + new_order)
+  }
+  idx
+}
+
+distal_continuous_pooled_model <- function(n_components, moderated = integer(0), ...) {
+  state <- list(n_components = n_components, moderated = as.integer(moderated),
+                parameters = list())
   class(state) <- c("distal_continuous_pooled", "emission")
   return(state)
 }
@@ -13,9 +67,11 @@ init_params.distal_continuous_pooled <- function(model_state, X, resp, ...) {
   Y <- as.numeric(X[, 1])
   Z <- complete_covariates(X[, -1, drop = FALSE])
 
-  K <- model_state$n_components
-  D_cov <- ncol(Z)
-  L <- K + D_cov
+  K      <- model_state$n_components
+  D_cov  <- ncol(Z)
+  mod    <- model_state$moderated
+  D_pool <- D_cov - length(mod)
+  L      <- K + D_pool + K * length(mod)
 
   model_state$parameters$beta_pooled <- matrix(0, nrow = 1, ncol = L)
   # Initialize the intercepts to the global mean
@@ -38,23 +94,18 @@ m_step.distal_continuous_pooled <- function(model_state, X, resp, weights = NULL
 
   if (!is.null(weights)) resp_v <- sweep(resp_v, 1, weights[valid], "*")
 
-  N_v   <- nrow(Z_v)
-  K     <- model_state$n_components
-  D_cov <- ncol(Z_v)
-  L     <- K + D_cov
+  N_v <- nrow(Z_v)
+  K   <- model_state$n_components
+  mod <- model_state$moderated
 
   # 1. Expand design matrix for simultaneous intercept/slope estimation
-  U <- matrix(0, nrow = N_v * K, ncol = L)
-  for (k in 1:K) {
-    idx <- ((k - 1) * N_v + 1):(k * N_v)
-    U[idx, k] <- 1
-    if (D_cov > 0) U[idx, (K + 1):L] <- Z_v
-  }
+  U <- .distal_U(Z_v, K, N_v, mod)
 
   W_flat <- as.vector(resp_v)
   Y_flat <- rep(Y_v, K)
 
-  # 2. Estimate intercepts and pooled slopes  (bread of the sandwich)
+  # 2. Estimate intercepts, pooled slopes and class-specific slopes  (bread of
+  #    the sandwich)
   UWU <- t(U) %*% sweep(U, 1, W_flat, "*")
   UWY <- t(U) %*% (W_flat * Y_flat)
 
@@ -116,11 +167,13 @@ log_likelihood.distal_continuous_pooled <- function(model_state, X, ...) {
   Y <- as.numeric(X[, 1])
   Z <- complete_covariates(X[, -1, drop = FALSE])
 
-  K     <- model_state$n_components
-  D_cov <- ncol(Z)
-  L     <- K + D_cov
-  N     <- length(Y)
-  valid <- !is.na(Y)
+  K      <- model_state$n_components
+  mod    <- model_state$moderated
+  D_cov  <- ncol(Z)
+  pooled <- setdiff(seq_len(D_cov), mod)
+  D_pool <- length(pooled)
+  N      <- length(Y)
+  valid  <- !is.na(Y)
 
   ll    <- matrix(0, nrow = N, ncol = K)
   theta <- as.vector(model_state$parameters$beta_pooled)
@@ -128,14 +181,19 @@ log_likelihood.distal_continuous_pooled <- function(model_state, X, ...) {
   for (k in 1:K) {
     if (any(valid)) {
       intercept_k <- theta[k]
-      if (D_cov > 0) {
-        preds <- intercept_k + Z[valid, , drop = FALSE] %*% theta[(K + 1):L]
-      } else {
-        preds <- rep(intercept_k, sum(valid))
+      preds <- rep(intercept_k, sum(valid))
+      if (D_pool > 0)
+        preds <- preds + Z[valid, pooled, drop = FALSE] %*%
+          theta[(K + 1L):(K + D_pool)]
+      # That case's own moderated columns: class k's slope on each
+      # class-specific covariate.
+      for (j in seq_along(mod)) {
+        col   <- K + D_pool + (j - 1L) * K + k
+        preds <- preds + Z[valid, mod[j]] * theta[col]
       }
 
       ll[valid, k] <- dnorm(Y[valid],
-                            mean = preds,
+                            mean = as.vector(preds),
                             sd   = sqrt(model_state$parameters$covariances[k, 1]),
                             log  = TRUE)
     }
@@ -145,8 +203,7 @@ log_likelihood.distal_continuous_pooled <- function(model_state, X, ...) {
 
 #' @exportS3Method
 n_parameters.distal_continuous_pooled <- function(model_state, ...) {
-  K     <- model_state$n_components
-  D_cov <- ncol(model_state$parameters$beta_pooled) - K
-  # K intercepts + D_cov slopes + 1 pooled variance
-  return(K + D_cov + 1L)
+  # L free coefficients (intercepts + pooled slopes + class-specific slopes)
+  # + 1 pooled variance
+  return(ncol(model_state$parameters$beta_pooled) + 1L)
 }

@@ -12,7 +12,7 @@ fit_mixture(
   outcome = NULL,
   outcome_covariates = NULL,
   outcome_type = c("auto", "continuous", "categorical"),
-  slopes = c("pooled", "class_specific"),
+  slopes = "pooled",
   group = NULL,
   group_effects = c("both", "measurement", "prevalence", "none"),
   group_invariant_items = NULL,
@@ -94,8 +94,13 @@ Mutually exclusive with \code{predictors}.}
 from \code{outcome}.}
 
 \item{slopes}{When \code{outcome_covariates} are supplied, whether their
-effect is \code{"pooled"} (one slope shared across classes) or
-\code{"class_specific"} (a separate slope per class).}
+effect is \code{"pooled"} (default; one slope shared across classes),
+\code{"class_specific"} (a separate slope per class for every covariate),
+or a character vector of covariate names (or a one-sided formula naming
+them, e.g. \code{~ loc1 + loc2}) giving a separate slope per class to just
+those covariates while the rest stay pooled -- letting the class moderate
+some covariates while adjusting for others. The last form is
+continuous-outcome only.}
 
 \item{group}{Optional observed grouping variable for a multiple-group
 model (Collins & Lanza, 2010, sec. 5.7-5.12), e.g. grade or gender.
@@ -405,6 +410,12 @@ fit_mixture(X, n_classes = 2, measurement = "binary", predictors = age)
 # Distal outcome with a class-specific covariate slope
 fit_mixture(X, n_classes = 2, measurement = "binary", outcome = bmi,
             outcome_covariates = age, slopes = "class_specific")
+
+# Class moderates level-of-care while age and gender are only adjusted
+# for: a mix of "class_specific" and "pooled" in one model.
+fit_mixture(X, n_classes = 4, measurement = "binary", outcome = cannabis_days,
+            outcome_covariates = data.frame(loc1, loc2, loc3, age, gender),
+            slopes = c("loc1", "loc2", "loc3"))
 
 # Mixed-type indicators
 fit_mixture(items, n_classes = 3,

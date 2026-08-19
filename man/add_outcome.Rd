@@ -9,7 +9,7 @@ add_outcome(
   outcome,
   covariates = NULL,
   outcome_type = c("auto", "continuous", "categorical"),
-  slopes = c("pooled", "class_specific"),
+  slopes = "pooled",
   correction = c("auto", "BCH", "ML", "none"),
   se = c("corrected", "robust", "hessian"),
   assignment = c("proportional", "modal"),
@@ -32,7 +32,11 @@ case of the data the model was fit to.}
 \code{"continuous"}, or \code{"categorical"}.}
 
 \item{slopes}{When \code{covariates} are supplied, whether their effect is
-\code{"pooled"} (one slope shared across classes) or \code{"class_specific"}.}
+\code{"pooled"} (default; one slope shared across classes), \code{"class_specific"}
+(every covariate gets its own slope per class), or a character vector of
+covariate names (or a one-sided formula naming them, e.g. \code{~ loc1 + loc2}) giving a slope per class to just those covariates while the rest
+stay pooled. The last form -- letting the class moderate some covariates
+while adjusting for others -- is continuous-outcome only.}
 
 \item{correction}{Bias correction for the third step: \code{"auto"} (default)
 picks \code{"BCH"} for continuous outcomes (Bakk & Vermunt, 2016) and \code{"ML"}
@@ -82,6 +86,14 @@ summary(fit_out)
 # The same outcome named in a formula against its data frame
 df <- data.frame(bmi = bmi)
 fit_out2 <- add_outcome(fit, ~ bmi, data = df)
+
+\dontrun{
+# Class moderates level-of-care while age and gender are only adjusted for:
+# a mix of "class_specific" and "pooled" in one model.
+fit_mod <- add_outcome(fit, cannabis_days,
+                       covariates = data.frame(loc1, loc2, loc3, age, gender),
+                       slopes = c("loc1", "loc2", "loc3"))
+}
 
 }
 \references{

@@ -115,7 +115,9 @@
   }
 
   # Attach column names to beta_pooled for distal_continuous_pooled so that
-  # summary() displays real variable names instead of Z1, Z2, etc.
+  # summary() displays real variable names instead of Z1, Z2, etc. A
+  # class-specific ("moderated") covariate gets one column per class, named
+  # "term:Class{k}", following its block in the beta_pooled layout.
   if (!is.null(Y) && !is.null(model_state$sm) &&
       inherits(model_state$sm, "distal_continuous_pooled") &&
       !is.null(model_state$sm$parameters$beta_pooled)) {
@@ -124,7 +126,13 @@
       paste0("V", seq_len(ncol(Y)))
     # First column of Y is the outcome; remaining are covariates
     cov_names_bp <- if (ncol(Y) > 1L) y_names[-1L] else character(0L)
-    bp_names     <- c(paste0("Class_", seq_len(K_bp)), cov_names_bp)
+    mod_bp       <- model_state$sm$moderated %||% integer(0)
+    pooled_names_bp <- if (length(mod_bp) > 0L) cov_names_bp[-mod_bp]
+                       else cov_names_bp
+    mod_names_bp <- character(0L)
+    for (term in cov_names_bp[mod_bp])
+      mod_names_bp <- c(mod_names_bp, paste0(term, ":Class", seq_len(K_bp)))
+    bp_names <- c(paste0("Class_", seq_len(K_bp)), pooled_names_bp, mod_names_bp)
     if (length(bp_names) == ncol(model_state$sm$parameters$beta_pooled))
       colnames(model_state$sm$parameters$beta_pooled) <- bp_names
   }
@@ -357,6 +365,27 @@
   invisible(NULL)
 }
 
+# Normalise `slopes`: "pooled" and "class_specific" keep their existing
+# all-or-nothing meaning, while a character vector of covariate *term* names
+# (or a one-sided formula naming them, e.g. ~ loc1 + loc2) selects a subset to
+# get a slope per class, the rest staying pooled. Shared by fit_mixture() and
+# add_outcome() in place of match.arg(), which cannot express the third form.
+.validate_slopes <- function(slopes) {
+  if (inherits(slopes, "formula")) {
+    if (length(slopes) != 2L)
+      stop("`slopes` must be a one-sided formula (e.g. ~ age + sex) when ",
+           "naming covariates that way.", call. = FALSE)
+    return(list(mode = "moderated", terms = all.vars(slopes)))
+  }
+  if (is.character(slopes) && length(slopes) == 1L &&
+      slopes %in% c("pooled", "class_specific"))
+    return(list(mode = slopes, terms = NULL))
+  if (is.character(slopes) && length(slopes) >= 1L)
+    return(list(mode = "moderated", terms = slopes))
+  stop('`slopes` must be "pooled", "class_specific", a character vector of ',
+       "covariate names, or a one-sided formula naming them.", call. = FALSE)
+}
+
 # Translate a distal-outcome specification into the structural engine string
 # and the Y matrix the fitting engine consumes. Column 1 of Y is always the
 # outcome; covariates follow. Shared by fit_mixture() and add_outcome() so the
@@ -393,13 +422,23 @@
                     otype))
 
   has_cov <- !is.null(outcome_covariates)
+  sv      <- .validate_slopes(slopes)
+
+  if (sv$mode == "moderated" && otype != "continuous")
+    stop('A character `slopes` naming covariates (or a formula) is only ',
+         "supported for a continuous outcome; use \"pooled\" or ",
+         '"class_specific" for a categorical outcome.', call. = FALSE)
+
+  # "moderated" reuses the pooled engine, generalised to accept a subset of
+  # covariates as class-specific -- see distal_continuous_pooled_model()'s
+  # `moderated` argument.
   engine  <- if (otype == "continuous") {
-    if (!has_cov)                  "continuous_outcome"
-    else if (slopes == "pooled")   "continuous_outcome_adjusted"
-    else                           "continuous_outcome_moderated"
+    if (!has_cov)                          "continuous_outcome"
+    else if (sv$mode == "class_specific")  "continuous_outcome_moderated"
+    else                                   "continuous_outcome_adjusted"
   } else {
     if (!has_cov)                  "categorical_outcome"
-    else if (slopes == "pooled")   "categorical_outcome_adjusted"
+    else if (sv$mode == "pooled")  "categorical_outcome_adjusted"
     else                           "categorical_outcome_moderated"
   }
 
@@ -419,5 +458,24 @@
     .as_named_covariates(outcome_covariates, cov_expr, "covariate")))
   else out_mat
 
-  list(engine = engine, Y = Y, otype = otype)
+  # Resolve the named terms to covariate-column indices. A factor expands into
+  # several dummy columns under the same term, which substring matching would
+  # miss; .covariate_terms() already knows the grouping prepare_covariates()
+  # set.
+  moderated <- integer(0)
+  if (sv$mode == "moderated") {
+    cov_terms  <- if (has_cov) .covariate_terms(Y)[-1L] else character(0L)
+    unresolved <- setdiff(sv$terms, cov_terms)
+    if (length(unresolved)) {
+      avail <- if (length(cov_terms)) paste(unique(cov_terms), collapse = ", ")
+               else "(none)"
+      stop(sprintf(
+        "`slopes` names %s not found among the outcome covariates: %s. Available terms: %s.",
+        if (length(unresolved) > 1L) "terms" else "a term",
+        paste(unresolved, collapse = ", "), avail), call. = FALSE)
+    }
+    moderated <- which(cov_terms %in% sv$terms)
+  }
+
+  list(engine = engine, Y = Y, otype = otype, moderated = moderated)
 }
