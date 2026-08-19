@@ -122,19 +122,13 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional") {
   if (inherits(model_state$sm, "distal_continuous_pooled") &&
       !is.null(model_state$sm$parameters$beta_pooled)) {
     sigma2_p <- model_state$sm$parameters$covariances[1, 1]
-    L_p      <- length(as.vector(model_state$sm$parameters$beta_pooled))
     K_p      <- model_state$sm$n_components
-    D_cov    <- L_p - K_p
+    mod_p    <- model_state$sm$moderated
     Y_p      <- as.numeric(Y[, 1])
-    Z_p      <- if (D_cov > 0) as.matrix(Y[, -1, drop = FALSE]) else
+    Z_p      <- if (ncol(Y) > 1L) as.matrix(Y[, -1, drop = FALSE]) else
       matrix(0, nrow = length(Y_p), ncol = 0)
     N_p      <- length(Y_p)
-    U_p      <- matrix(0, N_p * K_p, L_p)
-    for (k in seq_len(K_p)) {
-      idx_p         <- ((k - 1L) * N_p + 1L):(k * N_p)
-      U_p[idx_p, k] <- 1
-      if (D_cov > 0) U_p[idx_p, (K_p + 1L):L_p] <- Z_p
-    }
+    U_p      <- .distal_U(Z_p, K_p, N_p, mod_p)
     W_p    <- as.vector(bch_resp)
     UWU_p  <- t(U_p) %*% sweep(U_p, 1, W_p, "*")
     diag(UWU_p) <- diag(UWU_p) + 1e-6

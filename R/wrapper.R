@@ -106,7 +106,9 @@ sort_model_classes <- function(model_state) {
       }
       if (!is.null(sm$parameters[["ses"]])) {
         if (inherits(sm, "distal_continuous_pooled")) {
-          sm$parameters$ses[1, 1:K] <- sm$parameters$ses[1, new_order]
+          idx_p <- .distal_pooled_reorder_idx(sm, new_order,
+                                              ncol(sm$parameters$ses))
+          sm$parameters$ses[1, ] <- sm$parameters$ses[1, idx_p]
         } else {
           sm$parameters$ses <- sm$parameters$ses[new_order, , drop = FALSE]
         }
@@ -116,12 +118,12 @@ sort_model_classes <- function(model_state) {
           sm$parameters$Sigma_mu[new_order, new_order, drop = FALSE]
       }
       if (!is.null(sm$parameters[["cov_theta"]])) {
-        # cov_theta is L x L where the first K rows/cols are intercepts.
-        # Reorder only the intercept block; slope block stays unchanged.
-        K_ct  <- sm$n_components
-        L_ct  <- nrow(sm$parameters$cov_theta)
-        D_ct  <- L_ct - K_ct
-        idx   <- c(new_order, if (D_ct > 0) (K_ct + seq_len(D_ct)) else integer(0))
+        # cov_theta is L x L, laid out like beta_pooled: intercepts, pooled
+        # slopes, then one K-column block per class-specific ("moderated")
+        # covariate. Intercepts and each moderated block are permuted by
+        # class; pooled-slope rows/cols stay in place.
+        idx <- .distal_pooled_reorder_idx(sm, new_order,
+                                          nrow(sm$parameters$cov_theta))
         sm$parameters$cov_theta <-
           sm$parameters$cov_theta[idx, idx, drop = FALSE]
       }
@@ -148,7 +150,9 @@ sort_model_classes <- function(model_state) {
       }
       if (!is.null(sm$parameters[["beta_pooled"]])) {
         if (inherits(sm, "distal_continuous_pooled")) {
-          sm$parameters$beta_pooled[1, 1:K] <- sm$parameters$beta_pooled[1, new_order]
+          idx_p <- .distal_pooled_reorder_idx(sm, new_order,
+                                              ncol(sm$parameters$beta_pooled))
+          sm$parameters$beta_pooled[1, ] <- sm$parameters$beta_pooled[1, idx_p]
         } else {
           # Guard: when beta_pooled is a degenerate 0x0 placeholder (produced by
           # a constant-outcome distal_pooled model), there is nothing to reorder.
@@ -1568,12 +1572,18 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     theta     <- as.vector(cont_pool_sub$parameters$beta_pooled)
     ses       <- as.vector(cont_pool_sub$parameters$ses)
     K_distal  <- K
-    D_cov     <- length(theta) - K_distal
+    mod_idx   <- cont_pool_sub$moderated %||% integer(0)
+    D_mod     <- length(mod_idx)
+    D_cov     <- length(theta) - K_distal - K_distal * D_mod  # pooled-slope count
+
     # Use stored column names when available; fall back to Z1, Z2, ...
     stored_names <- colnames(cont_pool_sub$parameters$beta_pooled)
-    var_names <- if (!is.null(stored_names) && length(stored_names) > K_distal)
-      stored_names[(K_distal + 1L):length(stored_names)]
+    var_names <- if (!is.null(stored_names) && length(stored_names) > K_distal + D_cov)
+      stored_names[(K_distal + 1L):(K_distal + D_cov)]
     else if (D_cov > 0) paste0("Z", seq_len(D_cov))
+    else character(0)
+    mod_block_names <- if (!is.null(stored_names) && D_mod > 0)
+      stored_names[(K_distal + D_cov + 1L):length(stored_names)]
     else character(0)
 
     # Omnibus Wald test on class intercepts
@@ -1602,7 +1612,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     }
 
     if (!is.na(omni$stat)) {
-      cov_note <- if (D_cov > 0) " (at covariate zero)" else ""
+      cov_note <- if (D_cov + D_mod > 0) " (at covariate zero)" else ""
       cat(sprintf(
         "\nOmnibus test (class differences%s): Wald chi^2(%d) = %.2f, p%s\n",
         cov_note, omni$df, omni$stat, .fmt_pval(omni$p)))
@@ -1647,11 +1657,66 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
       }
       .cat_label_legend(disp)
     }
+
+    # Class-specific ("moderated") slopes: one row per covariate per class,
+    # plus a per-covariate Wald test of slope equality across classes, built
+    # from cov_theta with the same contrast pattern as the intercept omnibus
+    # above.
+    mod_rows <- list()
+    if (D_mod > 0) {
+      mod_terms <- unique(sub(":Class[0-9]+$", "", mod_block_names))
+      if (length(mod_terms) != D_mod) mod_terms <- paste0("Mod", seq_len(D_mod))
+      disp_mod  <- .shorten_labels(mod_terms)
+      label_w_m <- .label_width(disp_mod, min = 13L)
+
+      cat("\n  Covariates (Class-specific slopes):\n")
+      cat(strrep(" ", 17L + label_w_m - 13L),
+          "Estimate   [95% CI]        P-Value\n", sep = "")
+
+      offset0 <- K_distal + D_cov
+      for (j in seq_len(D_mod)) {
+        block_start <- offset0 + (j - 1L) * K_distal
+        cat(sprintf("  %s:\n", disp_mod[j]))
+        for (k in seq_len(K_distal)) {
+          pos   <- block_start + k
+          est   <- theta[pos]
+          se    <- ses[pos]
+          z_val <- if (se > 0) est / se else NA_real_
+          p_val <- if (!is.na(z_val)) 2 * (1 - pnorm(abs(z_val))) else NA_real_
+          cat(sprintf("    Class %d      %7.3f  [%6.3f, %6.3f]  %s\n",
+                      k, est, est - 1.96 * se, est + 1.96 * se,
+                      .fmt_pval(p_val)))
+          mod_rows[[length(mod_rows) + 1L]] <- data.frame(
+            term = mod_terms[j], class = k, estimate = est, se = se, p = p_val,
+            lower = est - 1.96 * se, upper = est + 1.96 * se,
+            stringsAsFactors = FALSE)
+        }
+
+        if (K_distal > 1L && !is.null(cov_theta) && all(is.finite(cov_theta))) {
+          idx_j <- block_start + seq_len(K_distal)
+          cov_j <- cov_theta[idx_j, idx_j, drop = FALSE]
+          R_j   <- cbind(-1, diag(K_distal - 1L))
+          th_j  <- theta[idx_j]
+          V_j   <- R_j %*% cov_j %*% t(R_j)
+          th_c  <- R_j %*% th_j
+          W_j   <- tryCatch(as.numeric(t(th_c) %*% solve(V_j) %*% th_c),
+                            error = function(e) NA_real_)
+          p_j   <- if (!is.na(W_j))
+            pchisq(W_j, df = K_distal - 1L, lower.tail = FALSE) else NA_real_
+          cat(sprintf(
+            "    Wald test (equality across classes): chi^2(%d) = %.2f, p%s\n",
+            K_distal - 1L, W_j, .fmt_pval(p_j)))
+        }
+      }
+      .cat_label_legend(disp_mod)
+    }
+
     out$outcome <- list(
       type       = "continuous",
       omnibus    = data.frame(chi2 = omni$stat, df = omni$df, p = omni$p),
       intercepts = .rbind_tidy(int_rows),
-      covariate_effects = .rbind_tidy(slope_rows))
+      covariate_effects = .rbind_tidy(slope_rows),
+      class_specific_slopes = .rbind_tidy(mod_rows))
   }
 
   cat("=========================================================\n")
@@ -2459,8 +2524,13 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   \code{"categorical"}. With \code{"auto"} (default) the type is inferred
 #'   from \code{outcome}.
 #' @param slopes When \code{outcome_covariates} are supplied, whether their
-#'   effect is \code{"pooled"} (one slope shared across classes) or
-#'   \code{"class_specific"} (a separate slope per class).
+#'   effect is \code{"pooled"} (default; one slope shared across classes),
+#'   \code{"class_specific"} (a separate slope per class for every covariate),
+#'   or a character vector of covariate names (or a one-sided formula naming
+#'   them, e.g. \code{~ loc1 + loc2}) giving a separate slope per class to just
+#'   those covariates while the rest stay pooled -- letting the class moderate
+#'   some covariates while adjusting for others. The last form is
+#'   continuous-outcome only.
 #' @param group Optional observed grouping variable for a multiple-group
 #'   model (Collins & Lanza, 2010, sec. 5.7-5.12), e.g. grade or gender.
 #'   Unlike \code{predictors}, which only ever shifts class membership, a
@@ -2794,6 +2864,12 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #' fit_mixture(X, n_classes = 2, measurement = "binary", outcome = bmi,
 #'             outcome_covariates = age, slopes = "class_specific")
 #'
+#' # Class moderates level-of-care while age and gender are only adjusted
+#' # for: a mix of "class_specific" and "pooled" in one model.
+#' fit_mixture(X, n_classes = 4, measurement = "binary", outcome = cannabis_days,
+#'             outcome_covariates = data.frame(loc1, loc2, loc3, age, gender),
+#'             slopes = c("loc1", "loc2", "loc3"))
+#'
 #' # Mixed-type indicators
 #' fit_mixture(items, n_classes = 3,
 #'             measurement = list(binary = 1:5, continuous = 6:8))
@@ -2807,7 +2883,7 @@ fit_mixture <- function(indicators = NULL,
                         outcome = NULL,
                         outcome_covariates = NULL,
                         outcome_type = c("auto", "continuous", "categorical"),
-                        slopes = c("pooled", "class_specific"),
+                        slopes = "pooled",
                         group = NULL,
                         group_effects = c("both", "measurement", "prevalence", "none"),
                         group_invariant_items = NULL,
@@ -2833,7 +2909,6 @@ fit_mixture <- function(indicators = NULL,
   se            <- match.arg(se)
   assignment    <- match.arg(assignment)
   outcome_type  <- match.arg(outcome_type)
-  slopes        <- match.arg(slopes)
   group_effects <- match.arg(group_effects)
   weight_type   <- match.arg(weight_type)
   steps_set     <- !missing(n_steps)
@@ -3010,8 +3085,9 @@ fit_mixture <- function(indicators = NULL,
   }
 
   # --- Structural model -------------------------------------------------------
-  structural_engine <- NULL
-  Y_use             <- NULL
+  structural_engine    <- NULL
+  Y_use                <- NULL
+  structural_moderated <- integer(0)
 
   if (!is.null(predictors)) {
     structural_engine <- "predict_class"
@@ -3019,11 +3095,12 @@ fit_mixture <- function(indicators = NULL,
       .as_named_covariates(predictors, predictors_expr, "predictor"))
 
   } else if (!is.null(outcome)) {
-    outcome_spec      <- .build_outcome_spec(outcome, outcome_covariates,
-                                             outcome_type, slopes,
-                                             outcome_cov_expr)
-    structural_engine <- outcome_spec$engine
-    Y_use             <- outcome_spec$Y
+    outcome_spec         <- .build_outcome_spec(outcome, outcome_covariates,
+                                                 outcome_type, slopes,
+                                                 outcome_cov_expr)
+    structural_engine    <- outcome_spec$engine
+    Y_use                <- outcome_spec$Y
+    structural_moderated <- outcome_spec$moderated
   }
 
   # --- Grouping variable: prevalence effect -----------------------------------
@@ -3066,7 +3143,8 @@ fit_mixture <- function(indicators = NULL,
                     correction))
   }
 
-  dots <- c(list(...), list(variances_equal = isTRUE(variances_equal)))
+  dots <- c(list(...), list(variances_equal = isTRUE(variances_equal),
+                            moderated = structural_moderated))
   if (length(group_extra_args)) dots <- utils::modifyList(dots, group_extra_args)
 
   fit <- do.call(fit_mixture_internal, c(list(

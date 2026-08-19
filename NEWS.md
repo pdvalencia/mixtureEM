@@ -1,5 +1,28 @@
 # mixtureEM (development version)
 
+## `slopes` can now name a subset of covariates for a continuous distal outcome
+
+Previously `slopes` was all-or-nothing: `"pooled"` gave every covariate one
+slope shared across classes, `"class_specific"` gave every covariate its own
+slope per class. Latent-class moderation analyses routinely need a mix --
+the class moderates one set of covariates while the rest are only adjusted
+for -- and that combination could not be expressed at all. `slopes` now also
+accepts a character vector of covariate names (or a one-sided formula naming
+them, e.g. `~ loc1 + loc2`): those covariates get a slope per class, and
+every other covariate stays pooled. This applies to `add_outcome()` and
+`fit_mixture()`'s `outcome_covariates` path; a categorical outcome still only
+accepts `"pooled"` or `"class_specific"`, since doubling the categorical
+engine's surface has no demonstrated need yet. `summary()` gains a third
+printed block, "Covariates (Class-specific slopes)", with one row per
+covariate per class and a Wald test of slope equality across classes for
+each. Verified two ways: algebraically, the joint design matches
+`lm.wfit()` on the same expanded weighted dataset to six decimals, and naming
+every covariate as class-specific reproduces `slopes = "class_specific"`'s
+point estimates to the same tolerance; and against a real class-moderation
+analysis with a mix of moderated and pooled covariates, where every
+coefficient landed within about 6% of the reference program's, all fifteen
+non-reference coefficients keeping the same sign.
+
 ## `measurement_summary()` gains a `scale` argument for binary indicators
 
 `measurement_summary(fit, scale = "probability")` is unchanged -- that

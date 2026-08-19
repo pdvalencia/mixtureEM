@@ -137,8 +137,10 @@
 
 # Shared execution: attach the structural model and run steps 2-3 only.
 .add_structural <- function(fit, Y_use, engine, correction, se, max_iter,
-                            assignment = "proportional") {
-  fit$sm         <- build_emission(engine, n_components = fit$n_components)
+                            assignment = "proportional",
+                            moderated = integer(0)) {
+  fit$sm         <- build_emission(engine, n_components = fit$n_components,
+                                   moderated = moderated)
   # The structural model is built here rather than in fit_mixture_internal(), so
   # it has to be handed the fit's prior strengths on the way past; without this
   # `bayes_constants` would apply on the one-call three-step path and silently
@@ -298,7 +300,12 @@ add_covariates <- function(fit, predictors,
 #' @param outcome_type One of `"auto"` (default; inferred from `outcome`),
 #'   `"continuous"`, or `"categorical"`.
 #' @param slopes When `covariates` are supplied, whether their effect is
-#'   `"pooled"` (one slope shared across classes) or `"class_specific"`.
+#'   `"pooled"` (default; one slope shared across classes), `"class_specific"`
+#'   (every covariate gets its own slope per class), or a character vector of
+#'   covariate names (or a one-sided formula naming them, e.g. `~ loc1 +
+#'   loc2`) giving a slope per class to just those covariates while the rest
+#'   stay pooled. The last form -- letting the class moderate some covariates
+#'   while adjusting for others -- is continuous-outcome only.
 #' @param correction Bias correction for the third step: `"auto"` (default)
 #'   picks `"BCH"` for continuous outcomes (Bakk & Vermunt, 2016) and `"ML"`
 #'   for categorical outcomes; or set `"BCH"`, `"ML"`, `"none"` directly.
@@ -354,16 +361,23 @@ add_covariates <- function(fit, predictors,
 #' df <- data.frame(bmi = bmi)
 #' fit_out2 <- add_outcome(fit, ~ bmi, data = df)
 #'
+#' \dontrun{
+#' # Class moderates level-of-care while age and gender are only adjusted for:
+#' # a mix of "class_specific" and "pooled" in one model.
+#' fit_mod <- add_outcome(fit, cannabis_days,
+#'                        covariates = data.frame(loc1, loc2, loc3, age, gender),
+#'                        slopes = c("loc1", "loc2", "loc3"))
+#' }
+#'
 #' @export
 add_outcome <- function(fit, outcome, covariates = NULL,
                         outcome_type = c("auto", "continuous", "categorical"),
-                        slopes = c("pooled", "class_specific"),
+                        slopes = "pooled",
                         correction = c("auto", "BCH", "ML", "none"),
                         se = c("corrected", "robust", "hessian"),
                         assignment = c("proportional", "modal"),
                         max_iter = 1000, data = NULL, ...) {
   outcome_type <- match.arg(outcome_type)
-  slopes       <- match.arg(slopes)
   correction   <- match.arg(correction)
   se           <- match.arg(se)
   assignment   <- match.arg(assignment)
@@ -406,5 +420,5 @@ add_outcome <- function(fit, outcome, covariates = NULL,
   Y_use <- .align_structural_rows(spec$Y, fit, "outcome")
 
   .add_structural(fit, Y_use, spec$engine, correction, se, max_iter,
-                  assignment = assignment)
+                  assignment = assignment, moderated = spec$moderated)
 }
