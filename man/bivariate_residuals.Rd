@@ -29,7 +29,10 @@ For categorical indicators, an object of class
 \code{bivariate_residuals}: a lower-triangular indicator-by-indicator matrix,
 \code{NA} on and above the diagonal. When \code{n_reps > 0} a matrix of bootstrap
 p-values, laid out the same way, is attached as the \code{"p"} attribute and
-printed beside each residual. For a continuous measurement model, an
+printed beside each residual. The sum of all pairwise residuals is
+attached as the \code{"total"} attribute and printed as "Total BVR", a single
+headline number for how much local dependence the model as a whole is
+carrying. For a continuous measurement model, an
 object of class \code{bivariate_residuals_gaussian} holding the modification
 index and expected parameter change per pair per class, the model-implied
 residual covariance and correlation, and a count of pairs where the
@@ -87,7 +90,11 @@ missingness mechanism rather than local dependence.
 \code{n_reps} replaces the broken reference distribution with a parametric
 bootstrap, which in the same simulation held between 0.020 and 0.085 against
 a nominal 0.05. Use it before drawing any conclusion from the size of a
-residual.
+residual. Each bootstrap replicate is blanked out in the same cells as the
+real data, so a p-value from missing data is exact when the data are
+missing completely at random and an approximation otherwise -- the
+replicate's missingness cannot reproduce a dependence on class or response
+that the real gaps might carry.
 
 Note that the statistic bootstrapped is the one this function computes,
 \eqn{\chi^2} divided by its degrees of freedom, and not a raw Pearson
@@ -97,9 +104,14 @@ printed here against a raw chi-square table. The bootstrap is applied to
 whatever statistic is computed, so it is calibrated either way.
 
 With missing data each pair is computed on the cases observing both items,
-and the expected counts are scaled to that pair's total. This is a
-pairwise-complete statistic rather than a full-information one, so read it
-as descriptive when missingness is heavy.
+and the expected counts are evaluated at those cases' own posterior class
+membership rather than at the class proportions for the whole sample. This
+matters whenever the two subsets differ -- an item that is missing more
+often for one class than another otherwise makes an unrelated pair of items
+look locally dependent, when what actually happened is that missingness
+changed who is left in the comparison. This is a pairwise-complete
+statistic rather than a full-information one, so still read it as
+descriptive when missingness is heavy.
 
 For a plain continuous (Gaussian) measurement model with no missing data, a
 different statistic is returned instead: for each item pair and class, the
