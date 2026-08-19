@@ -203,8 +203,18 @@ sort_model_classes <- function(model_state) {
 #'   \code{"growth_mean"}, \code{"growth_variance"},
 #'   \code{"growth_covariance"}, \code{"growth_regression"},
 #'   \code{"residual_variance"} or \code{"fitted"}), \code{item},
-#'   \code{category}, \code{class}, and \code{estimate}. The same numbers are
-#'   printed as formatted tables.
+#'   \code{category}, \code{class}, \code{estimate}, and \code{overall}. The
+#'   same numbers are printed as formatted tables.
+#'
+#'   \code{overall} is the observed marginal for the item — the weighted sample
+#'   proportion beside a probability, the weighted sample mean beside a mean or
+#'   a rate — repeated down the class rows so the frame stays joinable on
+#'   \code{class}. It is what makes a conditional number readable: a class
+#'   endorsing an item at .62 is unremarkable when the sample sits at .60 and is
+#'   most of what defines the class when the sample sits at .12. It is
+#'   \code{NA}, and the printed column is dropped, for a fit that does not store
+#'   its raw indicators or whose item parameters cannot be matched to them by
+#'   name.
 #'
 #' @examples
 #' set.seed(1)
@@ -224,7 +234,10 @@ measurement_summary.default <- function(object, ...) {
   cat("             MEASUREMENT MODEL PARAMETERS                \n")
   cat("=========================================================\n")
 
-  collected <- list()
+  collected      <- list()
+  # Set by any block whose sample marginal could not be worked out, so the note
+  # under the table is printed once however many blocks the model has.
+  any_no_overall <- FALSE
 
   print_item_matrix <- function(mat, title, sub_model = NULL,
                                 parameter = "estimate",
@@ -257,13 +270,25 @@ measurement_summary.default <- function(object, ...) {
     # returned data frame keeps the full names.
     disp    <- .shorten_labels(item_names, width = 30L)
     label_w <- max(20L, max(nchar(disp)))
+
+    # The sample marginal goes between the label and the classes, so each row
+    # reads as "here is the item overall, and here is how each class departs
+    # from it" - which is the comparison the class parameters are for. Dropped
+    # entirely, rather than filled with NAs, when it cannot be computed.
+    overall <- .observed_marginals(object, mat, sub_model, parameter)
+    if (!is.null(overall) && length(overall) != ncol(mat)) overall <- NULL
+    if (is.null(overall)) any_no_overall <<- TRUE
+
     cat(sprintf("%-*s", label_w, "Indicator"))
+    if (!is.null(overall)) cat(" | Overall")
     for (k in 1:K) cat(sprintf(" | Class %d", k))
     cat("\n")
-    cat(paste0(rep("-", label_w + K * 10), collapse = ""), "\n")
+    cat(paste0(rep("-", label_w + (K + !is.null(overall)) * 10),
+               collapse = ""), "\n")
 
     for (j in 1:ncol(mat)) {
       cat(sprintf("%-*s", label_w, disp[j]))
+      if (!is.null(overall)) cat(sprintf(" | %7.3f", overall[j]))
       for (k in 1:K) cat(sprintf(" | %7.3f", mat[k, j]))
       cat("\n")
     }
@@ -279,6 +304,13 @@ measurement_summary.default <- function(object, ...) {
       category  = rep(categories, each = K),
       class     = rep(seq_len(K), times = J),
       estimate  = as.vector(mat),
+      # Constant within item and category, repeated down the K class rows, so
+      # the frame stays joinable on `class` and a per-class departure from the
+      # marginal is a subtraction rather than a reshape. NA for a block whose
+      # marginal could not be worked out; the column itself is always present,
+      # since a data frame that gains and loses columns by fit is worse to
+      # program against than one that carries an NA.
+      overall   = rep(overall %||% rep(NA_real_, J), each = K),
       stringsAsFactors = FALSE)
   }
 
@@ -309,6 +341,12 @@ measurement_summary.default <- function(object, ...) {
       print_item_matrix(mm$parameters$rates, "COUNT RATES (lambda)", mm,
                         "rate")
   }
+  if (any_no_overall)
+    cat("\nThe Overall column, holding the observed marginal for each item, is ",
+        "omitted above: this fit either does not store its raw indicators - in ",
+        "which case refitting with the current version enables it - or holds ",
+        "item parameters that cannot be matched to them by name, as a ",
+        "multiple-group measurement model does.\n", sep = "")
   if (!is.null(object$missing_data) && isTRUE(object$missing_data$any_missing)) {
     md <- object$missing_data
     cat(sprintf("\nMissing data: %d of %d cells (%.1f%%) across %d item%s, handled via %s.\n",
@@ -320,6 +358,66 @@ measurement_summary.default <- function(object, ...) {
   .print_boundary_note(do.call(rbind, collected))
   cat("=========================================================\n")
   invisible(do.call(rbind, collected))
+}
+
+# The observed marginal for each column of a block of item parameters, on the
+# same scale as the parameters themselves: the weighted sample proportion for a
+# probability, the weighted sample mean for a mean or a rate.
+#
+# This is what puts a conditional number in context. A class endorsing an item
+# at .62 is unremarkable when everybody endorses it at .60 and is most of what
+# defines the class when the sample sits at .12, and the table alone cannot tell
+# those apart. The comparison is the reason the column is the *observed*
+# marginal rather than the model-implied one, sum_k pi_k theta_jk: a
+# model-implied column would be another number the model produced, and would
+# agree with the class parameters by construction, which is exactly the property
+# that makes it useless as a benchmark.
+#
+# The indicators are read as stored on the fit, which is after any binary
+# recode, so a proportion here is of the same level the probability beside it
+# is of. Returns NULL when the raw data is unavailable or the columns cannot be
+# lined up; the caller then drops the column rather than printing NAs.
+.observed_marginals <- function(object, mat, sub_model = NULL,
+                                parameter = "estimate") {
+  data <- object$data
+  if (is.null(data) || !is.matrix(data) && !is.data.frame(data)) return(NULL)
+  data <- as.matrix(data)
+  if (nrow(data) == 0L) return(NULL)
+
+  w <- object$sample_weights %||% rep(1, nrow(data))
+  if (length(w) != nrow(data)) w <- rep(1, nrow(data))
+
+  # Weighted mean over the observed cases of one column.
+  wmean <- function(v) {
+    ok <- !is.na(v)
+    if (!any(ok) || sum(w[ok]) <= 0) return(NA_real_)
+    sum(w[ok] * v[ok]) / sum(w[ok])
+  }
+
+  # Polytomous blocks hold M columns per item, laid out item-major, and the
+  # marginal for column (j-1)*M + m is the share of cases answering m to item j.
+  # data.matrix() codes the categories 1..M, which is what max_val counts.
+  if (identical(parameter, "probability") && !is.null(sub_model$max_val)) {
+    M       <- sub_model$max_val
+    n_items <- ncol(mat) / M
+    if (n_items != round(n_items)) return(NULL)
+    base    <- sub_model$item_names
+    if (is.null(base) || length(base) != n_items) return(NULL)
+    matched <- .match_indicator_columns(base, data)
+    if (is.null(matched)) return(NULL)
+
+    out <- numeric(ncol(mat))
+    for (j in seq_len(n_items)) {
+      v <- data[, matched[j]]
+      for (m in seq_len(M))
+        out[(j - 1L) * M + m] <- wmean(as.numeric(v == m))
+    }
+    return(out)
+  }
+
+  matched <- .match_indicator_columns(colnames(mat), data)
+  if (is.null(matched)) return(NULL)
+  vapply(matched, function(cj) wmean(as.numeric(data[, cj])), numeric(1))
 }
 
 # Say which level each reported probability belongs to, for items that were not

@@ -415,8 +415,12 @@ test_that("measurement_summary() returns the growth parameters as a table", {
 
   out <- capture.output(tab <- measurement_summary(fit))
   expect_s3_class(tab, "data.frame")
+  # `overall` is carried so the growth table has the same columns as every
+  # other measurement table, and is always NA here: a growth factor mean has no
+  # sample marginal to be compared against.
   expect_named(tab, c("block", "parameter", "item", "category", "class",
-                      "estimate"))
+                      "estimate", "overall"))
+  expect_true(all(is.na(tab$overall)))
   expect_setequal(unique(tab$parameter),
                   c("growth_mean", "growth_variance", "growth_covariance",
                     "residual_variance", "fitted"))

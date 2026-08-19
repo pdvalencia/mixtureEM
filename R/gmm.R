@@ -778,6 +778,11 @@ print.gmm <- function(x, ...) {
              category  = rep(NA_integer_, K * J),
              class     = rep(seq_len(K), times = J),
              estimate  = as.vector(mat),
+             # Carried so the growth table has the same columns as every other
+             # measurement table, and always NA: a growth factor mean or a
+             # residual variance is not a quantity any column of the data has a
+             # sample marginal for.
+             overall   = rep(NA_real_, K * J),
              stringsAsFactors = FALSE)
 }
 

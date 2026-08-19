@@ -1,5 +1,34 @@
 # mixtureEM (development version)
 
+## `measurement_summary()` now shows the sample marginal
+
+Every table gains an `Overall` column between the indicator name and the
+classes, and the returned data frame gains an `overall` column beside
+`estimate`. It is the observed marginal for that item: the weighted sample
+proportion beside a probability, the weighted sample mean beside a mean or a
+rate, and for a polytomous item the share of cases in each category.
+
+A conditional number is not readable on its own. A class endorsing an item at
+.62 is unremarkable where the sample sits at .60 and is most of what defines the
+class where the sample sits at .12, and the table could not tell those apart —
+the reader had to go back to the data. Putting the marginal first in the row
+makes each class parameter read as a departure from it.
+
+The benchmark is the *observed* marginal rather than the model-implied one,
+because a model-implied column would agree with the class parameters by
+construction and so could not act as a check on them. It uses the case weights
+where the fit has any, and reads the indicators as the fit stored them, which is
+after any binary recode — so the proportion is of the same level the probability
+beside it is of. For a latent transition model the marginal is the one for the
+occasion being printed, or, where the measurement model is held equal across
+occasions, the one pooled over all of them.
+
+The column is dropped, with a note saying why, for a fit that does not store its
+raw indicators and for a multiple-group measurement model, whose per-group item
+parameters cannot be matched to the stacked indicator columns by name; the data
+frame then carries `NA` there. Growth models always carry `NA`, a growth factor
+mean having no sample marginal to be compared against. No fitted number changes.
+
 ## The standardized profile can now be drawn as lines
 
 `plot(fit, type = "line")` draws the same z-scored conditional means as

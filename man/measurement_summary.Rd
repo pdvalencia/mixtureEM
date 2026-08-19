@@ -30,8 +30,18 @@ models, \code{NA} otherwise), \code{parameter} (\code{"probability"},
 \code{"growth_mean"}, \code{"growth_variance"},
 \code{"growth_covariance"}, \code{"growth_regression"},
 \code{"residual_variance"} or \code{"fitted"}), \code{item},
-\code{category}, \code{class}, and \code{estimate}. The same numbers are
-printed as formatted tables.
+\code{category}, \code{class}, \code{estimate}, and \code{overall}. The
+same numbers are printed as formatted tables.
+
+\code{overall} is the observed marginal for the item — the weighted sample
+proportion beside a probability, the weighted sample mean beside a mean or
+a rate — repeated down the class rows so the frame stays joinable on
+\code{class}. It is what makes a conditional number readable: a class
+endorsing an item at .62 is unremarkable when the sample sits at .60 and is
+most of what defines the class when the sample sits at .12. It is
+\code{NA}, and the printed column is dropped, for a fit that does not store
+its raw indicators or whose item parameters cannot be matched to them by
+name.
 }
 \description{
 Prints a formatted table of the fitted measurement model parameters:
