@@ -162,3 +162,37 @@ test_that("a one-sided formula names the same terms as a character vector", {
   expect_equal(fitA$sm$parameters$beta_pooled, fitB$sm$parameters$beta_pooled,
                tolerance = 1e-10)
 })
+
+test_that("the case-clustered sandwich reduces to HC0 when the weights are hard", {
+  # With a 0/1 assignment matrix every person contributes exactly one non-zero
+  # record, so clustering the meat on the person is the same as not clustering
+  # it at all, and the sandwich must reduce to the heteroskedasticity-robust
+  # (HC0) covariance of the equivalent single-row regression. That pins the
+  # estimator against an outside formula rather than against itself.
+  d    <- .sim_moderation_data()
+  K    <- 3L
+  set.seed(99)
+  cl   <- sample(seq_len(K), length(d$y), TRUE)
+  resp <- matrix(0, nrow = length(d$y), ncol = K)
+  resp[cbind(seq_along(cl), cl)] <- 1
+
+  Z  <- cbind(loc1 = d$loc1, loc2 = d$loc2, age = d$age, sex = d$sex)
+  sm <- distal_continuous_pooled_model(n_components = K, moderated = c(1L, 2L))
+  sm <- init_params(sm, cbind(d$y, Z), resp)
+  sm <- m_step(sm, cbind(d$y, Z), resp)
+
+  # The same design, one row per person: the person's own class columns.
+  U_full <- .distal_U(Z, K, nrow(Z), c(1L, 2L))
+  rows   <- seq_along(cl) + (cl - 1L) * nrow(Z)
+  U1     <- U_full[rows, , drop = FALSE]
+
+  ols  <- lm.fit(U1, d$y)
+  bread <- solve(crossprod(U1))
+  meat  <- crossprod(U1 * ols$residuals)
+  hc0   <- bread %*% meat %*% bread
+
+  expect_equal(as.vector(sm$parameters$beta_pooled), unname(ols$coefficients),
+               tolerance = 1e-6)
+  expect_equal(as.vector(sm$parameters$ses), sqrt(diag(hc0)), tolerance = 1e-6)
+  expect_equal(unname(sm$parameters$cov_theta), unname(hc0), tolerance = 1e-6)
+})

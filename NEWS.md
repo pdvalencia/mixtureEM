@@ -1,5 +1,34 @@
 # mixtureEM (development version)
 
+## Standard errors for a continuous distal outcome under BCH were too small
+
+The Wald tests and standard errors reported for a continuous distal outcome
+fitted with `correction = "BCH"` were understated, badly enough to change
+which effects looked significant and how they ranked against each other.
+Reported standard errors get larger; every point estimate is unchanged.
+
+Two things were wrong. The covariance of the class intercepts and slopes was
+built over every row of the data, rather than over the rows with an observed
+outcome that the model is actually fitted on -- so an outcome with missing
+values credited the estimates with information they were never given. And
+the standard errors were model-based, `sigma^2 (U'WU)^-1`, the sandwich
+estimator having been dropped on the ground that the bias-corrected fit
+carries one weighted record per class per case and a record-level sandwich
+would count each case several times over. That is a real problem, but the
+answer to it is to cluster the sandwich on the case, not to discard it: the
+model-based form prices the fit as if it were ordinary least squares and
+ignores the information that inverting the classification table gives up.
+
+The covariance is now built once, alongside the coefficients, from the same
+design, weights and mask -- so it cannot drift from the estimates it belongs
+to -- and it is a sandwich clustered on the case. Two checks: where the
+class assignment is hard, so that each case contributes a single record, the
+estimator reduces exactly to the heteroskedasticity-consistent (HC0)
+covariance of the equivalent one-row-per-case regression; and on a published
+class-moderation analysis it now agrees with another program's standard
+errors to within about 2%, against the 2- to 4-fold understatement before.
+
+
 ## `slopes` can now name a subset of covariates for a continuous distal outcome
 
 Previously `slopes` was all-or-nothing: `"pooled"` gave every covariate one
