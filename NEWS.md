@@ -1,5 +1,41 @@
 # mixtureEM (development version)
 
+## `outcome_contrasts()`: which classes differ on a distal outcome
+
+The new `outcome_contrasts(fit, ref = NULL)` reports class-vs-class differences
+on an outcome attached by `add_outcome()`, each with a standard error, a
+confidence interval and a p-value. With no `ref` every pair of classes is
+reported once; naming a class holds it fixed as the comparison. `adjust` takes
+`"holm"` or `"bonferroni"` for the all-pairs table read as a family, and `level`
+sets the interval.
+
+The omnibus Wald test the summary already printed answers whether the classes
+differ at all, which is the question a reviewer asks first and almost never the
+one the paper is about. What gets written up is that the high-risk class scores
+half a standard deviation above the normative one and that the two intermediate
+classes are indistinguishable, and for a continuous outcome there was no way to
+get that out of the fit.
+
+Computing it by hand gets it wrong, which is the reason this belongs in the
+package. Two class means from one fit are estimated from the same posteriors —
+and under the BCH correction from the same inverted classification-error matrix
+— so they are correlated, and the standard error of their difference is not the
+root of the sum of their squared standard errors. The contrasts use the full
+sandwich covariance the fit already carries, so the joint Wald statistic over
+the reference contrasts reproduces the printed omnibus exactly; that identity is
+asserted in the tests, for both outcome types, because an indexing error in a
+covariance is otherwise silent.
+
+For a continuous outcome, `summary()` now prints the pairwise differences under
+the omnibus for up to five classes, and returns them as
+`summary(fit)$outcome$contrasts` in every case. Categorical outcomes already
+printed a reference-class odds-ratio table and are unchanged there;
+`outcome_contrasts()` returns the same contrasts in tidy form and adds the pairs
+that table never showed. An outcome fitted with `slopes = "class_specific"` is
+refused with a message pointing at `bootstrap_covariates()` and
+`wald_omnibus_test()`: those models store no covariance between the per-class
+parameter blocks, so an exact contrast cannot be formed from them.
+
 ## `measurement_summary()` now shows the sample marginal
 
 Every table gains an `Overall` column between the indicator name and the

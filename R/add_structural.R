@@ -320,7 +320,9 @@ add_covariates <- function(fit, predictors,
 #' @param ... Currently unused.
 #'
 #' @return A `mixture_model` with the distal-outcome model attached. Use
-#'   [summary()] for class-specific means or probabilities and their tests.
+#'   [summary()] for class-specific means or probabilities and their tests, and
+#'   [outcome_contrasts()] for which classes differ from which, rather than
+#'   whether any of them do.
 #'
 #' @references
 #' Bakk, Z., & Vermunt, J. K. (2016). Robustness of stepwise latent class
@@ -336,7 +338,8 @@ add_covariates <- function(fit, predictors,
 #' three-step approaches. \emph{Sociological Methodology}, \emph{43}(1),
 #' 272–311. \doi{10.1177/0081175012470644}
 #'
-#' @seealso [add_covariates()] for predictors of class membership;
+#' @seealso [outcome_contrasts()] for class-vs-class differences on the
+#'   outcome; [add_covariates()] for predictors of class membership;
 #'   [fit_mixture()] to fit the unconditional model.
 #'
 #' @examples
