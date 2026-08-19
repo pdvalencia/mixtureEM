@@ -584,7 +584,9 @@ print.mcar_test <- function(x, ...) {
 #' look locally dependent, when what actually happened is that missingness
 #' changed who is left in the comparison. This is a pairwise-complete
 #' statistic rather than a full-information one, so still read it as
-#' descriptive when missingness is heavy.
+#' descriptive when missingness is heavy. For categorical indicators this is
+#' the same statistic, with the same divisor, that another program reports as
+#' a bivariate residual, and the values agree closely on the same fit.
 #'
 #' For a plain continuous (Gaussian) measurement model with no missing data, a
 #' different statistic is returned instead: for each item pair and class, the

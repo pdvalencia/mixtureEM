@@ -101,7 +101,22 @@ effect is \code{"pooled"} (one slope shared across classes) or
 model (Collins & Lanza, 2010, sec. 5.7-5.12), e.g. grade or gender.
 Unlike \code{predictors}, which only ever shifts class membership, a
 group can also be allowed to shift the item-response probabilities
-themselves; see \code{group_effects}.}
+themselves; see \code{group_effects}.
+
+\strong{A covariate whose effect on class membership differs by group}
+-- moderation, not just adjustment -- does not need \code{group} at all:
+build the interaction into \code{predictors} directly, e.g.
+\code{predictors = model.matrix(~ grade * factor(year))[, -1]} handed to
+\code{fit_mixture()} in place of a plain covariate matrix. Leave
+\code{group} unset for this (or use
+\code{group_effects = "measurement"} if the item parameters should also
+be free by group): a \code{"prevalence"} or \code{"both"} group effect
+appends the group's own design to \code{predictors} internally, so the
+group columns would then appear twice. A covariate matrix built this way
+also carries none of the column-to-variable bookkeeping a data-frame
+\code{predictors} does, so functions like \code{\link{wald_test}} need
+the individual interaction column names rather than a single variable
+name.}
 
 \item{group_effects}{What you are allowing the groups to differ in. Pick by
 the question you are asking:
@@ -215,6 +230,11 @@ there is one, but local optima multiply with more classes and poorer
 separation. \code{max_iter} defaults to 1000, following the iteration
 budget in Biernacki et al. (2003); when a fit stops at the cap, double it.
 \code{vignette("estimation")} gives the figures behind both numbers.
+
+The cost is roughly linear in \code{n_init}, so it is easy to budget for a
+larger search: \code{n_init = 20} took about 16 seconds on a 4-class,
+7-item binary model with 2,587 cases, so \code{n_init = 200} on the same
+model is a couple of minutes and \code{n_init = 1000} is closer to ten.
 
 More starts are not \emph{monotonically} better on a large model. Where each
 EM iteration is expensive the search runs in two stages: a short pass ranks
@@ -339,6 +359,20 @@ classes are defined by a set of measurement \code{indicators}; optionally, a
 structural model relates the classes to external variables — either as
 \code{predictors} of class membership, or as a distal \code{outcome} caused
 by the classes.
+}
+\details{
+\strong{The EM convergence rule is fixed and not user-adjustable.} Each
+random start stops once the log-likelihood improves by less than
+\code{1e-4} in absolute terms or a relative \code{1e-8}, whichever is
+looser, and there is no argument that changes this. A looser rule was
+tried and measured to cost real log-likelihood — on a validated 4-class
+binary example, stopping early and then polishing with a numerical
+optimizer recovered only a ninth of what a tighter EM rule found outright
+— and, more importantly, it degrades the multi-start search itself: a
+loose rule ranks candidate starts on log-likelihood values too coarse to
+tell a good basin from a mediocre one, so \code{n_init} stops doing its
+job. If a fit seems slow, raise \code{n_init} or trim \code{max_iter}
+rather than looking for a tolerance argument; there is not one to find.
 }
 \section{Multiple-group models}{
 

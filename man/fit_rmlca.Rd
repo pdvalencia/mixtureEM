@@ -63,7 +63,9 @@ multiple-group model and a model with the group as a dummy predictor are
 equivalent when measurement is invariant across groups (their sec. 6.10.2).}
 
 \item{...}{Further arguments passed to \code{\link[=fit_mixture]{fit_mixture()}}, such as \code{outcome},
-\code{n_init}, \code{random_state}, \code{weights}, \code{strata} or \code{cluster}.}
+\code{n_init}, \code{random_state}, \code{weights}, \code{strata} or \code{cluster}. The EM
+convergence rule is \code{\link[=fit_mixture]{fit_mixture()}}'s fixed one, since this function
+estimates through it; there is no \code{tol}-style argument to pass here.}
 }
 \value{
 An object of class \code{c("rmlca", "mixture_model")}. In addition to the

@@ -58,7 +58,9 @@
 #'   multiple-group model and a model with the group as a dummy predictor are
 #'   equivalent when measurement is invariant across groups (their sec. 6.10.2).
 #' @param ... Further arguments passed to [`fit_mixture()`], such as `outcome`,
-#'   `n_init`, `random_state`, `weights`, `strata` or `cluster`.
+#'   `n_init`, `random_state`, `weights`, `strata` or `cluster`. The EM
+#'   convergence rule is [`fit_mixture()`]'s fixed one, since this function
+#'   estimates through it; there is no `tol`-style argument to pass here.
 #'
 #' @return An object of class `c("rmlca", "mixture_model")`. In addition to the
 #'   usual fields it carries `$longitudinal`, holding the item and occasion
