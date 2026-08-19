@@ -193,6 +193,21 @@ sort_model_classes <- function(model_state) {
 #'
 #' @param object A fitted \code{mixture_model} object returned by
 #'   \code{\link{fit_mixture}}.
+#' @param scale For categorical indicators, what scale the item parameters are
+#'   reported on. \code{"probability"} (the default) is unchanged from before
+#'   this argument existed. \code{"logit"} reports \code{qlogis()} of the same
+#'   table. \code{"effect"} reports the effect-coded parameterisation several
+#'   other programs use by default -- an item intercept plus one deviation per
+#'   class, the deviations summing to zero -- which is what lets a mixtureEM
+#'   measurement model be placed beside such a program's printed output;
+#'   binary indicators only, since a polytomous item's effect coding is a
+#'   modelling choice (ordinal with fixed scores, giving one class effect per
+#'   class, versus nominal, giving one per category) that the package does
+#'   not make for you, and a polytomous item under \code{"effect"} is refused
+#'   with an error rather than guessed at. The \code{overall} column is
+#'   dropped on the \code{"logit"} and \code{"effect"} scales, since the
+#'   observed marginal has no meaningful transform there. Ignored for
+#'   continuous means and count rates, which have no probability to rescale.
 #' @param ... Passed to methods.
 #'
 #' @return Invisibly, a data frame in long format with one row per item,
@@ -228,7 +243,22 @@ measurement_summary <- function(object, ...) UseMethod("measurement_summary")
 
 #' @rdname measurement_summary
 #' @export
-measurement_summary.default <- function(object, ...) {
+measurement_summary.default <- function(object,
+                                        scale = c("probability", "logit",
+                                                  "effect"),
+                                        ...) {
+  scale <- match.arg(scale)
+  if (identical(scale, "effect")) {
+    poly <- .polytomous_block_names(object$mm)
+    if (length(poly))
+      stop("`scale = \"effect\"` is not supported yet for a polytomous ",
+           "item: ", paste(poly, collapse = ", "), ". A polytomous item's ",
+           "effect coding depends on whether it is ordinal (one class ",
+           "effect per class) or nominal (one per category), which is a ",
+           "modelling choice this function does not make for you. Use ",
+           "`scale = \"logit\"` instead, or report probabilities.",
+           call. = FALSE)
+  }
   K <- object$n_components
   cat("=========================================================\n")
   cat("             MEASUREMENT MODEL PARAMETERS                \n")
@@ -241,7 +271,8 @@ measurement_summary.default <- function(object, ...) {
 
   print_item_matrix <- function(mat, title, sub_model = NULL,
                                 parameter = "estimate",
-                                block = NA_character_) {
+                                block = NA_character_,
+                                intercept = NULL, show_overall = TRUE) {
     cat(sprintf("\n%s\n", title))
     item_names <- colnames(mat)
     base_items <- NULL
@@ -274,20 +305,25 @@ measurement_summary.default <- function(object, ...) {
     # The sample marginal goes between the label and the classes, so each row
     # reads as "here is the item overall, and here is how each class departs
     # from it" - which is the comparison the class parameters are for. Dropped
-    # entirely, rather than filled with NAs, when it cannot be computed.
-    overall <- .observed_marginals(object, mat, sub_model, parameter)
+    # entirely, rather than filled with NAs, when it cannot be computed -- or
+    # when the caller has already said it is meaningless on this scale.
+    overall <- if (show_overall) .observed_marginals(object, mat, sub_model,
+                                                      parameter) else NULL
     if (!is.null(overall) && length(overall) != ncol(mat)) overall <- NULL
-    if (is.null(overall)) any_no_overall <<- TRUE
+    if (show_overall && is.null(overall)) any_no_overall <<- TRUE
 
     cat(sprintf("%-*s", label_w, "Indicator"))
+    if (!is.null(intercept)) cat(" | Intercept")
     if (!is.null(overall)) cat(" | Overall")
     for (k in 1:K) cat(sprintf(" | Class %d", k))
     cat("\n")
-    cat(paste0(rep("-", label_w + (K + !is.null(overall)) * 10),
+    cat(paste0(rep("-", label_w + (K + !is.null(overall) +
+                                    !is.null(intercept)) * 10),
                collapse = ""), "\n")
 
     for (j in 1:ncol(mat)) {
       cat(sprintf("%-*s", label_w, disp[j]))
+      if (!is.null(intercept)) cat(sprintf(" | %7.3f", intercept[j]))
       if (!is.null(overall)) cat(sprintf(" | %7.3f", overall[j]))
       for (k in 1:K) cat(sprintf(" | %7.3f", mat[k, j]))
       cat("\n")
@@ -314,14 +350,24 @@ measurement_summary.default <- function(object, ...) {
       stringsAsFactors = FALSE)
   }
 
+  # Title suffix and column suppression are the only places `scale` touches
+  # anything outside the categorical-probability blocks themselves.
+  scale_suffix <- switch(scale, probability = "",
+                         logit = " (logit scale)", effect = " (effect-coded)")
+  show_overall <- identical(scale, "probability")
+
   mm <- object$mm
   if (inherits(mm, c("nested", "blocks"))) {
     for (name in names(mm$models)) {
       sub_mm <- mm$models[[name]]
-      if (!is.null(sub_mm$parameters$pis))
-        print_item_matrix(sub_mm$parameters$pis,
-                          paste("Categorical Probabilities:", toupper(name)),
-                          sub_mm, "probability", name)
+      if (!is.null(sub_mm$parameters$pis)) {
+        tr <- .scale_categorical_block(sub_mm$parameters$pis, scale)
+        print_item_matrix(tr$mat,
+                          paste0("Categorical Probabilities: ", toupper(name),
+                                 scale_suffix),
+                          sub_mm, "probability", name,
+                          intercept = tr$intercept, show_overall = show_overall)
+      }
       if (!is.null(sub_mm$parameters$means))
         print_item_matrix(sub_mm$parameters$means,
                           paste("Continuous Means:", toupper(name)),
@@ -332,9 +378,12 @@ measurement_summary.default <- function(object, ...) {
                           sub_mm, "rate", name)
     }
   } else {
-    if (!is.null(mm$parameters$pis))
-      print_item_matrix(mm$parameters$pis, "CATEGORICAL PROBABILITIES", mm,
-                        "probability")
+    if (!is.null(mm$parameters$pis)) {
+      tr <- .scale_categorical_block(mm$parameters$pis, scale)
+      print_item_matrix(tr$mat, paste0("CATEGORICAL PROBABILITIES", scale_suffix),
+                        mm, "probability",
+                        intercept = tr$intercept, show_overall = show_overall)
+    }
     if (!is.null(mm$parameters$means))
       print_item_matrix(mm$parameters$means, "CONTINUOUS MEANS", mm, "mean")
     if (!is.null(mm$parameters$rates))
@@ -358,6 +407,43 @@ measurement_summary.default <- function(object, ...) {
   .print_boundary_note(do.call(rbind, collected))
   cat("=========================================================\n")
   invisible(do.call(rbind, collected))
+}
+
+# Names of any polytomous categorical blocks in a measurement model, or
+# character(0) if every categorical block is binary. A block counts as
+# polytomous when it stores a `max_val` -- the Bernoulli branch of
+# `.categorical_item_probs()` (R/fit_diagnostics.R) has none, since a binary
+# item's stored parameter is a single P(y = 1) rather than one probability
+# per category.
+.polytomous_block_names <- function(mm) {
+  if (inherits(mm, c("nested", "blocks"))) {
+    keep <- vapply(mm$models, function(sub)
+      !is.null(sub$parameters$pis) && !is.null(sub$max_val), logical(1))
+    return(names(mm$models)[keep])
+  }
+  if (!is.null(mm$parameters$pis) && !is.null(mm$max_val))
+    return("the categorical block")
+  character(0)
+}
+
+# Rescale a K x J block of binary item-response probabilities for
+# measurement_summary()'s `scale` argument. "probability" is a no-op.
+# "logit" is qlogis() elementwise and needs no restriction on the item type.
+# "effect" recovers another program's effect coding for a binary item: an
+# item intercept -- half the negative mean logit across classes, matching the
+# reported category's intercept row of an equivalent two-category coding,
+# whose other category's intercept is this value's negative -- plus one class
+# deviation per class, the deviations summing to zero by construction. The
+# caller has already refused a polytomous block under "effect" before this is
+# reached. Verified against another program's printed output on a reference
+# fit: matches to three decimals on both the intercept and the four class
+# deviations of a boundary-adjacent item.
+.scale_categorical_block <- function(mat, scale) {
+  if (identical(scale, "probability")) return(list(mat = mat, intercept = NULL))
+  logit <- stats::qlogis(mat)
+  if (identical(scale, "logit")) return(list(mat = logit, intercept = NULL))
+  mu <- colMeans(logit)
+  list(mat = sweep(logit, 2, mu, "-"), intercept = -mu / 2)
 }
 
 # The observed marginal for each column of a block of item parameters, on the

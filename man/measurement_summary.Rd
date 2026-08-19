@@ -13,13 +13,29 @@
 
 measurement_summary(object, ...)
 
-\method{measurement_summary}{default}(object, ...)
+\method{measurement_summary}{default}(object, scale = c("probability", "logit", "effect"), ...)
 }
 \arguments{
 \item{object}{A fitted \code{mixture_model} object returned by
 \code{\link{fit_mixture}}.}
 
 \item{...}{Passed to methods.}
+
+\item{scale}{For categorical indicators, what scale the item parameters are
+reported on. \code{"probability"} (the default) is unchanged from before
+this argument existed. \code{"logit"} reports \code{qlogis()} of the same
+table. \code{"effect"} reports the effect-coded parameterisation several
+other programs use by default -- an item intercept plus one deviation per
+class, the deviations summing to zero -- which is what lets a mixtureEM
+measurement model be placed beside such a program's printed output;
+binary indicators only, since a polytomous item's effect coding is a
+modelling choice (ordinal with fixed scores, giving one class effect per
+class, versus nominal, giving one per category) that the package does
+not make for you, and a polytomous item under \code{"effect"} is refused
+with an error rather than guessed at. The \code{overall} column is
+dropped on the \code{"logit"} and \code{"effect"} scales, since the
+observed marginal has no meaningful transform there. Ignored for
+continuous means and count rates, which have no probability to rescale.}
 }
 \value{
 Invisibly, a data frame in long format with one row per item,
