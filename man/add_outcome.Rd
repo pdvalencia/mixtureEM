@@ -61,7 +61,9 @@ whose classes were assigned that way.}
 }
 \value{
 A \code{mixture_model} with the distal-outcome model attached. Use
-\code{\link[=summary]{summary()}} for class-specific means or probabilities and their tests.
+\code{\link[=summary]{summary()}} for class-specific means or probabilities and their tests, and
+\code{\link[=outcome_contrasts]{outcome_contrasts()}} for which classes differ from which, rather than
+whether any of them do.
 }
 \description{
 Takes the latent class model you have already chosen and relates the classes
@@ -97,6 +99,7 @@ three-step approaches. \emph{Sociological Methodology}, \emph{43}(1),
 272–311. \doi{10.1177/0081175012470644}
 }
 \seealso{
-\code{\link[=add_covariates]{add_covariates()}} for predictors of class membership;
+\code{\link[=outcome_contrasts]{outcome_contrasts()}} for class-vs-class differences on the
+outcome; \code{\link[=add_covariates]{add_covariates()}} for predictors of class membership;
 \code{\link[=fit_mixture]{fit_mixture()}} to fit the unconditional model.
 }

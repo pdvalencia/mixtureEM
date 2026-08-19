@@ -1337,12 +1337,41 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
       cat(sprintf("  Class %d      %7.3f  [%6.3f, %6.3f]   %7.3f\n",
                   k, mu, mu - 1.96 * se, mu + 1.96 * se, se))
     }
+    # Which classes differ, not just whether any do. The omnibus above is one
+    # joint statistic; what gets written up is the contrast, and computing it
+    # by hand from the two standard errors gets it wrong, because the class
+    # means are correlated. The categorical outcome sections print their own
+    # contrasts already (the odds-ratio tables), so this is the branch that had
+    # nothing.
+    #
+    # Printed only for a handful of classes: at K = 8 the all-pairs table is
+    # twenty-eight rows and would bury the summary it is part of. Above the cap
+    # the table is a call away, and either way it is returned.
+    contrasts <- tryCatch(outcome_contrasts(object), error = function(e) NULL)
+    if (!is.null(contrasts)) {
+      if (K <= 5L) {
+        cat("\nPairwise class differences:\n")
+        cat("                    Difference       [95% CI]        P-Value\n")
+        for (i in seq_len(nrow(contrasts))) {
+          cat(sprintf(
+            "  Class %d vs %d       %7.3f  [%6.3f, %6.3f]  %s\n",
+            contrasts$class[i], contrasts$reference[i], contrasts$estimate[i],
+            contrasts$lower[i], contrasts$upper[i], .fmt_pval(contrasts$p[i])))
+        }
+      } else {
+        cat(sprintf(paste0("\n%d pairwise class differences are not printed at ",
+                           "%d classes; see outcome_contrasts(fit).\n"),
+                    nrow(contrasts), K))
+      }
+    }
+
     out$outcome <- list(
       type    = "continuous",
       omnibus = data.frame(chi2 = omni$stat, df = omni$df, p = omni$p),
       means   = data.frame(class = seq_len(K), mean = means, se = ses,
                            lower = means - 1.96 * ses,
-                           upper = means + 1.96 * ses))
+                           upper = means + 1.96 * ses),
+      contrasts = contrasts)
   }
 
   # E. Continuous distal regression
