@@ -757,10 +757,56 @@ measurement_summary.lta_model <- function(object, ...) {
     sub <- object$mm$models[[t]]
     tmp <- list(mm = sub, n_components = object$n_statuses,
                 missing_data = list(any_missing = FALSE))
+    # The indicators this occasion's parameters were fitted on, so the table can
+    # show the observed marginal beside them. The slice has to be taken and
+    # renamed rather than the whole wide matrix passed: the sub-models all carry
+    # the *first* occasion's item names, so matching by name against the wide
+    # data would report occasion 1's marginals under every occasion's heading.
+    slice <- .lta_occasion_indicators(object, lg, sub, t, invariant = inv)
+    if (!is.null(slice)) {
+      tmp$data           <- slice$data
+      tmp$sample_weights <- slice$weights
+    }
     class(tmp) <- "mixture_model"
     measurement_summary(tmp)
   }
   invisible(object)
+}
+
+# One occasion's columns of the wide indicator matrix, renamed to the names its
+# sub-model's parameters carry. Under full time invariance the parameters were
+# estimated from every occasion at once, so the marginal they should be read
+# against is the one over all of them, and the occasions are stacked rather than
+# sliced - one long column per item, with the case weights repeated to match.
+#
+# The wide layout is time-major and is normalised on input (see
+# R/longitudinal_data.R), so occasion t owns columns (t-1)*J + 1 ... t*J. The
+# guard on the total width is what makes that arithmetic safe to rely on here;
+# anything unexpected returns NULL and the marginal is simply not shown.
+.lta_occasion_indicators <- function(object, lg, sub, t, invariant = FALSE) {
+  X <- object$data
+  if (is.null(X)) return(NULL)
+  X <- as.matrix(X)
+
+  pars <- sub$parameters$pis %||% sub$parameters$means
+  if (is.null(pars)) return(NULL)
+  nm <- colnames(pars)
+  J  <- if (!is.null(sub$max_val)) ncol(pars) / sub$max_val else ncol(pars)
+  if (J != round(J) || is.null(nm)) return(NULL)
+
+  n_times <- lg$n_times
+  if (ncol(X) != n_times * J) return(NULL)
+
+  w  <- object$sample_weights %||% rep(1, nrow(X))
+  ts <- if (invariant) seq_len(n_times) else t
+
+  parts <- lapply(ts, function(tt)
+    X[, ((tt - 1L) * J + 1L):(tt * J), drop = FALSE])
+  out <- do.call(rbind, parts)
+  colnames(out) <- if (!is.null(sub$max_val)) sub$item_names else nm
+  if (is.null(colnames(out))) return(NULL)
+
+  list(data = out, weights = rep(w, times = length(ts)))
 }
 
 #' Plots for a Fitted Latent Transition Model

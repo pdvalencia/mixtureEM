@@ -21,7 +21,7 @@ test_that("measurement_summary returns a long data frame of item parameters", {
 
   expect_s3_class(msdf, "data.frame")
   expect_named(msdf, c("block", "parameter", "item", "category", "class",
-                       "estimate"))
+                       "estimate", "overall"))
   expect_identical(nrow(msdf), 8L)              # 4 items x 2 classes
   expect_setequal(unique(msdf$item), colnames(d$items))
   expect_true(all(msdf$parameter == "probability"))
@@ -30,6 +30,39 @@ test_that("measurement_summary returns a long data frame of item parameters", {
   expect_equal(msdf$estimate[msdf$item == "item1"],
                as.vector(fit$mm$parameters$pis[, "item1"]),
                tolerance = 1e-12)
+
+  # `overall` is the observed marginal, not a fitted quantity, and is constant
+  # down the class rows so the frame stays joinable on `class`.
+  expect_equal(msdf$overall[msdf$item == "item1"],
+               rep(mean(d$items[, "item1"]), 2L), tolerance = 1e-12)
+  expect_equal(msdf$overall[msdf$class == 1L],
+               unname(colMeans(d$items)), tolerance = 1e-12)
+})
+
+test_that("the observed marginal is weighted, and dropped when unavailable", {
+  set.seed(11)
+  X <- cbind(a = rnorm(150), b = rnorm(150) + 2)
+  w <- runif(150, 0.5, 2)
+  fit <- fit_mixture(X, n_classes = 2, measurement = "continuous", n_init = 2,
+                     weights = w)
+  msdf <- suppressWarnings(measurement_summary(fit))
+  ws   <- fit$sample_weights
+
+  # The case weights belong in the benchmark as much as in the estimates.
+  expect_equal(msdf$overall[msdf$class == 1L],
+               unname(colSums(ws * X) / sum(ws)), tolerance = 1e-12)
+  expect_false(isTRUE(all.equal(msdf$overall[msdf$class == 1L],
+                                unname(colMeans(X)))))
+
+  # No stored indicators, no benchmark: the column is NA and the table says so
+  # rather than printing a column of blanks.
+  bare <- fit
+  bare$data <- NULL
+  out <- utils::capture.output(bare_df <- measurement_summary(bare))
+  expect_true(all(is.na(bare_df$overall)))
+  expect_false(any(grepl("| Overall", out, fixed = TRUE)))
+  expect_true(any(grepl("Overall column", out, fixed = TRUE)))
+  expect_true(any(grepl("is omitted above", out, fixed = TRUE)))
 })
 
 test_that("class_sizes reports proportions and counts", {
