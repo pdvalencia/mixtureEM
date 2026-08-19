@@ -50,7 +50,7 @@ test_that("the advice scales with how many starts were asked for", {
                               n_starts = 200L))
   w2 <- tryCatch(.check_replication(high), warning = function(w) w)
   expect_false(grepl("n_init = 100", conditionMessage(w2), fixed = TRUE))
-  expect_match(conditionMessage(w2), "unlikely to help")
+  expect_match(conditionMessage(w2), "about the specification")
 
   # The printed note reads off the same helper.
   expect_match(paste(capture.output(.print_replication_note(low)),
@@ -59,6 +59,34 @@ test_that("the advice scales with how many starts were asked for", {
   expect_false(grepl("n_init = 100",
                      paste(capture.output(.print_replication_note(high)),
                            collapse = " "), fixed = TRUE))
+})
+
+test_that("the specification reading waits for starts that were run out", {
+  # The strong reading is a claim about restarts that reached convergence. A
+  # staged search refines a fraction of what it was asked for, so a rule on the
+  # requested count alone would assert a hundred-start test that never ran.
+  expect_match(.replication_advice(50L, 50L), "n_init = 100", fixed = TRUE)
+
+  staged <- .replication_advice(200L, 40L)
+  expect_match(staged, "40 restarts run out to convergence", fixed = TRUE)
+  expect_match(staged, "200 requested", fixed = TRUE)
+  expect_match(staged, "raise n_init further", fixed = TRUE)
+  expect_false(grepl("about the specification", staged, fixed = TRUE))
+
+  full <- .replication_advice(200L, 200L)
+  expect_match(full, "about the specification", fixed = TRUE)
+  # The claim is hedged rather than asserted: more starts can still be the fix.
+  expect_match(full, "More starts can still help", fixed = TRUE)
+
+  # A caller with only the requested count is treated as an unstaged search.
+  expect_equal(.replication_advice(200L), full)
+
+  # Singular where there is one survivor, and the counts come off the fit.
+  fit <- list(metrics = list(n_replicated = 1L, n_requested = 150L,
+                             n_starts = 1L))
+  w <- tryCatch(.check_replication(fit), warning = function(w) w)
+  expect_match(conditionMessage(w), "1 restart run out to convergence",
+               fixed = TRUE)
 })
 
 test_that("a fit below the threshold stays silent", {
