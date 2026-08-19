@@ -1,5 +1,36 @@
 # mixtureEM (development version)
 
+## `absolute_fit()` now works with missing data, and `mcar_test()` is new
+
+Until now, `absolute_fit()` simply refused to run once any indicator had a
+missing value, because the usual goodness-of-fit table -- one cell per
+possible combination of answers -- cannot be built when different
+respondents answered different sets of questions. It now handles this the
+standard way: cases are grouped by which items they actually answered, the
+model is compared to the data within each such group, and the whole
+comparison is adjusted for a saturated (maximally flexible) baseline fit to
+the same grouping, so that what remains measures the model rather than the
+missingness. This is the "missing at random" (MAR) approach, and it is what
+gets printed and returned whenever the data have gaps: the same `g2`, `x2`,
+`cressie_read` and `df` as before, now under the weaker assumption, plus a
+short block showing the same statistics computed jointly with the stronger
+"missing completely at random" (MCAR) assumption for comparison. A new
+`dissimilarity` element -- roughly, the share of cases that would need to
+move to a different response pattern for the model to fit exactly -- is now
+returned in both the complete-data and the missing-data case, since a
+chi-square test on a sparse table so rarely rejects that a plain descriptive
+number is often more useful than the test itself.
+
+`mcar_test(fit)` is new and answers a narrower, separate question: whether
+the pattern of missingness itself looks unrelated to the data, as opposed to
+whether the model fits. A significant result there does not mean the model is
+wrong, and a non-significant one does not mean the weaker MAR assumption
+`absolute_fit()` already relies on is safe -- the two tests are deliberately
+independent, and both are documented as such. Both functions require a plain
+`fit_mixture()` model with categorical indicators; a model with covariates or
+continuous indicators is refused exactly as before, and results on data with
+no missing values do not change.
+
 ## Fixed: bivariate residuals with missing data flagged the wrong pairs
 
 `bivariate_residuals()` compares, for every pair of indicators, how often

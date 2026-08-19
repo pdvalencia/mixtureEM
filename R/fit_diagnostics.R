@@ -105,20 +105,40 @@
 #' each on \eqn{df = W - P - 1} degrees of freedom, where \eqn{W} is the number
 #' of cells in the table and \eqn{P} the number of free parameters.
 #'
-#' The statistics are defined only for fully categorical indicators observed
-#' without missingness. Even then they should be read with care: the table has
-#' \eqn{W} cells and is usually extremely sparse, so the chi-square reference
-#' distribution is unreliable and the value is best used to compare models
-#' rather than to test one in isolation. [`blrt()`] tests a model against one
-#' with fewer classes without relying on that reference distribution.
+#' The statistics require fully categorical indicators. Even then they should
+#' be read with care: the table has \eqn{W} cells and is usually extremely
+#' sparse, so the chi-square reference distribution is unreliable and the
+#' value is best used to compare models rather than to test one in isolation.
+#' [`blrt()`] tests a model against one with fewer classes without relying on
+#' that reference distribution.
+#'
+#' @section Missing data:
+#' With one or more missing values (categorical, plain `fit_mixture()` models
+#' only), the statistics are computed under the missing-at-random (MAR)
+#' assumption instead: the model is compared not to the raw response table,
+#' which no longer exists once cases have different items observed, but to a
+#' saturated model fit to the same partition of the data by which items each
+#' case observed. `df` is smaller than in the complete-data case
+#' (\eqn{df = W - 1 - P}) because the saturated baseline already accounts for
+#' the missingness pattern. A short block giving the model's fit jointly with
+#' the stronger missing-completely-at-random (MCAR) assumption is printed
+#' underneath; use [`mcar_test()`] to test that assumption on its own. This
+#' can be slow, or refused outright, once the number of indicator categories
+#' crossed together grows large -- the same \eqn{W} that already makes the
+#' complete-data table sparse.
 #'
 #' @param object A model fitted by [`fit_mixture()`], [`fit_rmlca()`] or
 #'   [`fit_lta()`].
 #' @return An object of class `absolute_fit` with elements `g2`, `x2`,
-#'   `cressie_read`, `df`, the corresponding `p_value`s, `n_cells` and
-#'   `n_patterns`; or `NULL` (with a message) when the statistics do not apply.
+#'   `cressie_read`, `df`, the corresponding `p_value`s, `dissimilarity`,
+#'   `n_cells` and `n_patterns`; or `NULL` (with a message) when the
+#'   statistics do not apply. With missing data, also `g2_mcar`, `x2_mcar`,
+#'   `cressie_read_mcar`, `df_mcar` and `p_value_mcar` for the block computed
+#'   under MCAR, `ll_sat` for the saturated model's log-likelihood, and
+#'   `mar = TRUE`.
 #' @seealso [`bivariate_residuals()`] for the local counterpart,
-#'   [`classification_table()`], [`blrt()`].
+#'   [`classification_table()`], [`blrt()`], [`mcar_test()`] for testing the
+#'   missingness mechanism on its own.
 #' @examples
 #' set.seed(1)
 #' X <- matrix(rbinom(600, 1, 0.5), ncol = 6)
@@ -136,12 +156,6 @@ absolute_fit <- function(object) {
   X    <- info$data
   if (is.null(X)) {
     message("The fitted object does not retain its data.")
-    return(NULL)
-  }
-  if (anyNA(X)) {
-    message("Absolute fit is not defined with missing data; the contingency ",
-            "table is incomplete. Compare models with BIC or a ",
-            "likelihood-ratio test instead.")
     return(NULL)
   }
   if (isTRUE(info$conditional)) {
@@ -163,6 +177,8 @@ absolute_fit <- function(object) {
     return(NULL)
   }
 
+  if (anyNA(X)) return(.absolute_fit_mar(object, info, X, levels_per_col))
+
   w   <- info$weights
   key <- apply(X, 1, paste, collapse = "\r")
   obs <- tapply(w, key, sum)
@@ -183,6 +199,10 @@ absolute_fit <- function(object) {
   # term carries the observed count as a factor, so unobserved cells vanish.
   lambda <- 2 / 3
   cr <- 2 / (lambda * (lambda + 1)) * sum(obs * ((obs / exp_counts)^lambda - 1))
+  # Dissimilarity index: half the total absolute deviation between observed
+  # and expected counts, expressed as a share of N. The unobserved cells
+  # contribute their expected mass apiece, the same shortcut X^2 uses above.
+  di <- (sum(abs(obs - exp_counts)) + max(N - sum(exp_counts), 0)) / (2 * N)
 
   W  <- prod(levels_per_col)
   df <- W - info$n_params - 1
@@ -192,9 +212,191 @@ absolute_fit <- function(object) {
   structure(
     list(g2 = g2, x2 = x2, cressie_read = cr, df = df,
          p_value = p_of(g2), p_value_x2 = p_of(x2),
-         p_value_cressie_read = p_of(cr),
+         p_value_cressie_read = p_of(cr), dissimilarity = di,
          n_cells = W, n_patterns = length(obs), n_params = info$n_params,
          label = info$label),
+    class = "absolute_fit")
+}
+
+# ------------------------------------------------------------------------------
+# Absolute fit with missing data (MAR)
+# ------------------------------------------------------------------------------
+#
+# Everything here is scored on the missingness-pattern partition: cases are
+# grouped by which items they observed, and within each group the cells are
+# every combination those observed items can take, not just the ones anyone
+# actually gave. Two probability models are scored against that same
+# partition -- the fitted mixture, and a saturated model with one free
+# probability per cell of the full W-cell table, fit by its own small EM
+# (`.saturated_mar()`) so it best explains the missingness-pattern-partitioned
+# data without assuming a mixture structure. The mixture-vs-observed row is
+# the MCAR statistics (the model tested jointly with MCAR); the
+# saturated-vs-observed row is a test of MCAR alone; and the MAR statistics
+# this function heads with are the difference of the two, on
+# df = W - 1 - n_params, which is the actual test of the model once the
+# missingness mechanism is no longer part of what is being judged.
+
+# Fits the saturated model under MAR: one probability per cell of the full,
+# completely-crossed W-cell table, estimated by EM on the (missingness
+# pattern, observed responses) partition of the data. Returns NULL, the same
+# signal `absolute_fit()` already gives up on, when the full table is too
+# large to enumerate.
+.saturated_mar <- function(X, levels, w) {
+  W <- prod(vapply(levels, length, integer(1)))
+  n_patterns <- nrow(unique(is.na(X)))
+  if (W > 1e5 || W * n_patterns > 2e7) return(NULL)
+
+  cells <- as.matrix(expand.grid(levels))      # W x J, any consistent order
+  key   <- apply(X, 1, function(r)
+             paste(ifelse(is.na(r), ".", r), collapse = "|"))
+  np    <- tapply(w, key, sum); pats <- names(np); np <- as.numeric(np)
+  comp  <- matrix(TRUE, length(pats), nrow(cells))
+  for (p in seq_along(pats)) {
+    r <- X[match(pats[p], key), ]
+    for (j in seq_len(ncol(X)))
+      if (!is.na(r[j])) comp[p, ] <- comp[p, ] & (cells[, j] == r[j])
+  }
+  N <- sum(np); pi <- rep(1 / nrow(cells), nrow(cells)); old <- -Inf
+  for (it in 1:5000) {
+    num <- sweep(comp, 2, pi, "*"); den <- rowSums(num)
+    ll  <- sum(np * log(den))
+    pi  <- colSums(sweep(num / den, 1, np, "*")) / N
+    if (abs(ll - old) < 1e-12) break
+    old <- ll
+  }
+  list(pi = pi, ll = ll, cells = cells)
+}
+
+# All combinations a subset of columns can take, in each item's own category
+# codes, so the result cross-tabulates against the raw data without the
+# caller knowing which family (Bernoulli, multinoulli, ...) it is looking at.
+.enumerate_cells <- function(items, cols)
+  as.matrix(expand.grid(lapply(items[cols], `[[`, "categories")))
+
+# P(cell) under the fitted mixture, for a subset of columns: conditional
+# independence lets the unobserved columns simply not appear in the product,
+# which is what makes this well-defined without integrating anything out.
+.model_cell_prob <- function(items, gamma, cols, cells) {
+  prob_k <- matrix(1, nrow(cells), length(gamma))
+  for (jj in seq_along(cols)) {
+    j   <- cols[jj]
+    rho <- items[[j]]$probs
+    ix  <- match(cells[, jj], items[[j]]$categories)
+    prob_k <- prob_k * t(rho[, ix, drop = FALSE])
+  }
+  as.vector(prob_k %*% gamma)
+}
+
+# P(cell) under the saturated model, for a subset of columns: the full W-cell
+# table is grouped by its values on that subset and summed, which marginalises
+# out the columns not in the subset.
+.sat_cell_prob <- function(full_cells, pi, cols, cells) {
+  key_full  <- apply(full_cells[, cols, drop = FALSE], 1, paste, collapse = "|")
+  key_cells <- apply(cells, 1, paste, collapse = "|")
+  unname(tapply(pi, key_full, sum)[key_cells])
+}
+
+# The four statistics, accumulated cell by cell over every missingness
+# pattern's own sub-table, for both the model and the saturated baseline.
+.mar_partition_stats <- function(X, items, gamma, sat, w) {
+  miss   <- is.na(X)
+  patkey <- apply(miss, 1, function(r) paste(as.integer(r), collapse = ""))
+  upat   <- unique(patkey)
+  lambda <- 2 / 3
+
+  g2_m <- x2_m <- cr_m <- di_m <- 0
+  g2_s <- x2_s <- cr_s <- 0
+  s_terms <- 0L
+
+  for (pk in upat) {
+    idx <- which(patkey == pk)
+    obs_cols <- which(!miss[idx[1L], ])
+    if (length(obs_cols) == 0L) next   # nothing observed, nothing to score
+    n_m <- sum(w[idx])
+
+    cells   <- .enumerate_cells(items, obs_cols)
+    subkey  <- apply(X[idx, obs_cols, drop = FALSE], 1, paste, collapse = "|")
+    cellkey <- apply(cells, 1, paste, collapse = "|")
+    o <- tapply(w[idx], factor(subkey, levels = cellkey), sum)
+    o <- ifelse(is.na(o), 0, as.numeric(o))
+
+    e_model <- n_m * .model_cell_prob(items, gamma, obs_cols, cells)
+    e_sat   <- n_m * .sat_cell_prob(sat$cells, sat$pi, obs_cols, cells)
+
+    # As in the complete-data statistics: a cell no one took (o == 0)
+    # contributes to X^2 and DI but not to L2 or Cressie-Read. A cell the
+    # saturated model calls impossible (e_sat == 0) is skipped from X^2 rather
+    # than counted as an infinite or undefined term -- the saturated model has
+    # one free probability per full-table cell, so a cell can end up on the
+    # boundary the same way a fitted class probability can.
+    nz  <- o > 0
+    nzm <- e_model > 0
+    nzs <- e_sat > 0
+    g2_m <- g2_m + 2 * sum(o[nz] * log(o[nz] / e_model[nz]))
+    g2_s <- g2_s + 2 * sum(o[nz] * log(o[nz] / e_sat[nz]))
+    x2_m <- x2_m + sum((o[nzm] - e_model[nzm])^2 / e_model[nzm])
+    x2_s <- x2_s + sum((o[nzs] - e_sat[nzs])^2 / e_sat[nzs])
+    cr_m <- cr_m + 2 / (lambda * (lambda + 1)) *
+      sum(o[nz] * ((o[nz] / e_model[nz])^lambda - 1))
+    cr_s <- cr_s + 2 / (lambda * (lambda + 1)) *
+      sum(o[nz] * ((o[nz] / e_sat[nz])^lambda - 1))
+    di_m <- di_m + sum(abs(o - e_model))
+
+    s_terms <- s_terms + (nrow(cells) - 1L)
+  }
+
+  list(g2_model = g2_m, x2_model = x2_m, cr_model = cr_m,
+       di_model = di_m / (2 * sum(w)),
+       g2_sat = g2_s, x2_sat = x2_s, cr_sat = cr_s,
+       s_terms = s_terms, n_patterns = length(upat))
+}
+
+# absolute_fit()'s branch for incomplete data. `object` is needed (rather than
+# just `info`) because the marginal class weights are read off it directly,
+# the same accessor bivariate_residuals() uses.
+.absolute_fit_mar <- function(object, info, X, levels_per_col) {
+  if (!inherits(object, "mixture_model")) {
+    message("Absolute fit with missing data is available for a plain ",
+            "fit_mixture() model only.")
+    return(NULL)
+  }
+  gamma <- .marginal_class_weights(object)
+
+  items <- .fit_item_probs(info$mm, ncol(X), colnames(X))
+  w     <- info$weights
+  p     <- info$n_params
+  W     <- prod(levels_per_col)
+
+  sat <- .saturated_mar(X, lapply(items, `[[`, "categories"), w)
+  if (is.null(sat)) {
+    message("Absolute fit with missing data needs the full crossing of ",
+            "categories (", W, " cells here), which is too large to ",
+            "enumerate. Compare models with BIC or a likelihood-ratio ",
+            "test instead.")
+    return(NULL)
+  }
+  st <- .mar_partition_stats(X, items, gamma, sat, w)
+
+  df_mcar <- st$s_terms - p
+  df_mar  <- W - 1L - p
+
+  g2 <- st$g2_model - st$g2_sat
+  x2 <- st$x2_model - st$x2_sat
+  cr <- st$cr_model - st$cr_sat
+
+  p_of <- function(stat, df)
+    if (df > 0) stats::pchisq(stat, df, lower.tail = FALSE) else NA_real_
+
+  structure(
+    list(g2 = g2, x2 = x2, cressie_read = cr, df = df_mar,
+         p_value = p_of(g2, df_mar), p_value_x2 = p_of(x2, df_mar),
+         p_value_cressie_read = p_of(cr, df_mar),
+         g2_mcar = st$g2_model, x2_mcar = st$x2_model,
+         cressie_read_mcar = st$cr_model, df_mcar = df_mcar,
+         p_value_mcar = p_of(st$g2_model, df_mcar),
+         ll_sat = sat$ll, dissimilarity = st$di_model,
+         n_cells = W, n_patterns = st$n_patterns, n_params = p,
+         label = info$label, mar = TRUE),
     class = "absolute_fit")
 }
 
@@ -203,6 +405,11 @@ print.absolute_fit <- function(x, ...) {
   cat("=========================================================\n")
   cat("                  ABSOLUTE FIT                           \n")
   cat("=========================================================\n")
+  if (isTRUE(x$mar))
+    cat("Missing data: statistics computed under MAR, by comparing\n",
+        "the model to a saturated baseline on the same partition\n",
+        "of the data by missingness pattern. See `mcar_test()` to\n",
+        "test the missingness mechanism itself.\n\n")
   cat(sprintf("Table: %d cells, %d observed response patterns\n",
               x$n_cells, x$n_patterns))
   cat(sprintf("Free parameters: %d   df: %d\n\n", x$n_params, x$df))
@@ -214,11 +421,89 @@ print.absolute_fit <- function(x, ...) {
   row("L-squared", x$g2, x$p_value)
   row("X-squared", x$x2, x$p_value_x2)
   row("Cressie-Read", x$cressie_read, x$p_value_cressie_read)
+  if (!is.null(x$dissimilarity))
+    cat(sprintf("%-16s %12.4f %10s\n", "Dissimilarity", x$dissimilarity, ""))
   cat("=========================================================\n")
-  if (x$n_patterns < x$n_cells / 2)
+  if (isTRUE(x$mar))
+    cat(sprintf(
+      "Model tested jointly with MCAR: L2 %.4f  X2 %.4f  CR %.4f  df %d\n",
+      x$g2_mcar, x$x2_mcar, x$cressie_read_mcar, x$df_mcar))
+  else if (x$n_patterns < x$n_cells / 2)
     cat("Note: the table is sparse, so the chi-square reference\n",
         "distribution is unreliable. Prefer these statistics for\n",
         "comparing models over testing one in isolation.\n")
+  invisible(x)
+}
+
+#' Test Whether Data Are Missing Completely at Random
+#'
+#' @description
+#' Tests the missingness mechanism itself, separately from whether the fitted
+#' model fits. [`absolute_fit()`] already reports a model comparison under the
+#' weaker missing-at-random (MAR) assumption; `mcar_test(fit)` asks the
+#' stronger question a reviewer sometimes wants answered on its own -- whether
+#' the pattern of missing values could plausibly be unrelated to the data,
+#' rather than depending on it.
+#'
+#' The test compares the observed response frequencies, partitioned by which
+#' items each case answered, against a saturated model fit to that same
+#' partition. It does not depend on the mixture model fitting well: the
+#' saturated model is as flexible as the data allow, so what remains is a
+#' statement about the missingness pattern, not about the number of classes.
+#'
+#' @param object A model fitted by [`fit_mixture()`], with categorical
+#'   indicators and at least one missing value.
+#' @return A list with `stat`, `df` and `p_value`; or `NULL` (with a message)
+#'   when the data are complete, since there is then nothing to test.
+#' @section Reading the result:
+#' A small `p_value` says the missingness is **not** missing completely at
+#' random -- whether a value is missing depends on the data in some way. That
+#' is a common and often unsurprising finding (people who skip a question
+#' about drug use are not a random subset of respondents), and it does **not**
+#' by itself mean the weaker, more common missing-at-random assumption fails
+#' too; nothing here tests that. It also says nothing about whether the
+#' mixture model itself fits -- that question belongs to
+#' [`absolute_fit()`], which enters only through the size of the table this
+#' test uses, not through its own log-likelihood.
+#' @seealso [`absolute_fit()`], whose missing-data branch this function
+#'   reuses.
+#' @examples
+#' set.seed(1)
+#' X <- matrix(rbinom(600, 1, 0.5), ncol = 6)
+#' X[sample(length(X), 30)] <- NA
+#' fit <- fit_mixture(X, n_components = 2, measurement = "binary")
+#' mcar_test(fit)
+#' @export
+mcar_test <- function(object) {
+  info <- .nested_fit_info(object)
+  X    <- info$data
+  if (is.null(X) || !anyNA(X)) {
+    message("The data are complete: there is no missingness to test.")
+    return(NULL)
+  }
+
+  af <- absolute_fit(object)
+  if (is.null(af) || !isTRUE(af$mar)) return(NULL)
+
+  stat <- af$g2_mcar - af$g2
+  df   <- af$df_mcar - af$df
+  p    <- if (df > 0) stats::pchisq(stat, df, lower.tail = FALSE) else NA_real_
+
+  structure(list(stat = stat, df = df, p_value = p), class = "mcar_test")
+}
+
+#' @export
+print.mcar_test <- function(x, ...) {
+  cat("=========================================================\n")
+  cat("               MISSING COMPLETELY AT RANDOM              \n")
+  cat("=========================================================\n")
+  cat(sprintf("Chi-square: %.4f   df: %d   p-value: %s\n", x$stat, x$df,
+              if (is.na(x$p_value)) "--" else sprintf("%.4f", x$p_value)))
+  cat("=========================================================\n")
+  if (!is.na(x$p_value) && x$p_value < 0.05)
+    cat("Rejected: the missingness depends on the data in some way.\n",
+        "This says nothing about whether MAR holds, and nothing about\n",
+        "whether the mixture model itself fits.\n")
   invisible(x)
 }
 
