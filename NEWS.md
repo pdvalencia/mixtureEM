@@ -1,5 +1,26 @@
 # mixtureEM (development version)
 
+## `measurement_summary()` gains a `scale` argument for binary indicators
+
+`measurement_summary(fit, scale = "probability")` is unchanged -- that
+remains the default, and its output is byte-identical to before this
+argument existed. Two more scales are now available for a binary indicator's
+item-response probabilities: `scale = "logit"` reports the same table on the
+log-odds scale, and `scale = "effect"` reports the effect-coded
+parameterisation -- an item intercept plus one class deviation per class,
+the deviations summing to zero -- that several other programs print by
+default. This is what makes it possible to place a mixtureEM measurement
+model next to such a program's output at all, since the two otherwise
+report different quantities for the same fit; verified by hand against a
+reference item's printed values, matching to three decimals. A polytomous
+(more-than-two-category) item is refused under `scale = "effect"` with a
+clear error rather than guessed at, since whether such an item should be
+coded as ordinal or nominal is a modelling decision the package does not
+make on your behalf; `scale = "logit"` carries no such restriction. The
+`overall` column, holding the observed sample marginal, is dropped on both
+alternative scales, since a raw proportion has no meaningful transform to
+either one.
+
 ## Documentation: four clarifications, no behaviour change
 
 `?fit_mixture` now says outright that the EM convergence rule is fixed and

@@ -39,6 +39,51 @@ test_that("measurement_summary returns a long data frame of item parameters", {
                unname(colMeans(d$items)), tolerance = 1e-12)
 })
 
+test_that("scale = \"probability\" is unchanged by the argument's existence", {
+  d   <- .sim_summary_data()
+  fit <- suppressMessages(fit_mixture(d$items, n_classes = 2,
+                                      measurement = "binary",
+                                      n_init = 3, random_state = 2))
+  out_default <- utils::capture.output(df_default <- measurement_summary(fit))
+  out_explicit <- utils::capture.output(
+    df_explicit <- measurement_summary(fit, scale = "probability"))
+  expect_identical(out_default, out_explicit)
+  expect_identical(df_default, df_explicit)
+})
+
+test_that("the effect-coded class deviations sum to zero within each item", {
+  d   <- .sim_summary_data()
+  fit <- suppressMessages(fit_mixture(d$items, n_classes = 2,
+                                      measurement = "binary",
+                                      n_init = 3, random_state = 2))
+  out <- utils::capture.output(msdf <- measurement_summary(fit, scale = "effect"))
+  for (it in unique(msdf$item))
+    expect_lt(abs(sum(msdf$estimate[msdf$item == it])), 1e-8)
+
+  # The logit scale is qlogis() of the probability-scale estimate.
+  out_plain <- utils::capture.output(plain <- measurement_summary(fit))
+  out_lg <- utils::capture.output(logit <- measurement_summary(fit, scale = "logit"))
+  expect_equal(logit$estimate, qlogis(plain$estimate), tolerance = 1e-10)
+
+  # Neither alternative scale prints an Overall column, since the observed
+  # marginal has no meaningful transform there.
+  expect_false(any(grepl("Overall", out, fixed = TRUE)))
+  expect_false(any(grepl("Overall", out_lg, fixed = TRUE)))
+})
+
+test_that("scale = \"effect\" refuses a polytomous item", {
+  set.seed(3)
+  X <- cbind(poly = sample(1:3, 200, replace = TRUE),
+            bin  = rbinom(200, 1, 0.5))
+  fit <- fit_mixture(X, n_classes = 2,
+                     measurement = list(categorical = "poly", binary = "bin"),
+                     n_init = 2)
+  expect_error(measurement_summary(fit, scale = "effect"), "polytomous")
+  # The logit scale has no such restriction.
+  out <- utils::capture.output(msdf <- measurement_summary(fit, scale = "logit"))
+  expect_s3_class(msdf, "data.frame")
+})
+
 test_that("the observed marginal is weighted, and dropped when unavailable", {
   set.seed(11)
   X <- cbind(a = rnorm(150), b = rnorm(150) + 2)
