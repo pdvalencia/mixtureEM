@@ -77,3 +77,35 @@ test_that("an unnamed indicator matrix still standardizes, positionally", {
   expect_equal(dim(H), c(2L, 2L))
   expect_true(all(is.finite(H)))
 })
+
+# ==============================================================================
+# plot(fit, type = "line") -- the same z-scores drawn as lines
+# ==============================================================================
+# The two renderers must never disagree about the numbers, so what is asserted
+# here is that the line plot draws, and that it draws the bar chart's heights.
+
+test_that("the line plot draws and reuses the bar chart's heights", {
+  fit  <- make_continuous_fit()
+  path <- tempfile(fileext = ".png")
+
+  png(path)
+  expect_invisible(plot(fit, type = "line"))
+  dev.off()
+
+  png(path)
+  expect_invisible(plot(fit, type = "line", scale = "within"))
+  dev.off()
+
+  # One helper behind both, so `type` cannot change a height.
+  expect_equal(.profile_bar_heights(fit, "total", type = "line"),
+               .profile_bar_heights(fit, "total", type = "bar"))
+})
+
+test_that("the refusal names the type that was actually asked for", {
+  set.seed(3)
+  Xb  <- matrix(rbinom(600, 1, 0.4), ncol = 3)
+  fit <- fit_mixture(Xb, n_classes = 2, measurement = "binary", n_init = 2)
+
+  expect_error(plot(fit, type = "line"), "type = \"line\"", fixed = TRUE)
+  expect_error(plot(fit, type = "bar"),  "type = \"bar\"",  fixed = TRUE)
+})

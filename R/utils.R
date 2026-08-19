@@ -115,6 +115,27 @@ logsumexp <- function(x, MARGIN = 1) {
   invisible(NULL)
 }
 
+# Line up a block of fitted item parameters with the columns of the stored
+# indicator matrix, so that anything reported per item can be put beside the
+# data it came from.
+#
+# By name first, which is the only rule that can be trusted: a mixed measurement
+# model fits its blocks in an order that need not be the data's, and a sorted or
+# subset fit may have moved them again. Positionally only when there are no
+# names to go on *and* the block accounts for every column of the data, which is
+# the single-block unnamed-matrix case where the fitting order is the data
+# order by construction. NULL when neither rule applies - the caller must then
+# do without rather than guess, since a wrong alignment reports one item's
+# number under another item's name.
+.match_indicator_columns <- function(cols, data) {
+  if (is.null(cols) || is.null(data) || !length(cols)) return(NULL)
+  matched <- match(cols, colnames(data))
+  if (anyNA(matched) && length(cols) == ncol(data) && is.null(colnames(data)))
+    matched <- seq_along(cols)
+  if (anyNA(matched)) return(NULL)
+  matched
+}
+
 # Resolve case weights and the effective sample size used by BIC and SABIC.
 #
 # Two kinds of weight mean different things:
