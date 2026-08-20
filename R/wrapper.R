@@ -2961,7 +2961,8 @@ fit_mixture <- function(indicators = NULL,
                            "gaussian_diag", "gaussian_diag_nan")))
     stop("`variances_equal` constrains the class variances of continuous ",
          "indicators; it has no meaning for `measurement = ",
-         deparse1(measurement), "`. For a mixed measurement model, pass the ",
+         paste(deparse(measurement), collapse = " "),
+         "`. For a mixed measurement model, pass the ",
          "constraint in the measurement descriptor itself.", call. = FALSE)
 
   if (legacy) {
