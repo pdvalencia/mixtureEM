@@ -1,5 +1,29 @@
 # mixtureEM (development version)
 
+## Fixed: `variances_equal` was ignored by the legacy `n_components` interface
+
+`fit_mixture()` still accepts the older `X`, `n_components`, `Y` and
+`structural` argument names, and that spelling is served by its own early
+return. The return listed the arguments it forwards explicitly, and
+`variances_equal` was not among them; being a named argument rather than part
+of `...`, it was not carried through that way either. A legacy-spelled call
+that passed `variances_equal` was therefore ignored without comment, and one
+that omitted it never picked up the homoscedastic default a continuous
+measurement model has carried since 0.2.0. The same analysis written as
+`fit_mixture(X, n_components = 2, measurement = "continuous")` and as
+`fit_mixture(X, n_classes = 2, measurement = "continuous")` fitted two
+different models -- free class variances in the first, equal ones in the second
+-- with nothing in the printed output to say which one you had.
+
+Both spellings now resolve the default and honour an explicit value, and the
+check that rejects `variances_equal = TRUE` for indicators it has no meaning
+for answers to both. Nothing written with `n_classes` moves, and neither does
+any fit of categorical, count or mixed indicators, or any growth, longitudinal
+or multiple-group model: those reach the emission through paths that were never
+part of this. A continuous-indicator fit written with `n_components` and no
+explicit `variances_equal` does move -- it now holds each item's variance equal
+across the classes, which is what the documentation already said it did.
+
 ## Standard errors for a continuous distal outcome under BCH were too small
 
 The Wald tests and standard errors reported for a continuous distal outcome
