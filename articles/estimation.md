@@ -44,6 +44,10 @@ fit
 #> Converged          : TRUE (in 18 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -909.47
+#>   Parameters     : 9
+#>   AIC            : 1836.94
+#>   BIC            : 1872.86
+#>   SABIC          : 1844.31
 #>   Rel. Entropy   : 0.8316
 #>   Best solution  : found by 20 of 20 starts
 #> ---------------------------------------------------------
@@ -213,6 +217,7 @@ number of draws.
 | A variance has collapsed | A class has been fitted to a spike rather than to a subgroup. Its likelihood, and so its BIC, is not comparable with a clean fit’s. | Refit with a stronger variance prior, `bayes_constants = list(variances = n_classes)`, or with fewer classes. Do **not** raise `n_init`: more starts is more chances to find the spike. |
 | Probabilities at the boundary | An item every member of a class answers identically. The standard error for that parameter is not interpretable. | Read it substantively — this is often the finding — or refit with a stronger `bayes_constants = list(categorical = ...)` if you need the standard error. |
 | Latent classes have converged on the same chain | The model is describing one process with the parameters of several. | Refit with fewer classes, or with a restriction such as `mover_stayer = TRUE` that tells them apart. |
+| The transition prior is carrying more than 5% of some rows | An origin status few cases occupy, so its transitions rest partly on the prior rather than on the sample. Not a failure — read those transitions as indicative. | Pool the occasions with `transition_invariance = "full"` where that is defensible, which adds information. `smoothing = 0.5` halves the pull; `smoothing = 0` gives back the zeros the prior prevents. |
 | The BLRT p-value is next to .05 | With `n_reps` draws the p-value moves in steps of 1/(B+1) and cannot resolve the decision. | Refit with `n_reps = 999`. |
 | Negative bootstrap draws | A replicate’s *k*-class fit landed below the (*k*−1)-class model nested inside it: the replicate search stopped short. | Refit with `n_init_boot = 50`. Until then the p-value is biased. |
 
@@ -335,6 +340,56 @@ Splitting the sample into subgroups widens these basins, because the
 pile-up makes up a larger share of each smaller sample, so a model that
 looks clean on the whole sample deserves the check again on the parts.
 
+## Transitions get their own prior
+
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+smooths the status prevalences and the transition matrices with a
+second, separate prior, set by `smoothing` rather than by
+`bayes_constants`. The two are not interchangeable: `bayes_constants`
+governs the measurement model — how the statuses relate to the items —
+while `smoothing` governs the chain. Sparse transition tables are the
+reason. A transition probability estimated at exactly zero says the move
+never happens, which is rarely what a handful of cases in an origin row
+can support, and it carries the same broken standard errors as any other
+boundary estimate.
+
+What is added is **one pseudo-case per origin row**, spread evenly over
+that row’s reachable destinations. Both halves of that are choices. The
+mass is per row rather than per cell, which is the prior Chung, Lanza
+and Loken (2008) use for exactly this model — they describe it as adding
+one observation to each class at the first occasion — and the boundary
+solutions maximum likelihood produces at *n* = 100 disappear under it.
+The spread is even rather than proportional to how often each
+destination is occupied: shrinking a rare origin row toward the
+destination marginal would assert that everyone in it moves to the
+prevalent status, which is a confident claim about a row the data say
+little about, where an even spread claims nothing (Fienberg & Holland,
+1973, sec. 6).
+
+The cost falls on precisely those rows, and it has an exact form. For a
+row with $`m`$ expected cases and $`K_a`$ reachable destinations, the
+prior can move any probability in it by at most
+
+``` math
+\text{pull} = \frac{\alpha}{m + \alpha}\left(1 - \frac{1}{K_a}\right)
+```
+
+A fit reports this per row and tells you when it exceeds five percentage
+points on any of them, naming the worst. That is a reading caution, not
+a verdict on the model: it says those transitions rest partly on the
+prior, so report them as indicative rather than at face value. The
+remedy worth reaching for first is `transition_invariance = "full"`,
+which puts every occasion’s cases behind the one pseudo-case and adds
+information rather than removing a prior — available whenever the
+transitions can be assumed constant over time. `smoothing = 0.5` simply
+halves the pull. `smoothing = 0` is not a good answer: it hands back the
+zeros the prior exists to prevent.
+
+Note that adding statuses makes this worse and adding occasions does
+not. An origin row’s expected count is the sample divided among the
+statuses (and, with `n_classes` \> 1, among the classes as well), while
+every occasion’s transition table is built from all *n* cases.
+
 ## Missing data needs nothing from you
 
 Any indicator containing `NA` is estimated by full-information maximum
@@ -368,6 +423,9 @@ Analysis*, *41*(3-4), 561-575.
 Chen, J., Tan, X., & Zhang, R. (2008). Inference for normal mixtures in
 mean and variance. *Statistica Sinica*, *18*(2), 443-465.
 
+Chung, H., Lanza, S. T., & Loken, E. (2008). Latent transition analysis:
+inference and estimation. *Statistics in Medicine*, *27*(11), 1834-1854.
+
 Davison, A. C., & Hinkley, D. V. (1997). *Bootstrap Methods and Their
 Application* (ch. 4). Cambridge University Press.
 
@@ -378,6 +436,10 @@ Dziak, J. J., Lanza, S. T., & Tan, X. (2014). Effect size, statistical
 power and sample size requirements for the bootstrap likelihood ratio
 test in latent class analysis. *Structural Equation Modeling*, *21*(4),
 534-552.
+
+Fienberg, S. E., & Holland, P. W. (1973). Simultaneous estimation of
+multinomial cell probabilities. *Journal of the American Statistical
+Association*, *68*(343), 683-691.
 
 Galindo Garre, F., & Vermunt, J. K. (2006). Avoiding boundary estimates
 in latent class analysis by Bayesian posterior mode estimation.

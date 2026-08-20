@@ -21,7 +21,7 @@ overlap heavily, or as a check on the analytical intervals."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -120,8 +120,15 @@ other classes are expressed relative to this class. Default is <code>1</code>.</
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A named list with one data frame per predictor variable (including
 the intercept). Each data frame has columns <code>OR</code> (odds ratio), <code>Lower</code>,
-and <code>Upper</code> (confidence bounds), with one row per latent class. Values
-are rounded to three decimal places.</p>
+and <code>Upper</code> (confidence bounds), with one row per latent class. Values are
+returned at full precision and rounded only for display, so
+<code>log(confint(fit)$age$OR)</code> recovers the log-odds coefficient exactly.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
+    <div class="dont-index"><p><code><a href="coef.mixture_model.html">coef</a></code> for the coefficients
+themselves, on either scale, and <code><a href="vcov.mixture_model.html">vcov</a></code>
+for their covariance matrix.</p></div>
     </div>
 
     <div class="section level2">
@@ -147,11 +154,11 @@ are rounded to three decimal places.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Intercept</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Class 1 (Ref)       1.000        -        -</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 2             0.696    0.004  119.055</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 2             0.739    0.007   74.823</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> age</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Class 1 (Ref)       1.000        -        -</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 2             0.266    0.028    2.550</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 2             0.340    0.088    1.308</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>

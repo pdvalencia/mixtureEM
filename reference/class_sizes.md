@@ -62,12 +62,17 @@ to growth mixture models (GMM). In *International Encyclopedia of
 Education* (4th ed., Vol. 14, pp. 646-655). Elsevier.
 [doi:10.1016/B978-0-12-818630-5.10076-4](https://doi.org/10.1016/B978-0-12-818630-5.10076-4)
 
+## See also
+
+[`class_assignments()`](https://pdvalencia.github.io/mixtureEM/reference/class_assignments.md)
+for the per-case assignment the `n_modal` column counts.
+
 ## Examples
 
 ``` r
 set.seed(1)
 X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
-fit <- fit_mixture(X, n_classes = 2)
+fit <- fit_mixture(X, n_classes = 2, measurement = "binary")
 class_sizes(fit)
 #>   class proportion n_expected n_modal
 #> 1     1  0.5844398   58.44398      56

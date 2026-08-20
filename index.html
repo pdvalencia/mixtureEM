@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -87,13 +87,14 @@
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://pdvalencia.github.io/mixtureEM/">mixtureEM</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">items</span> <span class="op">&lt;-</span> <span class="va">ventura_leon</span><span class="op">[</span>, <span class="fl">7</span><span class="op">:</span><span class="fl">22</span><span class="op">]</span>   <span class="co"># the 16 infidelity items</span></span>
-<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">items</span>, n_classes <span class="op">=</span> <span class="fl">4</span>, n_init <span class="op">=</span> <span class="fl">20</span>, random_state <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">items</span>, n_classes <span class="op">=</span> <span class="fl">4</span>, measurement <span class="op">=</span> <span class="st">"binary"</span>,</span>
+<span>                   n_init <span class="op">=</span> <span class="fl">20</span>, random_state <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="fu"><a href="reference/class_sizes.html">class_sizes</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   class proportion n_expected n_modal</span></span>
-<span><span class="co">#&gt; 1     1  0.4279122  171.16487     173</span></span>
-<span><span class="co">#&gt; 2     2  0.2697511  107.90043     106</span></span>
-<span><span class="co">#&gt; 3     3  0.1579645   63.18579      63</span></span>
-<span><span class="co">#&gt; 4     4  0.1443723   57.74891      58</span></span></code></pre></div>
+<span><span class="co">#&gt; 1     1  0.4276388  171.05551     173</span></span>
+<span><span class="co">#&gt; 2     2  0.2699044  107.96177     106</span></span>
+<span><span class="co">#&gt; 3     3  0.1581894   63.27577      63</span></span>
+<span><span class="co">#&gt; 4     4  0.1442674   57.70695      58</span></span></code></pre></div>
 <p>You can then easily plot the item-response probabilities to interpret the classes:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span>, class_labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Fidelity"</span>, <span class="st">"Affective interest"</span>,</span>

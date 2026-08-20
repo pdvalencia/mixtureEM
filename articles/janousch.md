@@ -30,10 +30,14 @@ with a full-information ML estimator rather than deleting incomplete
 cases, and so do we — without having to ask for it.
 [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
 detects the missing values and models them directly;
-`measurement = "continuous"` is all that is needed. In practical terms:
-instead of dropping an adolescent who skipped one item — which is what
-listwise deletion, the default in many packages, would do — the model
-uses every answer that adolescent *did* give.
+`measurement = "continuous"` is all that is needed. Every fit below also
+passes `variances_equal = FALSE`. A continuous measurement model now
+holds each item’s variance equal across the classes by default, because
+that bounds the likelihood; this analysis deliberately frees them, since
+the variance collapse that follows is the thing the vignette is about.
+In practical terms: instead of dropping an adolescent who skipped one
+item — which is what listwise deletion, the default in many packages,
+would do — the model uses every answer that adolescent *did* give.
 
 ## The data
 
@@ -74,7 +78,7 @@ increasing it for a real analysis.
 
 set.seed(1)
 fit_ch <- fit_mixture(janousch[janousch$country == "Switzerland", items],
-                       n_classes = 3, measurement = "continuous",
+                       n_classes = 3, measurement = "continuous", variances_equal = FALSE,
                        n_init = 30, max_iter = 2000)
 #> Warning: 14 cases had no observed value on any indicator and were removed
 #> before estimation (n = 361 analysed). Rows: 28, 46, 50, 55, 90, 94, ... (8
@@ -100,15 +104,15 @@ profile_ch <- measurement_summary(fit_ch)
 #> =========================================================
 #> 
 #> CONTINUOUS MEANS
-#> Indicator            | Class 1 | Class 2 | Class 3
-#> -------------------------------------------------- 
-#> anxiety              |   1.949 |   1.574 |   2.535
-#> depression           |   1.791 |   1.274 |   2.574
-#> personal_competence  |   3.837 |   4.319 |   3.258
-#> social_competence    |   3.990 |   4.446 |   3.404
-#> structured_style     |   3.548 |   4.083 |   3.201
-#> social_resources     |   4.561 |   4.819 |   3.838
-#> family_cohesion      |   4.368 |   4.762 |   3.529
+#> Indicator            | Overall | Class 1 | Class 2 | Class 3
+#> ------------------------------------------------------------ 
+#> anxiety              |   1.949 |   1.949 |   1.574 |   2.535
+#> depression           |   1.782 |   1.791 |   1.274 |   2.574
+#> personal_competence  |   3.887 |   3.837 |   4.319 |   3.258
+#> social_competence    |   4.023 |   3.990 |   4.446 |   3.404
+#> structured_style     |   3.665 |   3.548 |   4.083 |   3.201
+#> social_resources     |   4.495 |   4.561 |   4.819 |   3.838
+#> family_cohesion      |   4.334 |   4.368 |   4.762 |   3.529
 #> 
 #> Missing data: 143 of 2527 cells (5.7%) across 7 items, handled via FIML (MAR assumption).
 #> =========================================================
@@ -139,7 +143,7 @@ how they were arrived at.
 
 set.seed(1)
 fit_de <- fit_mixture(janousch[janousch$country == "Germany", items],
-                       n_classes = 4, measurement = "continuous",
+                       n_classes = 4, measurement = "continuous", variances_equal = FALSE,
                        n_init = 30, max_iter = 2000)
 #> Warning: 4 cases had no observed value on any indicator and were removed before
 #> estimation (n = 342 analysed). Rows: 43, 113, 269, 322.
@@ -158,29 +162,18 @@ Moderately Resilient 44.2%, Untroubled 27.3%, Resilient 12.7%).
 
 set.seed(1)
 fit_gr0 <- fit_mixture(janousch[janousch$country == "Greece", items],
-                       n_classes = 4, measurement = "continuous",
+                       n_classes = 4, measurement = "continuous", variances_equal = FALSE,
                        n_init = 30, max_iter = 2000)
 #> Warning: 17 cases had no observed value on any indicator and were removed
 #> before estimation (n = 422 analysed). Rows: 7, 41, 129, 132, 148, 166, ... (11
 #> more).
 #> Warning: A class variance has collapsed towards zero: social_resources in class
 #> 3 (variance 0.00111 vs 0.348 for the item overall; class mean at a data
-#> boundary). The likelihood of a mixture of normals is unbounded in this
-#> direction, so this solution can score better than any meaningful one while
-#> describing a handful of near-identical cases rather than a subgroup. Do not
-#> interpret it as it stands, and do not compare its BIC with a clean fit's -- it
-#> is inflated by the spike. This is not a convergence failure, so raising n_init
-#> will not fix it and can make it worse. Three ways out, to choose between on
-#> substantive grounds: (1) hold each item's variance equal across classes with
-#> variances_equal = TRUE, which bounds the likelihood so the problem cannot
-#> arise; (2) fit fewer classes, since a class describing a spike rather than a
-#> subgroup usually means the data do not support this many; or (3) keep the model
-#> and strengthen the prior with bayes_constants = list(variances = 4) -- roughly
-#> one artificial observation per class -- increasing it a little at a time if the
-#> warning persists. Then check that the flagged variance is no longer far below
-#> the others and that its class mean has come off the floor or ceiling, and look
-#> at the distribution of the named item for the floor, ceiling or spike the class
-#> latched onto.
+#> boundary). These estimates are not interpretable, and this fit's BIC cannot be
+#> compared with a clean fit's. Three ways out, to choose between on substantive
+#> grounds: (1) variances_equal = TRUE; (2) fewer classes; or (3) a stronger
+#> prior, bayes_constants = list(variances = 4). See ?fit_mixture for why, and
+#> what to check afterwards.
 ```
 
 That fit raises a warning: one class’s variance on `social_resources`
@@ -220,7 +213,7 @@ persists, which on this data it does. A little more is enough:
 
 set.seed(1)
 fit_gr <- fit_mixture(janousch[janousch$country == "Greece", items],
-                       n_classes = 4, measurement = "continuous",
+                       n_classes = 4, measurement = "continuous", variances_equal = FALSE,
                        n_init = 30, max_iter = 2000,
                        bayes_constants = list(variances = 5))
 #> Warning: 17 cases had no observed value on any indicator and were removed
@@ -284,7 +277,7 @@ Let us fit the restricted model first, exactly as one would by default:
 ``` r
 
 fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
-                             measurement = "continuous",
+                             measurement = "continuous", variances_equal = FALSE,
                              group = janousch$country,
                              group_effects = "prevalence",
                              n_steps = 1, n_init = 50, max_iter = 2000,
@@ -294,22 +287,11 @@ fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
 #> more).
 #> Warning: A class variance has collapsed towards zero: social_resources in class
 #> 2 (variance 0.000304 vs 0.357 for the item overall; class mean at a data
-#> boundary). The likelihood of a mixture of normals is unbounded in this
-#> direction, so this solution can score better than any meaningful one while
-#> describing a handful of near-identical cases rather than a subgroup. Do not
-#> interpret it as it stands, and do not compare its BIC with a clean fit's -- it
-#> is inflated by the spike. This is not a convergence failure, so raising n_init
-#> will not fix it and can make it worse. Three ways out, to choose between on
-#> substantive grounds: (1) hold each item's variance equal across classes with
-#> variances_equal = TRUE, which bounds the likelihood so the problem cannot
-#> arise; (2) fit fewer classes, since a class describing a spike rather than a
-#> subgroup usually means the data do not support this many; or (3) keep the model
-#> and strengthen the prior with bayes_constants = list(variances = 4) -- roughly
-#> one artificial observation per class -- increasing it a little at a time if the
-#> warning persists. Then check that the flagged variance is no longer far below
-#> the others and that its class mean has come off the floor or ceiling, and look
-#> at the distribution of the named item for the floor, ceiling or spike the class
-#> latched onto.
+#> boundary). These estimates are not interpretable, and this fit's BIC cannot be
+#> compared with a clean fit's. Three ways out, to choose between on substantive
+#> grounds: (1) variances_equal = TRUE; (2) fewer classes; or (3) a stronger
+#> prior, bayes_constants = list(variances = 4). See ?fit_mixture for why, and
+#> what to check afterwards.
 ```
 
 That fit raises the same warning the Greek model did: one class’s
@@ -343,7 +325,7 @@ prior, at the same strength the Greek fit needed:
 ``` r
 
 fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
-                             measurement = "continuous",
+                             measurement = "continuous", variances_equal = FALSE,
                              group = janousch$country,
                              group_effects = "prevalence",
                              n_steps = 1, n_init = 50, max_iter = 2000,
@@ -354,13 +336,11 @@ fit_invariant <- fit_mixture(janousch[items], n_classes = 4,
 #> more).
 #> Warning: The reported solution was found by 1 of 50 starts. EM climbs the peak
 #> it starts nearest, so a maximum seen once may be the best of a small sample of
-#> the likelihood surface rather than the best there is. Refit with `n_init =
-#> 100`. If the maximum still does not replicate at 100 starts, that points at the
-#> specification - most often more classes than the data support - rather than at
-#> the search.
+#> the likelihood surface rather than the best there is: refit with n_init = 100
+#> before reporting.
 
 fit_free_means <- fit_mixture(janousch[items], n_classes = 4,
-                              measurement = "continuous",
+                              measurement = "continuous", variances_equal = FALSE,
                               group = janousch$country,
                               group_effects = "both",
                               group_invariant_params = "covariances",
@@ -373,17 +353,15 @@ fit_free_means <- fit_mixture(janousch[items], n_classes = 4,
 #> Warning: The reported solution was found by 1 of 51 starts that ran to
 #> convergence, out of 50 requested. EM climbs the peak it starts nearest, so a
 #> maximum seen once may be the best of a small sample of the likelihood surface
-#> rather than the best there is. Refit with `n_init = 100`. If the maximum still
-#> does not replicate at 100 starts, that points at the specification - most often
-#> more classes than the data support - rather than at the search.
+#> rather than the best there is: refit with n_init = 100 before reporting.
 
 lr_test(fit_invariant, fit_free_means)
 #> 
 #> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
-#>   Restricted : LL =   -5338.3248   parameters = 65
-#>   Full       : LL =   -5261.3498   parameters = 121
-#>   -2 x diff  : 153.9499   df = 56   p = 4.445e-11
+#>   Restricted : LL =   -5338.3176   parameters = 65
+#>   Full       : LL =   -5261.3477   parameters = 121
+#>   -2 x diff  : 153.9397   df = 56   p = 4.46e-11
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 
@@ -418,7 +396,7 @@ about the measurement model, giving each country its own profile means
 ``` r
 
 fit_configural <- fit_mixture(janousch[items], n_classes = 4,
-                              measurement = "continuous",
+                              measurement = "continuous", variances_equal = FALSE,
                               group = janousch$country,
                               group_effects = "both",
                               n_steps = 1, n_init = 50, max_iter = 2000,
@@ -430,17 +408,15 @@ fit_configural <- fit_mixture(janousch[items], n_classes = 4,
 #> Warning: The reported solution was found by 1 of 51 starts that ran to
 #> convergence, out of 50 requested. EM climbs the peak it starts nearest, so a
 #> maximum seen once may be the best of a small sample of the likelihood surface
-#> rather than the best there is. Refit with `n_init = 100`. If the maximum still
-#> does not replicate at 100 starts, that points at the specification - most often
-#> more classes than the data support - rather than at the search.
+#> rather than the best there is: refit with n_init = 100 before reporting.
 
 lr_test(fit_invariant, fit_configural)
 #> 
 #> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
-#>   Restricted : LL =   -5338.3248   parameters = 65
-#>   Full       : LL =   -5191.4948   parameters = 177
-#>   -2 x diff  : 293.6599   df = 112   p = < 1e-16
+#>   Restricted : LL =   -5338.3176   parameters = 65
+#>   Full       : LL =   -5191.4969   parameters = 177
+#>   -2 x diff  : 293.6414   df = 112   p = < 1e-16
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 
@@ -493,22 +469,22 @@ summary(fit_ch_cov)
 #>                                       OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                        0.866  [    0.465,     1.611]     0.649
-#>   gender.Female                    1.138  [    0.656,     1.972]     0.646
-#>   migratn_bckgrnd.Mgrtnbckgrnd     0.870  [    0.467,     1.620]     0.661
+#>   Intercept                        0.867  [    0.466,     1.616]     0.654
+#>   gender.Female                    1.137  [    0.655,     1.972]     0.648
+#>   migratn_bckgrnd.Mgrtnbckgrnd     0.869  [    0.466,     1.621]     0.660
 #> 
 #> Class 3 ON
-#>   Intercept                        0.479  [    0.223,     1.028]     0.059
-#>   gender.Female                    1.171  [    0.629,     2.183]     0.618
-#>   migratn_bckgrnd.Mgrtnbckgrnd     0.995  [    0.457,     2.167]     0.990
+#>   Intercept                        0.482  [    0.225,     1.033]     0.061
+#>   gender.Female                    1.170  [    0.628,     2.178]     0.621
+#>   migratn_bckgrnd.Mgrtnbckgrnd     0.991  [    0.456,     2.155]     0.982
 #>   Abbreviated names:
 #>     migratn_bckgrnd.Mgrtnbckgrnd = migration_background.Migration background
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   gender                     0.311    2     0.856
-#>   migration_background       0.251    2     0.882
+#>   gender                     0.307    2     0.858
+#>   migration_background       0.248    2     0.884
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================

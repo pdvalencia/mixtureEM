@@ -1,6 +1,555 @@
 # Changelog
 
-## mixtureEM (development version)
+## mixtureEM 0.3.0
+
+### Fixed: `variances_equal` was ignored by the legacy `n_components` interface
+
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+still accepts the older `X`, `n_components`, `Y` and `structural`
+argument names, and that spelling is served by its own early return. The
+return listed the arguments it forwards explicitly, and
+`variances_equal` was not among them; being a named argument rather than
+part of `...`, it was not carried through that way either. A
+legacy-spelled call that passed `variances_equal` was therefore ignored
+without comment, and one that omitted it never picked up the
+homoscedastic default a continuous measurement model has carried since
+0.2.0. The same analysis written as
+`fit_mixture(X, n_components = 2, measurement = "continuous")` and as
+`fit_mixture(X, n_classes = 2, measurement = "continuous")` fitted two
+different models – free class variances in the first, equal ones in the
+second – with nothing in the printed output to say which one you had.
+
+Both spellings now resolve the default and honour an explicit value, and
+the check that rejects `variances_equal = TRUE` for indicators it has no
+meaning for answers to both. Nothing written with `n_classes` moves, and
+neither does any fit of categorical, count or mixed indicators, or any
+growth, longitudinal or multiple-group model: those reach the emission
+through paths that were never part of this. A continuous-indicator fit
+written with `n_components` and no explicit `variances_equal` does move
+– it now holds each item’s variance equal across the classes, which is
+what the documentation already said it did.
+
+### Standard errors for a continuous distal outcome under BCH were too small
+
+The Wald tests and standard errors reported for a continuous distal
+outcome fitted with `correction = "BCH"` were understated, badly enough
+to change which effects looked significant and how they ranked against
+each other. Reported standard errors get larger; every point estimate is
+unchanged.
+
+Two things were wrong. The covariance of the class intercepts and slopes
+was built over every row of the data, rather than over the rows with an
+observed outcome that the model is actually fitted on – so an outcome
+with missing values credited the estimates with information they were
+never given. And the standard errors were model-based,
+`sigma^2 (U'WU)^-1`, the sandwich estimator having been dropped on the
+ground that the bias-corrected fit carries one weighted record per class
+per case and a record-level sandwich would count each case several times
+over. That is a real problem, but the answer to it is to cluster the
+sandwich on the case, not to discard it: the model-based form prices the
+fit as if it were ordinary least squares and ignores the information
+that inverting the classification table gives up.
+
+The covariance is now built once, alongside the coefficients, from the
+same design, weights and mask – so it cannot drift from the estimates it
+belongs to – and it is a sandwich clustered on the case. Two checks:
+where the class assignment is hard, so that each case contributes a
+single record, the estimator reduces exactly to the
+heteroskedasticity-consistent (HC0) covariance of the equivalent
+one-row-per-case regression; and on a published class-moderation
+analysis it now agrees with another program’s standard errors to within
+about 2%, against the 2- to 4-fold understatement before.
+
+### `slopes` can now name a subset of covariates for a continuous distal outcome
+
+Previously `slopes` was all-or-nothing: `"pooled"` gave every covariate
+one slope shared across classes, `"class_specific"` gave every covariate
+its own slope per class. Latent-class moderation analyses routinely need
+a mix – the class moderates one set of covariates while the rest are
+only adjusted for – and that combination could not be expressed at all.
+`slopes` now also accepts a character vector of covariate names (or a
+one-sided formula naming them, e.g. `~ loc1 + loc2`): those covariates
+get a slope per class, and every other covariate stays pooled. This
+applies to
+[`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md)
+and
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)’s
+`outcome_covariates` path; a categorical outcome still only accepts
+`"pooled"` or `"class_specific"`, since doubling the categorical
+engine’s surface has no demonstrated need yet.
+[`summary()`](https://rdrr.io/r/base/summary.html) gains a third printed
+block, “Covariates (Class-specific slopes)”, with one row per covariate
+per class and a Wald test of slope equality across classes for each.
+Verified two ways: algebraically, the joint design matches
+[`lm.wfit()`](https://rdrr.io/r/stats/lmfit.html) on the same expanded
+weighted dataset to six decimals, and naming every covariate as
+class-specific reproduces `slopes = "class_specific"`’s point estimates
+to the same tolerance; and against a real class-moderation analysis with
+a mix of moderated and pooled covariates, where every coefficient landed
+within about 6% of the reference program’s, all fifteen non-reference
+coefficients keeping the same sign.
+
+### `measurement_summary()` gains a `scale` argument for binary indicators
+
+`measurement_summary(fit, scale = "probability")` is unchanged – that
+remains the default, and its output is byte-identical to before this
+argument existed. Two more scales are now available for a binary
+indicator’s item-response probabilities: `scale = "logit"` reports the
+same table on the log-odds scale, and `scale = "effect"` reports the
+effect-coded parameterisation – an item intercept plus one class
+deviation per class, the deviations summing to zero – that several other
+programs print by default. This is what makes it possible to place a
+mixtureEM measurement model next to such a program’s output at all,
+since the two otherwise report different quantities for the same fit;
+verified by hand against a reference item’s printed values, matching to
+three decimals. A polytomous (more-than-two-category) item is refused
+under `scale = "effect"` with a clear error rather than guessed at,
+since whether such an item should be coded as ordinal or nominal is a
+modelling decision the package does not make on your behalf;
+`scale = "logit"` carries no such restriction. The `overall` column,
+holding the observed sample marginal, is dropped on both alternative
+scales, since a raw proportion has no meaningful transform to either
+one.
+
+### Documentation: four clarifications, no behaviour change
+
+[`?fit_mixture`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+now says outright that the EM convergence rule is fixed and not
+user-adjustable, and why: a looser rule was tried and measured to cost
+real log-likelihood, and worse, to degrade the multi-start search itself
+by ranking candidate starts on numbers too coarse to tell a good
+solution from a mediocre one.
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+and
+[`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md)
+are cross-referenced – the former has its own, genuinely adjustable
+`tol` because a chain mixture needs one, the latter rides
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)’s
+fixed rule because it estimates through it.
+
+[`?fit_mixture`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)’s
+`group` argument now spells out how to let a covariate’s effect on class
+membership vary by group without using `group` at all – build the
+interaction directly into `predictors`, e.g.
+`model.matrix(~ grade * factor(year))[, -1]` – since class moderation by
+a covariate and a `group`-based multiple-group model answer different
+questions and are easy to reach for interchangeably by mistake.
+
+[`?bivariate_residuals`](https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.md)
+now says that, for categorical indicators, its statistic agrees closely
+with what another program reports under the same name, now that the
+expected-count fix above removes the one place they disagreed.
+[`?fit_mixture`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)’s
+`n_init` documentation gives a measured runtime figure, so a search of
+200 or 1000 starts can be budgeted for rather than guessed at.
+
+### `absolute_fit()` now works with missing data, and `mcar_test()` is new
+
+Until now,
+[`absolute_fit()`](https://pdvalencia.github.io/mixtureEM/reference/absolute_fit.md)
+simply refused to run once any indicator had a missing value, because
+the usual goodness-of-fit table – one cell per possible combination of
+answers – cannot be built when different respondents answered different
+sets of questions. It now handles this the standard way: cases are
+grouped by which items they actually answered, the model is compared to
+the data within each such group, and the whole comparison is adjusted
+for a saturated (maximally flexible) baseline fit to the same grouping,
+so that what remains measures the model rather than the missingness.
+This is the “missing at random” (MAR) approach, and it is what gets
+printed and returned whenever the data have gaps: the same `g2`, `x2`,
+`cressie_read` and `df` as before, now under the weaker assumption, plus
+a short block showing the same statistics computed jointly with the
+stronger “missing completely at random” (MCAR) assumption for
+comparison. A new `dissimilarity` element – roughly, the share of cases
+that would need to move to a different response pattern for the model to
+fit exactly – is now returned in both the complete-data and the
+missing-data case, since a chi-square test on a sparse table so rarely
+rejects that a plain descriptive number is often more useful than the
+test itself.
+
+`mcar_test(fit)` is new and answers a narrower, separate question:
+whether the pattern of missingness itself looks unrelated to the data,
+as opposed to whether the model fits. A significant result there does
+not mean the model is wrong, and a non-significant one does not mean the
+weaker MAR assumption
+[`absolute_fit()`](https://pdvalencia.github.io/mixtureEM/reference/absolute_fit.md)
+already relies on is safe – the two tests are deliberately independent,
+and both are documented as such. Both functions require a plain
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+model with categorical indicators; a model with covariates or continuous
+indicators is refused exactly as before, and results on data with no
+missing values do not change.
+
+### Fixed: bivariate residuals with missing data flagged the wrong pairs
+
+[`bivariate_residuals()`](https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.md)
+compares, for every pair of indicators, how often respondents actually
+gave each combination of answers against how often the fitted model
+expects them to. When one of the two indicators had missing data, the
+expected counts were computed from the class sizes for the whole sample,
+while the observed counts came only from the respondents who answered
+both items — two different groups of people being held to the same
+yardstick. The practical effect was that an indicator with a lot of
+missing data could make an otherwise unremarkable pair look like the
+worst-fitting one in the whole model, simply because of who was missing,
+not because the two items were actually related in a way the model
+misses. Both counts are now built from the same people: whoever answered
+both items in the pair, with the expected counts computed from their own
+posterior class membership rather than the sample average. Results are
+unchanged when there is no missing data anywhere; with missing data,
+some residuals move by an order of magnitude, and the pairs worth
+worrying about can change. The printed and returned object now also
+reports a single “Total BVR” figure summarizing local dependence across
+the whole model, and the bootstrap calibration in `n_reps` respects each
+replicate’s missing-data pattern, exact when the missingness is
+completely random and an approximation otherwise.
+
+### `outcome_contrasts()`: which classes differ on a distal outcome
+
+The new `outcome_contrasts(fit, ref = NULL)` reports class-vs-class
+differences on an outcome attached by
+[`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md),
+each with a standard error, a confidence interval and a p-value. With no
+`ref` every pair of classes is reported once; naming a class holds it
+fixed as the comparison. `adjust` takes `"holm"` or `"bonferroni"` for
+the all-pairs table read as a family, and `level` sets the interval.
+
+The omnibus Wald test the summary already printed answers whether the
+classes differ at all, which is the question a reviewer asks first and
+almost never the one the paper is about. What gets written up is that
+the high-risk class scores half a standard deviation above the normative
+one and that the two intermediate classes are indistinguishable, and for
+a continuous outcome there was no way to get that out of the fit.
+
+Computing it by hand gets it wrong, which is the reason this belongs in
+the package. Two class means from one fit are estimated from the same
+posteriors — and under the BCH correction from the same inverted
+classification-error matrix — so they are correlated, and the standard
+error of their difference is not the root of the sum of their squared
+standard errors. The contrasts use the full sandwich covariance the fit
+already carries, so the joint Wald statistic over the reference
+contrasts reproduces the printed omnibus exactly; that identity is
+asserted in the tests, for both outcome types, because an indexing error
+in a covariance is otherwise silent.
+
+For a continuous outcome,
+[`summary()`](https://rdrr.io/r/base/summary.html) now prints the
+pairwise differences under the omnibus for up to five classes, and
+returns them as `summary(fit)$outcome$contrasts` in every case.
+Categorical outcomes already printed a reference-class odds-ratio table
+and are unchanged there;
+[`outcome_contrasts()`](https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.md)
+returns the same contrasts in tidy form and adds the pairs that table
+never showed. An outcome fitted with `slopes = "class_specific"` is
+refused with a message pointing at
+[`bootstrap_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/bootstrap_covariates.md)
+and
+[`wald_omnibus_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_omnibus_test.md):
+those models store no covariance between the per-class parameter blocks,
+so an exact contrast cannot be formed from them.
+
+### `measurement_summary()` now shows the sample marginal
+
+Every table gains an `Overall` column between the indicator name and the
+classes, and the returned data frame gains an `overall` column beside
+`estimate`. It is the observed marginal for that item: the weighted
+sample proportion beside a probability, the weighted sample mean beside
+a mean or a rate, and for a polytomous item the share of cases in each
+category.
+
+A conditional number is not readable on its own. A class endorsing an
+item at .62 is unremarkable where the sample sits at .60 and is most of
+what defines the class where the sample sits at .12, and the table could
+not tell those apart — the reader had to go back to the data. Putting
+the marginal first in the row makes each class parameter read as a
+departure from it.
+
+The benchmark is the *observed* marginal rather than the model-implied
+one, because a model-implied column would agree with the class
+parameters by construction and so could not act as a check on them. It
+uses the case weights where the fit has any, and reads the indicators as
+the fit stored them, which is after any binary recode — so the
+proportion is of the same level the probability beside it is of. For a
+latent transition model the marginal is the one for the occasion being
+printed, or, where the measurement model is held equal across occasions,
+the one pooled over all of them.
+
+The column is dropped, with a note saying why, for a fit that does not
+store its raw indicators and for a multiple-group measurement model,
+whose per-group item parameters cannot be matched to the stacked
+indicator columns by name; the data frame then carries `NA` there.
+Growth models always carry `NA`, a growth factor mean having no sample
+marginal to be compared against. No fitted number changes.
+
+### The standardized profile can now be drawn as lines
+
+`plot(fit, type = "line")` draws the same z-scored conditional means as
+`type = "bar"`, but as one connected line per class with a zero
+reference line. Like the bar chart it needs an all-continuous
+measurement model, and it takes the same `scale` argument.
+
+The two are different readings of the same numbers. Bars group by
+indicator, so the eye compares classes one indicator at a time; a line
+follows a single class across all of them, which is what shows whether
+two classes differ in level or in pattern. That is the reading “profile”
+names in the applied literature, and until now the only line plot on
+offer was the default `type = "profile"`, whose min-max axis has no
+meaningful origin and whose shape moves with the sample’s most extreme
+observation. For an all-continuous model, prefer `"line"`.
+
+One helper computes the heights for both renderers, so the two can never
+disagree about a number.
+
+### Bivariate residuals can now be calibrated by bootstrap
+
+[`bivariate_residuals()`](https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.md)
+takes `n_reps`, which replaces the statistic’s chi-square reference with
+a parametric bootstrap and attaches a matrix of p-values that the print
+method shows beside each residual.
+
+The reference distribution is the problem being solved. In the
+simulation of Oberski, van Kollenburg and Vermunt (2013), a bivariate
+residual referred to chi-square rejected at a nominal five percent in
+zero of two hundred samples in *every one* of eight null conditions; its
+empirical mean was between 0.25 and 0.36 where the reference has 1. A
+statistic that never rejects under a true model also says little under a
+false one, so a low bivariate residual is not evidence of good fit — and
+the ranking it supports is the least powerful of the three methods those
+authors compared. The documentation now says all of this plainly, along
+with two limits it had not stated: power falls as the classes separate,
+and under a missing-at-random mechanism a large residual is ambiguous
+between local dependence and selection bias.
+
+The default `n_reps = 0` is the previous behaviour at the previous cost,
+and returns bit-identical residuals. `100` is the recommended working
+value and `500` the publication-grade one.
+
+### A standardized profile bar chart
+
+`plot(fit, type = "bar")` draws the grouped bar chart applied
+latent-profile papers publish: indicators along the x-axis, one bar per
+class within each group, and a zero line separating above-average from
+below-average conditional means. It requires an all-continuous
+measurement model; `type` defaults to `"profile"`, so the existing
+figure is unchanged.
+
+Bar heights are z-scores rather than the profile plot’s min-max scaling,
+which is hostage to a single extreme observation and has no meaningful
+origin. A z-score is scale-free, so the figure comes out the same
+whether or not the indicators were standardized before fitting —
+standardizing becomes a display choice rather than a step in preparing
+the data. `scale = "within"` divides by the model-implied within-class
+standard deviation instead, giving a Cohen’s-d-like reading against
+residual rather than total dispersion.
+
+### Step-3 standard errors: which one to compare against another program
+
+The `se` documentation now records that `"corrected"`, the default, is
+the statistically right answer, while `"robust"` is the *comparability*
+setting. Another program reports the step-3 sandwich alone, so
+reproducing its standard errors requires asking for `"robust"`; under
+the default a user checking mixtureEM against it sees wider intervals,
+and that difference is a difference in estimator — the corrected form
+carries step-1 uncertainty the sandwich omits — rather than a bug in
+either program. No estimates or standard errors change.
+
+### `measurement` is now required
+
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md),
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+and [`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)
+no longer default `measurement` to `"binary"`. Omitting it is an error
+that lists the valid types, shows the mixed-type syntax, and suggests a
+type read off your columns:
+
+    `measurement` must be specified. Valid types: "binary", "categorical",
+    "continuous", "count".
+    Your 8 indicator columns all take two values, so you probably want
+      measurement = "binary"
+    For mixed types:
+      measurement = list(binary = 1:5, continuous = 6:8)
+
+The suggestion is a hint to confirm, not a choice the package makes. The
+storage mode of a column does not determine its measurement model: a 1-5
+column is a legitimate `"categorical"`, `"continuous"` or `"count"`
+indicator, and the class solution differs across the three. Inferring
+the type would settle a modelling question by inspecting storage mode
+and would make a script’s meaning depend on the data it is run against;
+a constant default is the same guess with the data-dependence removed.
+
+This breaks any call that relied on the default. The fix is to add
+`measurement = "binary"`, which reproduces the previous behaviour
+exactly. `blrt(from_fit = )` is unaffected, since it reads the
+specification off the fitted model.
+
+### Continuous indicators default to equal variances across classes
+
+`fit_mixture(measurement = "continuous")` and
+`compare_mixtures(measurement = "continuous")` now fit the homoscedastic
+latent profile model, holding each item’s variance equal across the
+classes. This changes the estimates, the fit indices and the class
+solution of any continuous fit that did not set `variances_equal`.
+`variances_equal = FALSE` recovers the previous behaviour exactly.
+
+The reason is that the unrestricted normal-mixture likelihood is
+unbounded: send a class mean to any single data point and that class’s
+variance to zero and the likelihood diverges, so no maximum likelihood
+estimate exists and what the EM reports is a local optimum. Holding the
+variances equal bounds the likelihood, and the constrained estimator is
+consistent (Day, 1969; Hathaway, 1985). Freeing them also invites
+classes that describe non-normality in a single population rather than
+distinct subgroups (Bauer & Curran, 2003).
+
+The restriction is substantive and testable, and the expectation is that
+you fit both and compare. It is not the safe choice but the well-posed
+one: the homoscedastic model fails visibly, by splitting a genuinely
+heteroscedastic class in two, while the free model fails silently, as a
+boundary solution that gets written up as a finding.
+
+Only the two user-facing entry points resolve this default. The growth,
+time-block and group-block paths — LCGA, GMM and RMLCA — are unchanged.
+
+### `add_covariates()` and `add_outcome()` accept a formula and `data`
+
+Both functions gain a `data` argument, so the columns can be named
+instead of extracted:
+
+``` r
+
+add_covariates(fit, ~ T1age + T1sex + T1SHexp, data = df)
+add_outcome(fit, ~ T3NHR_1, data = df)
+```
+
+`predictors` and `covariates` also accept a character vector of column
+names.
+[`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md)’s
+formula must name exactly one column, since one call fits one distal
+outcome.
+
+This is a matter of typing, and nothing more. The existing calling style
+— `add_covariates(fit, df[, c("T1age", "T1sex")])`,
+`add_outcome(fit, df$T3NHR_1)` — is unaffected and unchanged, with no
+deprecation and no message: passing a computed vector such as `scale(y)`
+is often the right thing to do, because the variable is not a column of
+anything. Both forms meet at the same code as soon as the columns are in
+hand, and every estimate is identical either way.
+
+### Two defaults change: the class-membership prior now reaches step 3
+
+`bayes_constants$latent` is documented as the Dirichlet prior on the
+class probabilities. It applied when those probabilities were estimated
+as K-1 free weights, and silently stopped applying the moment covariates
+entered and they became a regression instead. That leak is now closed:
+the prior applies to the class-membership regression too, written as
+fractional pseudo-data — one row per class per unique covariate pattern,
+weight `latent / (K * U)`, adding `latent / K` cases to each class.
+
+Two consequences, both deliberate:
+
+- **Covariate coefficients move.** Every one of them shrinks slightly
+  towards zero, because the prior makes the class sizes slightly more
+  equal.
+- **Their standard errors move.** They shrink, because unlike the
+  “ghost” observation the prior replaces, these rows are part of the
+  objective being maximised and so enter the information matrix.
+
+`bayes_constants = list(latent = 0)` restores the previous behaviour
+exactly, in both the coefficients and the standard errors; the ghost
+observation that guards against complete separation is kept in that
+case, as before.
+
+### The three-step corrections take an `assignment` argument
+
+[`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md),
+[`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md)
+and
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+gain `assignment = c("proportional", "modal")`: how step 1’s posteriors
+are turned into the assigned-class variable whose classification error
+the BCH and ML corrections invert. **The default does not change** —
+`"proportional"` follows Bakk, Tekle and Vermunt (2013), who found it at
+least as accurate as modal assignment across 54 simulation conditions
+and clearly better when the classes are poorly separated. Use
+`assignment = "modal"` when reproducing an analysis whose classes were
+assigned that way. The rule in force is stored on the fit and printed
+next to the correction, so a saved model still says which one produced
+it.
+
+[`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md)
+also now documents two things that matter when comparing coefficients
+with a published set: a case missing a predictor is retained and
+completed under the class-invariant Gaussian marginal rather than
+listwise deleted, so the analysed N can differ; and `se = "corrected"`
+carries the step-1 uncertainty where `se = "robust"` reports only the
+step-3 sampling variability.
+
+### New: `class_assignments()`
+
+The per-case classification now has an accessor, so reaching it no
+longer means writing `max.col(fit$log_resp)` by hand. `type = "modal"`
+gives the assigned class, `"posterior"` the full matrix, and `"both"` a
+data frame carrying the assignment together with its probability — a
+per-case classification certainty. It works on `mixture_model`, the
+growth models, and `lta_model`, where the assignment is of latent status
+and an `occasion` argument picks one out.
+
+Its documentation carries the warning that is the reason it exists: do
+not use the returned class as though it were an observed variable in a
+subsequent regression, ANOVA or t-test. Use
+[`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md)
+and
+[`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md),
+which correct for the classification error that discards.
+
+### `print()` now shows the full set of fit indices
+
+[`print()`](https://rdrr.io/r/base/print.html) on a fitted model showed
+the log-likelihood and relative entropy; reading its BIC meant reaching
+into `fit$metrics` or running a one-model
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md).
+It now prints `Log-Likelihood`, `Parameters`, `AIC`, `BIC`, `SABIC` and
+`Rel. Entropy` — exactly the columns
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+tabulates, so printing one model and comparing a range of K can never
+show two different sets of numbers for the same fit.
+[`print()`](https://rdrr.io/r/base/print.html) on a latent transition
+model gains the two indices it was missing.
+
+On a three-step fit the criteria are read off the same set of metrics as
+the log-likelihood above them, never a mixture of the two. On a fit
+whose variances collapsed, the BIC line says so where it appears, since
+that number is inflated by the spike and is not comparable with a clean
+fit’s.
+
+### The `n_init` advice now scales with the search that actually ran
+
+The “refit with `n_init = 100`” advice fired whenever the maximum was
+found by a single start, whatever `n_init` had been — so a user who ran
+`n_init = 200` was told to refit with 100. The advice now reads both of
+the counts the fit carries, the restarts requested and the restarts run
+out to convergence, and says one of three things.
+
+Below 100 requested it is unchanged. Above 100 requested but with fewer
+than 100 run out to convergence — which is the ordinary case on a staged
+search, where only the most promising restarts are refined — it says
+that the maximum failed to replicate among the restarts that were run
+out, that this is a thinner test than the requested count makes it
+sound, and that `n_init` should be raised further before anything is
+read into it. Only when 100 or more restarts reached convergence does it
+raise the specification: how well separated the classes are, how heavily
+parameterised the within-class structure is, and whether there are more
+classes than the data support.
+
+The strongest reading is now hedged where it was asserted. The number of
+random starts a mixture needs grows with the number of classes, the
+number of free parameters and how poorly the classes separate, so the
+message no longer claims that more starts are unlikely to help, and no
+longer ranks over-extraction ahead of the other causes. This applies to
+[`print()`](https://rdrr.io/r/base/print.html), the warning,
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+and
+[`compare_longitudinal()`](https://pdvalencia.github.io/mixtureEM/reference/compare_longitudinal.md),
+which share one helper. No number changes.
 
 ### Diagnostics now say what to change, and by how much
 
@@ -104,6 +653,48 @@ the same numbers. What changed is what the package tells you about them.
   accurate of those studied and shows why a uniform spread degrades as
   the number of items grows. No value changed; the package already
   implemented the prior their results favour.
+
+- **[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)’s
+  `bayes_constants` now reaches the measurement model.** The two priors
+  this model uses are documented as a division of labour — `smoothing`
+  for the status prevalences and the transition matrices,
+  `bayes_constants` for the measurement model — and the code did not
+  implement it. `smoothing` was passed into the measurement model’s
+  M-step as well, where it took precedence, so
+  `bayes_constants = list(categorical = ...)` had no effect at all and
+  `smoothing = 0` quietly removed the measurement prior too, returning
+  the item-response probabilities of exactly 0 and 1 that prior exists
+  to prevent. Fits using the defaults are unchanged to every digit, both
+  arguments being 1.
+
+- **[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+  now reports how much of each transition row comes from the prior
+  rather than from the data**, and says so when it exceeds five
+  percentage points on any row, naming the row and the size of the
+  effect. An origin status that few cases occupy is a row the one
+  pseudo-case of smoothing carries a visible share of, and the share has
+  an exact form rather than needing to be estimated. It is a reading
+  caution, not a verdict on the fit: those transitions should be
+  reported as indicative. The remedy it points at first is
+  `transition_invariance = "full"`, which puts every occasion’s cases
+  behind the one pseudo-case and so adds information rather than
+  removing a prior. The per-row figures are on the fitted object as
+  `$smoothing_influence`. Nothing is reported once covariates or a
+  grouping variable predict the transitions, since those are then fitted
+  by a multinomial logit that the prior never enters — which
+  [`?fit_lta`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+  now says of `smoothing` generally.
+
+- **The transition prior’s size and shape are now documented and
+  sourced.** Both were choices and neither was written down: the mass is
+  one pseudo-case per origin row rather than per cell, which is the
+  prior Chung, Lanza and Loken
+
+  2008. use for this model, and it is spread evenly over the
+        destinations rather than toward their marginal, because a rare
+        origin row shrunk toward the destination marginal would assert
+        that everyone in it moves to the prevalent status (Fienberg &
+        Holland, 1973). No default changed.
 
 - **Three small fixes.** A single collapsed pair of latent statuses is
   now reported as “Latent class 1 and 2” rather than “Latent classes”;
@@ -472,6 +1063,73 @@ both now matched to within 0.001.
   fixed seed for that comparison: the seed was pinning a degenerate
   configural solution rather than curing a search failure, and it has
   been removed.
+
+### New: `plot()` on a model-selection sweep
+
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+and
+[`compare_longitudinal()`](https://pdvalencia.github.io/mixtureEM/reference/compare_longitudinal.md)
+now return an object of class `mixture_comparison`, and
+[`plot()`](https://rdrr.io/r/graphics/plot.default.html) on it draws the
+information criteria against the number of classes — the elbow plot the
+fit table was already being read as. The returned object indexes exactly
+as the plain list it was, so `result$fit_table`, `result$models` and
+`result$best_k` are unchanged.
+
+`indices` takes any subset of `"BIC"`, `"AIC"` and `"SABIC"`; the
+log-likelihood and the entropy are deliberately not allowed on that
+axis, being on a different scale. `entropy = TRUE` puts relative entropy
+in a second panel below on a fixed 0-1 axis rather than on a twin axis,
+which would invite reading it as a fit criterion. Each line’s minimum is
+marked, and a K whose maximum was found by a single random start is
+drawn hollow. Following Masyn (2013), the plot is for reading the point
+of diminishing returns rather than obeying the minimum — the BIC often
+keeps falling slowly as classes are added.
+
+### The coefficients and standard errors are now recoverable on the log scale
+
+No printed output changes anywhere in this group. The odds ratios,
+intervals and p-values in
+[`print()`](https://rdrr.io/r/base/print.html),
+[`summary()`](https://rdrr.io/r/base/summary.html) and
+[`confint()`](https://rdrr.io/r/stats/confint.html) are what applied
+researchers report and they are shown exactly as before. What changes is
+that the log-scale quantities behind them can now be got at.
+
+- **[`confint()`](https://rdrr.io/r/stats/confint.html) no longer rounds
+  inside the object it returns.** It rounded the odds ratio and both
+  bounds to three decimals *in the data*, not just for display, which
+  destroyed precision in a stored result and put a 0.001 floor under any
+  comparison of these numbers against another program’s — larger than
+  the disagreement such a comparison is usually trying to measure.
+  Values are now returned at full precision and rounded only by the
+  print method.
+- **New [`vcov()`](https://rdrr.io/r/stats/vcov.html) method**, so
+  `sqrt(diag(vcov(fit)))` gives the standard errors of the
+  class-membership coefficients. It returns the `(K - 1) * D` matrix
+  over the free coefficients, names its rows and columns
+  `"Class k:predictor"`, and carries the estimator’s name in a `method`
+  attribute as [`confint()`](https://rdrr.io/r/stats/confint.html)
+  already does. The class the coefficients are taken against is reported
+  in a `ref_class` attribute rather than assumed, since the classes are
+  reordered by size after estimation.
+- **[`coef()`](https://rdrr.io/r/stats/coef.html) gains
+  `exponentiate`.** The default `TRUE` is exactly the existing
+  behaviour. `FALSE` returns the multinomial-logit coefficients
+  themselves. This is only convenience over `log(coef(fit))`, which
+  already worked, but it makes the log scale discoverable from the
+  documentation.
+
+### Minor improvements
+
+- The collapsed-class-variance warning is shorter, so it is no longer
+  cut off by R’s default `warning.length` of 1000 bytes — which is what
+  most consoles use, and which meant the remedies at the end of the
+  message were the part that disappeared. It now names the flagged
+  cells, says the fit is not interpretable and its BIC not comparable,
+  and lists the three remedies; the reasoning it dropped was already in
+  [`?fit_mixture`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md),
+  which it points at. No default and no number changes.
 
 ## mixtureEM 0.2.0
 

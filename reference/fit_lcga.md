@@ -231,6 +231,10 @@ fit
 #> Converged          : TRUE (in 73 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1032.42
+#>   Parameters     : 5
+#>   AIC            : 2074.84
+#>   BIC            : 2094.79
+#>   SABIC          : 2078.93
 #>   Rel. Entropy   : 0.6318
 #>   Best solution  : found by 5 of 5 starts
 #> ---------------------------------------------------------

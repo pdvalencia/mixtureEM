@@ -45,9 +45,10 @@ cut-off criteria for deciding whether the entropy is reasonably high"
 (Jung & Wickrama, 2008, p. 312) — so the package applies none.
 
 **Reading the `Unreplicated` column.** `TRUE` means that K's reported
-maximum was found by exactly one random start; refit those with
-`n_init = 100` before reporting. The per-model warning is suppressed
-inside this loop, since it would otherwise fire once per K.
+maximum was found by exactly one random start; refit those with more
+starts (`n_init = 100` is the usual next step) before reporting. The
+per-model warning is suppressed inside this loop, since it would
+otherwise fire once per K.
 
 ## Usage
 
@@ -58,6 +59,7 @@ compare_longitudinal(
   model = c("lta", "rmlca", "gmm", "lcga"),
   times = NULL,
   verbose = TRUE,
+  vlmr = c("none", "standard", "robust", "both"),
   ...
 )
 ```
@@ -89,6 +91,16 @@ compare_longitudinal(
 
   Print progress.
 
+- vlmr:
+
+  Whether to add the Vuong-Lo-Mendell-Rubin test of K against K+1:
+  `"none"` (the default), `"standard"`, `"robust"` or `"both"`. See
+  [`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+  for what the two forms are and why the test is off by default. It is
+  unavailable for `model = "lta"`, whose latent variable is a status per
+  occasion rather than one class per case; those rows come back `NA`
+  with a message.
+
 - ...:
 
   Further arguments passed to the fitting function, such as
@@ -104,10 +116,13 @@ compare_longitudinal(
 
 ## Value
 
-A list with `fit_table` (columns `Classes`, `LL`, `Params`, `AIC`,
-`BIC`, `SABIC`, `Entropy` and `Unreplicated`), the fitted `models`
-(named `"K2"`, `"K3"`, ...) and `best_k`, the class count with the
-lowest BIC.
+An object of class `mixture_comparison`, a list with `fit_table`
+(columns `Classes`, `LL`, `Params`, `AIC`, `BIC`, `SABIC`, `Entropy` and
+`Unreplicated`), the fitted `models` (named `"K2"`, `"K3"`, ...) and
+`best_k`, the class count with the lowest BIC. It indexes exactly as a
+plain list;
+[`plot()`](https://pdvalencia.github.io/mixtureEM/reference/plot.mixture_comparison.md)
+draws the criteria against K.
 
 ## References
 

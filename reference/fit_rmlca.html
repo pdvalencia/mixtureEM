@@ -45,7 +45,7 @@ restriction directly."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -193,7 +193,9 @@ equivalent when measurement is invariant across groups (their sec. 6.10.2).</p><
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Further arguments passed to <code><a href="fit_mixture.html">fit_mixture()</a></code>, such as <code>outcome</code>,
-<code>n_init</code>, <code>random_state</code>, <code>weights</code>, <code>strata</code> or <code>cluster</code>.</p></dd>
+<code>n_init</code>, <code>random_state</code>, <code>weights</code>, <code>strata</code> or <code>cluster</code>. The EM
+convergence rule is <code><a href="fit_mixture.html">fit_mixture()</a></code>'s fixed one, since this function
+estimates through it; there is no <code>tol</code>-style argument to pass here.</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -1,8 +1,12 @@
 # Print a Brief Summary of a Fitted Mixture Model
 
 Prints a compact overview of the fitted model including: number of
-classes, estimation method, convergence status, log-likelihood, relative
-entropy, and estimated class proportions. For full parameter tables, use
+classes, estimation method, convergence status, the fit indices, and
+estimated class proportions. The indices shown are the same ones
+[`compare_mixtures`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+tabulates, so one printed model and a table over a range of K can be
+read together; lower AIC, BIC and SABIC are better. For full parameter
+tables, use
 [`summary.mixture_model`](https://pdvalencia.github.io/mixtureEM/reference/summary.mixture_model.md)
 (structural parameters) or
 [`measurement_summary`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
@@ -46,6 +50,10 @@ print(fit)
 #> Converged          : TRUE (in 136 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -203.34
+#>   Parameters     : 7
+#>   AIC            : 420.69
+#>   BIC            : 438.92
+#>   SABIC          : 416.82
 #>   Rel. Entropy   : 0.2215
 #>   Best solution  : found by 20 of 20 starts
 #> ---------------------------------------------------------
@@ -64,6 +72,10 @@ fit
 #> Converged          : TRUE (in 136 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -203.34
+#>   Parameters     : 7
+#>   AIC            : 420.69
+#>   BIC            : 438.92
+#>   SABIC          : 416.82
 #>   Rel. Entropy   : 0.2215
 #>   Best solution  : found by 20 of 20 starts
 #> ---------------------------------------------------------

@@ -304,6 +304,10 @@ fit
 #> Converged          : TRUE (in 125 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -2598.50
+#>   Parameters     : 12
+#>   AIC            : 5221.01
+#>   BIC            : 5268.90
+#>   SABIC          : 5230.83
 #>   Rel. Entropy   : 0.6348
 #>   Best solution  : found by 2 of 4 starts that ran to convergence (of 10 requested)
 #> ---------------------------------------------------------

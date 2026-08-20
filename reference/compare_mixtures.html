@@ -13,7 +13,7 @@ automatically."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -62,9 +62,10 @@ automatically.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">compare_mixtures</span><span class="op">(</span></span>
 <span>  <span class="va">X</span>,</span>
 <span>  k_range <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">5</span>,</span>
-<span>  measurement <span class="op">=</span> <span class="st">"binary"</span>,</span>
+<span>  <span class="va">measurement</span>,</span>
 <span>  n_init <span class="op">=</span> <span class="fl">10</span>,</span>
 <span>  n_steps <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  vlmr <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"standard"</span>, <span class="st">"robust"</span>, <span class="st">"both"</span><span class="op">)</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -82,9 +83,9 @@ automatically.</p>
 
 
 <dt id="arg-measurement">measurement<a class="anchor" aria-label="anchor" href="#arg-measurement"></a></dt>
-<dd><p>Character string specifying the measurement model type.
-See <code><a href="fit_mixture.html">fit_mixture</a></code> for accepted values. Default is
-<code>"binary"</code>.</p></dd>
+<dd><p>Character string or named list specifying the measurement
+model type. Required; see <code><a href="fit_mixture.html">fit_mixture</a></code> for the accepted values
+and for why there is no default.</p></dd>
 
 
 <dt id="arg-n-init">n_init<a class="anchor" aria-label="anchor" href="#arg-n-init"></a></dt>
@@ -97,18 +98,36 @@ Default is <code>10</code>.</p></dd>
 Default is <code>1</code>.</p></dd>
 
 
+<dt id="arg-vlmr">vlmr<a class="anchor" aria-label="anchor" href="#arg-vlmr"></a></dt>
+<dd><p>Character string. Whether to add the Vuong-Lo-Mendell-Rubin test
+of K against K+1 classes, and in which form: <code>"none"</code> (the default),
+<code>"standard"</code> for Vuong's own formulae on the ordinary covariance
+matrix, <code>"robust"</code> for the variant that substitutes the sandwich
+covariance, or <code>"both"</code>. See Details for why it is off by default.</p></dd>
+
+
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Additional arguments passed to <code><a href="fit_mixture.html">fit_mixture</a></code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A named list with three elements:</p><ul><li><p><code>fit_table</code> Data frame with one row per K and columns <code>Classes</code>, <code>LL</code>,
-<code>Params</code>, <code>AIC</code>, <code>BIC</code>, <code>SABIC</code>, <code>Entropy</code> and <code>Unreplicated</code>.</p></li>
+    <p>An object of class <code>mixture_comparison</code>: a named list with three
+elements, which can be indexed exactly as a plain list.</p><ul><li><p><code>fit_table</code> Data frame with one row per K and columns <code>Classes</code>, <code>LL</code>,
+<code>Params</code>, <code>AIC</code>, <code>BIC</code>, <code>SABIC</code>, <code>Entropy</code> and <code>Unreplicated</code>. With
+<code>vlmr</code> set it also carries <code>VLMR_LR</code> and one p-value column per
+requested form (<code>VLMR_p</code>, <code>VLMR_p_robust</code>); each row tests its own K
+against the next one in the table, so the last row is <code>NA</code>.</p></li>
 <li><p><code>models</code> Named list of fitted <code>mixture_model</code> objects, one per K
 (names are <code>"K1"</code>, <code>"K2"</code>, etc.).</p></li>
 <li><p><code>best_k</code> Integer. The value of K with the lowest BIC.</p></li>
-</ul></div>
+<li><p><code>vlmr</code> Present only when <code>vlmr</code> is set: one entry per row of the table
+holding the likelihood-ratio statistic and, for each requested form, the
+mean and standard deviation of the reference distribution alongside the
+p-value. Those two moments are what say which distribution produced a
+given p-value, and are not printed.</p></li>
+</ul><p><code><a href="plot.mixture_comparison.html">plot()</a></code> draws the criteria against K.</p>
+    </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p><strong>Reading the <code>Entropy</code> column.</strong> Relative entropy describes how cleanly a
@@ -126,7 +145,33 @@ numbers above are for reading a table, and mixtureEM applies no entropy
 threshold anywhere.</p>
 <p><strong>Reading the <code>Unreplicated</code> column.</strong> <code>TRUE</code> means the reported maximum for
 that K was found by exactly one random start. Refit those values of K with
-<code>n_init = 100</code> before reporting them; see <code><a href="../articles/estimation.html">vignette("estimation")</a></code>.</p>
+more starts (<code>n_init = 100</code> is the usual next step) before reporting them;
+see <code><a href="../articles/estimation.html">vignette("estimation")</a></code>.</p>
+<p><strong>Reading the <code>VLMR</code> columns.</strong> They appear only when <code>vlmr</code> is set, and are
+off by default for two reasons. One is cost: the test needs a numerical
+Hessian for each model, which is quadratic in the number of parameters, and a
+function people call casually should not pay that unasked. The other is that
+the test does not deserve to be printed as a matter of course. Vermunt (2024)
+concludes that "neither of the two implementations yield uniformly
+distributed p-values under the correct null hypothesis, indicating this test
+is not the best model selection tool in mixture modeling".</p>
+<p>The two implementations differ only in which covariance matrix of the
+parameters enters the reference distribution: one program uses the ordinary
+one, another the robust (sandwich) one (Vermunt, 2024). The difference is not
+cosmetic: on the same data the two can return p = .00 and p = .15. The robust
+version's reference distribution is much more sensitive to the particular
+sample, especially when the classes are poorly separated. Neither version's
+p-values are uniform under the null, so treat a VLMR result as one input
+among several and prefer <code><a href="blrt.html">blrt()</a></code> where it is affordable.</p>
+<p>The reason is known and is not a numerical artefact. The reference
+distribution is derived from a theorem (Vuong, 1989, Theorem 3.3) that
+requires the parameters of the larger model to be identified at the point
+where it reduces to the smaller one. A mixture never satisfies this: the
+larger model reproduces the smaller only by emptying a class or by
+duplicating one, and in each case some parameters vanish from the likelihood
+and the information matrix is singular (Jeffries, 2003). The test is
+therefore best read as a descriptive comparison rather than a calibrated
+p-value.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -148,6 +193,17 @@ identifying differences in longitudinal change among unobserved groups.
 <p>Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
 T. D. Little (Ed.), <em>The Oxford Handbook of Quantitative Methods</em>
 (Vol. 2, pp. 551-611). Oxford University Press.</p>
+<p>Vermunt, J. K. (2024). The Vuong-Lo-Mendell-Rubin test for latent class and
+latent profile analysis. <em>Methodology</em>, <em>20</em>(1), e12467.
+<a href="https://doi.org/10.5964/meth.12467" class="external-link">doi:10.5964/meth.12467</a></p>
+<p>Vuong, Q. H. (1989). Likelihood ratio tests for model selection and
+non-nested hypotheses. <em>Econometrica</em>, <em>57</em>(2), 307-333.</p>
+<p>Lo, Y., Mendell, N. R., &amp; Rubin, D. B. (2001). Testing the number of
+components in a normal mixture. <em>Biometrika</em>, <em>88</em>(3), 767-778.</p>
+<p>Jeffries, N. O. (2003). A note on "Testing the number of components in a
+normal mixture". <em>Biometrika</em>, <em>90</em>(4), 991-994.</p>
+<p>Imhof, J. P. (1961). Computing the distribution of quadratic forms in normal
+variables. <em>Biometrika</em>, <em>48</em>(3/4), 419-426.</p>
     </div>
 
     <div class="section level2">

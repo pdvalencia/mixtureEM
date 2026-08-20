@@ -69,7 +69,7 @@ them with lr_test().'></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -296,7 +296,10 @@ defaults to a tighter <code>tol</code> of 1e-11 and 5000 iterations, since the s
 rule is a relative one and would otherwise stop the fit mid-climb. The
 restarts are then staged - a short first pass ranks them and only the best
 three run on to convergence - so the tighter rule does not multiply the
-cost of the search. Supplying either argument overrides all of this.</p></dd>
+cost of the search. Supplying either argument overrides all of this. (Unlike <code><a href="fit_mixture.html">fit_mixture()</a></code>,
+whose EM tolerance is fixed and not user-adjustable, <code>tol</code> here is a
+real, respected argument, because a chain mixture converges slowly
+enough that the fixed rule would not do.)</p></dd>
 
 
 <dt id="arg-smoothing">smoothing<a class="anchor" aria-label="anchor" href="#arg-smoothing"></a></dt>
@@ -305,7 +308,32 @@ each row of the transition matrices, expressed as a number of pseudo-cases
 spread evenly over the possible destinations. Sparse transition tables
 otherwise collapse onto probabilities of exactly zero, which are awkward to
 interpret and to test. The default of <code>1</code> is negligible at any realistic
-sample size; set it to <code>0</code> for unsmoothed maximum likelihood.</p></dd>
+sample size; set it to <code>0</code> for unsmoothed maximum likelihood. It governs
+the status prevalences, the transition matrices and - with <code>n_classes</code> &gt; 1 -
+the class weights, and it does <strong>not</strong> govern the measurement model, whose
+prior is <code>bayes_constants</code>.</p>
+<p>It also does not reach the transitions once anything predicts them. With
+<code>predictors_transition</code>, or with a <code>group</code> whose <code>group_effects</code> include
+the transitions, each transition matrix is the fitted value of a
+multinomial logit rather than a smoothed table of counts, and <code>smoothing</code>
+has no effect on it. The initial status prevalences behave the same way
+under <code>predictors_initial</code>.</p>
+<p>The mass is one pseudo-case per <em>origin row</em>, which is the prior Chung,
+Lanza and Loken (2008) use for this model, and it is spread evenly rather
+than in proportion to how often each destination is occupied: a rare origin
+row shrunk toward the destination marginal would be asserting that everyone
+moves to the prevalent status, which is a confident claim to make about a
+row the sample says little about, whereas an even spread is uninformative.</p>
+<p>The cost falls on exactly those rows. On a row with few expected cases the
+prior carries a visible share of the estimate - at most
+\([\alpha / (m + \alpha)](1 - 1/K_a)\) of it, for a row with \(m\)
+expected cases and \(K_a\) reachable destinations - and the fit says so
+when that share exceeds five percentage points, naming the worst row. The
+remedy worth reaching for first is <code>transition_invariance = "full"</code>, which
+puts every occasion's cases behind one pseudo-case; <code>smoothing = 0.5</code>
+simply halves the pull. <code>smoothing = 0</code> is not a good answer, since it
+removes the protection against transition probabilities of exactly zero
+that the prior is there to give.</p></dd>
 
 
 <dt id="arg-random-state">random_state<a class="anchor" aria-label="anchor" href="#arg-random-state"></a></dt>
@@ -375,6 +403,12 @@ Fitting the same data under two of these and comparing them with
 <code>tau</code> (a list of transition matrices), <code>prevalences</code> (status prevalence by
 occasion), <code>gamma</code> (posterior status probabilities by occasion), <code>mm</code>,
 <code>metrics</code> and <code>n_params</code>.</p>
+<p>Two diagnostics come with it. <code>boundary</code> lists the transition cells the data
+have driven to zero, and <code>smoothing_influence</code> gives, for each origin row,
+the cases expected in it and the share of the estimate the <code>smoothing</code>
+prior is carrying. <code>smoothing_influence</code> is <code>NULL</code> when <code>smoothing</code> is 0 or
+when covariates predict the transitions, since the prior does not reach
+them then.</p>
 <p>With <code>n_classes</code> &gt; 1 those parameters gain a class index: <code>delta</code> becomes a
 classes-by-statuses matrix, <code>tau</code> a list of per-class lists, and
 <code>class_weights</code>, <code>class_posterior</code> and <code>gamma_by_class</code> are added.
@@ -392,6 +426,13 @@ Sciences</em>. Wiley (chapters 7-8).</p>
 transition mixture model using the three-step specification.
 <em>Structural Equation Modeling</em>, <em>21</em>(3), 439-454.
 <a href="https://doi.org/10.1080/10705511.2014.915375" class="external-link">doi:10.1080/10705511.2014.915375</a></p>
+<p>Chung, H., Lanza, S. T., &amp; Loken, E. (2008). Latent transition analysis:
+inference and estimation. <em>Statistics in Medicine</em>, <em>27</em>(11),
+1834-1854. <a href="https://doi.org/10.1002/sim.3130" class="external-link">doi:10.1002/sim.3130</a></p>
+<p>Fienberg, S. E., &amp; Holland, P. W. (1973). Simultaneous estimation of
+multinomial cell probabilities. <em>Journal of the American Statistical
+Association</em>, <em>68</em>(343), 683-691.
+<a href="https://doi.org/10.1080/01621459.1973.10481405" class="external-link">doi:10.1080/01621459.1973.10481405</a></p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

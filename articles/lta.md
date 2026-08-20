@@ -63,7 +63,9 @@ fit
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -6438.55
 #>   Parameters     : 13
+#>   AIC            : 12903.10
 #>   BIC            : 12966.90
+#>   SABIC          : 12925.61
 #>   Rel. Entropy   : 0.8846
 #>   Best solution  : found by 20 of 20 starts
 #> ---------------------------------------------------------
@@ -163,7 +165,9 @@ fit_ms
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -6439.02
 #>   Parameters     : 15
+#>   AIC            : 12908.04
 #>   BIC            : 12981.66
+#>   SABIC          : 12934.02
 #>   Rel. Entropy   : 0.8844 (status)
 #>                    0.5944 (class)
 #>   Best solution  : found by 3 of 3 starts that ran to convergence (of 20 requested)

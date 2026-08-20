@@ -19,6 +19,8 @@
   : Bootstrap Standard Errors for Covariate Model Parameters
 - [`categorical_model()`](https://pdvalencia.github.io/mixtureEM/reference/categorical_model.md)
   : Constructor for Categorical models
+- [`class_assignments()`](https://pdvalencia.github.io/mixtureEM/reference/class_assignments.md)
+  : Class Assignments for Each Case
 - [`class_sizes()`](https://pdvalencia.github.io/mixtureEM/reference/class_sizes.md)
   : Class Sizes of a Fitted Mixture Model
 - [`classification_diagnostics()`](https://pdvalencia.github.io/mixtureEM/reference/classification_diagnostics.md)
@@ -61,8 +63,12 @@
   : Covariate Effects in a Latent Transition Model
 - [`lta_g2()`](https://pdvalencia.github.io/mixtureEM/reference/lta_g2.md)
   : Likelihood-Ratio Goodness-of-Fit Statistic
+- [`mcar_test()`](https://pdvalencia.github.io/mixtureEM/reference/mcar_test.md)
+  : Test Whether Data Are Missing Completely at Random
 - [`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
   : Print Measurement Model Parameters
+- [`outcome_contrasts()`](https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.md)
+  : Class-vs-Class Contrasts on a Distal Outcome
 - [`plot(`*`<bivariate_residuals>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/plot.bivariate_residuals.md)
   : Plot Bivariate Residuals as a Heat Table
 - [`plot(`*`<gmm>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/plot.gmm.md)
@@ -71,6 +77,8 @@
   : Trajectory Plot for a Latent Class Growth Model
 - [`plot(`*`<lta_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/plot.lta_model.md)
   : Plots for a Fitted Latent Transition Model
+- [`plot(`*`<mixture_comparison>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/plot.mixture_comparison.md)
+  : Elbow Plot for a Model-Selection Sweep
 - [`plot(`*`<mixture_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/plot.mixture_model.md)
   : Profile Plot for a Fitted Mixture Model
 - [`plot(`*`<rmlca>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/plot.rmlca.md)
@@ -95,6 +103,8 @@
   : Summarise a Fitted Mixture Model
 - [`transition_matrix()`](https://pdvalencia.github.io/mixtureEM/reference/transition_matrix.md)
   : Transition Probability Matrices
+- [`vcov(`*`<mixture_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/vcov.mixture_model.md)
+  : Covariance Matrix of the Class-Membership Coefficients
 - [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/reference/ventura_leon.md)
   : Infidelity behavior patterns in Peruvian young adults
 - [`wald_omnibus_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_omnibus_test.md)

@@ -32,7 +32,7 @@ blrt(
   indicators,
   k_small,
   k_large,
-  measurement = "binary",
+  measurement,
   n_reps = 100,
   n_init_base = 20,
   n_init_boot = 10,
@@ -76,6 +76,8 @@ calc_blrt(
   Measurement specification, as in
   [`fit_mixture`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
   (a single type string or a named list for mixed-type indicators).
+  Required, except when `from_fit` is supplied, which reads the
+  specification off the fitted model.
 
 - n_reps:
 

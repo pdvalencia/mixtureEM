@@ -16,6 +16,7 @@ fit_mixture_internal(
   structural = NULL,
   n_steps = 1,
   correction = "none",
+  assignment = c("proportional", "modal"),
   n_init = 20,
   max_iter = 1000,
   random_state = NULL,
@@ -206,6 +207,10 @@ print(fit)
 #> Converged          : TRUE (in 252 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -337.02
+#>   Parameters     : 17
+#>   AIC            : 708.04
+#>   BIC            : 752.33
+#>   SABIC          : 698.64
 #>   Rel. Entropy   : 0.4577
 #>   Best solution  : found by 5 of 5 starts
 #> ---------------------------------------------------------
@@ -230,6 +235,8 @@ measurement_summary(fit)
 #> Item_3               |   0.266 |   0.829 |   0.027
 #> Item_4               |   0.635 |   0.366 |   0.083
 #> Item_5               |   0.473 |   0.367 |   0.599
+#> 
+#> The Overall column, holding the observed marginal for each item, is omitted above: this fit either does not store its raw indicators - in which case refitting with the current version enables it - or holds item parameters that cannot be matched to them by name, as a multiple-group measurement model does.
 #> =========================================================
 
 # Continuous LPA (2 classes)
@@ -255,7 +262,7 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.707  [    0.013,    38.232]     0.865
-#>   V1                       0.765  [    0.268,     2.182]     0.616
+#>   Intercept                0.725  [    0.014,    37.614]     0.873
+#>   V1                       0.780  [    0.288,     2.113]     0.625
 #> =========================================================
 ```

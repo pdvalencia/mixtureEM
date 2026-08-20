@@ -15,7 +15,9 @@ add_covariates(
   predictors,
   correction = c("ML", "BCH", "none"),
   se = c("corrected", "robust", "hessian"),
+  assignment = c("proportional", "modal"),
   max_iter = 1000,
+  data = NULL,
   ...
 )
 ```
@@ -48,9 +50,27 @@ add_covariates(
   Standard-error estimator passed on to the third step: `"corrected"`
   (default), `"robust"`, or `"hessian"`.
 
+- assignment:
+
+  How step 1's posteriors are turned into the assigned-class variable
+  whose classification error the correction inverts. `"proportional"`
+  (default) gives every case a weight in every class equal to its
+  posterior probability; `"modal"` assigns each case to its most likely
+  class outright. The default follows Bakk, Tekle and Vermunt (2013),
+  who compared the two rules across 54 simulation conditions and found
+  proportional at least as accurate everywhere and clearly better when
+  the classes are poorly separated. Use `"modal"` when reproducing an
+  analysis whose classes were assigned that way.
+
 - max_iter:
 
   Maximum iterations for the step-3 estimation.
+
+- data:
+
+  Optional data frame to take the covariates from, in which case
+  `predictors` may be a one-sided formula (`~ age + sex`) or a vector of
+  column names instead of the columns themselves.
 
 - ...:
 
@@ -65,6 +85,20 @@ omnibus tests; [`coef()`](https://rdrr.io/r/stats/coef.html),
 [`wald_omnibus_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_omnibus_test.md)
 also apply.
 
+## Details
+
+A case missing a predictor is retained, not deleted: the missing value
+is completed under the class-invariant Gaussian marginal of the
+predictors (Sterba, 2014), so the analysis keeps its full N. An analysis
+that listwise deletes them is fitted to fewer cases; check the reported
+N before comparing coefficients with a published set.
+
+`se = "corrected"` (the default) is the Bakk, Oberski and Vermunt (2014)
+estimator, which propagates the uncertainty in the step-1 estimates as
+well as the step-3 sampling variability. `se = "robust"` reports only
+the latter; use it when reproducing an analysis whose standard errors
+were computed that way.
+
 ## References
 
 Vermunt, J. K. (2010). Latent class modeling with covariates: Two
@@ -75,6 +109,17 @@ Bakk, Z., Oberski, D. L., & Vermunt, J. K. (2014). Relating latent class
 assignments to external variables: Standard errors for correct
 inference. *Political Analysis*, *22*(4), 520–540.
 [doi:10.1093/pan/mpu003](https://doi.org/10.1093/pan/mpu003)
+
+Bolck, A., Croon, M., & Hagenaars, J. (2004). Estimating latent
+structure models with categorical variables: One-step versus three-step
+estimators. *Political Analysis*, *12*(1), 3–27.
+[doi:10.1093/pan/mph001](https://doi.org/10.1093/pan/mph001)
+
+Bakk, Z., Tekle, F. B., & Vermunt, J. K. (2013). Estimating the
+association between latent class membership and external variables using
+bias-adjusted three-step approaches. *Sociological Methodology*,
+*43*(1), 272–311.
+[doi:10.1177/0081175012470644](https://doi.org/10.1177/0081175012470644)
 
 ## See also
 
@@ -89,7 +134,7 @@ to fit the unconditional model.
 set.seed(1)
 items <- matrix(rbinom(300, 1, 0.5), nrow = 100)
 age   <- rnorm(100)
-fit   <- fit_mixture(items, n_classes = 2)
+fit   <- fit_mixture(items, n_classes = 2, measurement = "binary")
 fit_cov <- add_covariates(fit, age)
 #> Using 'ML' bias correction (set `correction` to override).
 summary(fit_cov)
@@ -104,7 +149,12 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.730  [    0.000, 18452.682]     0.952
-#>   age                      0.919  [    0.271,     3.120]     0.893
+#>   Intercept                0.760  [    0.000, 19243.352]     0.958
+#>   age                      0.929  [    0.280,     3.086]     0.904
 #> =========================================================
+
+# The same covariate named in a formula against its data frame
+df <- data.frame(age = age, sex = rbinom(100, 1, 0.5))
+fit_cov2 <- add_covariates(fit, ~ age + sex, data = df)
+#> Using 'ML' bias correction (set `correction` to override).
 ```

@@ -64,7 +64,15 @@ confint(
 A named list with one data frame per predictor variable (including the
 intercept). Each data frame has columns `OR` (odds ratio), `Lower`, and
 `Upper` (confidence bounds), with one row per latent class. Values are
-rounded to three decimal places.
+returned at full precision and rounded only for display, so
+`log(confint(fit)$age$OR)` recovers the log-odds coefficient exactly.
+
+## See also
+
+[`coef`](https://pdvalencia.github.io/mixtureEM/reference/coef.mixture_model.md)
+for the coefficients themselves, on either scale, and
+[`vcov`](https://pdvalencia.github.io/mixtureEM/reference/vcov.mixture_model.md)
+for their covariance matrix.
 
 ## Examples
 
@@ -90,11 +98,11 @@ confint(fit)
 #> 
 #> Intercept
 #>   Class 1 (Ref)       1.000        -        -
-#>   Class 2             0.696    0.004  119.055
+#>   Class 2             0.739    0.007   74.823
 #> 
 #> age
 #>   Class 1 (Ref)       1.000        -        -
-#>   Class 2             0.266    0.028    2.550
+#>   Class 2             0.340    0.088    1.308
 #> =========================================================
 
 if (FALSE) { # \dontrun{

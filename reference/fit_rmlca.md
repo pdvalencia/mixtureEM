@@ -115,7 +115,10 @@ fit_rmlca(
   Further arguments passed to
   [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md),
   such as `outcome`, `n_init`, `random_state`, `weights`, `strata` or
-  `cluster`.
+  `cluster`. The EM convergence rule is
+  [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)'s
+  fixed one, since this function estimates through it; there is no
+  `tol`-style argument to pass here.
 
 ## Value
 

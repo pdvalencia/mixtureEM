@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -96,10 +96,14 @@ with a full-information ML estimator rather than deleting incomplete
 cases, and so do we — without having to ask for it.
 <code><a href="../reference/fit_mixture.html">fit_mixture()</a></code> detects the missing values and models them
 directly; <code>measurement = "continuous"</code> is all that is needed.
-In practical terms: instead of dropping an adolescent who skipped one
-item — which is what listwise deletion, the default in many packages,
-would do — the model uses every answer that adolescent <em>did</em>
-give.</p>
+Every fit below also passes <code>variances_equal = FALSE</code>. A
+continuous measurement model now holds each item’s variance equal across
+the classes by default, because that bounds the likelihood; this
+analysis deliberately frees them, since the variance collapse that
+follows is the thing the vignette is about. In practical terms: instead
+of dropping an adolescent who skipped one item — which is what listwise
+deletion, the default in many packages, would do — the model uses every
+answer that adolescent <em>did</em> give.</p>
 </div>
 <div class="section level2">
 <h2 id="the-data">The data<a class="anchor" aria-label="anchor" href="#the-data"></a>
@@ -135,7 +139,7 @@ recommend increasing it for a real analysis.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
 <span><span class="va">fit_ch</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">janousch</span><span class="op">$</span><span class="va">country</span> <span class="op">==</span> <span class="st">"Switzerland"</span>, <span class="va">items</span><span class="op">]</span>,</span>
-<span>                       n_classes <span class="op">=</span> <span class="fl">3</span>, measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
+<span>                       n_classes <span class="op">=</span> <span class="fl">3</span>, measurement <span class="op">=</span> <span class="st">"continuous"</span>, variances_equal <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>                       n_init <span class="op">=</span> <span class="fl">30</span>, max_iter <span class="op">=</span> <span class="fl">2000</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Warning: 14 cases had no observed value on any indicator and were removed</span></span>
 <span><span class="co">#&gt; before estimation (n = 361 analysed). Rows: 28, 46, 50, 55, 90, 94, ... (8</span></span>
@@ -157,15 +161,15 @@ frame:</p>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; CONTINUOUS MEANS</span></span>
-<span><span class="co">#&gt; Indicator            | Class 1 | Class 2 | Class 3</span></span>
-<span><span class="co">#&gt; -------------------------------------------------- </span></span>
-<span><span class="co">#&gt; anxiety              |   1.949 |   1.574 |   2.535</span></span>
-<span><span class="co">#&gt; depression           |   1.791 |   1.274 |   2.574</span></span>
-<span><span class="co">#&gt; personal_competence  |   3.837 |   4.319 |   3.258</span></span>
-<span><span class="co">#&gt; social_competence    |   3.990 |   4.446 |   3.404</span></span>
-<span><span class="co">#&gt; structured_style     |   3.548 |   4.083 |   3.201</span></span>
-<span><span class="co">#&gt; social_resources     |   4.561 |   4.819 |   3.838</span></span>
-<span><span class="co">#&gt; family_cohesion      |   4.368 |   4.762 |   3.529</span></span>
+<span><span class="co">#&gt; Indicator            | Overall | Class 1 | Class 2 | Class 3</span></span>
+<span><span class="co">#&gt; ------------------------------------------------------------ </span></span>
+<span><span class="co">#&gt; anxiety              |   1.949 |   1.949 |   1.574 |   2.535</span></span>
+<span><span class="co">#&gt; depression           |   1.782 |   1.791 |   1.274 |   2.574</span></span>
+<span><span class="co">#&gt; personal_competence  |   3.887 |   3.837 |   4.319 |   3.258</span></span>
+<span><span class="co">#&gt; social_competence    |   4.023 |   3.990 |   4.446 |   3.404</span></span>
+<span><span class="co">#&gt; structured_style     |   3.665 |   3.548 |   4.083 |   3.201</span></span>
+<span><span class="co">#&gt; social_resources     |   4.495 |   4.561 |   4.819 |   3.838</span></span>
+<span><span class="co">#&gt; family_cohesion      |   4.334 |   4.368 |   4.762 |   3.529</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Missing data: 143 of 2527 cells (5.7%) across 7 items, handled via FIML (MAR assumption).</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
@@ -187,7 +191,7 @@ and this plot is how they were arrived at.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
 <span><span class="va">fit_de</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">janousch</span><span class="op">$</span><span class="va">country</span> <span class="op">==</span> <span class="st">"Germany"</span>, <span class="va">items</span><span class="op">]</span>,</span>
-<span>                       n_classes <span class="op">=</span> <span class="fl">4</span>, measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
+<span>                       n_classes <span class="op">=</span> <span class="fl">4</span>, measurement <span class="op">=</span> <span class="st">"continuous"</span>, variances_equal <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>                       n_init <span class="op">=</span> <span class="fl">30</span>, max_iter <span class="op">=</span> <span class="fl">2000</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Warning: 4 cases had no observed value on any indicator and were removed before</span></span>
 <span><span class="co">#&gt; estimation (n = 342 analysed). Rows: 43, 113, 269, 322.</span></span>
@@ -203,29 +207,18 @@ and this plot is how they were arrived at.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
 <span><span class="va">fit_gr0</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">janousch</span><span class="op">$</span><span class="va">country</span> <span class="op">==</span> <span class="st">"Greece"</span>, <span class="va">items</span><span class="op">]</span>,</span>
-<span>                       n_classes <span class="op">=</span> <span class="fl">4</span>, measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
+<span>                       n_classes <span class="op">=</span> <span class="fl">4</span>, measurement <span class="op">=</span> <span class="st">"continuous"</span>, variances_equal <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>                       n_init <span class="op">=</span> <span class="fl">30</span>, max_iter <span class="op">=</span> <span class="fl">2000</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Warning: 17 cases had no observed value on any indicator and were removed</span></span>
 <span><span class="co">#&gt; before estimation (n = 422 analysed). Rows: 7, 41, 129, 132, 148, 166, ... (11</span></span>
 <span><span class="co">#&gt; more).</span></span>
 <span><span class="co">#&gt; Warning: A class variance has collapsed towards zero: social_resources in class</span></span>
 <span><span class="co">#&gt; 3 (variance 0.00111 vs 0.348 for the item overall; class mean at a data</span></span>
-<span><span class="co">#&gt; boundary). The likelihood of a mixture of normals is unbounded in this</span></span>
-<span><span class="co">#&gt; direction, so this solution can score better than any meaningful one while</span></span>
-<span><span class="co">#&gt; describing a handful of near-identical cases rather than a subgroup. Do not</span></span>
-<span><span class="co">#&gt; interpret it as it stands, and do not compare its BIC with a clean fit's -- it</span></span>
-<span><span class="co">#&gt; is inflated by the spike. This is not a convergence failure, so raising n_init</span></span>
-<span><span class="co">#&gt; will not fix it and can make it worse. Three ways out, to choose between on</span></span>
-<span><span class="co">#&gt; substantive grounds: (1) hold each item's variance equal across classes with</span></span>
-<span><span class="co">#&gt; variances_equal = TRUE, which bounds the likelihood so the problem cannot</span></span>
-<span><span class="co">#&gt; arise; (2) fit fewer classes, since a class describing a spike rather than a</span></span>
-<span><span class="co">#&gt; subgroup usually means the data do not support this many; or (3) keep the model</span></span>
-<span><span class="co">#&gt; and strengthen the prior with bayes_constants = list(variances = 4) -- roughly</span></span>
-<span><span class="co">#&gt; one artificial observation per class -- increasing it a little at a time if the</span></span>
-<span><span class="co">#&gt; warning persists. Then check that the flagged variance is no longer far below</span></span>
-<span><span class="co">#&gt; the others and that its class mean has come off the floor or ceiling, and look</span></span>
-<span><span class="co">#&gt; at the distribution of the named item for the floor, ceiling or spike the class</span></span>
-<span><span class="co">#&gt; latched onto.</span></span></code></pre></div>
+<span><span class="co">#&gt; boundary). These estimates are not interpretable, and this fit's BIC cannot be</span></span>
+<span><span class="co">#&gt; compared with a clean fit's. Three ways out, to choose between on substantive</span></span>
+<span><span class="co">#&gt; grounds: (1) variances_equal = TRUE; (2) fewer classes; or (3) a stronger</span></span>
+<span><span class="co">#&gt; prior, bayes_constants = list(variances = 4). See ?fit_mixture for why, and</span></span>
+<span><span class="co">#&gt; what to check afterwards.</span></span></code></pre></div>
 <p>That fit raises a warning: one class’s variance on
 <code>social_resources</code> has collapsed towards zero. The next
 section explains what that means and why it happens; the short version
@@ -270,7 +263,7 @@ enough:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
 <span><span class="va">fit_gr</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">janousch</span><span class="op">$</span><span class="va">country</span> <span class="op">==</span> <span class="st">"Greece"</span>, <span class="va">items</span><span class="op">]</span>,</span>
-<span>                       n_classes <span class="op">=</span> <span class="fl">4</span>, measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
+<span>                       n_classes <span class="op">=</span> <span class="fl">4</span>, measurement <span class="op">=</span> <span class="st">"continuous"</span>, variances_equal <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>                       n_init <span class="op">=</span> <span class="fl">30</span>, max_iter <span class="op">=</span> <span class="fl">2000</span>,</span>
 <span>                       bayes_constants <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>variances <span class="op">=</span> <span class="fl">5</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Warning: 17 cases had no observed value on any indicator and were removed</span></span>
@@ -362,7 +355,7 @@ the end of this section for comparison.</p>
 default:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_invariant</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">items</span><span class="op">]</span>, n_classes <span class="op">=</span> <span class="fl">4</span>,</span>
-<span>                             measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
+<span>                             measurement <span class="op">=</span> <span class="st">"continuous"</span>, variances_equal <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>                             group <span class="op">=</span> <span class="va">janousch</span><span class="op">$</span><span class="va">country</span>,</span>
 <span>                             group_effects <span class="op">=</span> <span class="st">"prevalence"</span>,</span>
 <span>                             n_steps <span class="op">=</span> <span class="fl">1</span>, n_init <span class="op">=</span> <span class="fl">50</span>, max_iter <span class="op">=</span> <span class="fl">2000</span>,</span>
@@ -372,22 +365,11 @@ default:</p>
 <span><span class="co">#&gt; more).</span></span>
 <span><span class="co">#&gt; Warning: A class variance has collapsed towards zero: social_resources in class</span></span>
 <span><span class="co">#&gt; 2 (variance 0.000304 vs 0.357 for the item overall; class mean at a data</span></span>
-<span><span class="co">#&gt; boundary). The likelihood of a mixture of normals is unbounded in this</span></span>
-<span><span class="co">#&gt; direction, so this solution can score better than any meaningful one while</span></span>
-<span><span class="co">#&gt; describing a handful of near-identical cases rather than a subgroup. Do not</span></span>
-<span><span class="co">#&gt; interpret it as it stands, and do not compare its BIC with a clean fit's -- it</span></span>
-<span><span class="co">#&gt; is inflated by the spike. This is not a convergence failure, so raising n_init</span></span>
-<span><span class="co">#&gt; will not fix it and can make it worse. Three ways out, to choose between on</span></span>
-<span><span class="co">#&gt; substantive grounds: (1) hold each item's variance equal across classes with</span></span>
-<span><span class="co">#&gt; variances_equal = TRUE, which bounds the likelihood so the problem cannot</span></span>
-<span><span class="co">#&gt; arise; (2) fit fewer classes, since a class describing a spike rather than a</span></span>
-<span><span class="co">#&gt; subgroup usually means the data do not support this many; or (3) keep the model</span></span>
-<span><span class="co">#&gt; and strengthen the prior with bayes_constants = list(variances = 4) -- roughly</span></span>
-<span><span class="co">#&gt; one artificial observation per class -- increasing it a little at a time if the</span></span>
-<span><span class="co">#&gt; warning persists. Then check that the flagged variance is no longer far below</span></span>
-<span><span class="co">#&gt; the others and that its class mean has come off the floor or ceiling, and look</span></span>
-<span><span class="co">#&gt; at the distribution of the named item for the floor, ceiling or spike the class</span></span>
-<span><span class="co">#&gt; latched onto.</span></span></code></pre></div>
+<span><span class="co">#&gt; boundary). These estimates are not interpretable, and this fit's BIC cannot be</span></span>
+<span><span class="co">#&gt; compared with a clean fit's. Three ways out, to choose between on substantive</span></span>
+<span><span class="co">#&gt; grounds: (1) variances_equal = TRUE; (2) fewer classes; or (3) a stronger</span></span>
+<span><span class="co">#&gt; prior, bayes_constants = list(variances = 4). See ?fit_mixture for why, and</span></span>
+<span><span class="co">#&gt; what to check afterwards.</span></span></code></pre></div>
 <p>That fit raises the same warning the Greek model did: one class’s
 variance on <code>social_resources</code> has <strong>collapsed</strong>
 towards zero, with the class mean sitting exactly at the top of the
@@ -416,7 +398,7 @@ the item and the class, which it does. The remedy is the same stronger
 prior, at the same strength the Greek fit needed:</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_invariant</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">items</span><span class="op">]</span>, n_classes <span class="op">=</span> <span class="fl">4</span>,</span>
-<span>                             measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
+<span>                             measurement <span class="op">=</span> <span class="st">"continuous"</span>, variances_equal <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>                             group <span class="op">=</span> <span class="va">janousch</span><span class="op">$</span><span class="va">country</span>,</span>
 <span>                             group_effects <span class="op">=</span> <span class="st">"prevalence"</span>,</span>
 <span>                             n_steps <span class="op">=</span> <span class="fl">1</span>, n_init <span class="op">=</span> <span class="fl">50</span>, max_iter <span class="op">=</span> <span class="fl">2000</span>,</span>
@@ -427,13 +409,11 @@ prior, at the same strength the Greek fit needed:</p>
 <span><span class="co">#&gt; more).</span></span>
 <span><span class="co">#&gt; Warning: The reported solution was found by 1 of 50 starts. EM climbs the peak</span></span>
 <span><span class="co">#&gt; it starts nearest, so a maximum seen once may be the best of a small sample of</span></span>
-<span><span class="co">#&gt; the likelihood surface rather than the best there is. Refit with `n_init =</span></span>
-<span><span class="co">#&gt; 100`. If the maximum still does not replicate at 100 starts, that points at the</span></span>
-<span><span class="co">#&gt; specification - most often more classes than the data support - rather than at</span></span>
-<span><span class="co">#&gt; the search.</span></span>
+<span><span class="co">#&gt; the likelihood surface rather than the best there is: refit with n_init = 100</span></span>
+<span><span class="co">#&gt; before reporting.</span></span>
 <span></span>
 <span><span class="va">fit_free_means</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">items</span><span class="op">]</span>, n_classes <span class="op">=</span> <span class="fl">4</span>,</span>
-<span>                              measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
+<span>                              measurement <span class="op">=</span> <span class="st">"continuous"</span>, variances_equal <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>                              group <span class="op">=</span> <span class="va">janousch</span><span class="op">$</span><span class="va">country</span>,</span>
 <span>                              group_effects <span class="op">=</span> <span class="st">"both"</span>,</span>
 <span>                              group_invariant_params <span class="op">=</span> <span class="st">"covariances"</span>,</span>
@@ -446,17 +426,15 @@ prior, at the same strength the Greek fit needed:</p>
 <span><span class="co">#&gt; Warning: The reported solution was found by 1 of 51 starts that ran to</span></span>
 <span><span class="co">#&gt; convergence, out of 50 requested. EM climbs the peak it starts nearest, so a</span></span>
 <span><span class="co">#&gt; maximum seen once may be the best of a small sample of the likelihood surface</span></span>
-<span><span class="co">#&gt; rather than the best there is. Refit with `n_init = 100`. If the maximum still</span></span>
-<span><span class="co">#&gt; does not replicate at 100 starts, that points at the specification - most often</span></span>
-<span><span class="co">#&gt; more classes than the data support - rather than at the search.</span></span>
+<span><span class="co">#&gt; rather than the best there is: refit with n_init = 100 before reporting.</span></span>
 <span></span>
 <span><span class="fu"><a href="../reference/lr_test.html">lr_test</a></span><span class="op">(</span><span class="va">fit_invariant</span>, <span class="va">fit_free_means</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Likelihood-ratio test for nested models</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt;   Restricted : LL =   -5338.3248   parameters = 65</span></span>
-<span><span class="co">#&gt;   Full       : LL =   -5261.3498   parameters = 121</span></span>
-<span><span class="co">#&gt;   -2 x diff  : 153.9499   df = 56   p = 4.445e-11</span></span>
+<span><span class="co">#&gt;   Restricted : LL =   -5338.3176   parameters = 65</span></span>
+<span><span class="co">#&gt;   Full       : LL =   -5261.3477   parameters = 121</span></span>
+<span><span class="co">#&gt;   -2 x diff  : 153.9397   df = 56   p = 4.46e-11</span></span>
 <span><span class="co">#&gt;   The restriction is rejected: the full model fits significantly better.</span></span></code></pre></div>
 <p>Both fits are now clean — no collapsed variances in either — and the
 restriction is decisively rejected: forcing the same profile means
@@ -486,7 +464,7 @@ everything about the measurement model, giving each country its own
 profile means <em>and</em> its own variances:</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_configural</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">janousch</span><span class="op">[</span><span class="va">items</span><span class="op">]</span>, n_classes <span class="op">=</span> <span class="fl">4</span>,</span>
-<span>                              measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
+<span>                              measurement <span class="op">=</span> <span class="st">"continuous"</span>, variances_equal <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>                              group <span class="op">=</span> <span class="va">janousch</span><span class="op">$</span><span class="va">country</span>,</span>
 <span>                              group_effects <span class="op">=</span> <span class="st">"both"</span>,</span>
 <span>                              n_steps <span class="op">=</span> <span class="fl">1</span>, n_init <span class="op">=</span> <span class="fl">50</span>, max_iter <span class="op">=</span> <span class="fl">2000</span>,</span>
@@ -498,17 +476,15 @@ profile means <em>and</em> its own variances:</p>
 <span><span class="co">#&gt; Warning: The reported solution was found by 1 of 51 starts that ran to</span></span>
 <span><span class="co">#&gt; convergence, out of 50 requested. EM climbs the peak it starts nearest, so a</span></span>
 <span><span class="co">#&gt; maximum seen once may be the best of a small sample of the likelihood surface</span></span>
-<span><span class="co">#&gt; rather than the best there is. Refit with `n_init = 100`. If the maximum still</span></span>
-<span><span class="co">#&gt; does not replicate at 100 starts, that points at the specification - most often</span></span>
-<span><span class="co">#&gt; more classes than the data support - rather than at the search.</span></span>
+<span><span class="co">#&gt; rather than the best there is: refit with n_init = 100 before reporting.</span></span>
 <span></span>
 <span><span class="fu"><a href="../reference/lr_test.html">lr_test</a></span><span class="op">(</span><span class="va">fit_invariant</span>, <span class="va">fit_configural</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Likelihood-ratio test for nested models</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt;   Restricted : LL =   -5338.3248   parameters = 65</span></span>
-<span><span class="co">#&gt;   Full       : LL =   -5191.4948   parameters = 177</span></span>
-<span><span class="co">#&gt;   -2 x diff  : 293.6599   df = 112   p = &lt; 1e-16</span></span>
+<span><span class="co">#&gt;   Restricted : LL =   -5338.3176   parameters = 65</span></span>
+<span><span class="co">#&gt;   Full       : LL =   -5191.4969   parameters = 177</span></span>
+<span><span class="co">#&gt;   -2 x diff  : 293.6414   df = 112   p = &lt; 1e-16</span></span>
 <span><span class="co">#&gt;   The restriction is rejected: the full model fits significantly better.</span></span></code></pre></div>
 <p>This rejects too, and by more, but it is answering a broader question
 — “is anything about the measurement model different across countries?”
@@ -557,22 +533,22 @@ model:</p>
 <span><span class="co">#&gt;                                       OR         [95% CI]         P-Value</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 2 ON</span></span>
-<span><span class="co">#&gt;   Intercept                        0.866  [    0.465,     1.611]     0.649</span></span>
-<span><span class="co">#&gt;   gender.Female                    1.138  [    0.656,     1.972]     0.646</span></span>
-<span><span class="co">#&gt;   migratn_bckgrnd.Mgrtnbckgrnd     0.870  [    0.467,     1.620]     0.661</span></span>
+<span><span class="co">#&gt;   Intercept                        0.867  [    0.466,     1.616]     0.654</span></span>
+<span><span class="co">#&gt;   gender.Female                    1.137  [    0.655,     1.972]     0.648</span></span>
+<span><span class="co">#&gt;   migratn_bckgrnd.Mgrtnbckgrnd     0.869  [    0.466,     1.621]     0.660</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 3 ON</span></span>
-<span><span class="co">#&gt;   Intercept                        0.479  [    0.223,     1.028]     0.059</span></span>
-<span><span class="co">#&gt;   gender.Female                    1.171  [    0.629,     2.183]     0.618</span></span>
-<span><span class="co">#&gt;   migratn_bckgrnd.Mgrtnbckgrnd     0.995  [    0.457,     2.167]     0.990</span></span>
+<span><span class="co">#&gt;   Intercept                        0.482  [    0.225,     1.033]     0.061</span></span>
+<span><span class="co">#&gt;   gender.Female                    1.170  [    0.628,     2.178]     0.621</span></span>
+<span><span class="co">#&gt;   migratn_bckgrnd.Mgrtnbckgrnd     0.991  [    0.456,     2.155]     0.982</span></span>
 <span><span class="co">#&gt;   Abbreviated names:</span></span>
 <span><span class="co">#&gt;     migratn_bckgrnd.Mgrtnbckgrnd = migration_background.Migration background</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;                          Wald Chi2   df  P-Value</span></span>
-<span><span class="co">#&gt;   gender                     0.311    2     0.856</span></span>
-<span><span class="co">#&gt;   migration_background       0.251    2     0.882</span></span>
+<span><span class="co">#&gt;   gender                     0.307    2     0.858</span></span>
+<span><span class="co">#&gt;   migration_background       0.248    2     0.884</span></span>
 <span><span class="co">#&gt;   Note: a non-significant test beside large coefficients can be the</span></span>
 <span><span class="co">#&gt;         Hauck-Donner effect; confirm with wald_omnibus_test().</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>

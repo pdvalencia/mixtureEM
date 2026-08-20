@@ -15,7 +15,7 @@ by the classes."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -65,19 +65,20 @@ by the classes.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">fit_mixture</span><span class="op">(</span></span>
 <span>  indicators <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_classes <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>  measurement <span class="op">=</span> <span class="st">"binary"</span>,</span>
+<span>  <span class="va">measurement</span>,</span>
 <span>  predictors <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  outcome <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  outcome_covariates <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  outcome_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"continuous"</span>, <span class="st">"categorical"</span><span class="op">)</span>,</span>
-<span>  slopes <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"pooled"</span>, <span class="st">"class_specific"</span><span class="op">)</span>,</span>
+<span>  slopes <span class="op">=</span> <span class="st">"pooled"</span>,</span>
 <span>  group <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  group_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"both"</span>, <span class="st">"measurement"</span>, <span class="st">"prevalence"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
 <span>  group_invariant_items <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  group_invariant_params <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  variances_equal <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  variances_equal <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_steps <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  correction <span class="op">=</span> <span class="st">"none"</span>,</span>
+<span>  assignment <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proportional"</span>, <span class="st">"modal"</span><span class="op">)</span>,</span>
 <span>  n_init <span class="op">=</span> <span class="fl">20</span>,</span>
 <span>  max_iter <span class="op">=</span> <span class="fl">1000</span>,</span>
 <span>  random_state <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -117,6 +118,16 @@ string for all of them — <code>"binary"</code>, <code>"categorical"</code>,
 mixed-type model, a named list mapping each type to the columns it governs
 by name or index, e.g.
 <code>list(binary = c("q1","q2"), continuous = "score")</code>.</p>
+<p><strong>Required; there is no default.</strong> The storage mode of a column does
+not determine its measurement model: a 1-5 column is a legitimate
+<code>"categorical"</code>, <code>"continuous"</code> or <code>"count"</code> indicator, and
+the class solution differs across the three. Inferring the type from the
+data would settle a modelling question by inspecting storage mode, and
+would make a script's meaning depend on the data it happens to be run
+against; a constant default is the same guess with the data-dependence
+removed. Omitting the argument is an error that lists the valid types and
+suggests one based on your columns — as a hint for you to confirm, not a
+choice the package makes.</p>
 <p><strong>Missing values need no special handling.</strong> Any indicator containing
 <code>NA</code> is estimated by full-information maximum likelihood under the
 usual missing-at-random assumption, chosen automatically; cases missing on
@@ -156,8 +167,13 @@ from <code>outcome</code>.</p></dd>
 
 <dt id="arg-slopes">slopes<a class="anchor" aria-label="anchor" href="#arg-slopes"></a></dt>
 <dd><p>When <code>outcome_covariates</code> are supplied, whether their
-effect is <code>"pooled"</code> (one slope shared across classes) or
-<code>"class_specific"</code> (a separate slope per class).</p></dd>
+effect is <code>"pooled"</code> (default; one slope shared across classes),
+<code>"class_specific"</code> (a separate slope per class for every covariate),
+or a character vector of covariate names (or a one-sided formula naming
+them, e.g. <code>~ loc1 + loc2</code>) giving a separate slope per class to just
+those covariates while the rest stay pooled – letting the class moderate
+some covariates while adjusting for others. The last form is
+continuous-outcome only.</p></dd>
 
 
 <dt id="arg-group">group<a class="anchor" aria-label="anchor" href="#arg-group"></a></dt>
@@ -165,7 +181,21 @@ effect is <code>"pooled"</code> (one slope shared across classes) or
 model (Collins &amp; Lanza, 2010, sec. 5.7-5.12), e.g. grade or gender.
 Unlike <code>predictors</code>, which only ever shifts class membership, a
 group can also be allowed to shift the item-response probabilities
-themselves; see <code>group_effects</code>.</p></dd>
+themselves; see <code>group_effects</code>.</p>
+<p><strong>A covariate whose effect on class membership differs by group</strong>
+– moderation, not just adjustment – does not need <code>group</code> at all:
+build the interaction into <code>predictors</code> directly, e.g.
+<code>predictors = model.matrix(~ grade * factor(year))[, -1]</code> handed to
+<code>fit_mixture()</code> in place of a plain covariate matrix. Leave
+<code>group</code> unset for this (or use
+<code>group_effects = "measurement"</code> if the item parameters should also
+be free by group): a <code>"prevalence"</code> or <code>"both"</code> group effect
+appends the group's own design to <code>predictors</code> internally, so the
+group columns would then appear twice. A covariate matrix built this way
+also carries none of the column-to-variable bookkeeping a data-frame
+<code>predictors</code> does, so functions like <code>wald_test</code> need
+the individual interaction column names rather than a single variable
+name.</p></dd>
 
 
 <dt id="arg-group-effects">group_effects<a class="anchor" aria-label="anchor" href="#arg-group-effects"></a></dt>
@@ -232,7 +262,25 @@ only. This is the homoscedastic latent profile model and the default
 parameterisation of several commercial programs, and it combines with
 <code>group_invariant_params</code> to give a variance that is free across groups
 but shared by the classes within each. Passed through to the measurement
-model, so it is also available on an ordinary single-group fit.</p></dd>
+model, so it is also available on an ordinary single-group fit.</p>
+<p><strong>This is the default when <code>measurement</code> is continuous</strong>, and
+<code>variances_equal = FALSE</code> recovers the class-varying parameterisation
+the package used previously. The reason is that the unrestricted
+normal-mixture likelihood is <em>unbounded</em>: send a class mean to any
+single data point and that class's variance to zero and the likelihood
+diverges, so no maximum likelihood estimate exists and what the EM reports
+is a local optimum whose properties are not guaranteed. Holding the
+variances equal across classes bounds the likelihood, and the constrained
+estimator is consistent (Day, 1969; Hathaway, 1985). Freeing them also
+invites classes that describe non-normality in a single population rather
+than distinct subgroups (Bauer &amp; Curran, 2003).</p>
+<p>The restriction is substantive and testable, and you are expected to fit
+both and compare rather than accept either blindly. It is not offered as
+the <em>safe</em> choice but as the well-posed one: when the homoscedastic
+model is wrong, it fails visibly — a genuinely heteroscedastic class splits
+into two, and the comparison against the free model says so. When the free
+model is wrong it fails silently, as a boundary solution that gets written
+up as a finding.</p></dd>
 
 
 <dt id="arg-n-steps">n_steps<a class="anchor" aria-label="anchor" href="#arg-n-steps"></a></dt>
@@ -246,6 +294,14 @@ or <code>outcome</code> is supplied and left unset, otherwise 1.</p></dd>
 <code>"ML"</code>, or <code>"BCH"</code>. When left unset for a 3-step structural
 model, a recommended default is chosen (ML for predictors and categorical
 outcomes, BCH for continuous outcomes).</p></dd>
+
+
+<dt id="arg-assignment">assignment<a class="anchor" aria-label="anchor" href="#arg-assignment"></a></dt>
+<dd><p>How step 1's posteriors are turned into the assigned-class
+variable whose classification error the correction inverts:
+<code>"proportional"</code> (default; each case carries its posterior probability
+in every class) or <code>"modal"</code> (each case is assigned to its most likely
+class outright). See <code><a href="add_covariates.html">add_covariates</a></code>.</p></dd>
 
 
 <dt id="arg-n-init-max-iter-random-state-order-by-size-refine">n_init, max_iter, random_state, order_by_size, refine<a class="anchor" aria-label="anchor" href="#arg-n-init-max-iter-random-state-order-by-size-refine"></a></dt>
@@ -267,6 +323,10 @@ there is one, but local optima multiply with more classes and poorer
 separation. <code>max_iter</code> defaults to 1000, following the iteration
 budget in Biernacki et al. (2003); when a fit stops at the cap, double it.
 <code><a href="../articles/estimation.html">vignette("estimation")</a></code> gives the figures behind both numbers.</p>
+<p>The cost is roughly linear in <code>n_init</code>, so it is easy to budget for a
+larger search: <code>n_init = 20</code> took about 16 seconds on a 4-class,
+7-item binary model with 2,587 cases, so <code>n_init = 200</code> on the same
+model is a couple of minutes and <code>n_init = 1000</code> is closer to ten.</p>
 <p>More starts are not <em>monotonically</em> better on a large model. Where each
 EM iteration is expensive the search runs in two stages: a short pass ranks
 the starts and only the best fraction is run to convergence. That ranking is
@@ -329,9 +389,12 @@ recommended setting — the unpenalised mixture likelihood for a mixture of
 normals is unbounded, so a <em>global</em> maximum likelihood estimate does
 not exist (Day, 1969; Kiefer &amp; Wolfowitz, 1956) and what an unregularized
 program reports is a local maximum.</p>
-<p><strong>Rescuing a collapsed fit:</strong> if a fit warns that a class variance has
-collapsed, the prior is one of three remedies, and not the first to reach
-for. Constraining the variances to be equal across classes
+<p><strong>Rescuing a collapsed fit:</strong> this situation is now rare, because a
+continuous measurement model holds the variances equal across classes by
+default and that bounds the likelihood; it arises when you have explicitly
+passed <code>variances_equal = FALSE</code>. If a fit warns that a class variance
+has collapsed, the prior is one of three remedies, and not the first to
+reach for. Constraining the variances to be equal across classes
 (<code>variances_equal = TRUE</code>) bounds the likelihood so the problem cannot
 arise at all; fitting fewer classes often removes the class that was
 describing a spike. Where neither is acceptable substantively, raise
@@ -345,7 +408,9 @@ penalised-mixture literature applies it, the same amount to every component
 — while a fixed value drifts as classes are added. Then check the result
 rather than just that the warning stopped — the flagged variance should no
 longer be far below the others in the model, and its class mean should have
-come off the floor or ceiling of the response scale.</p>
+come off the floor or ceiling of the response scale. It is worth looking at
+the distribution of the named item as well, for the floor, ceiling or spike
+the class latched onto.</p>
 <p>Raising <code>n_init</code> is <em>not</em> a remedy here. A collapsed variance is
 not a convergence failure but a property of the likelihood, which really is
 unbounded in that direction, so a longer search can find a taller spike and
@@ -385,6 +450,21 @@ backward compatibility; prefer <code>indicators</code>, <code>n_classes</code>,
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A fitted <code>mixture_model</code> object.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p><strong>The EM convergence rule is fixed and not user-adjustable.</strong> Each
+random start stops once the log-likelihood improves by less than
+<code>1e-4</code> in absolute terms or a relative <code>1e-8</code>, whichever is
+looser, and there is no argument that changes this. A looser rule was
+tried and measured to cost real log-likelihood — on a validated 4-class
+binary example, stopping early and then polishing with a numerical
+optimizer recovered only a ninth of what a tighter EM rule found outright
+— and, more importantly, it degrades the multi-start search itself: a
+loose rule ranks candidate starts on log-likelihood values too coarse to
+tell a good basin from a mediocre one, so <code>n_init</code> stops doing its
+job. If a fit seems slow, raise <code>n_init</code> or trim <code>max_iter</code>
+rather than looking for a tolerance argument; there is not one to find.</p>
     </div>
     <div class="section level2">
     <h2 id="multiple-group-models">Multiple-group models<a class="anchor" aria-label="anchor" href="#multiple-group-models"></a></h2>
@@ -440,7 +520,16 @@ latent class analysis by Bayesian posterior mode estimation.
 and variance. <em>Statistica Sinica</em>, <em>18</em>(2), 443-465
 (the penalty behind <code>bayes_constants$variances</code>).</p>
 <p>Day, N. E. (1969). Estimating the components of a mixture of normal
-distributions. <em>Biometrika</em>, <em>56</em>(3), 463-474.</p>
+distributions. <em>Biometrika</em>, <em>56</em>(3), 463-474
+(the unbounded likelihood behind the <code>variances_equal</code> default).</p>
+<p>Hathaway, R. J. (1985). A constrained formulation of maximum-likelihood
+estimation for normal mixture distributions. <em>The Annals of
+Statistics</em>, <em>13</em>(2), 795-800 (consistency of the constrained
+estimator).</p>
+<p>Bauer, D. J., &amp; Curran, P. J. (2003). Distributional assumptions of growth
+mixture models: Implications for overextraction of latent trajectory
+classes. <em>Psychological Methods</em>, <em>8</em>(3), 338-363.
+<a href="https://doi.org/10.1037/1082-989X.8.3.338" class="external-link">doi:10.1037/1082-989X.8.3.338</a></p>
 <p>Kiefer, J., &amp; Wolfowitz, J. (1956). Consistency of the maximum likelihood
 estimator in the presence of infinitely many incidental parameters.
 <em>The Annals of Mathematical Statistics</em>, <em>27</em>(4), 887-906.</p>
@@ -459,11 +548,17 @@ Modeling</em>, <em>25</em>(3), 439-452. <a href="https://doi.org/10.1080/1070551
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
 <span class="r-in"><span><span class="co"># Class membership predicted by a covariate (3-step, ML by default)</span></span></span>
-<span class="r-in"><span><span class="fu">fit_mixture</span><span class="op">(</span><span class="va">X</span>, n_classes <span class="op">=</span> <span class="fl">2</span>, predictors <span class="op">=</span> <span class="va">age</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">fit_mixture</span><span class="op">(</span><span class="va">X</span>, n_classes <span class="op">=</span> <span class="fl">2</span>, measurement <span class="op">=</span> <span class="st">"binary"</span>, predictors <span class="op">=</span> <span class="va">age</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Distal outcome with a class-specific covariate slope</span></span></span>
-<span class="r-in"><span><span class="fu">fit_mixture</span><span class="op">(</span><span class="va">X</span>, n_classes <span class="op">=</span> <span class="fl">2</span>, outcome <span class="op">=</span> <span class="va">bmi</span>,</span></span>
+<span class="r-in"><span><span class="fu">fit_mixture</span><span class="op">(</span><span class="va">X</span>, n_classes <span class="op">=</span> <span class="fl">2</span>, measurement <span class="op">=</span> <span class="st">"binary"</span>, outcome <span class="op">=</span> <span class="va">bmi</span>,</span></span>
 <span class="r-in"><span>            outcome_covariates <span class="op">=</span> <span class="va">age</span>, slopes <span class="op">=</span> <span class="st">"class_specific"</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Class moderates level-of-care while age and gender are only adjusted</span></span></span>
+<span class="r-in"><span><span class="co"># for: a mix of "class_specific" and "pooled" in one model.</span></span></span>
+<span class="r-in"><span><span class="fu">fit_mixture</span><span class="op">(</span><span class="va">X</span>, n_classes <span class="op">=</span> <span class="fl">4</span>, measurement <span class="op">=</span> <span class="st">"binary"</span>, outcome <span class="op">=</span> <span class="va">cannabis_days</span>,</span></span>
+<span class="r-in"><span>            outcome_covariates <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="va">loc1</span>, <span class="va">loc2</span>, <span class="va">loc3</span>, <span class="va">age</span>, <span class="va">gender</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>            slopes <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"loc1"</span>, <span class="st">"loc2"</span>, <span class="st">"loc3"</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Mixed-type indicators</span></span></span>
 <span class="r-in"><span><span class="fu">fit_mixture</span><span class="op">(</span><span class="va">items</span>, n_classes <span class="op">=</span> <span class="fl">3</span>,</span></span>

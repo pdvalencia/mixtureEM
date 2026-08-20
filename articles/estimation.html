@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -109,6 +109,10 @@ many of them found that best solution:</p>
 <span><span class="co">#&gt; Converged          : TRUE (in 18 iterations)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Log-Likelihood : -909.47</span></span>
+<span><span class="co">#&gt;   Parameters     : 9</span></span>
+<span><span class="co">#&gt;   AIC            : 1836.94</span></span>
+<span><span class="co">#&gt;   BIC            : 1872.86</span></span>
+<span><span class="co">#&gt;   SABIC          : 1844.31</span></span>
 <span><span class="co">#&gt;   Rel. Entropy   : 0.8316</span></span>
 <span><span class="co">#&gt;   Best solution  : found by 20 of 20 starts</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
@@ -313,12 +317,22 @@ several.</td>
 <code>mover_stayer = TRUE</code> that tells them apart.</td>
 </tr>
 <tr class="even">
+<td>The transition prior is carrying more than 5% of some rows</td>
+<td>An origin status few cases occupy, so its transitions rest partly on
+the prior rather than on the sample. Not a failure — read those
+transitions as indicative.</td>
+<td>Pool the occasions with <code>transition_invariance = "full"</code>
+where that is defensible, which adds information.
+<code>smoothing = 0.5</code> halves the pull; <code>smoothing = 0</code>
+gives back the zeros the prior prevents.</td>
+</tr>
+<tr class="odd">
 <td>The BLRT p-value is next to .05</td>
 <td>With <code>n_reps</code> draws the p-value moves in steps of 1/(B+1)
 and cannot resolve the decision.</td>
 <td>Refit with <code>n_reps = 999</code>.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Negative bootstrap draws</td>
 <td>A replicate’s <em>k</em>-class fit landed below the
 (<em>k</em>−1)-class model nested inside it: the replicate search
@@ -455,6 +469,56 @@ the parts.</p>
 </div>
 </div>
 <div class="section level2">
+<h2 id="transitions-get-their-own-prior">Transitions get their own prior<a class="anchor" aria-label="anchor" href="#transitions-get-their-own-prior"></a>
+</h2>
+<p><code><a href="../reference/fit_lta.html">fit_lta()</a></code> smooths the status prevalences and the
+transition matrices with a second, separate prior, set by
+<code>smoothing</code> rather than by <code>bayes_constants</code>. The
+two are not interchangeable: <code>bayes_constants</code> governs the
+measurement model — how the statuses relate to the items — while
+<code>smoothing</code> governs the chain. Sparse transition tables are
+the reason. A transition probability estimated at exactly zero says the
+move never happens, which is rarely what a handful of cases in an origin
+row can support, and it carries the same broken standard errors as any
+other boundary estimate.</p>
+<p>What is added is <strong>one pseudo-case per origin row</strong>,
+spread evenly over that row’s reachable destinations. Both halves of
+that are choices. The mass is per row rather than per cell, which is the
+prior Chung, Lanza and Loken (2008) use for exactly this model — they
+describe it as adding one observation to each class at the first
+occasion — and the boundary solutions maximum likelihood produces at
+<em>n</em> = 100 disappear under it. The spread is even rather than
+proportional to how often each destination is occupied: shrinking a rare
+origin row toward the destination marginal would assert that everyone in
+it moves to the prevalent status, which is a confident claim about a row
+the data say little about, where an even spread claims nothing (Fienberg
+&amp; Holland, 1973, sec. 6).</p>
+<p>The cost falls on precisely those rows, and it has an exact form. For
+a row with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>m</mi><annotation encoding="application/x-tex">m</annotation></semantics></math>
+expected cases and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>K</mi><mi>a</mi></msub><annotation encoding="application/x-tex">K_a</annotation></semantics></math>
+reachable destinations, the prior can move any probability in it by at
+most</p>
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mtext mathvariant="normal">pull</mtext><mo>=</mo><mfrac><mi>α</mi><mrow><mi>m</mi><mo>+</mo><mi>α</mi></mrow></mfrac><mrow><mo stretchy="true" form="prefix">(</mo><mn>1</mn><mo>−</mo><mfrac><mn>1</mn><msub><mi>K</mi><mi>a</mi></msub></mfrac><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">\text{pull} = \frac{\alpha}{m + \alpha}\left(1 - \frac{1}{K_a}\right)</annotation></semantics></math></p>
+<p>A fit reports this per row and tells you when it exceeds five
+percentage points on any of them, naming the worst. That is a reading
+caution, not a verdict on the model: it says those transitions rest
+partly on the prior, so report them as indicative rather than at face
+value. The remedy worth reaching for first is
+<code>transition_invariance = "full"</code>, which puts every occasion’s
+cases behind the one pseudo-case and adds information rather than
+removing a prior — available whenever the transitions can be assumed
+constant over time. <code>smoothing = 0.5</code> simply halves the pull.
+<code>smoothing = 0</code> is not a good answer: it hands back the zeros
+the prior exists to prevent.</p>
+<p>Note that adding statuses makes this worse and adding occasions does
+not. An origin row’s expected count is the sample divided among the
+statuses (and, with <code>n_classes</code> &gt; 1, among the classes as
+well), while every occasion’s transition table is built from all
+<em>n</em> cases.</p>
+</div>
+<div class="section level2">
 <h2 id="missing-data-needs-nothing-from-you">Missing data needs nothing from you<a class="anchor" aria-label="anchor" href="#missing-data-needs-nothing-from-you"></a>
 </h2>
 <p>Any indicator containing <code>NA</code> is estimated by
@@ -491,6 +555,9 @@ in multivariate Gaussian mixture models. <em>Computational Statistics
 <p>Chen, J., Tan, X., &amp; Zhang, R. (2008). Inference for normal
 mixtures in mean and variance. <em>Statistica Sinica</em>,
 <em>18</em>(2), 443-465.</p>
+<p>Chung, H., Lanza, S. T., &amp; Loken, E. (2008). Latent transition
+analysis: inference and estimation. <em>Statistics in Medicine</em>,
+<em>27</em>(11), 1834-1854.</p>
 <p>Davison, A. C., &amp; Hinkley, D. V. (1997). <em>Bootstrap Methods
 and Their Application</em> (ch. 4). Cambridge University Press.</p>
 <p>Day, N. E. (1969). Estimating the components of a mixture of normal
@@ -499,6 +566,9 @@ distributions. <em>Biometrika</em>, <em>56</em>(3), 463-474.</p>
 statistical power and sample size requirements for the bootstrap
 likelihood ratio test in latent class analysis. <em>Structural Equation
 Modeling</em>, <em>21</em>(4), 534-552.</p>
+<p>Fienberg, S. E., &amp; Holland, P. W. (1973). Simultaneous estimation
+of multinomial cell probabilities. <em>Journal of the American
+Statistical Association</em>, <em>68</em>(343), 683-691.</p>
 <p>Galindo Garre, F., &amp; Vermunt, J. K. (2006). Avoiding boundary
 estimates in latent class analysis by Bayesian posterior mode
 estimation. <em>Behaviormetrika</em>, <em>33</em>(1), 43-59.</p>

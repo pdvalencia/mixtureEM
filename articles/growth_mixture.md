@@ -80,6 +80,10 @@ fit_lcga2
 #> Converged          : TRUE (in 11 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -6245.41
+#>   Parameters     : 7
+#>   AIC            : 12504.83
+#>   BIC            : 12536.69
+#>   SABIC          : 12514.46
 #>   Rel. Entropy   : 0.9175
 #>   Best solution  : found by 15 of 15 starts
 #> ---------------------------------------------------------
@@ -135,6 +139,10 @@ fit_gmm2
 #> Converged          : TRUE (in 39 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -5570.91
+#>   Parameters     : 13
+#>   AIC            : 11167.82
+#>   BIC            : 11226.98
+#>   SABIC          : 11185.71
 #>   Rel. Entropy   : 0.9113
 #>   Best solution  : found by 4 of 4 starts that ran to convergence (of 15 requested)
 #> ---------------------------------------------------------
@@ -198,8 +206,8 @@ results  <- summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.562  [    0.471,     0.670]    < .001
-#>   x_member                 1.820  [    1.539,     2.152]    < .001
+#>   Intercept                0.562  [    0.472,     0.671]    < .001
+#>   x_member                 1.817  [    1.537,     2.148]    < .001
 #> =========================================================
 ```
 
@@ -255,6 +263,10 @@ print(fit_gp)
 #> Converged          : TRUE (in 48 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -5570.48
+#>   Parameters     : 15
+#>   AIC            : 11170.97
+#>   BIC            : 11239.23
+#>   SABIC          : 11191.61
 #>   Rel. Entropy   : 0.9110
 #>   Best solution  : found by 4 of 4 starts that ran to convergence (of 15 requested)
 #> ---------------------------------------------------------
@@ -316,11 +328,11 @@ params <- measurement_summary(fit_gmm2)
 #> T5                   |   2.254 |   3.119
 #> =========================================================
 head(params[params$parameter == "growth_mean", ])
-#>   block   parameter      item category class    estimate
-#> 1  <NA> growth_mean intercept       NA     1  1.89749427
-#> 2  <NA> growth_mean intercept       NA     2  6.01535071
-#> 3  <NA> growth_mean    linear       NA     1  0.08903508
-#> 4  <NA> growth_mean    linear       NA     2 -0.72405220
+#>   block   parameter      item category class    estimate overall
+#> 1  <NA> growth_mean intercept       NA     1  1.89749427      NA
+#> 2  <NA> growth_mean intercept       NA     2  6.01535071      NA
+#> 3  <NA> growth_mean    linear       NA     1  0.08903508      NA
+#> 4  <NA> growth_mean    linear       NA     2 -0.72405220      NA
 ```
 
 Class enumeration has its own two functions.

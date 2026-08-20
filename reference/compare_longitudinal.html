@@ -33,8 +33,9 @@ has to clear — &quot;there are no set cut-off criteria for deciding whether th
 entropy is reasonably high&quot; (Jung &amp;amp; Wickrama, 2008, p. 312) — so the package
 applies none.
 Reading the Unreplicated column. TRUE means that K's reported maximum
-was found by exactly one random start; refit those with n_init = 100
-before reporting. The per-model warning is suppressed inside this loop, since
+was found by exactly one random start; refit those with more starts
+(n_init = 100 is the usual next step) before reporting. The per-model
+warning is suppressed inside this loop, since
 it would otherwise fire once per K."><meta property="og:description" content="Fits a series of models with increasing numbers of latent classes (RMLCA) or
 latent statuses (LTA) and tabulates the usual selection criteria, mirroring
 compare_mixtures() for the cross-sectional case. Lower AIC, BIC and SABIC
@@ -69,8 +70,9 @@ has to clear — &quot;there are no set cut-off criteria for deciding whether th
 entropy is reasonably high&quot; (Jung &amp;amp; Wickrama, 2008, p. 312) — so the package
 applies none.
 Reading the Unreplicated column. TRUE means that K's reported maximum
-was found by exactly one random start; refit those with n_init = 100
-before reporting. The per-model warning is suppressed inside this loop, since
+was found by exactly one random start; refit those with more starts
+(n_init = 100 is the usual next step) before reporting. The per-model
+warning is suppressed inside this loop, since
 it would otherwise fire once per K."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
@@ -79,7 +81,7 @@ it would otherwise fire once per K."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -151,8 +153,9 @@ has to clear — "there are no set cut-off criteria for deciding whether the
 entropy is reasonably high" (Jung &amp; Wickrama, 2008, p. 312) — so the package
 applies none.</p>
 <p><strong>Reading the <code>Unreplicated</code> column.</strong> <code>TRUE</code> means that K's reported maximum
-was found by exactly one random start; refit those with <code>n_init = 100</code>
-before reporting. The per-model warning is suppressed inside this loop, since
+was found by exactly one random start; refit those with more starts
+(<code>n_init = 100</code> is the usual next step) before reporting. The per-model
+warning is suppressed inside this loop, since
 it would otherwise fire once per K.</p>
     </div>
 
@@ -164,6 +167,7 @@ it would otherwise fire once per K.</p>
 <span>  model <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"lta"</span>, <span class="st">"rmlca"</span>, <span class="st">"gmm"</span>, <span class="st">"lcga"</span><span class="op">)</span>,</span>
 <span>  times <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  vlmr <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"standard"</span>, <span class="st">"robust"</span>, <span class="st">"both"</span><span class="op">)</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -195,6 +199,15 @@ outcome, in any format accepted by <code><a href="fit_gmm.html">fit_gmm()</a></c
 <dd><p>Print progress.</p></dd>
 
 
+<dt id="arg-vlmr">vlmr<a class="anchor" aria-label="anchor" href="#arg-vlmr"></a></dt>
+<dd><p>Whether to add the Vuong-Lo-Mendell-Rubin test of K against K+1:
+<code>"none"</code> (the default), <code>"standard"</code>, <code>"robust"</code> or <code>"both"</code>. See
+<code><a href="compare_mixtures.html">compare_mixtures()</a></code> for what the two forms are and why the test is off
+by default. It is unavailable for <code>model = "lta"</code>, whose latent variable is
+a status per occasion rather than one class per case; those rows come back
+<code>NA</code> with a message.</p></dd>
+
+
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Further arguments passed to the fitting function, such as
 <code>measurement</code>, <code>time_invariance</code> or <code>tau_homogeneous</code> for the categorical
@@ -209,9 +222,12 @@ models that allow for different types of between-class differences".</p></dd>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A list with <code>fit_table</code> (columns <code>Classes</code>, <code>LL</code>, <code>Params</code>, <code>AIC</code>,
-<code>BIC</code>, <code>SABIC</code>, <code>Entropy</code> and <code>Unreplicated</code>), the fitted <code>models</code> (named
-<code>"K2"</code>, <code>"K3"</code>, ...) and <code>best_k</code>, the class count with the lowest BIC.</p>
+    <p>An object of class <code>mixture_comparison</code>, a list with <code>fit_table</code>
+(columns <code>Classes</code>, <code>LL</code>, <code>Params</code>, <code>AIC</code>, <code>BIC</code>, <code>SABIC</code>, <code>Entropy</code> and
+<code>Unreplicated</code>), the fitted <code>models</code> (named <code>"K2"</code>, <code>"K3"</code>, ...) and
+<code>best_k</code>, the class count with the lowest BIC. It indexes exactly as a
+plain list; <code><a href="plot.mixture_comparison.html">plot()</a></code> draws the criteria
+against K.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>

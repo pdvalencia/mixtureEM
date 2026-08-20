@@ -13,11 +13,7 @@ Unlike the absolute-fit statistics, bivariate residuals do not require the
 full response-pattern table and so remain usable with many indicators: the
 model-implied two-way margin follows in closed form from conditional
 independence, \(P(y_a = r, y_b = s) = \sum_k \gamma_k\, p_a(r|k)\,
-p_b(s|k)\).
-With missing data each pair is computed on the cases observing both items,
-and the expected counts are scaled to that pair's total. This is a
-pairwise-complete statistic rather than a full-information one, so read it
-as descriptive when missingness is heavy."><meta property="og:description" content="A local measure of fit: for each pair of categorical indicators, the Pearson
+p_b(s|k)\)."><meta property="og:description" content="A local measure of fit: for each pair of categorical indicators, the Pearson
 chi-square of the observed two-way table against the table the model implies,
 divided by its degrees of freedom \((R_a - 1)(R_b - 1)\). If the model
 were true, a bivariate residual should not be substantially larger than 1.
@@ -31,11 +27,7 @@ Unlike the absolute-fit statistics, bivariate residuals do not require the
 full response-pattern table and so remain usable with many indicators: the
 model-implied two-way margin follows in closed form from conditional
 independence, \(P(y_a = r, y_b = s) = \sum_k \gamma_k\, p_a(r|k)\,
-p_b(s|k)\).
-With missing data each pair is computed on the cases observing both items,
-and the expected counts are scaled to that pair's total. This is a
-pairwise-complete statistic rather than a full-information one, so read it
-as descriptive when missingness is heavy."></head><body>
+p_b(s|k)\)."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -43,7 +35,7 @@ as descriptive when missingness is heavy."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -96,15 +88,11 @@ full response-pattern table and so remain usable with many indicators: the
 model-implied two-way margin follows in closed form from conditional
 independence, \(P(y_a = r, y_b = s) = \sum_k \gamma_k\, p_a(r|k)\,
 p_b(s|k)\).</p>
-<p>With missing data each pair is computed on the cases observing both items,
-and the expected counts are scaled to that pair's total. This is a
-pairwise-complete statistic rather than a full-information one, so read it
-as descriptive when missingness is heavy.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">bivariate_residuals</span><span class="op">(</span><span class="va">object</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">bivariate_residuals</span><span class="op">(</span><span class="va">object</span>, n_reps <span class="op">=</span> <span class="fl">0</span>, n_init_boot <span class="op">=</span> <span class="fl">10</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -113,14 +101,115 @@ as descriptive when missingness is heavy.</p>
 
 <dl><dt id="arg-object">object<a class="anchor" aria-label="anchor" href="#arg-object"></a></dt>
 <dd><p>A model fitted by <code><a href="fit_mixture.html">fit_mixture()</a></code> or <code><a href="fit_rmlca.html">fit_rmlca()</a></code> with
-categorical indicators.</p></dd>
+categorical indicators, or with a plain continuous measurement model.</p></dd>
+
+
+<dt id="arg-n-reps">n_reps<a class="anchor" aria-label="anchor" href="#arg-n-reps"></a></dt>
+<dd><p>Number of parametric bootstrap replicates used to calibrate the
+residuals. The default, <code>0</code>, computes the residuals alone and is the
+cheaper, uncalibrated diagnostic. <code>100</code> is the recommended working value
+and gives a Monte Carlo standard error of about 0.022 at \(p = 0.05\),
+which is adequate for flagging a pair; <code>500</code>, the number Oberski et al.
+used, is the publication-grade setting. Ignored for a continuous
+measurement model.</p></dd>
+
+
+<dt id="arg-n-init-boot">n_init_boot<a class="anchor" aria-label="anchor" href="#arg-n-init-boot"></a></dt>
+<dd><p>Random starts per bootstrap replicate. Replicates are
+refit without the final refinement step, since a replicate needs a
+residual rather than polished estimates.</p></dd>
+
+
+<dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
+<dd><p>Report bootstrap progress.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>An object of class <code>bivariate_residuals</code>: a lower-triangular
-indicator-by-indicator matrix, <code>NA</code> on and above the diagonal; or <code>NULL</code>
-(with a message) when the statistic does not apply.</p>
+    <p>For categorical indicators, an object of class
+<code>bivariate_residuals</code>: a lower-triangular indicator-by-indicator matrix,
+<code>NA</code> on and above the diagonal. When <code>n_reps &gt; 0</code> a matrix of bootstrap
+p-values, laid out the same way, is attached as the <code>"p"</code> attribute and
+printed beside each residual. The sum of all pairwise residuals is
+attached as the <code>"total"</code> attribute and printed as "Total BVR", a single
+headline number for how much local dependence the model as a whole is
+carrying. For a continuous measurement model, an
+object of class <code>bivariate_residuals_gaussian</code> holding the modification
+index and expected parameter change per pair per class, the model-implied
+residual covariance and correlation, and a count of pairs where the
+information matrix needed the outer-product fallback.
+<code>NULL</code> (with a message) when neither applies.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="how-much-to-trust-it">How much to trust it<a class="anchor" aria-label="anchor" href="#how-much-to-trust-it"></a></h2>
+
+
+<p>The chi-square reference for this statistic does not work, and the evidence
+is blunt. Over the eight null conditions of Oberski et al. (2013, Table 1) –
+loadings of .5 and .8 crossed with n of 200, 500, 1000 and 5000, 200 samples
+each – a bivariate residual referred to chi-square rejected at a nominal 5
+percent level in <strong>zero of 200 samples in every one of the eight</strong>. Its
+empirical mean ran between 0.25 and 0.36 against the 1 that a
+\(\chi^2_1\) has, and its variance between 0.1 and 0.2 against 2. Three
+consequences follow, and all three matter more than the usual hedging
+suggests:</p>
+<ul><li><p><strong>A low bivariate residual is not evidence of good fit.</strong> A statistic
+that never rejects when the model is true also has nothing to say when it
+is. This is the authors' own closing point.</p></li>
+<li><p><strong>The ranking is weaker than it looks.</strong> In their Figure 1 the naive
+bivariate residual has uniformly the lowest power of the three methods
+compared. It is adequate only against a residual correlation of about
+-0.4; it needs n of 5000 or more for correlations of \(\pm 0.2\) and
+-0.2, and it almost never detects \(\pm 0.05\). All three methods lose
+power as the loadings grow, so well-separated classes hide local
+dependence rather than expose it.</p></li>
+<li><p><strong>With missing data a large value is ambiguous.</strong> Under MAR the
+observed side of any residual statistic carries selection bias
+(Asparouhov &amp; Muthen, 2015), so a large residual may be reporting the
+missingness mechanism rather than local dependence.</p></li>
+</ul><p><code>n_reps</code> replaces the broken reference distribution with a parametric
+bootstrap, which in the same simulation held between 0.020 and 0.085 against
+a nominal 0.05. Use it before drawing any conclusion from the size of a
+residual. Each bootstrap replicate is blanked out in the same cells as the
+real data, so a p-value from missing data is exact when the data are
+missing completely at random and an approximation otherwise – the
+replicate's missingness cannot reproduce a dependence on class or response
+that the real gaps might carry.</p>
+<p>Note that the statistic bootstrapped is the one this function computes,
+\(\chi^2\) divided by its degrees of freedom, and not a raw Pearson
+\(\chi^2\). For binary items the degrees of freedom are 1 and the two
+coincide; for polytomous items they do not, so do not compare the number
+printed here against a raw chi-square table. The bootstrap is applied to
+whatever statistic is computed, so it is calibrated either way.</p>
+<p>With missing data each pair is computed on the cases observing both items,
+and the expected counts are evaluated at those cases' own posterior class
+membership rather than at the class proportions for the whole sample. This
+matters whenever the two subsets differ – an item that is missing more
+often for one class than another otherwise makes an unrelated pair of items
+look locally dependent, when what actually happened is that missingness
+changed who is left in the comparison. This is a pairwise-complete
+statistic rather than a full-information one, so still read it as
+descriptive when missingness is heavy. For categorical indicators this is
+the same statistic, with the same divisor, that another program reports as
+a bivariate residual, and the values agree closely on the same fit.</p>
+<p>For a plain continuous (Gaussian) measurement model with no missing data, a
+different statistic is returned instead: for each item pair and class, the
+modification index (Sorbom, 1989) for freeing the within-class residual
+covariance of that pair, with its variance adjusted for the model's other
+parameters, following Oberski, van Kollenburg and Vermunt (2013). It is
+computed separately in each class, because a residual dependence can run in
+opposite directions in different classes and a pooled statistic would
+average it away. Another program's "bivariate residual" for continuous
+indicators is deliberately <em>not</em> adjusted for the model's other parameters,
+so the two do not agree numerically; the modification index is preferred
+here on the evidence of Oberski et al.'s simulation, in which a bivariate
+residual referred to chi-square gave below-nominal size and inadequate
+power, while the modification index reproduced its nominal distribution and
+was the more powerful of the two adequate methods. Detection is reliable
+only when the offending effects are few and the measurement model is
+strong (Janssen, van Laar, de Rooij, Kuha &amp; Bakk, 2019); unmodelled
+within-class dependence is worth taking seriously mainly because it can
+manufacture spurious classes (Bauer &amp; Curran, 2004).</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -128,6 +217,21 @@ indicator-by-indicator matrix, <code>NA</code> on and above the diagonal; or <co
 Carlo evaluation of three methods to detect local dependence in binary
 data latent class models. <em>Advances in Data Analysis and
 Classification</em>, <em>7</em>(3), 267-279. <a href="https://doi.org/10.1007/s11634-013-0146-2" class="external-link">doi:10.1007/s11634-013-0146-2</a></p>
+<p>Sorbom, D. (1989). Model modification. <em>Psychometrika</em>, <em>54</em>,
+371-384.</p>
+<p>Janssen, J. H. M., van Laar, S., de Rooij, M., Kuha, J., &amp; Bakk, Z. (2019).
+The detection of local dependence in the presence of one continuous latent
+variable: A comparison of different statistics. <em>Structural Equation
+Modeling</em>, <em>26</em>(2), 280-290.</p>
+<p>Bauer, D. J., &amp; Curran, P. J. (2004). The integration of continuous and
+discrete latent variable models: Potential problems and promising
+opportunities. <em>Psychological Methods</em>, <em>9</em>(1), 3-29.</p>
+<p>van Kollenburg, G. H., Mulder, J., &amp; Vermunt, J. K. (2015). Assessing model
+fit in latent class analysis when asymptotics do not hold.
+<em>Methodology</em>, <em>11</em>(2), 65-79.</p>
+<p>Asparouhov, T., &amp; Muthen, B. (2015). Residual associations in latent class
+and latent transition analysis. <em>Structural Equation Modeling</em>,
+<em>22</em>(2), 169-177.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -145,17 +249,20 @@ Classification</em>, <em>7</em>(3), 267-279. <a href="https://doi.org/10.1007/s1
 <span class="r-out co"><span class="r-pr">#&gt;</span>                BIVARIATE RESIDUALS                       </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Pearson chi-square per item pair, divided by its df.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Values well above 1 flag a pair whose association the</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> classes do not reproduce (local dependence).</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Ranks which pairs strain the model. NOT a calibrated</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> test: referred to chi-square this statistic almost</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> never rejects, so a low value is not evidence of fit.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Use n_reps for bootstrap p-values.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>          Item1    Item2    Item3    Item4    Item5</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Item2   0.0420</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Item3   0.0121   0.0001</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Item4   0.6319   1.1868   0.4270</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Item5   0.0697   0.3652   0.0726   0.0279</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Item6   0.0148   0.2689   0.0676   0.5240   0.1121</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Item2   0.0422</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Item3   0.0119   0.0004</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Item4   0.6329   1.1869   0.4269</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Item5   0.0702   0.3651   0.0733   0.0279</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Item6   0.0160   0.2685   0.0699   0.5227   0.1115</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Largest: Item4 x Item2 = 1.1868</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Largest: Item4 x Item2 = 1.1869</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Total BVR: 3.8263</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

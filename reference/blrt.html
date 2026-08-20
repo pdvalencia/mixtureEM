@@ -47,7 +47,7 @@ construction.'></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -114,7 +114,7 @@ construction.</p>
 <span>  <span class="va">indicators</span>,</span>
 <span>  <span class="va">k_small</span>,</span>
 <span>  <span class="va">k_large</span>,</span>
-<span>  measurement <span class="op">=</span> <span class="st">"binary"</span>,</span>
+<span>  <span class="va">measurement</span>,</span>
 <span>  n_reps <span class="op">=</span> <span class="fl">100</span>,</span>
 <span>  n_init_base <span class="op">=</span> <span class="fl">20</span>,</span>
 <span>  n_init_boot <span class="op">=</span> <span class="fl">10</span>,</span>
@@ -157,7 +157,9 @@ strictly greater than <code>k_small</code>.</p></dd>
 
 <dt id="arg-measurement">measurement<a class="anchor" aria-label="anchor" href="#arg-measurement"></a></dt>
 <dd><p>Measurement specification, as in <code><a href="fit_mixture.html">fit_mixture</a></code>
-(a single type string or a named list for mixed-type indicators).</p></dd>
+(a single type string or a named list for mixed-type indicators). Required,
+except when <code>from_fit</code> is supplied, which reads the specification off
+the fitted model.</p></dd>
 
 
 <dt id="arg-n-reps">n_reps<a class="anchor" aria-label="anchor" href="#arg-n-reps"></a></dt>

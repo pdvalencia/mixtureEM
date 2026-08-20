@@ -40,7 +40,9 @@ attributes. For a latent transition model, a list of such tables.
 ## See also
 
 [`classification_diagnostics()`](https://pdvalencia.github.io/mixtureEM/reference/classification_diagnostics.md),
-which prints this alongside the average posterior probabilities.
+which prints this alongside the average posterior probabilities;
+[`class_assignments()`](https://pdvalencia.github.io/mixtureEM/reference/class_assignments.md)
+for the per-case assignment this table aggregates.
 
 ## Examples
 

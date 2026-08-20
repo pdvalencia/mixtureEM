@@ -48,13 +48,14 @@ for dataset details) — you can fit a model and view the class sizes:
 library(mixtureEM)
 
 items <- ventura_leon[, 7:22]   # the 16 infidelity items
-fit <- fit_mixture(items, n_classes = 4, n_init = 20, random_state = 1)
+fit <- fit_mixture(items, n_classes = 4, measurement = "binary",
+                   n_init = 20, random_state = 1)
 class_sizes(fit)
 #>   class proportion n_expected n_modal
-#> 1     1  0.4279122  171.16487     173
-#> 2     2  0.2697511  107.90043     106
-#> 3     3  0.1579645   63.18579      63
-#> 4     4  0.1443723   57.74891      58
+#> 1     1  0.4276388  171.05551     173
+#> 2     2  0.2699044  107.96177     106
+#> 3     3  0.1581894   63.27577      63
+#> 4     4  0.1442674   57.70695      58
 ```
 
 You can then easily plot the item-response probabilities to interpret

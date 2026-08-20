@@ -62,7 +62,7 @@ selection
 #>   Classes        LL Params      AIC      BIC    SABIC   Entropy Unreplicated
 #> 1       2 -2001.342      9 4020.684 4063.905 4035.323 0.7260827        FALSE
 #> 2       3 -1981.322     14 3990.643 4057.877 4013.415 0.6455619        FALSE
-#> 3       4 -1979.788     19 3997.575 4088.821 4028.480 0.5862685        FALSE
+#> 3       4 -1979.788     19 3997.576 4088.821 4028.481 0.5877929        FALSE
 #> 
 #> $models
 #> $models$K2
@@ -80,6 +80,10 @@ selection
 #> Converged          : TRUE (in 19 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -2001.34
+#>   Parameters     : 9
+#>   AIC            : 4020.68
+#>   BIC            : 4063.91
+#>   SABIC          : 4035.32
 #>   Rel. Entropy   : 0.7261
 #>   Best solution  : found by 10 of 10 starts
 #> ---------------------------------------------------------
@@ -104,6 +108,10 @@ selection
 #> Converged          : TRUE (in 203 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1981.32
+#>   Parameters     : 14
+#>   AIC            : 3990.64
+#>   BIC            : 4057.88
+#>   SABIC          : 4013.41
 #>   Rel. Entropy   : 0.6456
 #>   Best solution  : found by 10 of 10 starts
 #> ---------------------------------------------------------
@@ -126,23 +134,30 @@ selection
 #> =========================================================
 #> Classes Estimated  : 4
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 348 iterations)
+#> Converged          : TRUE (in 239 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1979.79
-#>   Rel. Entropy   : 0.5863
+#>   Parameters     : 19
+#>   AIC            : 3997.58
+#>   BIC            : 4088.82
+#>   SABIC          : 4028.48
+#>   Rel. Entropy   : 0.5878
 #>   Best solution  : found by 10 of 10 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 41.07%
-#>   Class 2: 23.09%
-#>   Class 3: 21.14%
-#>   Class 4: 14.71%
+#>   Class 2: 23.31%
+#>   Class 3: 21.18%
+#>   Class 4: 14.44%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 #> 
 #> 
 #> $best_k
 #> [1] 3
+#> 
+#> attr(,"class")
+#> [1] "mixture_comparison"
 ```
 
 BIC correctly picks the three classes we generated.
@@ -168,6 +183,10 @@ fit
 #> Converged          : TRUE (in 212 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1981.32
+#>   Parameters     : 14
+#>   AIC            : 3990.64
+#>   BIC            : 4057.88
+#>   SABIC          : 4013.41
 #>   Rel. Entropy   : 0.6457
 #>   Best solution  : found by 20 of 20 starts
 #> ---------------------------------------------------------
@@ -197,24 +216,24 @@ params <- measurement_summary(fit)
 #> =========================================================
 #> 
 #> Categorical Probabilities: T1
-#> Indicator            | Class 1 | Class 2 | Class 3
-#> -------------------------------------------------- 
-#> drink@T1             |   0.089 |   0.129 |   0.842
+#> Indicator            | Overall | Class 1 | Class 2 | Class 3
+#> ------------------------------------------------------------ 
+#> drink@T1             |   0.244 |   0.089 |   0.129 |   0.842
 #> 
 #> Categorical Probabilities: T2
-#> Indicator            | Class 1 | Class 2 | Class 3
-#> -------------------------------------------------- 
-#> drink@T2             |   0.074 |   0.339 |   0.823
+#> Indicator            | Overall | Class 1 | Class 2 | Class 3
+#> ------------------------------------------------------------ 
+#> drink@T2             |   0.308 |   0.074 |   0.339 |   0.823
 #> 
 #> Categorical Probabilities: T3
-#> Indicator            | Class 1 | Class 2 | Class 3
-#> -------------------------------------------------- 
-#> drink@T3             |   0.020 |   0.676 |   0.860
+#> Indicator            | Overall | Class 1 | Class 2 | Class 3
+#> ------------------------------------------------------------ 
+#> drink@T3             |   0.408 |   0.020 |   0.676 |   0.860
 #> 
 #> Categorical Probabilities: T4
-#> Indicator            | Class 1 | Class 2 | Class 3
-#> -------------------------------------------------- 
-#> drink@T4             |   0.144 |   0.722 |   0.968
+#> Indicator            | Overall | Class 1 | Class 2 | Class 3
+#> ------------------------------------------------------------ 
+#> drink@T4             |   0.501 |   0.144 |   0.722 |   0.968
 #> =========================================================
 ```
 
@@ -255,17 +274,17 @@ results <- summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.605  [    0.286,     1.281]     0.189
-#>   risk                     1.898  [    1.411,     2.551]    < .001
+#>   Intercept                0.606  [    0.286,     1.281]     0.190
+#>   risk                     1.890  [    1.410,     2.534]    < .001
 #> 
 #> Class 3 ON
-#>   Intercept                0.408  [    0.195,     0.853]     0.017
-#>   risk                     0.981  [    0.717,     1.341]     0.902
+#>   Intercept                0.409  [    0.196,     0.853]     0.017
+#>   risk                     0.982  [    0.719,     1.341]     0.907
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   risk                      21.124    2    < .001
+#>   risk                      21.253    2    < .001
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================

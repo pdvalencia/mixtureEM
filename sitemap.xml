@@ -22,6 +22,7 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/blrt.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/bootstrap_covariates.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/categorical_model.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/class_assignments.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/class_sizes.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/classification_diagnostics.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/classification_table.html</loc></url>
@@ -44,11 +45,14 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/lr_test.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/lta_covariate_summary.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/lta_g2.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/mcar_test.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/plot.bivariate_residuals.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/plot.gmm.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/plot.lcga.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/plot.lta_model.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/plot.mixture_comparison.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/plot.mixture_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/plot.rmlca.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/poisson_model.html</loc></url>
@@ -61,6 +65,7 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/summary.lta_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/summary.mixture_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/transition_matrix.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/vcov.mixture_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/ventura_leon.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/wald_omnibus_test.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/yrbs2005.html</loc></url>

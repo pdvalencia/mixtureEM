@@ -12,19 +12,20 @@ classes.
 fit_mixture(
   indicators = NULL,
   n_classes = 2,
-  measurement = "binary",
+  measurement,
   predictors = NULL,
   outcome = NULL,
   outcome_covariates = NULL,
   outcome_type = c("auto", "continuous", "categorical"),
-  slopes = c("pooled", "class_specific"),
+  slopes = "pooled",
   group = NULL,
   group_effects = c("both", "measurement", "prevalence", "none"),
   group_invariant_items = NULL,
   group_invariant_params = NULL,
-  variances_equal = FALSE,
+  variances_equal = NULL,
   n_steps = 1,
   correction = "none",
+  assignment = c("proportional", "modal"),
   n_init = 20,
   max_iter = 1000,
   random_state = NULL,
@@ -62,6 +63,17 @@ fit_mixture(
   `"gaussian"`, `"count"` — or, for a mixed-type model, a named list
   mapping each type to the columns it governs by name or index, e.g.
   `list(binary = c("q1","q2"), continuous = "score")`.
+
+  **Required; there is no default.** The storage mode of a column does
+  not determine its measurement model: a 1-5 column is a legitimate
+  `"categorical"`, `"continuous"` or `"count"` indicator, and the class
+  solution differs across the three. Inferring the type from the data
+  would settle a modelling question by inspecting storage mode, and
+  would make a script's meaning depend on the data it happens to be run
+  against; a constant default is the same guess with the data-dependence
+  removed. Omitting the argument is an error that lists the valid types
+  and suggests one based on your columns — as a hint for you to confirm,
+  not a choice the package makes.
 
   **Missing values need no special handling.** Any indicator containing
   `NA` is estimated by full-information maximum likelihood under the
@@ -103,8 +115,13 @@ fit_mixture(
 - slopes:
 
   When `outcome_covariates` are supplied, whether their effect is
-  `"pooled"` (one slope shared across classes) or `"class_specific"` (a
-  separate slope per class).
+  `"pooled"` (default; one slope shared across classes),
+  `"class_specific"` (a separate slope per class for every covariate),
+  or a character vector of covariate names (or a one-sided formula
+  naming them, e.g. `~ loc1 + loc2`) giving a separate slope per class
+  to just those covariates while the rest stay pooled – letting the
+  class moderate some covariates while adjusting for others. The last
+  form is continuous-outcome only.
 
 - group:
 
@@ -113,6 +130,20 @@ fit_mixture(
   `predictors`, which only ever shifts class membership, a group can
   also be allowed to shift the item-response probabilities themselves;
   see `group_effects`.
+
+  **A covariate whose effect on class membership differs by group** –
+  moderation, not just adjustment – does not need `group` at all: build
+  the interaction into `predictors` directly, e.g.
+  `predictors = model.matrix(~ grade * factor(year))[, -1]` handed to
+  `fit_mixture()` in place of a plain covariate matrix. Leave `group`
+  unset for this (or use `group_effects = "measurement"` if the item
+  parameters should also be free by group): a `"prevalence"` or `"both"`
+  group effect appends the group's own design to `predictors`
+  internally, so the group columns would then appear twice. A covariate
+  matrix built this way also carries none of the column-to-variable
+  bookkeeping a data-frame `predictors` does, so functions like
+  `wald_test` need the individual interaction column names rather than a
+  single variable name.
 
 - group_effects:
 
@@ -187,6 +218,27 @@ fit_mixture(
   measurement model, so it is also available on an ordinary single-group
   fit.
 
+  **This is the default when `measurement` is continuous**, and
+  `variances_equal = FALSE` recovers the class-varying parameterisation
+  the package used previously. The reason is that the unrestricted
+  normal-mixture likelihood is *unbounded*: send a class mean to any
+  single data point and that class's variance to zero and the likelihood
+  diverges, so no maximum likelihood estimate exists and what the EM
+  reports is a local optimum whose properties are not guaranteed.
+  Holding the variances equal across classes bounds the likelihood, and
+  the constrained estimator is consistent (Day, 1969; Hathaway, 1985).
+  Freeing them also invites classes that describe non-normality in a
+  single population rather than distinct subgroups (Bauer & Curran,
+  2003).
+
+  The restriction is substantive and testable, and you are expected to
+  fit both and compare rather than accept either blindly. It is not
+  offered as the *safe* choice but as the well-posed one: when the
+  homoscedastic model is wrong, it fails visibly — a genuinely
+  heteroscedastic class splits into two, and the comparison against the
+  free model says so. When the free model is wrong it fails silently, as
+  a boundary solution that gets written up as a finding.
+
 - n_steps:
 
   Estimation strategy: 1 (simultaneous), 2, or 3 (recommended when a
@@ -199,6 +251,15 @@ fit_mixture(
   When left unset for a 3-step structural model, a recommended default
   is chosen (ML for predictors and categorical outcomes, BCH for
   continuous outcomes).
+
+- assignment:
+
+  How step 1's posteriors are turned into the assigned-class variable
+  whose classification error the correction inverts: `"proportional"`
+  (default; each case carries its posterior probability in every class)
+  or `"modal"` (each case is assigned to its most likely class
+  outright). See
+  [`add_covariates`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md).
 
 - n_init, max_iter, random_state, order_by_size, refine:
 
@@ -223,6 +284,11 @@ fit_mixture(
   stops at the cap, double it.
   [`vignette("estimation")`](https://pdvalencia.github.io/mixtureEM/articles/estimation.md)
   gives the figures behind both numbers.
+
+  The cost is roughly linear in `n_init`, so it is easy to budget for a
+  larger search: `n_init = 20` took about 16 seconds on a 4-class,
+  7-item binary model with 2,587 cases, so `n_init = 200` on the same
+  model is a couple of minutes and `n_init = 1000` is closer to ten.
 
   More starts are not *monotonically* better on a large model. Where
   each EM iteration is expensive the search runs in two stages: a short
@@ -291,24 +357,29 @@ fit_mixture(
   estimate does not exist (Day, 1969; Kiefer & Wolfowitz, 1956) and what
   an unregularized program reports is a local maximum.
 
-  **Rescuing a collapsed fit:** if a fit warns that a class variance has
-  collapsed, the prior is one of three remedies, and not the first to
-  reach for. Constraining the variances to be equal across classes
-  (`variances_equal = TRUE`) bounds the likelihood so the problem cannot
-  arise at all; fitting fewer classes often removes the class that was
-  describing a spike. Where neither is acceptable substantively, raise
-  `variances`. A useful starting point is **one artificial observation
-  per class**, i.e. `variances = n_classes`, increasing it a little at a
-  time if the warning persists. State it that way rather than as a bare
-  number: the constant is divided among the classes, so
-  `variances = n_classes` is what holds the prior at one
+  **Rescuing a collapsed fit:** this situation is now rare, because a
+  continuous measurement model holds the variances equal across classes
+  by default and that bounds the likelihood; it arises when you have
+  explicitly passed `variances_equal = FALSE`. If a fit warns that a
+  class variance has collapsed, the prior is one of three remedies, and
+  not the first to reach for. Constraining the variances to be equal
+  across classes (`variances_equal = TRUE`) bounds the likelihood so the
+  problem cannot arise at all; fitting fewer classes often removes the
+  class that was describing a spike. Where neither is acceptable
+  substantively, raise `variances`. A useful starting point is **one
+  artificial observation per class**, i.e. `variances = n_classes`,
+  increasing it a little at a time if the warning persists. State it
+  that way rather than as a bare number: the constant is divided among
+  the classes, so `variances = n_classes` is what holds the prior at one
   pseudo-observation per class at *every* number of classes — the way
   the penalised-mixture literature applies it, the same amount to every
   component — while a fixed value drifts as classes are added. Then
   check the result rather than just that the warning stopped — the
   flagged variance should no longer be far below the others in the
   model, and its class mean should have come off the floor or ceiling of
-  the response scale.
+  the response scale. It is worth looking at the distribution of the
+  named item as well, for the floor, ceiling or spike the class latched
+  onto.
 
   Raising `n_init` is *not* a remedy here. A collapsed variance is not a
   convergence failure but a property of the likelihood, which really is
@@ -350,6 +421,21 @@ fit_mixture(
 ## Value
 
 A fitted `mixture_model` object.
+
+## Details
+
+**The EM convergence rule is fixed and not user-adjustable.** Each
+random start stops once the log-likelihood improves by less than `1e-4`
+in absolute terms or a relative `1e-8`, whichever is looser, and there
+is no argument that changes this. A looser rule was tried and measured
+to cost real log-likelihood — on a validated 4-class binary example,
+stopping early and then polishing with a numerical optimizer recovered
+only a ninth of what a tighter EM rule found outright — and, more
+importantly, it degrades the multi-start search itself: a loose rule
+ranks candidate starts on log-likelihood values too coarse to tell a
+good basin from a mediocre one, so `n_init` stops doing its job. If a
+fit seems slow, raise `n_init` or trim `max_iter` rather than looking
+for a tolerance argument; there is not one to find.
 
 ## Multiple-group models
 
@@ -412,7 +498,17 @@ mean and variance. *Statistica Sinica*, *18*(2), 443-465 (the penalty
 behind `bayes_constants$variances`).
 
 Day, N. E. (1969). Estimating the components of a mixture of normal
-distributions. *Biometrika*, *56*(3), 463-474.
+distributions. *Biometrika*, *56*(3), 463-474 (the unbounded likelihood
+behind the `variances_equal` default).
+
+Hathaway, R. J. (1985). A constrained formulation of maximum-likelihood
+estimation for normal mixture distributions. *The Annals of Statistics*,
+*13*(2), 795-800 (consistency of the constrained estimator).
+
+Bauer, D. J., & Curran, P. J. (2003). Distributional assumptions of
+growth mixture models: Implications for overextraction of latent
+trajectory classes. *Psychological Methods*, *8*(3), 338-363.
+[doi:10.1037/1082-989X.8.3.338](https://doi.org/10.1037/1082-989X.8.3.338)
 
 Kiefer, J., & Wolfowitz, J. (1956). Consistency of the maximum
 likelihood estimator in the presence of infinitely many incidental
@@ -435,11 +531,17 @@ fit <- fit_mixture(X, n_classes = 2, measurement = "binary")
 
 if (FALSE) { # \dontrun{
 # Class membership predicted by a covariate (3-step, ML by default)
-fit_mixture(X, n_classes = 2, predictors = age)
+fit_mixture(X, n_classes = 2, measurement = "binary", predictors = age)
 
 # Distal outcome with a class-specific covariate slope
-fit_mixture(X, n_classes = 2, outcome = bmi,
+fit_mixture(X, n_classes = 2, measurement = "binary", outcome = bmi,
             outcome_covariates = age, slopes = "class_specific")
+
+# Class moderates level-of-care while age and gender are only adjusted
+# for: a mix of "class_specific" and "pooled" in one model.
+fit_mixture(X, n_classes = 4, measurement = "binary", outcome = cannabis_days,
+            outcome_covariates = data.frame(loc1, loc2, loc3, age, gender),
+            slopes = c("loc1", "loc2", "loc3"))
 
 # Mixed-type indicators
 fit_mixture(items, n_classes = 3,

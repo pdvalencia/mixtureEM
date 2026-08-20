@@ -76,7 +76,7 @@ selection <- compare_mixtures(ratings, k_range = 1:5,
 #> 2       2 -318.159     15  666.318  707.878  660.459   0.963        FALSE
 #> 3       3 -294.935     23  635.869  699.595  626.886   0.915        FALSE
 #> 4       4 -290.739     31  643.478  729.369  631.370   0.852        FALSE
-#> 5       5 -288.512     39  655.025  763.081  639.793   0.862        FALSE
+#> 5       5 -288.512     39  655.025  763.082  639.793   0.862        FALSE
 #> 
 #> -> Best model according to BIC: 3 classes
 ```
@@ -143,7 +143,7 @@ not, agreeing with BIC.
 ``` r
 
 set.seed(4)
-fit <- fit_mixture(ratings, n_classes = 3, n_init = 30)
+fit <- fit_mixture(ratings, n_classes = 3, measurement = "binary", n_init = 30)
 fit
 #> =========================================================
 #>                   LATENT MIXTURE MODEL                   
@@ -153,6 +153,10 @@ fit
 #> Converged          : TRUE (in 30 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -294.93
+#>   Parameters     : 23
+#>   AIC            : 635.87
+#>   BIC            : 699.59
+#>   SABIC          : 626.89
 #>   Rel. Entropy   : 0.9151
 #>   Best solution  : found by 30 of 30 starts
 #> ---------------------------------------------------------
@@ -238,6 +242,7 @@ absolute_fit(fit)
 #> L-squared             17.7208     1.0000
 #> X-squared             21.1127     1.0000
 #> Cressie-Read          18.5874     1.0000
+#> Dissimilarity          0.1170           
 #> =========================================================
 #> Note: the table is sparse, so the chi-square reference
 #>  distribution is unreliable. Prefer these statistics for
@@ -247,18 +252,21 @@ bivariate_residuals(fit)
 #>                BIVARIATE RESIDUALS                       
 #> =========================================================
 #> Pearson chi-square per item pair, divided by its df.
-#> Values well above 1 flag a pair whose association the
-#> classes do not reproduce (local dependence).
+#> Ranks which pairs strain the model. NOT a calibrated
+#> test: referred to chi-square this statistic almost
+#> never rejects, so a low value is not evidence of fit.
+#> Use n_reps for bootstrap p-values.
 #> 
 #>          A        B        C        D        E        F
-#> B   0.1079
-#> C   0.3483   0.0021
-#> D   0.8052   0.7693   0.0063
-#> E   0.0834   0.0912   0.3775   0.4720
-#> F   0.1809   0.6095   0.0082   4.6750   0.2022
-#> G   0.2684   0.1092   0.3305   0.6491   0.2106   0.1737
+#> B   0.1035
+#> C   0.3456   0.0024
+#> D   0.7983   0.7643   0.0062
+#> E   0.0937   0.0890   0.3741   0.4804
+#> F   0.1803   0.6055   0.0076   4.6889   0.2012
+#> G   0.2487   0.1070   0.3273   0.6427   0.1952   0.1729
 #> 
-#> Largest: F x D = 4.6750
+#> Largest: F x D = 4.6889
+#> Total BVR: 10.4345
 #> =========================================================
 ```
 

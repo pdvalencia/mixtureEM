@@ -6,24 +6,24 @@ the likelihood-ratio statistic \(G^2\) (also written \(L^2\)), the
 Pearson \(X^2\), and the Cressie-Read statistic (\(\lambda = 2/3\)),
 each on \(df = W - P - 1\) degrees of freedom, where \(W\) is the number
 of cells in the table and \(P\) the number of free parameters.
-The statistics are defined only for fully categorical indicators observed
-without missingness. Even then they should be read with care: the table has
-\(W\) cells and is usually extremely sparse, so the chi-square reference
-distribution is unreliable and the value is best used to compare models
-rather than to test one in isolation. blrt() tests a model against one
-with fewer classes without relying on that reference distribution."><meta property="og:description" content="Compares the observed response-pattern frequencies with those the model
+The statistics require fully categorical indicators. Even then they should
+be read with care: the table has \(W\) cells and is usually extremely
+sparse, so the chi-square reference distribution is unreliable and the
+value is best used to compare models rather than to test one in isolation.
+blrt() tests a model against one with fewer classes without relying on
+that reference distribution."><meta property="og:description" content="Compares the observed response-pattern frequencies with those the model
 implies, over the contingency table formed by crossing every categorical
 indicator. Three members of the power-divergence family are reported:
 the likelihood-ratio statistic \(G^2\) (also written \(L^2\)), the
 Pearson \(X^2\), and the Cressie-Read statistic (\(\lambda = 2/3\)),
 each on \(df = W - P - 1\) degrees of freedom, where \(W\) is the number
 of cells in the table and \(P\) the number of free parameters.
-The statistics are defined only for fully categorical indicators observed
-without missingness. Even then they should be read with care: the table has
-\(W\) cells and is usually extremely sparse, so the chi-square reference
-distribution is unreliable and the value is best used to compare models
-rather than to test one in isolation. blrt() tests a model against one
-with fewer classes without relying on that reference distribution."></head><body>
+The statistics require fully categorical indicators. Even then they should
+be read with care: the table has \(W\) cells and is usually extremely
+sparse, so the chi-square reference distribution is unreliable and the
+value is best used to compare models rather than to test one in isolation.
+blrt() tests a model against one with fewer classes without relying on
+that reference distribution."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -31,7 +31,7 @@ with fewer classes without relying on that reference distribution."></head><body
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -76,12 +76,12 @@ the likelihood-ratio statistic \(G^2\) (also written \(L^2\)), the
 Pearson \(X^2\), and the Cressie-Read statistic (\(\lambda = 2/3\)),
 each on \(df = W - P - 1\) degrees of freedom, where \(W\) is the number
 of cells in the table and \(P\) the number of free parameters.</p>
-<p>The statistics are defined only for fully categorical indicators observed
-without missingness. Even then they should be read with care: the table has
-\(W\) cells and is usually extremely sparse, so the chi-square reference
-distribution is unreliable and the value is best used to compare models
-rather than to test one in isolation. <code><a href="blrt.html">blrt()</a></code> tests a model against one
-with fewer classes without relying on that reference distribution.</p>
+<p>The statistics require fully categorical indicators. Even then they should
+be read with care: the table has \(W\) cells and is usually extremely
+sparse, so the chi-square reference distribution is unreliable and the
+value is best used to compare models rather than to test one in isolation.
+<code><a href="blrt.html">blrt()</a></code> tests a model against one with fewer classes without relying on
+that reference distribution.</p>
     </div>
 
     <div class="section level2">
@@ -101,8 +101,30 @@ with fewer classes without relying on that reference distribution.</p>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>An object of class <code>absolute_fit</code> with elements <code>g2</code>, <code>x2</code>,
-<code>cressie_read</code>, <code>df</code>, the corresponding <code>p_value</code>s, <code>n_cells</code> and
-<code>n_patterns</code>; or <code>NULL</code> (with a message) when the statistics do not apply.</p>
+<code>cressie_read</code>, <code>df</code>, the corresponding <code>p_value</code>s, <code>dissimilarity</code>,
+<code>n_cells</code> and <code>n_patterns</code>; or <code>NULL</code> (with a message) when the
+statistics do not apply. With missing data, also <code>g2_mcar</code>, <code>x2_mcar</code>,
+<code>cressie_read_mcar</code>, <code>df_mcar</code> and <code>p_value_mcar</code> for the block computed
+under MCAR, <code>ll_sat</code> for the saturated model's log-likelihood, and
+<code>mar = TRUE</code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="missing-data">Missing data<a class="anchor" aria-label="anchor" href="#missing-data"></a></h2>
+
+
+<p>With one or more missing values (categorical, plain <code><a href="fit_mixture.html">fit_mixture()</a></code> models
+only), the statistics are computed under the missing-at-random (MAR)
+assumption instead: the model is compared not to the raw response table,
+which no longer exists once cases have different items observed, but to a
+saturated model fit to the same partition of the data by which items each
+case observed. <code>df</code> is smaller than in the complete-data case
+(\(df = W - 1 - P\)) because the saturated baseline already accounts for
+the missingness pattern. A short block giving the model's fit jointly with
+the stronger missing-completely-at-random (MCAR) assumption is printed
+underneath; use <code><a href="mcar_test.html">mcar_test()</a></code> to test that assumption on its own. This
+can be slow, or refused outright, once the number of indicator categories
+crossed together grows large – the same \(W\) that already makes the
+complete-data table sparse.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -114,7 +136,8 @@ Methods &amp; Research</em>, <em>24</em>(4), 492-516.
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
     <div class="dont-index"><p><code><a href="bivariate_residuals.html">bivariate_residuals()</a></code> for the local counterpart,
-<code><a href="classification_table.html">classification_table()</a></code>, <code><a href="blrt.html">blrt()</a></code>.</p></div>
+<code><a href="classification_table.html">classification_table()</a></code>, <code><a href="blrt.html">blrt()</a></code>, <code><a href="mcar_test.html">mcar_test()</a></code> for testing the
+missingness mechanism on its own.</p></div>
     </div>
 
     <div class="section level2">
@@ -135,6 +158,7 @@ Methods &amp; Research</em>, <em>24</em>(4), 492-516.
 <span class="r-out co"><span class="r-pr">#&gt;</span> L-squared             62.4171     0.1118</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> X-squared             50.0325     0.4721</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Cressie-Read          51.3465     0.4207</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Dissimilarity          0.2819           </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

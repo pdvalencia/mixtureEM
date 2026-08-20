@@ -48,13 +48,14 @@ for dataset details) — you can fit a model and view the class sizes:
 library(mixtureEM)
 
 items <- ventura_leon[, 7:22]   # the 16 infidelity items
-fit <- fit_mixture(items, n_classes = 4, n_init = 20, random_state = 1)
+fit <- fit_mixture(items, n_classes = 4, measurement = "binary",
+                   n_init = 20, random_state = 1)
 class_sizes(fit)
 #>   class proportion n_expected n_modal
-#> 1     1  0.4279122  171.16487     173
-#> 2     2  0.2697511  107.90043     106
-#> 3     3  0.1579645   63.18579      63
-#> 4     4  0.1443723   57.74891      58
+#> 1     1  0.4276388  171.05551     173
+#> 2     2  0.2699044  107.96177     106
+#> 3     3  0.1581894   63.27577      63
+#> 4     4  0.1442674   57.70695      58
 ```
 
 You can then easily plot the item-response probabilities to interpret
@@ -178,6 +179,8 @@ improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
   : Bootstrap Standard Errors for Covariate Model Parameters
 - [`categorical_model()`](https://pdvalencia.github.io/mixtureEM/reference/categorical_model.md)
   : Constructor for Categorical models
+- [`class_assignments()`](https://pdvalencia.github.io/mixtureEM/reference/class_assignments.md)
+  : Class Assignments for Each Case
 - [`class_sizes()`](https://pdvalencia.github.io/mixtureEM/reference/class_sizes.md)
   : Class Sizes of a Fitted Mixture Model
 - [`classification_diagnostics()`](https://pdvalencia.github.io/mixtureEM/reference/classification_diagnostics.md)
@@ -220,8 +223,12 @@ improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
   : Covariate Effects in a Latent Transition Model
 - [`lta_g2()`](https://pdvalencia.github.io/mixtureEM/reference/lta_g2.md)
   : Likelihood-Ratio Goodness-of-Fit Statistic
+- [`mcar_test()`](https://pdvalencia.github.io/mixtureEM/reference/mcar_test.md)
+  : Test Whether Data Are Missing Completely at Random
 - [`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
   : Print Measurement Model Parameters
+- [`outcome_contrasts()`](https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.md)
+  : Class-vs-Class Contrasts on a Distal Outcome
 - [`plot(`*`<bivariate_residuals>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/plot.bivariate_residuals.md)
   : Plot Bivariate Residuals as a Heat Table
 - [`plot(`*`<gmm>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/plot.gmm.md)
@@ -230,6 +237,8 @@ improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
   : Trajectory Plot for a Latent Class Growth Model
 - [`plot(`*`<lta_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/plot.lta_model.md)
   : Plots for a Fitted Latent Transition Model
+- [`plot(`*`<mixture_comparison>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/plot.mixture_comparison.md)
+  : Elbow Plot for a Model-Selection Sweep
 - [`plot(`*`<mixture_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/plot.mixture_model.md)
   : Profile Plot for a Fitted Mixture Model
 - [`plot(`*`<rmlca>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/plot.rmlca.md)
@@ -254,6 +263,8 @@ improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
   : Summarise a Fitted Mixture Model
 - [`transition_matrix()`](https://pdvalencia.github.io/mixtureEM/reference/transition_matrix.md)
   : Transition Probability Matrices
+- [`vcov(`*`<mixture_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/vcov.mixture_model.md)
+  : Covariance Matrix of the Class-Membership Coefficients
 - [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/reference/ventura_leon.md)
   : Infidelity behavior patterns in Peruvian young adults
 - [`wald_omnibus_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_omnibus_test.md)

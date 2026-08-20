@@ -11,9 +11,10 @@ automatically.
 compare_mixtures(
   X,
   k_range = 1:5,
-  measurement = "binary",
+  measurement,
   n_init = 10,
   n_steps = 1,
+  vlmr = c("none", "standard", "robust", "both"),
   ...
 )
 ```
@@ -31,9 +32,10 @@ compare_mixtures(
 
 - measurement:
 
-  Character string specifying the measurement model type. See
+  Character string or named list specifying the measurement model type.
+  Required; see
   [`fit_mixture`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
-  for accepted values. Default is `"binary"`.
+  for the accepted values and for why there is no default.
 
 - n_init:
 
@@ -44,6 +46,14 @@ compare_mixtures(
 
   Integer. Estimation method: `1`, `2`, or `3`. Default is `1`.
 
+- vlmr:
+
+  Character string. Whether to add the Vuong-Lo-Mendell-Rubin test of K
+  against K+1 classes, and in which form: `"none"` (the default),
+  `"standard"` for Vuong's own formulae on the ordinary covariance
+  matrix, `"robust"` for the variant that substitutes the sandwich
+  covariance, or `"both"`. See Details for why it is off by default.
+
 - ...:
 
   Additional arguments passed to
@@ -51,15 +61,28 @@ compare_mixtures(
 
 ## Value
 
-A named list with three elements:
+An object of class `mixture_comparison`: a named list with three
+elements, which can be indexed exactly as a plain list.
 
 - `fit_table` Data frame with one row per K and columns `Classes`, `LL`,
-  `Params`, `AIC`, `BIC`, `SABIC`, `Entropy` and `Unreplicated`.
+  `Params`, `AIC`, `BIC`, `SABIC`, `Entropy` and `Unreplicated`. With
+  `vlmr` set it also carries `VLMR_LR` and one p-value column per
+  requested form (`VLMR_p`, `VLMR_p_robust`); each row tests its own K
+  against the next one in the table, so the last row is `NA`.
 
 - `models` Named list of fitted `mixture_model` objects, one per K
   (names are `"K1"`, `"K2"`, etc.).
 
 - `best_k` Integer. The value of K with the lowest BIC.
+
+- `vlmr` Present only when `vlmr` is set: one entry per row of the table
+  holding the likelihood-ratio statistic and, for each requested form,
+  the mean and standard deviation of the reference distribution
+  alongside the p-value. Those two moments are what say which
+  distribution produced a given p-value, and are not printed.
+
+[`plot()`](https://pdvalencia.github.io/mixtureEM/reference/plot.mixture_comparison.md)
+draws the criteria against K.
 
 ## Details
 
@@ -81,8 +104,40 @@ applies no entropy threshold anywhere.
 
 **Reading the `Unreplicated` column.** `TRUE` means the reported maximum
 for that K was found by exactly one random start. Refit those values of
-K with `n_init = 100` before reporting them; see
+K with more starts (`n_init = 100` is the usual next step) before
+reporting them; see
 [`vignette("estimation")`](https://pdvalencia.github.io/mixtureEM/articles/estimation.md).
+
+**Reading the `VLMR` columns.** They appear only when `vlmr` is set, and
+are off by default for two reasons. One is cost: the test needs a
+numerical Hessian for each model, which is quadratic in the number of
+parameters, and a function people call casually should not pay that
+unasked. The other is that the test does not deserve to be printed as a
+matter of course. Vermunt (2024) concludes that "neither of the two
+implementations yield uniformly distributed p-values under the correct
+null hypothesis, indicating this test is not the best model selection
+tool in mixture modeling".
+
+The two implementations differ only in which covariance matrix of the
+parameters enters the reference distribution: one program uses the
+ordinary one, another the robust (sandwich) one (Vermunt, 2024). The
+difference is not cosmetic: on the same data the two can return p = .00
+and p = .15. The robust version's reference distribution is much more
+sensitive to the particular sample, especially when the classes are
+poorly separated. Neither version's p-values are uniform under the null,
+so treat a VLMR result as one input among several and prefer
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)
+where it is affordable.
+
+The reason is known and is not a numerical artefact. The reference
+distribution is derived from a theorem (Vuong, 1989, Theorem 3.3) that
+requires the parameters of the larger model to be identified at the
+point where it reduces to the smaller one. A mixture never satisfies
+this: the larger model reproduces the smaller only by emptying a class
+or by duplicating one, and in each case some parameters vanish from the
+likelihood and the information matrix is singular (Jeffries, 2003). The
+test is therefore best read as a descriptive comparison rather than a
+calibrated p-value.
 
 ## References
 
@@ -110,6 +165,22 @@ identifying differences in longitudinal change among unobserved groups.
 Masyn, K. E. (2013). Latent class analysis and finite mixture modeling.
 In T. D. Little (Ed.), *The Oxford Handbook of Quantitative Methods*
 (Vol. 2, pp. 551-611). Oxford University Press.
+
+Vermunt, J. K. (2024). The Vuong-Lo-Mendell-Rubin test for latent class
+and latent profile analysis. *Methodology*, *20*(1), e12467.
+[doi:10.5964/meth.12467](https://doi.org/10.5964/meth.12467)
+
+Vuong, Q. H. (1989). Likelihood ratio tests for model selection and
+non-nested hypotheses. *Econometrica*, *57*(2), 307-333.
+
+Lo, Y., Mendell, N. R., & Rubin, D. B. (2001). Testing the number of
+components in a normal mixture. *Biometrika*, *88*(3), 767-778.
+
+Jeffries, N. O. (2003). A note on "Testing the number of components in a
+normal mixture". *Biometrika*, *90*(4), 991-994.
+
+Imhof, J. P. (1961). Computing the distribution of quadratic forms in
+normal variables. *Biometrika*, *48*(3/4), 419-426.
 
 ## Examples
 
