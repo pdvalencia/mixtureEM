@@ -2933,6 +2933,37 @@ fit_mixture <- function(indicators = NULL,
   # argument straight through to the engine's own "binary" default.
   if (measurement_missing) .require_measurement(indicators)
 
+  # A continuous measurement model defaults to the homoscedastic
+  # parameterisation (Day 1969; Hathaway 1985: the unrestricted likelihood is
+  # unbounded, so only the constrained problem has an MLE). Resolved here rather
+  # than in the signature because the gate below rejects
+  # `variances_equal = TRUE` for any other measurement type, and a bare TRUE
+  # default would fire it on every categorical fit. An explicit TRUE still
+  # reaches the gate and is still rejected; only the unset case is resolved from
+  # the descriptor. `gaussian_model()`'s own default deliberately stays FALSE:
+  # it is reached by the growth, time-block and group-block paths as well, and
+  # flipping it there would silently change LCGA, GMM and RMLCA. Only the
+  # user-facing entry points resolve the default.
+  #
+  # This must stay above the legacy bridge below. `variances_equal` is a named
+  # formal, so it is not carried in `...`, and a legacy call that omitted it
+  # used to reach the engine with no value at all: the same model spelled with
+  # `n_components` and with `n_classes` then disagreed on whether the class
+  # variances were held equal.
+  if (is.null(variances_equal))
+    variances_equal <- is.character(measurement) && length(measurement) == 1L &&
+      measurement %in% c("continuous", "continuous_nan",
+                         "gaussian_diag", "gaussian_diag_nan")
+
+  if (isTRUE(variances_equal) &&
+      !(is.character(measurement) && length(measurement) == 1L &&
+        measurement %in% c("continuous", "continuous_nan",
+                           "gaussian_diag", "gaussian_diag_nan")))
+    stop("`variances_equal` constrains the class variances of continuous ",
+         "indicators; it has no meaning for `measurement = ",
+         deparse1(measurement), "`. For a mixed measurement model, pass the ",
+         "constraint in the measurement descriptor itself.", call. = FALSE)
+
   if (legacy) {
     message("Note: `X`, `Y`, `n_components`, and `structural` are the legacy ",
             "interface. The current arguments are `indicators`, `n_classes`, ",
@@ -2946,7 +2977,8 @@ fit_mixture <- function(indicators = NULL,
       order_by_size = order_by_size, weights = weights,
       weight_type = weight_type,
       strata = strata, cluster = cluster, refine = refine,
-      bayes_constants = bayes_constants, se = se, ...))
+      bayes_constants = bayes_constants, se = se,
+      variances_equal = isTRUE(variances_equal), ...))
   }
 
   if (is.null(indicators))
@@ -2972,30 +3004,6 @@ fit_mixture <- function(indicators = NULL,
     stop("`group_invariant_params` constrains the measurement model across ",
          "groups, which only `group_effects = \"both\"` or \"measurement\" ",
          "frees in the first place.", call. = FALSE)
-  # A continuous measurement model defaults to the homoscedastic
-  # parameterisation (Day 1969; Hathaway 1985: the unrestricted likelihood is
-  # unbounded, so only the constrained problem has an MLE). Resolved here rather
-  # than in the signature because the gate below rejects
-  # `variances_equal = TRUE` for any other measurement type, and a bare TRUE
-  # default would fire it on every categorical fit. An explicit TRUE still
-  # reaches the gate and is still rejected; only the unset case is resolved from
-  # the descriptor. `gaussian_model()`'s own default deliberately stays FALSE:
-  # it is reached by the growth, time-block and group-block paths as well, and
-  # flipping it there would silently change LCGA, GMM and RMLCA. Only the
-  # user-facing entry points resolve the default.
-  if (is.null(variances_equal))
-    variances_equal <- is.character(measurement) && length(measurement) == 1L &&
-      measurement %in% c("continuous", "continuous_nan",
-                         "gaussian_diag", "gaussian_diag_nan")
-
-  if (isTRUE(variances_equal) &&
-      !(is.character(measurement) && length(measurement) == 1L &&
-        measurement %in% c("continuous", "continuous_nan",
-                           "gaussian_diag", "gaussian_diag_nan")))
-    stop("`variances_equal` constrains the class variances of continuous ",
-         "indicators; it has no meaning for `measurement = ",
-         deparse1(measurement), "`. For a mixed measurement model, pass the ",
-         "constraint in the measurement descriptor itself.", call. = FALSE)
 
   # --- Measurement model (single-type or mixed) -------------------------------
   mm                 <- .normalize_measurement(measurement, indicators)
