@@ -1769,6 +1769,10 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #' @param correction Character. Bias correction for 3-step estimation.
 #'   One of \code{"none"}, \code{"BCH"}, or \code{"ML"}. Ignored when
 #'   \code{n_steps} is not \code{3}. Default is \code{"none"}.
+#' @param assignment Character. How step-one class membership is carried into
+#'   the step-three correction. \code{"proportional"} (default) uses the full
+#'   posterior class probabilities; \code{"modal"} hardens each case to its
+#'   most likely class first. Ignored when \code{n_steps} is not \code{3}.
 #' @param n_init Positive integer. Number of random restarts. The solution
 #'   with the highest log-likelihood is retained. Default is \code{20}.
 #' @param max_iter Positive integer. Maximum EM iterations per restart.
@@ -2548,7 +2552,7 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   appends the group's own design to \code{predictors} internally, so the
 #'   group columns would then appear twice. A covariate matrix built this way
 #'   also carries none of the column-to-variable bookkeeping a data-frame
-#'   \code{predictors} does, so functions like \code{\link{wald_test}} need
+#'   \code{predictors} does, so functions like \code{\link{analytical_wald_test}} need
 #'   the individual interaction column names rather than a single variable
 #'   name.
 #' @param group_effects What you are allowing the groups to differ in. Pick by

@@ -119,7 +119,7 @@ be free by group): a \code{"prevalence"} or \code{"both"} group effect
 appends the group's own design to \code{predictors} internally, so the
 group columns would then appear twice. A covariate matrix built this way
 also carries none of the column-to-variable bookkeeping a data-frame
-\code{predictors} does, so functions like \code{\link{wald_test}} need
+\code{predictors} does, so functions like \code{\link{analytical_wald_test}} need
 the individual interaction column names rather than a single variable
 name.}
 

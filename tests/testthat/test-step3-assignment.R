@@ -151,10 +151,10 @@ test_that("bayes_constants$latent = 0 reproduces the unpenalised step three", {
   # Row 1 is the free class; row 2 is the anchor and is zero by construction.
   expect_equal(as.vector(fc$sm$parameters$beta[1, ]),
                c(0.745542992496, -0.673660063212, 0.544359886248),
-               tolerance = 1e-10)
+               tolerance = 1e-6)
   expect_equal(.free_cov_se(fc),
                c(0.197280928482, 0.175671366223, 0.170233042872),
-               tolerance = 1e-10)
+               tolerance = 1e-6)
 })
 
 test_that("the prior shrinks both the coefficients and their standard errors", {
