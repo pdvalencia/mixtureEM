@@ -351,12 +351,12 @@ test_that("the diagnostics decline models they are not defined for", {
 # Local dependence, continuous indicators
 # ------------------------------------------------------------------------------
 
-test_that("the modification index flags the one planted local dependence", {
-  # Two classes, five indicators, one seed. Items 1 and 2 carry a within-class
-  # residual correlation of 0.4 in class 1 only; every other pair, and every
-  # pair in class 2, is independent. The misspecified conditional-independence
-  # fit should flag exactly the planted pair, in exactly the class it was
-  # planted in.
+# Two classes, five indicators, one seed. Items 1 and 2 carry a within-class
+# residual correlation of 0.4 in the first simulated class only; every other
+# pair, and every pair in the second, is independent. Every class variance is
+# 1 by construction, so the same data is the right shape for both
+# parameterisations: the misfit is a covariance, not a variance difference.
+.ld_sim <- function() {
   set.seed(123)
   n <- 800
   k <- sample(1:2, n, replace = TRUE)
@@ -368,21 +368,30 @@ test_that("the modification index flags the one planted local dependence", {
   in1 <- k == 1
   X[in1, 1] <- sqrt(rho) * shock[in1] + sqrt(1 - rho) * X[in1, 1]
   X[in1, 2] <- sqrt(rho) * shock[in1] + sqrt(1 - rho) * X[in1, 2]
-  X[, 1] <- X[, 1] + 2 * (k - 1)   # separate the two classes on every item
-  X[, 2] <- X[, 2] + 2 * (k - 1)
-  X[, 3] <- X[, 3] + 2 * (k - 1)
-  X[, 4] <- X[, 4] + 2 * (k - 1)
-  X[, 5] <- X[, 5] + 2 * (k - 1)
+  for (j in 1:5) X[, j] <- X[, j] + 2 * (k - 1)  # separate the classes
+  X
+}
 
-  fit <- fit_mixture(X, n_components = 2, measurement = "continuous", variances_equal = FALSE,
+# sort_model_classes() orders classes largest-to-smallest, and the two
+# parameterisations need not agree on which fitted class is which, so the
+# planted class is always found by matching item-1 means against the two
+# simulated centres rather than assumed to be class 1.
+.ld_planted <- function(fit) which.min(abs(fit$mm$parameters$means[, 1] - 0))
+
+test_that("the modification index flags the one planted local dependence", {
+  # Two classes, five indicators, one seed. Items 1 and 2 carry a within-class
+  # residual correlation of 0.4 in class 1 only; every other pair, and every
+  # pair in class 2, is independent. The misspecified conditional-independence
+  # fit should flag exactly the planted pair, in exactly the class it was
+  # planted in.
+  X <- .ld_sim()
+
+  fit <- fit_mixture(X, n_classes = 2, measurement = "continuous", variances_equal = FALSE,
                      n_init = 5, random_state = 1)
   bvr <- bivariate_residuals(fit)
   expect_s3_class(bvr, "bivariate_residuals_gaussian")
 
-  # sort_model_classes() orders classes largest-to-smallest, so find which
-  # fitted class corresponds to the planted (originally "class 1") group by
-  # matching item-1 means against the two simulated centres.
-  planted <- which.min(abs(fit$mm$parameters$means[, 1] - 0))
+  planted <- .ld_planted(fit)
 
   all_mi <- as.vector(bvr$mi)
   planted_mi <- bvr$mi[2, 1, planted]
@@ -393,6 +402,55 @@ test_that("the modification index flags the one planted local dependence", {
   null_mi <- null_mi[null_mi != planted_mi]
   null_p  <- stats::pchisq(null_mi, df = 1, lower.tail = FALSE)
   expect_gt(mean(null_p > 0.05), 0.75)
+})
+
+test_that("the modification index holds up under the equal-variance default", {
+  # A continuous measurement model holds each item's variance equal across the
+  # classes by default, so this is the parameterisation a user reaches without
+  # asking for it, and the one the statistic has to be right under. The
+  # constrained fit packs one shared log-sd per item rather than K
+  # (.step1_pack_sub); were the constraint not carried into the packed vector,
+  # the fit would not be stationary in the K - 1 directions the packing
+  # invented, the Schur complement would go non-positive, and every pair would
+  # fall back to the outer-product denominator.
+  X   <- .ld_sim()
+  fit <- fit_mixture(X, n_classes = 2, measurement = "continuous",
+                     n_init = 5, random_state = 1)
+  expect_true(isTRUE(fit$mm$variances_equal))
+  # The constraint binds: one variance per item, shared by the two classes.
+  expect_equal(fit$mm$parameters$covariances[1, ],
+               fit$mm$parameters$covariances[2, ])
+
+  bvr     <- bivariate_residuals(fit)
+  planted <- .ld_planted(fit)
+  mi      <- bvr$mi
+
+  # Nothing fell back to the outer-product denominator, and nothing came out
+  # non-finite. n_opg is the direct symptom the packing gap used to produce.
+  expect_equal(bvr$n_opg, 0L)
+  expect_true(all(is.finite(mi[!is.na(mi)])))
+
+  # It still finds the planted pair, in the class it was planted in.
+  expect_equal(mi[2, 1, planted], max(mi, na.rm = TRUE))
+  expect_lt(bvr$p_value[2, 1, planted], 0.05)
+
+  null_mi <- as.vector(mi)[!is.na(as.vector(mi))]
+  null_mi <- null_mi[null_mi != mi[2, 1, planted]]
+  expect_gt(mean(stats::pchisq(null_mi, df = 1, lower.tail = FALSE) > 0.05),
+            0.75)
+
+  # And it agrees with the free-variance fit on every pair that carries no
+  # planted dependence, once the classes are matched up -- the two orderings
+  # need not coincide. The planted pair itself is not comparable: the
+  # constrained fit prices it against different information. Loose by design,
+  # since these are two different fits of two different models.
+  free <- fit_mixture(X, n_classes = 2, measurement = "continuous",
+                      variances_equal = FALSE, n_init = 5, random_state = 1)
+  null_pairs <- lower.tri(diag(5))
+  null_pairs[2, 1] <- FALSE
+  expect_lt(max(abs(mi[, , planted][null_pairs] -
+                      bivariate_residuals(free)$mi[, , .ld_planted(free)][null_pairs])),
+            0.5)
 })
 
 test_that("lta_g2() still reports what it always did", {
