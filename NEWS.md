@@ -1,4 +1,4 @@
-# mixtureEM (development version)
+# mixtureEM 0.3.0
 
 ## Fixed: `variances_equal` was ignored by the legacy `n_components` interface
 
