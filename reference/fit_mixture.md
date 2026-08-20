@@ -142,8 +142,9 @@ fit_mixture(
   internally, so the group columns would then appear twice. A covariate
   matrix built this way also carries none of the column-to-variable
   bookkeeping a data-frame `predictors` does, so functions like
-  `wald_test` need the individual interaction column names rather than a
-  single variable name.
+  [`analytical_wald_test`](https://pdvalencia.github.io/mixtureEM/reference/analytical_wald_test.md)
+  need the individual interaction column names rather than a single
+  variable name.
 
 - group_effects:
 

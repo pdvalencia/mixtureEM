@@ -92,6 +92,13 @@ fit_mixture_internal(
   `"BCH"`, or `"ML"`. Ignored when `n_steps` is not `3`. Default is
   `"none"`.
 
+- assignment:
+
+  Character. How step-one class membership is carried into the
+  step-three correction. `"proportional"` (default) uses the full
+  posterior class probabilities; `"modal"` hardens each case to its most
+  likely class first. Ignored when `n_steps` is not `3`.
+
 - n_init:
 
   Positive integer. Number of random restarts. The solution with the
@@ -262,7 +269,7 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.725  [    0.014,    37.614]     0.873
+#>   Intercept                0.725  [    0.014,    37.531]     0.873
 #>   V1                       0.780  [    0.288,     2.113]     0.625
 #> =========================================================
 ```

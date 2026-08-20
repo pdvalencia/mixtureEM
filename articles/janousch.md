@@ -350,18 +350,14 @@ fit_free_means <- fit_mixture(janousch[items], n_classes = 4,
 #> Warning: 35 cases had no observed value on any indicator and were removed
 #> before estimation (n = 1125 analysed). Rows: 28, 46, 50, 55, 90, 94, ... (29
 #> more).
-#> Warning: The reported solution was found by 1 of 51 starts that ran to
-#> convergence, out of 50 requested. EM climbs the peak it starts nearest, so a
-#> maximum seen once may be the best of a small sample of the likelihood surface
-#> rather than the best there is: refit with n_init = 100 before reporting.
 
 lr_test(fit_invariant, fit_free_means)
 #> 
 #> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
 #>   Restricted : LL =   -5338.3176   parameters = 65
-#>   Full       : LL =   -5261.3477   parameters = 121
-#>   -2 x diff  : 153.9397   df = 56   p = 4.46e-11
+#>   Full       : LL =   -5261.3664   parameters = 121
+#>   -2 x diff  : 153.9024   df = 56   p = 4.514e-11
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 

@@ -147,6 +147,13 @@ One of <code>"none"</code>, <code>"BCH"</code>, or <code>"ML"</code>. Ignored wh
 <code>n_steps</code> is not <code>3</code>. Default is <code>"none"</code>.</p></dd>
 
 
+<dt id="arg-assignment">assignment<a class="anchor" aria-label="anchor" href="#arg-assignment"></a></dt>
+<dd><p>Character. How step-one class membership is carried into
+the step-three correction. <code>"proportional"</code> (default) uses the full
+posterior class probabilities; <code>"modal"</code> hardens each case to its
+most likely class first. Ignored when <code>n_steps</code> is not <code>3</code>.</p></dd>
+
+
 <dt id="arg-n-init">n_init<a class="anchor" aria-label="anchor" href="#arg-n-init"></a></dt>
 <dd><p>Positive integer. Number of random restarts. The solution
 with the highest log-likelihood is retained. Default is <code>20</code>.</p></dd>
@@ -308,7 +315,7 @@ Use <code>exp(fit$log_resp)</code> to obtain posterior probabilities.</p></li>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                               OR         [95% CI]         P-Value</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Class 2 ON</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Intercept                0.725  [    0.014,    37.614]     0.873</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Intercept                0.725  [    0.014,    37.531]     0.873</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   V1                       0.780  [    0.288,     2.113]     0.625</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-in"><span></span></span>

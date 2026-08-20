@@ -154,9 +154,9 @@ results <- summary(fit_cov)
 #> 
 #> Class 3 ON
 #>   Intercept                0.005  [    0.000,     0.086]    < .001
-#>   grade.10                12.245  [    0.790,   189.851]     0.073
-#>   grade.11                29.370  [    1.930,   446.919]     0.015
-#>   grade.12                49.680  [    3.066,   804.936]     0.006
+#>   grade.10                12.245  [    0.790,   189.862]     0.073
+#>   grade.11                29.370  [    1.930,   446.951]     0.015
+#>   grade.12                49.680  [    3.066,   804.995]     0.006
 #>   sex.Male                 1.309  [    1.060,     1.616]     0.012
 #> 
 #> Class 4 ON
@@ -176,7 +176,7 @@ results <- summary(fit_cov)
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   grade                    327.971   12    < .001
+#>   grade                    327.962   12    < .001
 #>   sex                       70.588    4    < .001
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
