@@ -74,6 +74,11 @@ Default is \code{1}.}
 One of \code{"none"}, \code{"BCH"}, or \code{"ML"}. Ignored when
 \code{n_steps} is not \code{3}. Default is \code{"none"}.}
 
+\item{assignment}{Character. How step-one class membership is carried into
+the step-three correction. \code{"proportional"} (default) uses the full
+posterior class probabilities; \code{"modal"} hardens each case to its
+most likely class first. Ignored when \code{n_steps} is not \code{3}.}
+
 \item{n_init}{Positive integer. Number of random restarts. The solution
 with the highest log-likelihood is retained. Default is \code{20}.}
 
