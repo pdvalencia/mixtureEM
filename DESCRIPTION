@@ -30,6 +30,7 @@ BugReports: https://github.com/pdvalencia/mixtureEM/issues
 Imports:
     grDevices,
     graphics,
+    parallel,
     stats,
     utils
 Depends:
@@ -37,6 +38,7 @@ Depends:
 LazyData: true
 Suggests:
     testthat (>= 3.0.0),
+    pkgload,
     knitr,
     rmarkdown,
     readxl,

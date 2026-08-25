@@ -11,6 +11,7 @@ compare_mixtures(
   n_init = 10,
   n_steps = 1,
   vlmr = c("none", "standard", "robust", "both"),
+  n_cores = 1L,
   ...
 )
 }

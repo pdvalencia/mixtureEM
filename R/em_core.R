@@ -53,13 +53,18 @@ e_step <- function(model_state, X, Y = NULL) {
     log_prob    <- sweep(log_prob, 2, log_weights, "+")
   }
 
-  # 4. Log-sum-exp trick for stability
-  log_prob_norm <- apply(log_prob, 1, function(x) {
-    max_x <- max(x)
-    max_x + log(sum(exp(x - max_x)))
-  })
+  # 4. Log-sum-exp trick for stability. logsumexp() is the vectorised form of
+  # the row-wise apply() that stood here: it returns the same values, but does
+  # the row maxima in one pass instead of calling a closure once per case. This
+  # runs on every EM iteration of every restart, and on a large fit the apply()
+  # was over half the total runtime. The one behavioural difference is a row of
+  # all -Inf -- a case with zero likelihood under every class -- which used to
+  # come back NaN and is now -Inf, the correct value.
+  log_prob_norm <- logsumexp(log_prob, MARGIN = 1)
 
-  log_resp <- sweep(log_prob, 1, log_prob_norm, "-")
+  # Recycles down the columns exactly as sweep(MARGIN = 1) did, without
+  # building the intermediate copy.
+  log_resp <- log_prob - log_prob_norm
   return(list(log_resp = log_resp, log_prob_norm = log_prob_norm))
 }
 
@@ -421,7 +426,7 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
 
     # ── Posterior responsibilities (needed for both value and gradient) ───────
     log_joint <- sweep(log_lik, 2, log_w, "+")
-    mx        <- apply(log_joint, 1, max)
+    mx        <- .row_max(log_joint)
     log_norm  <- mx + log(rowSums(exp(sweep(log_joint, 1, mx, "-"))))
     R         <- exp(sweep(log_joint, 1, log_norm, "-"))   # n × K posteriors
 
@@ -719,7 +724,8 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
 # on log-likelihood like any other restart, so a warm start that turns out to be
 # a poor one costs a restart and changes nothing else.
 fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
-                   random_state = NULL, refine = TRUE, warm_start = NULL) {
+                   random_state = NULL, refine = TRUE, warm_start = NULL,
+                   n_cores = 1L) {
 
   # An emission may raise the ceiling on itself, but never lower one the caller
   # asked for: `max_iter` is a documented argument of fit_mixture().
@@ -747,6 +753,26 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
   run_warm <- run_from
 
   ll_of <- function(s) sum(s$sample_weights * s$lower_bound)
+
+  # The starting values of every restart, drawn here rather than inside the fit.
+  #
+  # init_params() is the only consumer of the random number stream on this path:
+  # neither the EM iterations nor the L-BFGS polish draws. Building the starts in
+  # restart order therefore takes exactly the numbers the sequential loop took,
+  # in the same order, and leaves each fit a deterministic function of the state
+  # it is handed. That is what allows the restarts to run on workers without
+  # moving a fitted value, at any `n_cores`.
+  #
+  # The branch below mirrors the one fit_single_init() takes when `init_state`
+  # is NULL, so a start built here is the start it would have built itself.
+  make_inits <- function(n) lapply(seq_len(n), function(i) {
+    if (!is.null(random_state)) set.seed(random_state + i)
+    st <- model_state
+    st$weights <- rep(1 / st$n_components, st$n_components)
+    st$mm      <- init_params(st$mm, X, NULL)
+    if (!is.null(Y) && !is.null(st$sm)) st$sm <- init_params(st$sm, Y, NULL)
+    st
+  })
 
   # Every restart's final log-likelihood, collected so the fit can report how
   # many of them found the best solution. A maximum reached once out of twenty is
@@ -797,26 +823,26 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     # on. This is the standard two-stage multi-start scheme, used for exactly the
     # same reason, and the survivors resume from where stage 1 left them rather
     # than restarting, so nothing is thrown away.
-    candidates <- vector("list", n_init)
-    for (init in seq_len(n_init)) {
-      if (!is.null(random_state)) set.seed(random_state + init)
-      candidates[[init]] <- fit_single_init(model_state, X, Y,
-                                            max_iter = stage$iter,
-                                            refine = FALSE)
-    }
+    candidates <- .par_lapply(make_inits(n_init), function(st)
+      fit_single_init(model_state, X, Y, max_iter = stage$iter,
+                      refine = FALSE, init_state = st),
+      n_cores = n_cores)
     lls  <- vapply(candidates, ll_of, numeric(1))
     keep <- order(lls, decreasing = TRUE)[
       seq_len(min(n_init, max(stage$min_keep, ceiling(stage$frac * n_init))))]
 
     best_model <- NULL
     best_total_ll <- -Inf
-    for (i in keep) {
-      # The seed is restored so that the second stage of a given start draws the
-      # same random numbers it would have drawn in a single-stage run; nothing
-      # below uses them today, but a stochastic M-step later would.
+    # The seed is restored so that the second stage of a given start draws the
+    # same random numbers it would have drawn in a single-stage run; nothing
+    # below uses them today, but a stochastic M-step later would.
+    fitted <- .par_lapply(keep, function(i) {
       if (!is.null(random_state)) set.seed(random_state + i)
-      fitted_state <- run_from(candidates[[i]])
-      current_ll   <- ll_of(fitted_state)
+      run_from(candidates[[i]])
+    }, n_cores = n_cores)
+
+    for (fitted_state in fitted) {
+      current_ll <- ll_of(fitted_state)
       record(current_ll)
       if (is.null(best_model) || current_ll > best_total_ll) {
         best_total_ll <- current_ll
@@ -838,13 +864,15 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
   best_model <- NULL
   best_total_ll <- -Inf
 
-  for (init in 1:n_init) {
-    if (!is.null(random_state)) set.seed(random_state + init)
-
+  # Every restart is built here, in restart order, and then fitted. Splitting
+  # the draw from the fit is what lets the fits run on workers: see make_inits().
+  fitted <- .par_lapply(make_inits(n_init), function(st)
     # Each restart includes L-BFGS refinement so selection is by PM likelihood.
-    fitted_state <- fit_single_init(model_state, X, Y, max_iter = max_iter,
-                                    refine = refine)
+    fit_single_init(model_state, X, Y, max_iter = max_iter, refine = refine,
+                    init_state = st),
+    n_cores = n_cores)
 
+  for (fitted_state in fitted) {
     current_ll <- ll_of(fitted_state)
     record(current_ll)
     if (is.null(best_model) || current_ll > best_total_ll) {

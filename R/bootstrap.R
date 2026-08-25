@@ -139,7 +139,7 @@ align_classes <- function(orig_mat, boot_mat) {
 #' }
 #'
 #' @export
-bootstrap_covariates <- function(model_state, X, Y, n_reps = 100,
+bootstrap_covariates <- function(model_state, X, Y, n_reps = 100, n_cores = 1L,
                                  random_state = 123, ref_class = 1) {
   set.seed(random_state)
 
@@ -174,7 +174,13 @@ bootstrap_covariates <- function(model_state, X, Y, n_reps = 100,
   cat(sprintf("Running bootstrap with alignment (Ref Class: %d, %d reps)...\n",
               ref_class, n_reps))
 
-  for (i in seq_len(n_reps)) {
+  # One seed per replicate, drawn before any fitting, so the resampled indices
+  # and the replicate fit that follows them are fixed by that seed alone. The
+  # bootstrap standard errors are then the same at any `n_cores`.
+  seeds <- sample.int(.Machine$integer.max, n_reps)
+
+  one_rep <- function(i) {
+    set.seed(seeds[i])
     idx    <- sample(seq_len(n_samples), replace = TRUE)
     X_boot <- X[idx, , drop = FALSE]
     Y_boot <- Y[idx, , drop = FALSE]
@@ -197,14 +203,19 @@ bootstrap_covariates <- function(model_state, X, Y, n_reps = 100,
     mapping        <- align_classes(orig_align_mat, boot_align_mat)
     aligned_betas  <- b_model$sm$parameters$beta[mapping, ]
 
-    aligned_betas_ref <- sweep(aligned_betas, 2,
-                               aligned_betas[ref_class, ], "-")
-    boot_betas[i, , ] <- aligned_betas_ref
+    sweep(aligned_betas, 2, aligned_betas[ref_class, ], "-")
+  }
 
-    # Print progress every 10% of reps
+  if (n_cores > 1L) {
+    reps <- .par_lapply(seq_len(n_reps), one_rep, n_cores = n_cores)
+    for (i in seq_len(n_reps)) boot_betas[i, , ] <- reps[[i]]
+  } else {
     milestone <- max(1L, n_reps %/% 10L)
-    if (i %% milestone == 0L || i == n_reps)
-      cat(sprintf("  %d / %d reps completed.\n", i, n_reps))
+    for (i in seq_len(n_reps)) {
+      boot_betas[i, , ] <- one_rep(i)
+      if (i %% milestone == 0L || i == n_reps)
+        cat(sprintf("  %d / %d reps completed.\n", i, n_reps))
+    }
   }
 
   se_betas <- apply(boot_betas, c(2, 3), sd)

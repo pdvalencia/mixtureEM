@@ -27,6 +27,7 @@ fit_lta(
   cluster = NULL,
   n_init = 20,
   max_iter = 1000,
+  n_cores = 1L,
   tol = 1e-08,
   smoothing = 1,
   random_state = NULL,
@@ -130,6 +131,12 @@ cost of the search. Supplying either argument overrides all of this. (Unlike \co
 whose EM tolerance is fixed and not user-adjustable, \code{tol} here is a
 real, respected argument, because a chain mixture converges slowly
 enough that the fixed rule would not do.)}
+
+\item{n_cores}{Positive integer. Number of processes to spread the random
+starts over. Default \code{1} (sequential). These are the slowest fits in the
+package and \code{n_init} is high by necessity, so this is where the argument
+earns the most. Starting values are drawn in this session before any
+fitting begins, so the fit is identical at every \code{n_cores}.}
 
 \item{smoothing}{How much smoothing to apply to the status prevalences and to
 each row of the transition matrices, expressed as a number of pseudo-cases

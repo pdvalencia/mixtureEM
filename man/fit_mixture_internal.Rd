@@ -25,6 +25,7 @@ fit_mixture_internal(
   bayes_constants = NULL,
   warm_start = NULL,
   se = c("corrected", "robust", "hessian"),
+  n_cores = 1L,
   ...
 )
 }
