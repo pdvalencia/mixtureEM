@@ -126,6 +126,50 @@
   mf
 }
 
+# Whether a one-sided formula names an interaction (order > 1), the one shape
+# `.columns_from_data()`'s model.frame() cannot expand: it returns the
+# variables referenced, not the columns a model actually needs, so `a:b` or
+# `a*b` silently fits as `a + b` under that path. A plain main-effects formula
+# is routed to `.columns_from_data()` unchanged rather than through
+# `.covariate_matrix_from_formula()` below, because the two disagree on a
+# dummy's column name (`sexo.M` from `prepare_covariates()`'s own convention
+# vs. `sexoM` from `model.matrix()`'s), and there is no reason to disturb that
+# naming, or the tests and saved output that depend on it, for a formula shape
+# that already worked.
+.formula_has_interaction <- function(spec) any(attr(stats::terms(spec), "order") > 1L)
+
+# Resolve a one-sided formula against `data` into a numeric design matrix, for
+# a *covariate* spec specifically -- never for `outcome` itself, which needs
+# the raw variable (see .columns_from_data() above) rather than one already
+# dummy-coded, since a categorical outcome's own level structure is what
+# .build_outcome_spec() inspects next.
+#
+# model.matrix() is what .columns_from_data()'s model.frame() cannot give: a
+# factor's k-1 dummies and an interaction's several columns collapse to one
+# term via `assign`, which is exactly the bookkeeping a hand-built
+# model.matrix(~ a * b)[, -1] has no way to carry (see fit_mixture()'s
+# `@param group` documentation, which is what tells a user to hand-build one
+# in the first place). `na.action = na.pass` at the model.frame stage, kept
+# through to model.matrix() via the terms object built from that frame, is
+# what lets a case missing a structural covariate stay in the data instead of
+# being dropped -- .align_structural_rows() expects one row per case.
+.covariate_matrix_from_formula <- function(spec, data, arg_name) {
+  absent <- setdiff(all.vars(spec), names(data))
+  if (length(absent))
+    stop(sprintf("`%s` names %s not found in `data`: %s.", arg_name,
+                 if (length(absent) > 1L) "columns" else "a column",
+                 paste(absent, collapse = ", ")), call. = FALSE)
+
+  mf   <- stats::model.frame(spec, data = data, na.action = stats::na.pass)
+  tt   <- stats::terms(mf)
+  mm   <- stats::model.matrix(tt, data = mf)
+  asg  <- attr(mm, "assign")
+  keep <- asg != 0L                       # drop the intercept column
+  out  <- mm[, keep, drop = FALSE]
+  attr(out, "covariate_terms") <- attr(tt, "term.labels")[asg[keep]]
+  out
+}
+
 # Guard the case of a formula with no `data` to resolve it against, which is the
 # likeliest way to mistype the new form.
 .check_data_form <- function(spec, data, arg_name) {
@@ -192,8 +236,11 @@
 #'   whose classes were assigned that way.
 #' @param max_iter Maximum iterations for the step-3 estimation.
 #' @param data Optional data frame to take the covariates from, in which case
-#'   `predictors` may be a one-sided formula (`~ age + sex`) or a vector of
-#'   column names instead of the columns themselves.
+#'   `predictors` may be a one-sided formula (`~ age + sex`, or `~ age * sex`
+#'   for an interaction) or a vector of column names instead of the columns
+#'   themselves. A formula's terms -- a factor's dummies, an interaction's
+#'   several columns -- are recognised as one term by the omnibus Wald test in
+#'   [analytical_wald_test()].
 #' @param ... Currently unused.
 #'
 #' @details
@@ -269,8 +316,12 @@ add_covariates <- function(fit, predictors,
     message(sprintf("Using '%s' bias correction (set `correction` to override).",
                     correction))
 
-  if (!is.null(data) &&
-      (inherits(predictors, "formula") || is.character(predictors))) {
+  if (!is.null(data) && inherits(predictors, "formula") &&
+      .formula_has_interaction(predictors)) {
+    predictors      <- .covariate_matrix_from_formula(predictors, data, "predictors")
+    predictors_expr <- NULL
+  } else if (!is.null(data) &&
+            (inherits(predictors, "formula") || is.character(predictors))) {
     predictors      <- .columns_from_data(predictors, data, "predictors")
     predictors_expr <- NULL
   }
@@ -328,7 +379,8 @@ add_covariates <- function(fit, predictors,
 #' @param max_iter Maximum iterations for the step-3 estimation.
 #' @param data Optional data frame to take the variables from, in which case
 #'   `outcome` may be a one-sided formula naming one column (`~ bmi`), and
-#'   `covariates` a one-sided formula or a vector of column names.
+#'   `covariates` a one-sided formula (interactions included, e.g. `~ age *
+#'   sex`) or a vector of column names.
 #' @param ... Currently unused.
 #'
 #' @return A `mixture_model` with the distal-outcome model attached. Use
@@ -407,8 +459,12 @@ add_outcome <- function(fit, outcome, covariates = NULL,
                    ncol(outcome), paste(names(outcome), collapse = ", ")),
            call. = FALSE)
   }
-  if (!is.null(data) &&
-      (inherits(covariates, "formula") || is.character(covariates))) {
+  if (!is.null(data) && inherits(covariates, "formula") &&
+      .formula_has_interaction(covariates)) {
+    covariates <- .covariate_matrix_from_formula(covariates, data, "covariates")
+    cov_expr   <- NULL
+  } else if (!is.null(data) &&
+            (inherits(covariates, "formula") || is.character(covariates))) {
     covariates <- .columns_from_data(covariates, data, "covariates")
     cov_expr   <- NULL
   }

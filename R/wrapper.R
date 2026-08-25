@@ -2579,7 +2579,16 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   class, and needs non-negative integers.
 #' @param predictors Optional covariates that predict latent class membership.
 #'   Supplying this fits a class-membership regression (the "predict class"
-#'   structural model). Mutually exclusive with \code{outcome}.
+#'   structural model). Mutually exclusive with \code{outcome}. Besides a
+#'   matrix, data frame, or bare vector, \code{predictors} can be a one-sided
+#'   formula (e.g. \code{~ grade * factor(year)}) evaluated against
+#'   \code{data}; a factor's dummies and an interaction's several columns are
+#'   then recognised as one term by \code{\link{analytical_wald_test}}'s
+#'   omnibus test, which a hand-built \code{model.matrix()} cannot offer (see
+#'   \code{group}, below, for why a hand-built matrix is sometimes needed
+#'   anyway).
+#' @param data Data frame that a formula \code{predictors} is evaluated
+#'   against. Ignored unless \code{predictors} is a formula.
 #' @param outcome Optional distal outcome caused by the latent classes.
 #'   Mutually exclusive with \code{predictors}.
 #' @param outcome_covariates Optional covariates that adjust the distal
@@ -2604,17 +2613,17 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   \strong{A covariate whose effect on class membership differs by group}
 #'   -- moderation, not just adjustment -- does not need \code{group} at all:
 #'   build the interaction into \code{predictors} directly, e.g.
-#'   \code{predictors = model.matrix(~ grade * factor(year))[, -1]} handed to
-#'   \code{fit_mixture()} in place of a plain covariate matrix. Leave
+#'   \code{predictors = ~ grade * factor(year), data = df}. Leave
 #'   \code{group} unset for this (or use
 #'   \code{group_effects = "measurement"} if the item parameters should also
 #'   be free by group): a \code{"prevalence"} or \code{"both"} group effect
 #'   appends the group's own design to \code{predictors} internally, so the
-#'   group columns would then appear twice. A covariate matrix built this way
-#'   also carries none of the column-to-variable bookkeeping a data-frame
-#'   \code{predictors} does, so functions like \code{\link{analytical_wald_test}} need
-#'   the individual interaction column names rather than a single variable
-#'   name.
+#'   group columns would then appear twice. A covariate matrix built by hand
+#'   instead (\code{model.matrix(~ grade * factor(year))[, -1]}) works the
+#'   same way but carries none of the column-to-variable bookkeeping the
+#'   formula spelling does, so functions like
+#'   \code{\link{analytical_wald_test}} would need the individual interaction
+#'   column names rather than a single variable name.
 #' @param group_effects What you are allowing the groups to differ in. Pick by
 #'   the question you are asking:
 #'
@@ -2976,6 +2985,7 @@ fit_mixture <- function(indicators = NULL,
                         n_classes = 2,
                         measurement,
                         predictors = NULL,
+                        data = NULL,
                         outcome = NULL,
                         outcome_covariates = NULL,
                         outcome_type = c("auto", "continuous", "categorical"),
@@ -3209,6 +3219,16 @@ fit_mixture <- function(indicators = NULL,
   structural_moderated <- integer(0)
 
   if (!is.null(predictors)) {
+    .check_data_form(predictors, data, "predictors")
+    if (!is.null(data) && inherits(predictors, "formula") &&
+        .formula_has_interaction(predictors)) {
+      predictors      <- .covariate_matrix_from_formula(predictors, data, "predictors")
+      predictors_expr <- NULL
+    } else if (!is.null(data) &&
+              (inherits(predictors, "formula") || is.character(predictors))) {
+      predictors      <- .columns_from_data(predictors, data, "predictors")
+      predictors_expr <- NULL
+    }
     structural_engine <- "predict_class"
     Y_use             <- prepare_covariates(
       .as_named_covariates(predictors, predictors_expr, "predictor"))
@@ -3405,6 +3425,16 @@ print.mixture_model <- function(x, ...) {
                      flag_bic  = !is.null(x$degenerate) ||
                        length(x$growth$boundary) > 0L)
   .print_replication_note(x)
+  # The printed log-likelihood conditions on the grouping variable and does not
+  # count its own proportions. Software that treats the group as a latent class
+  # observed without error is on a different scale by a fixed constant, and a
+  # user comparing the two numbers has no way to know that from this block.
+  if (!is.null(x$metrics$ll_knownclass))
+    cat(sprintf(paste0("  (Comparing with software that counts the grouping ",
+                       "variable's own proportions? Use metrics$ll_knownclass ",
+                       "= %.2f and metrics$n_params_knownclass = %d.)\n"),
+                x$metrics$ll_knownclass,
+                as.integer(x$metrics$n_params_knownclass)))
   cat("---------------------------------------------------------\n")
   cat("Class Weights (Sizes):\n")
   for (i in seq_along(x$weights))

@@ -1,5 +1,39 @@
 # mixtureEM (development version)
 
+## Changed: `fit_lta()` now warns when `bayes_constants$latent` is set
+
+`fit_lta()` has always accepted all four `bayes_constants` names, but the
+initial-status and transition priors are governed by the separate `smoothing`
+argument, and `latent` was silently ignored. A user translating another
+program's single four-way prior specification could set it and lose a quarter
+of it without a word. `fit_lta()` now warns when `latent` is present in the
+list, naming `smoothing` as the argument that actually does the job. No
+fitted value moves.
+
+## Added: a formula `predictors`, with `data`
+
+`fit_mixture()` gains a `data` argument, and `predictors` can now be a
+one-sided formula (`~ age + sex`, or `~ grade * factor(year)` for an
+interaction) evaluated against it, the same spelling `add_covariates()` and
+`add_outcome()` already accept. A factor's dummies and an interaction's
+several columns are recognised as one term by `analytical_wald_test()`'s
+omnibus test -- exactly the bookkeeping a hand-built
+`model.matrix(...)[, -1]` cannot carry, which is what the documentation used
+to recommend for a covariate whose effect on class membership is moderated by
+another variable. `add_covariates()` and `add_outcome()`'s existing formula
+support is upgraded the same way: an interaction named in the formula is now
+actually expanded and grouped, rather than only its main-effect variables
+being extracted.
+
+## Changed: `print()` now points to `ll_knownclass` for a `group=` fit
+
+A fit with a grouping variable has always carried `metrics$ll_knownclass` and
+`metrics$n_params_knownclass` -- the log-likelihood and parameter count on
+the scale software that treats the group as an observed-without-error class
+would report -- but nothing in the printed output said so, and the printed
+`Log-Likelihood` is on the other scale. `print()` now adds one line naming
+both when they are present. No printed or fitted number moves otherwise.
+
 ## Faster: the E-step no longer walks the sample a case at a time
 
 The E-step normalised its log-likelihoods with a row-wise `apply()`, which

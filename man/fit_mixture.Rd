@@ -9,6 +9,7 @@ fit_mixture(
   n_classes = 2,
   measurement,
   predictors = NULL,
+  data = NULL,
   outcome = NULL,
   outcome_covariates = NULL,
   outcome_type = c("auto", "continuous", "categorical"),
@@ -83,7 +84,17 @@ class, and needs non-negative integers.}
 
 \item{predictors}{Optional covariates that predict latent class membership.
 Supplying this fits a class-membership regression (the "predict class"
-structural model). Mutually exclusive with \code{outcome}.}
+structural model). Mutually exclusive with \code{outcome}. Besides a
+matrix, data frame, or bare vector, \code{predictors} can be a one-sided
+formula (e.g. \code{~ grade * factor(year)}) evaluated against
+\code{data}; a factor's dummies and an interaction's several columns are
+then recognised as one term by \code{\link{analytical_wald_test}}'s
+omnibus test, which a hand-built \code{model.matrix()} cannot offer (see
+\code{group}, below, for why a hand-built matrix is sometimes needed
+anyway).}
+
+\item{data}{Data frame that a formula \code{predictors} is evaluated
+against. Ignored unless \code{predictors} is a formula.}
 
 \item{outcome}{Optional distal outcome caused by the latent classes.
 Mutually exclusive with \code{predictors}.}
@@ -113,17 +124,17 @@ themselves; see \code{group_effects}.
 \strong{A covariate whose effect on class membership differs by group}
 -- moderation, not just adjustment -- does not need \code{group} at all:
 build the interaction into \code{predictors} directly, e.g.
-\code{predictors = model.matrix(~ grade * factor(year))[, -1]} handed to
-\code{fit_mixture()} in place of a plain covariate matrix. Leave
+\code{predictors = ~ grade * factor(year), data = df}. Leave
 \code{group} unset for this (or use
 \code{group_effects = "measurement"} if the item parameters should also
 be free by group): a \code{"prevalence"} or \code{"both"} group effect
 appends the group's own design to \code{predictors} internally, so the
-group columns would then appear twice. A covariate matrix built this way
-also carries none of the column-to-variable bookkeeping a data-frame
-\code{predictors} does, so functions like \code{\link{analytical_wald_test}} need
-the individual interaction column names rather than a single variable
-name.}
+group columns would then appear twice. A covariate matrix built by hand
+instead (\code{model.matrix(~ grade * factor(year))[, -1]}) works the
+same way but carries none of the column-to-variable bookkeeping the
+formula spelling does, so functions like
+\code{\link{analytical_wald_test}} would need the individual interaction
+column names rather than a single variable name.}
 
 \item{group_effects}{What you are allowing the groups to differ in. Pick by
 the question you are asking:

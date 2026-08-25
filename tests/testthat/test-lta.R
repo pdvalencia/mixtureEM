@@ -170,6 +170,21 @@ test_that("smoothing does not supply the measurement model's prior", {
                        min, numeric(1))))
 })
 
+test_that("fit_lta() warns that bayes_constants$latent is not read", {
+  X <- .lta_prior_fixture()
+  go <- function(...) fit_lta(X, n_statuses = 2, times = 2, n_init = 3,
+                              random_state = 1, standard_errors = FALSE, ...)
+
+  expect_warning(go(bayes_constants = list(latent = 0)), "smoothing")
+  # `categorical` is read, so it must not trigger the same warning.
+  expect_warning(go(bayes_constants = list(categorical = 0)), regexp = NA)
+
+  # The warning is purely informational: the fit itself is unaffected.
+  a <- suppressWarnings(go(bayes_constants = list(latent = 0)))
+  b <- go()
+  expect_equal(a$metrics$ll, b$metrics$ll)
+})
+
 # ------------------------------------------------------------------------------
 # How much of a transition row the prior is carrying
 # ------------------------------------------------------------------------------

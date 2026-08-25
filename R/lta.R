@@ -259,6 +259,18 @@ fit_lta <- function(indicators,
   transition_effects     <- match.arg(transition_effects)
   group_effects          <- match.arg(group_effects)
   weight_type            <- match.arg(weight_type)
+
+  # `latent` is the one bayes_constants name fit_lta() does not read: the
+  # status and transition priors are `smoothing`'s job. Resolving it silently
+  # would let a four-way prior specification lose a quarter of itself without
+  # a word, so the value that will be ignored is named where it is passed.
+  if (is.list(bayes_constants) && "latent" %in% names(bayes_constants))
+    warning(sprintf(
+      paste0("`bayes_constants$latent` is not read by fit_lta(); the prior on ",
+             "the initial-status and transition probabilities is the ",
+             "`smoothing` argument. Did you mean smoothing = %s?"),
+      format(bayes_constants[["latent"]])), call. = FALSE)
+
   bayes_constants        <- .resolve_bayes_constants(bayes_constants)
 
   time_invariance <- measurement_invariance

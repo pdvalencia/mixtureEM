@@ -64,7 +64,7 @@ whose classes were assigned that way.}
 
 \item{data}{Optional data frame to take the variables from, in which case
 \code{outcome} may be a one-sided formula naming one column (\code{~ bmi}), and
-\code{covariates} a one-sided formula or a vector of column names.}
+\code{covariates} a one-sided formula (interactions included, e.g. \code{~ age * sex}) or a vector of column names.}
 
 \item{...}{Currently unused.}
 }
