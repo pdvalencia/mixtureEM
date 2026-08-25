@@ -4,8 +4,8 @@
 
 - [Infidelity Behavior Patterns: LCA with Covariates and a Distal
   Outcome](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.md):
-- [Resilience Profiles Across Countries: Multi-Group LPA and Measurement
-  Invariance](https://pdvalencia.github.io/mixtureEM/articles/janousch.md):
+- [Latent Profile Analysis: Bystander Responses to Sexual
+  Harassment](https://pdvalencia.github.io/mixtureEM/articles/liang_ark_lpa.md):
 - [Choosing the Number of
   Classes](https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.md):
 - [Repeated-Measures LCA: Patterns of Change Over
@@ -16,6 +16,8 @@
   Models](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.md):
 - [LCA with Complex Survey
   Data](https://pdvalencia.github.io/mixtureEM/articles/survey_lca.md):
+- [Multiple-Group LCA: Do the Classes Differ by
+  Grade?](https://pdvalencia.github.io/mixtureEM/articles/mglca_yrbs.md):
 
 ### Reference
 

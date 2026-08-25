@@ -166,11 +166,6 @@ fit
 #>   Class 3: 18.02%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
-class_sizes(fit)
-#>   class proportion n_expected n_modal
-#> 1     1  0.4448697   52.49462      51
-#> 2     2  0.3749301   44.24175      44
-#> 3     3  0.1802002   21.26363      23
 classification_diagnostics(fit)
 #> =========================================================
 #>           AVERAGE POSTERIOR PROBABILITIES (AvePP)        

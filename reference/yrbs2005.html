@@ -35,12 +35,13 @@ fit_mixture()'s weights=, cluster= and strata= arguments."></head><body>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome</a></li>
-    <li><a class="dropdown-item" href="../articles/janousch.html">Resilience Profiles Across Countries: Multi-Group LPA and Measurement Invariance</a></li>
+    <li><a class="dropdown-item" href="../articles/liang_ark_lpa.html">Latent Profile Analysis: Bystander Responses to Sexual Harassment</a></li>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
+    <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -79,7 +80,10 @@ and <code>stratum</code> reproduce the complex sample design and can be passed t
 
     <div class="section level2">
     <h2 id="format">Format<a class="anchor" aria-label="anchor" href="#format"></a></h2>
-    <p>A data frame with 13,917 rows (respondents) and 17 columns:</p><dl><dt>grade</dt>
+    <p>A data frame with 13,840 rows (respondents) and 17 columns. This is
+Collins &amp; Lanza's analysis sample: cases missing on <code>grade</code>, and the
+cases missing on every indicator, are dropped from the raw CDC file's
+13,917 records.</p><dl><dt>grade</dt>
 <dd><p>Factor, grade in school: <code>"9"</code>, <code>"10"</code>, <code>"11"</code>, <code>"12"</code>.</p></dd>
 
 <dt>sex</dt>

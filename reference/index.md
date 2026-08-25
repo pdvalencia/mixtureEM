@@ -51,10 +51,11 @@
   : Repeated-Measures Latent Class Analysis
 - [`gaussian_model()`](https://pdvalencia.github.io/mixtureEM/reference/gaussian_model.md)
   : Constructor for Gaussian models
-- [`janousch`](https://pdvalencia.github.io/mixtureEM/reference/janousch.md)
-  : Resilience profiles in German, Greek, and Swiss adolescents
 - [`lcga_model()`](https://pdvalencia.github.io/mixtureEM/reference/lcga_model.md)
   : Constructor for latent class growth models
+- [`liang_ark_sim`](https://pdvalencia.github.io/mixtureEM/reference/liang_ark_sim.md)
+  : Simulated bystander intervention data (Liang & Ark, Study 2
+  analogue)
 - [`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
   : Likelihood-Ratio Test for Two Nested Models (deprecated name)
 - [`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)

@@ -57,107 +57,6 @@ of one item):
 
 selection <- compare_longitudinal(drink, k_range = 2:4, model = "rmlca",
                                   times = 4, n_init = 10, verbose = FALSE)
-selection
-#> $fit_table
-#>   Classes        LL Params      AIC      BIC    SABIC   Entropy Unreplicated
-#> 1       2 -2001.342      9 4020.684 4063.905 4035.323 0.7260827        FALSE
-#> 2       3 -1981.322     14 3990.643 4057.877 4013.415 0.6455619        FALSE
-#> 3       4 -1979.788     19 3997.575 4088.821 4028.480 0.5862685        FALSE
-#> 
-#> $models
-#> $models$K2
-#> 
-#> =========================================================
-#>         REPEATED-MEASURES LATENT CLASS MODEL
-#> =========================================================
-#> Items x Occasions  : 1 x 4
-#> Item parameters    : binary, estimated separately at each occasion
-#> =========================================================
-#>                   LATENT MIXTURE MODEL                   
-#> =========================================================
-#> Classes Estimated  : 2
-#> Estimation Method  : 1-step
-#> Converged          : TRUE (in 19 iterations)
-#> ---------------------------------------------------------
-#>   Log-Likelihood : -2001.34
-#>   Parameters     : 9
-#>   AIC            : 4020.68
-#>   BIC            : 4063.91
-#>   SABIC          : 4035.32
-#>   Rel. Entropy   : 0.7261
-#>   Best solution  : found by 10 of 10 starts
-#> ---------------------------------------------------------
-#> Class Weights (Sizes):
-#>   Class 1: 58.67%
-#>   Class 2: 41.33%
-#> =========================================================
-#> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
-#> 
-#> $models$K3
-#> 
-#> =========================================================
-#>         REPEATED-MEASURES LATENT CLASS MODEL
-#> =========================================================
-#> Items x Occasions  : 1 x 4
-#> Item parameters    : binary, estimated separately at each occasion
-#> =========================================================
-#>                   LATENT MIXTURE MODEL                   
-#> =========================================================
-#> Classes Estimated  : 3
-#> Estimation Method  : 1-step
-#> Converged          : TRUE (in 203 iterations)
-#> ---------------------------------------------------------
-#>   Log-Likelihood : -1981.32
-#>   Parameters     : 14
-#>   AIC            : 3990.64
-#>   BIC            : 4057.88
-#>   SABIC          : 4013.41
-#>   Rel. Entropy   : 0.6456
-#>   Best solution  : found by 10 of 10 starts
-#> ---------------------------------------------------------
-#> Class Weights (Sizes):
-#>   Class 1: 46.16%
-#>   Class 2: 35.04%
-#>   Class 3: 18.80%
-#> =========================================================
-#> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
-#> 
-#> $models$K4
-#> 
-#> =========================================================
-#>         REPEATED-MEASURES LATENT CLASS MODEL
-#> =========================================================
-#> Items x Occasions  : 1 x 4
-#> Item parameters    : binary, estimated separately at each occasion
-#> =========================================================
-#>                   LATENT MIXTURE MODEL                   
-#> =========================================================
-#> Classes Estimated  : 4
-#> Estimation Method  : 1-step
-#> Converged          : TRUE (in 348 iterations)
-#> ---------------------------------------------------------
-#>   Log-Likelihood : -1979.79
-#>   Parameters     : 19
-#>   AIC            : 3997.58
-#>   BIC            : 4088.82
-#>   SABIC          : 4028.48
-#>   Rel. Entropy   : 0.5863
-#>   Best solution  : found by 10 of 10 starts
-#> ---------------------------------------------------------
-#> Class Weights (Sizes):
-#>   Class 1: 41.07%
-#>   Class 2: 23.09%
-#>   Class 3: 21.14%
-#>   Class 4: 14.71%
-#> =========================================================
-#> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
-#> 
-#> 
-#> $best_k
-#> [1] 3
-#> 
-#> attr(,"class")
-#> [1] "mixture_comparison"
 ```
 
 BIC correctly picks the three classes we generated.
@@ -196,11 +95,6 @@ fit
 #>   Class 3: 18.79%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
-class_sizes(fit)
-#>   class proportion n_expected n_modal
-#> 1     1  0.4617785   415.6006     467
-#> 2     2  0.3503331   315.2998     271
-#> 3     3  0.1878884   169.0996     162
 ```
 
 The item-response probabilities per wave — the trajectories themselves —

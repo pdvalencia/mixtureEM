@@ -19,12 +19,13 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome</a></li>
-    <li><a class="dropdown-item" href="../articles/janousch.html">Resilience Profiles Across Countries: Multi-Group LPA and Measurement Invariance</a></li>
+    <li><a class="dropdown-item" href="../articles/liang_ark_lpa.html">Latent Profile Analysis: Bystander Responses to Sexual Harassment</a></li>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
+    <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
   </ul></li>
 <li class="active nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -43,6 +44,34 @@
       <small>Source: <a href="https://github.com/pdvalencia/mixtureEM/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="development version" id="mixtureem-development-version">mixtureEM (development version)<a class="anchor" aria-label="anchor" href="#mixtureem-development-version"></a></h2>
+<div class="section level3">
+<h3 id="removed-the-janousch-dataset-and-its-vignette-development-version">Removed: the <code>janousch</code> dataset and its vignette<a class="anchor" aria-label="anchor" href="#removed-the-janousch-dataset-and-its-vignette-development-version"></a></h3>
+<p>The multi-group latent profile example built on <code>janousch</code> had grown into poor teaching material, and both the dataset and its vignette are gone from the package. The two things it taught – a freed-variance latent profile analysis with class enumeration, covariates and distal outcomes, and a multiple-group latent class analysis with a measurement-invariance test – now live in the two new vignettes described below. This is a breaking change for any code that calls <code>data(janousch)</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="added-liang_ark_sim-simulated-bystander-intervention-data-development-version">Added: <code>liang_ark_sim</code>, simulated bystander-intervention data<a class="anchor" aria-label="anchor" href="#added-liang_ark_sim-simulated-bystander-intervention-data-development-version"></a></h3>
+<p>A new bundled dataset with 300 cases, five continuous latent profile indicators, eight covariates and three continuous distal outcomes. It is simulated from the published parameters of an existing three-class latent profile solution and contains no real participant data; quantities computed on it describe the simulation, not new empirical findings.</p>
+</div>
+<div class="section level3">
+<h3 id="added-two-vignettes-development-version">Added: two vignettes<a class="anchor" aria-label="anchor" href="#added-two-vignettes-development-version"></a></h3>
+<p><code><a href="../articles/liang_ark_lpa.html">vignette("liang_ark_lpa")</a></code> walks through a full latent profile analysis on <code>liang_ark_sim</code>: class enumeration, what happens when class-specific variances are freed and collapse, the three-profile solution, covariates, and distal outcomes. <code><a href="../articles/mglca_yrbs.html">vignette("mglca_yrbs")</a></code> fits a multiple-group latent class analysis on the bundled <code>yrbs2005</code> data grouped by grade, testing first whether class prevalence differs by group under a measurement- invariant model and then testing measurement invariance itself.</p>
+</div>
+<div class="section level3">
+<h3 id="added-hold-a-classs-prevalence-equal-across-groups-development-version">Added: hold a class’s prevalence equal across groups<a class="anchor" aria-label="anchor" href="#added-hold-a-classs-prevalence-equal-across-groups-development-version"></a></h3>
+<p><code><a href="../reference/fit_mixture.html">fit_mixture()</a></code>‘s new <code>group_prevalence_equal</code> argument holds one or more classes’ prevalence to a single shared value across every group while the remaining classes stay free within each group. This is a restriction the existing multinomial-logit route (<code>group_effects = "prevalence"</code> or <code>"both"</code>) cannot express: a zero coefficient on the group dummies pins a class to the <em>reference group’s</em> prevalence, not to one shared across every group. The new model is fitted only when a constraint is actually requested, so an unconstrained fit is unaffected and numerically equivalent to the existing route. Standard errors for the frozen prevalences are not produced in this first pass; compare nested models with <code><a href="../reference/lr_test.html">lr_test()</a></code>.</p>
+</div>
+<div class="section level3">
+<h3 id="added-class_sizes-reports-each-groups-own-class-sizes-development-version">Added: <code>class_sizes()</code> reports each group’s own class sizes<a class="anchor" aria-label="anchor" href="#added-class_sizes-reports-each-groups-own-class-sizes-development-version"></a></h3>
+<p>For a fit whose class prevalence varies by group (<code>group_effects = "prevalence"</code> or <code>"both"</code>), <code><a href="../reference/class_sizes.html">class_sizes()</a></code> now attaches the per-group breakdown as a <code>"by_group"</code> attribute, reconstructed from whichever structural model produced it rather than by hand.</p>
+</div>
+<div class="section level3">
+<h3 id="fixed-the-bundled-yrbs2005-dataset-shipped-the-raw-file-not-the-analysis-sample-development-version">Fixed: the bundled <code>yrbs2005</code> dataset shipped the raw file, not the analysis sample<a class="anchor" aria-label="anchor" href="#fixed-the-bundled-yrbs2005-dataset-shipped-the-raw-file-not-the-analysis-sample-development-version"></a></h3>
+<p><code>yrbs2005</code> shipped all 13,917 raw CDC records. Collins &amp; Lanza (2010)’s analysis sample – the one the vignettes and the documented row count were already written around – drops the 75 cases missing <code>grade</code> as well as the cases missing on every one of the twelve items, for 13,840 rows, and the dataset now ships that sample instead of the raw file. <code><a href="../articles/survey_lca.html">vignette("survey_lca")</a></code> described a “cases missing on every item” warning firing at fit time; that prose is gone along with the warning, because those cases are dropped upstream now rather than surfacing there.</p>
+<p><code>nrow(yrbs2005)</code> changes from 13,917 to 13,840. A fit computed on the old sample is not comparable to one computed on the corrected one.</p>
+</div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.3.0" id="mixtureem-030">mixtureEM 0.3.0<a class="anchor" aria-label="anchor" href="#mixtureem-030"></a></h2>
 <div class="section level3">

@@ -34,12 +34,13 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome</a></li>
-    <li><a class="dropdown-item" href="../articles/janousch.html">Resilience Profiles Across Countries: Multi-Group LPA and Measurement Invariance</a></li>
+    <li><a class="dropdown-item" href="../articles/liang_ark_lpa.html">Latent Profile Analysis: Bystander Responses to Sexual Harassment</a></li>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
+    <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
   </ul>
 </li>
@@ -125,108 +126,7 @@ RMLCA is fitted via <code><a href="../reference/fit_rmlca.html">fit_rmlca()</a><
 the columns map to occasions — here four waves of one item):</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">selection</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compare_longitudinal.html">compare_longitudinal</a></span><span class="op">(</span><span class="va">drink</span>, k_range <span class="op">=</span> <span class="fl">2</span><span class="op">:</span><span class="fl">4</span>, model <span class="op">=</span> <span class="st">"rmlca"</span>,</span>
-<span>                                  times <span class="op">=</span> <span class="fl">4</span>, n_init <span class="op">=</span> <span class="fl">10</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
-<span><span class="va">selection</span></span>
-<span><span class="co">#&gt; $fit_table</span></span>
-<span><span class="co">#&gt;   Classes        LL Params      AIC      BIC    SABIC   Entropy Unreplicated</span></span>
-<span><span class="co">#&gt; 1       2 -2001.342      9 4020.684 4063.905 4035.323 0.7260827        FALSE</span></span>
-<span><span class="co">#&gt; 2       3 -1981.322     14 3990.643 4057.877 4013.415 0.6455619        FALSE</span></span>
-<span><span class="co">#&gt; 3       4 -1979.788     19 3997.575 4088.821 4028.480 0.5862685        FALSE</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $models</span></span>
-<span><span class="co">#&gt; $models$K2</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt;         REPEATED-MEASURES LATENT CLASS MODEL</span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt; Items x Occasions  : 1 x 4</span></span>
-<span><span class="co">#&gt; Item parameters    : binary, estimated separately at each occasion</span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt;                   LATENT MIXTURE MODEL                   </span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt; Classes Estimated  : 2</span></span>
-<span><span class="co">#&gt; Estimation Method  : 1-step</span></span>
-<span><span class="co">#&gt; Converged          : TRUE (in 19 iterations)</span></span>
-<span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt;   Log-Likelihood : -2001.34</span></span>
-<span><span class="co">#&gt;   Parameters     : 9</span></span>
-<span><span class="co">#&gt;   AIC            : 4020.68</span></span>
-<span><span class="co">#&gt;   BIC            : 4063.91</span></span>
-<span><span class="co">#&gt;   SABIC          : 4035.32</span></span>
-<span><span class="co">#&gt;   Rel. Entropy   : 0.7261</span></span>
-<span><span class="co">#&gt;   Best solution  : found by 10 of 10 starts</span></span>
-<span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt; Class Weights (Sizes):</span></span>
-<span><span class="co">#&gt;   Class 1: 58.67%</span></span>
-<span><span class="co">#&gt;   Class 2: 41.33%</span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $models$K3</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt;         REPEATED-MEASURES LATENT CLASS MODEL</span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt; Items x Occasions  : 1 x 4</span></span>
-<span><span class="co">#&gt; Item parameters    : binary, estimated separately at each occasion</span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt;                   LATENT MIXTURE MODEL                   </span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt; Classes Estimated  : 3</span></span>
-<span><span class="co">#&gt; Estimation Method  : 1-step</span></span>
-<span><span class="co">#&gt; Converged          : TRUE (in 203 iterations)</span></span>
-<span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt;   Log-Likelihood : -1981.32</span></span>
-<span><span class="co">#&gt;   Parameters     : 14</span></span>
-<span><span class="co">#&gt;   AIC            : 3990.64</span></span>
-<span><span class="co">#&gt;   BIC            : 4057.88</span></span>
-<span><span class="co">#&gt;   SABIC          : 4013.41</span></span>
-<span><span class="co">#&gt;   Rel. Entropy   : 0.6456</span></span>
-<span><span class="co">#&gt;   Best solution  : found by 10 of 10 starts</span></span>
-<span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt; Class Weights (Sizes):</span></span>
-<span><span class="co">#&gt;   Class 1: 46.16%</span></span>
-<span><span class="co">#&gt;   Class 2: 35.04%</span></span>
-<span><span class="co">#&gt;   Class 3: 18.80%</span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $models$K4</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt;         REPEATED-MEASURES LATENT CLASS MODEL</span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt; Items x Occasions  : 1 x 4</span></span>
-<span><span class="co">#&gt; Item parameters    : binary, estimated separately at each occasion</span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt;                   LATENT MIXTURE MODEL                   </span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt; Classes Estimated  : 4</span></span>
-<span><span class="co">#&gt; Estimation Method  : 1-step</span></span>
-<span><span class="co">#&gt; Converged          : TRUE (in 348 iterations)</span></span>
-<span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt;   Log-Likelihood : -1979.79</span></span>
-<span><span class="co">#&gt;   Parameters     : 19</span></span>
-<span><span class="co">#&gt;   AIC            : 3997.58</span></span>
-<span><span class="co">#&gt;   BIC            : 4088.82</span></span>
-<span><span class="co">#&gt;   SABIC          : 4028.48</span></span>
-<span><span class="co">#&gt;   Rel. Entropy   : 0.5863</span></span>
-<span><span class="co">#&gt;   Best solution  : found by 10 of 10 starts</span></span>
-<span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt; Class Weights (Sizes):</span></span>
-<span><span class="co">#&gt;   Class 1: 41.07%</span></span>
-<span><span class="co">#&gt;   Class 2: 23.09%</span></span>
-<span><span class="co">#&gt;   Class 3: 21.14%</span></span>
-<span><span class="co">#&gt;   Class 4: 14.71%</span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; $best_k</span></span>
-<span><span class="co">#&gt; [1] 3</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; attr(,"class")</span></span>
-<span><span class="co">#&gt; [1] "mixture_comparison"</span></span></code></pre></div>
+<span>                                  times <span class="op">=</span> <span class="fl">4</span>, n_init <span class="op">=</span> <span class="fl">10</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
 <p>BIC correctly picks the three classes we generated.</p>
 </div>
 <div class="section level2">
@@ -262,12 +162,7 @@ the columns map to occasions — here four waves of one item):</p>
 <span><span class="co">#&gt;   Class 2: 35.03%</span></span>
 <span><span class="co">#&gt;   Class 3: 18.79%</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span>
-<span><span class="fu"><a href="../reference/class_sizes.html">class_sizes</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   class proportion n_expected n_modal</span></span>
-<span><span class="co">#&gt; 1     1  0.4617785   415.6006     467</span></span>
-<span><span class="co">#&gt; 2     2  0.3503331   315.2998     271</span></span>
-<span><span class="co">#&gt; 3     3  0.1878884   169.0996     162</span></span></code></pre></div>
+<span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span></code></pre></div>
 <p>The item-response probabilities per wave — the trajectories
 themselves — come from <code><a href="../reference/measurement_summary.html">measurement_summary()</a></code>, and
 <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> draws them:</p>

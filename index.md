@@ -85,7 +85,8 @@ class.](reference/figures/README-example-plot-1.png)
 | Analysis | Function | Worked example |
 |----|----|----|
 | Latent class analysis (binary / categorical / count items) | [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md) | [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html) |
-| Latent profile analysis (continuous items), missing data, multiple groups | [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md) | [`janousch`](https://pdvalencia.github.io/mixtureEM/articles/janousch.html) |
+| Latent profile analysis (continuous items), class enumeration, covariates and distal outcomes | [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md) | [`liang_ark_lpa`](https://pdvalencia.github.io/mixtureEM/articles/liang_ark_lpa.html) |
+| Multiple-group LCA, measurement invariance across groups | `fit_mixture(group = )` | [`mglca_yrbs`](https://pdvalencia.github.io/mixtureEM/articles/mglca_yrbs.html) |
 | Choosing the number of classes (ICs, BLRT, fit diagnostics) | [`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md), [`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md) | [`class_enumeration`](https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.html) |
 | Predictors of class membership (3-step ML) | [`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md) | [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html) |
 | Distal outcomes (BCH / ML) | [`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md) | [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html) |

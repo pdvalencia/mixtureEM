@@ -27,12 +27,13 @@ by the classes."></head><body>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome</a></li>
-    <li><a class="dropdown-item" href="../articles/janousch.html">Resilience Profiles Across Countries: Multi-Group LPA and Measurement Invariance</a></li>
+    <li><a class="dropdown-item" href="../articles/liang_ark_lpa.html">Latent Profile Analysis: Bystander Responses to Sexual Harassment</a></li>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
+    <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -75,6 +76,7 @@ by the classes.</p>
 <span>  group_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"both"</span>, <span class="st">"measurement"</span>, <span class="st">"prevalence"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
 <span>  group_invariant_items <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  group_invariant_params <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  group_prevalence_equal <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  variances_equal <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_steps <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  correction <span class="op">=</span> <span class="st">"none"</span>,</span>
@@ -253,6 +255,25 @@ the fully heterogeneous one, that their invariance test compares against.
 The two are alternatives, not combinable. Categorical indicators have a
 single kind of parameter, so for them this constraint and
 <code>group_invariant_items</code> coincide and only the latter is offered.</p></dd>
+
+
+<dt id="arg-group-prevalence-equal">group_prevalence_equal<a class="anchor" aria-label="anchor" href="#arg-group-prevalence-equal"></a></dt>
+<dd><p>Class indices (or <code>TRUE</code> for all
+classes) whose prevalence is held to one shared value across every group,
+while the remaining classes' prevalences stay free within each group
+(Collins &amp; Lanza's restricted multiple-group models, sec. 5.11-5.12).
+Requires <code>group_effects</code> to be <code>"prevalence"</code> or <code>"both"</code>.
+<code>NULL</code> (the default) leaves every class's prevalence free by group,
+fit through the ordinary class-membership regression on <code>group</code> —
+the two are numerically equivalent when unconstrained, but only the
+regression route has <code>predict_class</code>'s usual Wald-testable
+coefficients. This is why: an ordinary regression coefficient of zero on
+the group dummies pins a class to the <em>reference group</em>'s
+prevalence, not to one shared across every group, so there is no
+coefficient value that expresses this constraint. Standard errors for the
+frozen prevalences are not produced in this first pass; compare nested
+models with <code><a href="lr_test.html">lr_test()</a></code> instead. An out-of-range class index is an
+error, never silently ignored.</p></dd>
 
 
 <dt id="arg-variances-equal">variances_equal<a class="anchor" aria-label="anchor" href="#arg-variances-equal"></a></dt>

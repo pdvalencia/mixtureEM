@@ -5,12 +5,13 @@ articles:
   class_enumeration: class_enumeration.html
   estimation: estimation.html
   growth_mixture: growth_mixture.html
-  janousch: janousch.html
+  liang_ark_lpa: liang_ark_lpa.html
   lta: lta.html
+  mglca_yrbs: mglca_yrbs.html
   rmlca: rmlca.html
   survey_lca: survey_lca.html
   ventura_leon: ventura_leon.html
-last_built: 2026-08-20T16:36Z
+last_built: 2026-08-25T17:10Z
 urls:
   reference: https://pdvalencia.github.io/mixtureEM/reference
   article: https://pdvalencia.github.io/mixtureEM/articles
