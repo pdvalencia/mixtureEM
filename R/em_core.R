@@ -68,6 +68,68 @@ e_step <- function(model_state, X, Y = NULL) {
   return(list(log_resp = log_resp, log_prob_norm = log_prob_norm))
 }
 
+# Collapse X to unique response patterns, summing the case weights within each
+# pattern, so the EM iterations run on the pattern table instead of the full
+# n rows. Returns NULL when the fit is not eligible for collapsing: a
+# structural model is active, the measurement model is not one of the plain
+# categorical families (continuous data has no duplicate rows, and collapsing
+# would change which seed rows the Gaussian restarts draw), a survey design is
+# attached (strata/cluster are per case), the response-pattern key would
+# overflow, or collapsing would not be worth it (fewer than half the rows are
+# duplicates).
+.collapse_patterns <- function(model_state, X, Y) {
+  if (!is.null(Y)) return(NULL)
+  if (!class(model_state$mm)[1] %in%
+      c("bernoulli", "bernoulli_nan", "multinoulli", "multinoulli_nan")) return(NULL)
+  if (isTRUE(model_state$has_survey_design)) return(NULL)
+
+  n  <- nrow(X)
+  # model_state$mm$max_val is not yet populated at this point in the caller --
+  # init_params.multinoulli() is what infers it from the data, and that runs
+  # later, inside fit_em(). Falling back to model_state$mm$max_val %||% 1 here
+  # would silently use a radix of 1 for every multinoulli fit, undercounting
+  # the true category range and merging genuinely different response patterns.
+  # Compute the same value init_params.multinoulli() would, directly from X.
+  mv <- model_state$mm$max_val %||% {
+    ok <- !is.na(X)
+    if (any(ok)) max(X[ok]) else 1
+  }
+  if ((mv + 2)^ncol(X) >= 2^53) return(NULL)
+
+  # Each column contributes a digit in {0, 1, ..., mv + 1}: 0 reserved for NA,
+  # 1..mv+1 for the observed code (X + 1). That is mv + 2 distinct digit
+  # values, so the positional radix must be mv + 2, not mv + 1 -- one short
+  # would let an observed-code digit collide with a carry from the column
+  # before it, silently merging genuinely different response patterns.
+  key <- numeric(n)
+  for (j in seq_len(ncol(X)))
+    key <- key * (mv + 2) + ifelse(is.na(X[, j]), 0, X[, j] + 1)
+
+  rep_row <- !duplicated(key)
+  Xc      <- X[rep_row, , drop = FALSE]
+  if (nrow(Xc) > 0.5 * n) return(NULL)
+
+  # match(key, key[rep_row]) gives indices into Xc in first-appearance order,
+  # the same order X[rep_row, ] produces; rowsum() returns its groups sorted by
+  # label, and integer labels 1..P sort to 1..P, so the counts line up with the
+  # rows.
+  idx <- match(key, key[rep_row])
+  w   <- model_state$sample_weights
+  list(X = Xc, w = as.vector(rowsum(w, idx)), w_orig = w)
+}
+
+# Restore the full-sample weights and rebuild the per-case E-step fields
+# (log_resp, lower_bound) against the full X, after fit_em() ran on the
+# collapsed pattern table. A no-op when collapsing did not happen.
+.expand_patterns <- function(model_state, coll, X, Y) {
+  if (is.null(coll)) return(model_state)
+  model_state$sample_weights <- coll$w_orig
+  e_res <- e_step(model_state, X, Y)
+  model_state$log_resp    <- e_res$log_resp
+  model_state$lower_bound <- e_res$log_prob_norm
+  model_state
+}
+
 # M-step: Update model parameters
 m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
   resp <- exp(log_resp)

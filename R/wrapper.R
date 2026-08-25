@@ -2156,15 +2156,21 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   # .mirror_design_onto_sm in R/stepwise.R).
   model_state <- .mirror_design_onto_sm(model_state)
 
+  coll <- .collapse_patterns(model_state, X, if (n_steps == 1) Y else NULL)
+  X_em <- if (is.null(coll)) X else coll$X
+  if (!is.null(coll)) model_state$sample_weights <- coll$w
+
   if (n_steps == 1) {
-    model_state <- fit_em(model_state, X, Y, n_init, max_iter, random_state,
+    model_state <- fit_em(model_state, X_em, Y, n_init, max_iter, random_state,
                           refine = refine, warm_start = warm_start,
                           n_cores = n_cores)
+    model_state <- .expand_patterns(model_state, coll, X, Y)
 
   } else {
-    model_state <- fit_em(model_state, X, NULL, n_init, max_iter, random_state,
+    model_state <- fit_em(model_state, X_em, NULL, n_init, max_iter, random_state,
                           refine = refine, warm_start = warm_start,
                           n_cores = n_cores)
+    model_state <- .expand_patterns(model_state, coll, X, NULL)
 
     # Step 1 metrics (measurement model only)
     if (n_steps == 3)
