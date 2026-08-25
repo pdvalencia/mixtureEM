@@ -8,12 +8,13 @@ articles:
   navbar: ~
   contents:
   - ventura_leon
-  - janousch
+  - liang_ark_lpa
   - class_enumeration
   - rmlca
   - lta
   - growth_mixture
   - survey_lca
+  - mglca_yrbs
 - title: Reference
   navbar: ~
   contents:
