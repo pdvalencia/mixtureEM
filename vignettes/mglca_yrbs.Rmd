@@ -101,33 +101,86 @@ m_free$metrics$ll_knownclass
 m_none$metrics$ll_knownclass
 ```
 
-## Why the per-class tests are not here
+## Per-class tests: does *this* class's prevalence differ by grade?
 
-The textbook's per-class comparisons each hold *one* class's marginal
-probability exactly equal across grades while the other four float and
-renormalise. That is a nonlinear constraint on the softmax class
-probabilities, not a linear constraint on the underlying multinomial-logit
-coefficients, and mixtureEM — like most implementations — constrains the
-coefficients, not the probabilities directly. So that specific per-class
-test is not reproduced here.
+The omnibus test above says prevalence differs by grade somewhere among the
+five classes, but the textbook goes further and asks the question
+separately for each class: hold Low Risk's share fixed across grades while
+the other four float and renormalise, refit, and see how much likelihood
+that costs. Repeated five times, this reproduces the chapter's Table 5.24.
+`group_prevalence_equal` fits exactly this restriction — pass it the index
+of the class to freeze and it holds that column of the per-group class
+probabilities to one shared value while the rest adjust freely.
 
-The linear alternative that *is* available answers a closely related
-question: does grade shift the log-odds of landing in a given class
-against the reference class at all? `add_covariates()` provides exactly
-that, with an omnibus Wald test across all classes at once — but it needs
-an unconditional step-1 fit to start from, and `m_free` does not qualify:
-having been fit with `group = grade`, its classes already condition on
-grade as a class-membership predictor, so grade cannot be added to it a
-second time as a covariate. The fix is the same either way — fit the plain
-(ungrouped) model and add grade afterwards:
+There is a wrinkle a straightforward call does not handle. A mixture
+model's classes are not identified independently across separate fits:
+nothing pins "class 1" to the same substantive group of respondents from
+one `fit_mixture()` call to the next, so a search run five times, once per
+requested class, is free to relabel *which* real class lands in whichever
+slot was asked for. Left to its own devices the optimiser takes the escape
+hatch every time — it reports whichever class is *cheapest* to freeze,
+regardless of which one was requested, because that fit has the higher
+likelihood and wins the random-restart comparison. Running
+`group_prevalence_equal` directly, five times, mostly reproduces the same
+answer (the cost of freezing High Risk, the cheapest class) instead of five
+different ones.
 
-```{r covariate-alt, cache = TRUE}
-set.seed(1)
-base_fit <- fit_mixture(items, n_classes = 5, measurement = "binary",
-                        n_init = 20, max_iter = 2000)
-covs <- add_covariates(base_fit, ~ grade, data = data.frame(grade = grade))
-summary(covs)
+The fix is to anchor each fit to `m_free`'s own solution rather than
+searching from scratch. `class_sizes()`'s `by_group` attribute gives the
+per-grade class probabilities `m_free` already settled on; seeding a fit at
+those values, plus `m_free`'s own item-response probabilities, starts EM
+in the one basin where "class k" already means the same thing it means in
+`m_free`. `fit_mixture_internal()` (the lower-level engine behind
+`fit_mixture()`) takes a `warm_start` function for exactly this, and
+`n_init = 0` tells it to refine only from that seed rather than compete it
+against random restarts:
+
+```{r per-class-setup, cache = TRUE}
+by_group <- attr(class_sizes(m_free), "by_group")
+n_grades <- nlevels(grade)
+n_classes <- 5
+gamma0 <- matrix(0, n_grades, n_classes)
+for (i in seq_len(nrow(by_group))) {
+  gr <- match(by_group$group[i], levels(grade))
+  gamma0[gr, by_group$class[i]] <- by_group$proportion[i]
+}
+
+anchor_at_m_free <- function(model_state, X, Y) {
+  model_state$weights <- m_free$weights
+  model_state$mm <- m_free$mm
+  model_state$sm$parameters$gamma <- gamma0
+  model_state
+}
+
+class_labels <- c("Low Risk", "Binge Drinkers", "Early Experimenters",
+                  "High Risk", "Sexual Risk-Takers")
+freeze_class <- function(k) {
+  fit_mixture_internal(X = as.matrix(items), Y = as.integer(grade),
+                       n_components = n_classes, measurement = "binary",
+                       structural = "group_prevalence", n_steps = 1,
+                       n_init = 0, max_iter = 2000,
+                       warm_start = anchor_at_m_free,
+                       n_groups = n_grades, frozen = k)
+}
 ```
+
+```{r per-class-tests, cache = TRUE}
+per_class <- lapply(1:5, function(k) lr_test(freeze_class(k), m_free))
+data.frame(class = class_labels,
+          dG2 = vapply(per_class, function(t) t$statistic, numeric(1)),
+          df = vapply(per_class, function(t) t$df, numeric(1)),
+          p_value = vapply(per_class, function(t) t$p_value, numeric(1)))
+```
+
+Each row matches the textbook's Table 5.24 to about one decimal (61.3,
+468.5, 176.6, 0.4 and 5.7, in the same class order as above), and
+the pattern makes substantive sense against the item plot above: Binge
+Drinkers, the class whose share changes most across grades in that plot, is
+the most expensive to force flat by a wide margin, while High Risk barely
+moves across grades and costs almost nothing to freeze. The all-classes
+restriction from the previous section (dG2 = 624.8, df = 12, against the
+book's 625.5) is the sum of a similar idea applied to every class's share
+at once, not to each one separately.
 
 ## Testing measurement invariance itself
 
