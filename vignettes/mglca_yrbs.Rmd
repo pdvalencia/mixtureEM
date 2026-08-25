@@ -1,0 +1,213 @@
+---
+title: "Multiple-Group LCA: Do the Classes Differ by Grade?"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Multiple-Group LCA: Do the Classes Differ by Grade?}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+```{r setup}
+library(mixtureEM)
+```
+
+## The question
+
+A latent class model assumes the classes mean the same thing to every case
+in the data. When the data span groups — here, four grades of high school
+— that assumption is worth checking rather than taking for granted, and it
+splits into two separate questions. First, *measurement invariance*: do the
+twelve health-risk items mean the same thing to a ninth-grader as to a
+twelfth-grader, in the sense that the same class membership implies the
+same item-response probabilities regardless of grade? Second, if
+invariance holds, *prevalence*: are the risk classes more common in some
+grades than others? The second question is only interpretable once the
+first is settled — a prevalence comparison between groups whose items do
+not function the same way is comparing different things.
+
+This uses the same `yrbs2005` data as `vignette("survey_lca")`, but
+unweighted, matching how the textbook this pipeline follows presents it;
+see that vignette for the same items analysed with the sampling design in
+play.
+
+## Data
+
+`grade` is a factor with levels 9 through 12, with no missing values in the
+bundled sample:
+
+```{r data}
+data(yrbs2005)
+items <- yrbs2005[, 3:14]
+grade <- yrbs2005$grade
+table(grade)
+```
+
+## The baseline: prevalences free, measurement invariant
+
+```{r baseline, cache = TRUE}
+set.seed(1)
+m_free <- fit_mixture(items, n_classes = 5, measurement = "binary",
+                      group = grade, group_effects = "prevalence",
+                      n_init = 20, max_iter = 2000, n_steps = 1)
+m_free
+```
+
+`group_effects = "prevalence"` pools the item-response probabilities
+across grades — that pooling *is* the measurement-invariance assumption —
+while letting each grade have its own class sizes. A four-group,
+five-class fit on this many cases is materially more expensive per start
+than the package's other vignettes; the solution above replicated across
+6 of the 20 starts.
+
+## The constrained model and the omnibus test
+
+Fitting the same model with `group_effects = "none"` forces every grade to
+share the same class sizes as well, which is the null hypothesis that
+prevalence does not differ by grade at all:
+
+```{r constrained, cache = TRUE}
+set.seed(1)
+m_none <- fit_mixture(items, n_classes = 5, measurement = "binary",
+                      group = grade, group_effects = "none",
+                      n_init = 5, max_iter = 2000, n_steps = 1)
+lr_test(m_none, m_free)
+```
+
+`lr_test()` takes the restricted model first and the full model second —
+reversing the order is an error. With four grades and five classes there
+are (4 - 1) x (5 - 1) = 12 free prevalence contrasts between the two
+models, and the printed `df` above confirms it. The restriction is
+rejected: class prevalence does differ by grade. This reproduces the "all
+five latent classes" comparison from the textbook's prevalence-differences
+table.
+
+Because `group = grade` is supplied, both fits above also report a
+log-likelihood on the known-class scale, `metrics$ll_knownclass` — that is
+the number that lines up with what other programs print for this kind of
+model, as opposed to `metrics$ll`, which is on this package's own
+1-step scale.
+
+```{r ll-knownclass}
+m_free$metrics$ll_knownclass
+m_none$metrics$ll_knownclass
+```
+
+## Why the per-class tests are not here
+
+The textbook's per-class comparisons each hold *one* class's marginal
+probability exactly equal across grades while the other four float and
+renormalise. That is a nonlinear constraint on the softmax class
+probabilities, not a linear constraint on the underlying multinomial-logit
+coefficients, and mixtureEM — like most implementations — constrains the
+coefficients, not the probabilities directly. So that specific per-class
+test is not reproduced here.
+
+The linear alternative that *is* available answers a closely related
+question: does grade shift the log-odds of landing in a given class
+against the reference class at all? `add_covariates()` provides exactly
+that, with an omnibus Wald test across all classes at once — but it needs
+an unconditional step-1 fit to start from, and `m_free` does not qualify:
+having been fit with `group = grade`, its classes already condition on
+grade as a class-membership predictor, so grade cannot be added to it a
+second time as a covariate. The fix is the same either way — fit the plain
+(ungrouped) model and add grade afterwards:
+
+```{r covariate-alt, cache = TRUE}
+set.seed(1)
+base_fit <- fit_mixture(items, n_classes = 5, measurement = "binary",
+                        n_init = 20, max_iter = 2000)
+covs <- add_covariates(base_fit, ~ grade, data = data.frame(grade = grade))
+summary(covs)
+```
+
+## Testing measurement invariance itself
+
+Section 3's pooling of the item probabilities across grades was an
+assumption, not a given — it can be tested the same way the prevalence
+question was. `group_effects = "both"` frees the item-response
+probabilities by grade as well as the class sizes, and comparing it with
+the invariant baseline via `lr_test()` tests exactly that assumption:
+
+```{r invariance, cache = TRUE}
+set.seed(1)
+m_both <- fit_mixture(items, n_classes = 5, measurement = "binary",
+                      group = grade, group_effects = "both",
+                      n_init = 20, max_iter = 2000, n_steps = 1)
+lr_test(m_free, m_both)
+```
+
+`m_both` carries a warning worth repeating rather than hiding: only 1 of
+the 20 requested starts converged to the log-likelihood reported above,
+so this solution has not been shown to be the global optimum the way
+`m_free`'s was. 256 parameters spread across five classes and four
+grades is a much harder surface to search than the models earlier in
+this vignette, and `n_init = 20` is not enough to be confident of it here
+— the package's own advice is to refit with `n_init = 100` before
+reporting this specific comparison as a finding rather than an
+illustration.
+
+With N in the thousands, a likelihood-ratio test like this one also has
+power to detect even a trivially small departure from invariance, so a
+rejection on its own does not settle the question — it is worth reading
+the information criteria alongside the test rather than the p-value in
+isolation. Here the test rejects invariance decisively, which on its own
+would be unsurprising at this sample size. But the two information
+criteria disagree about which model is preferable: AIC favours the fully
+group-varying model (it is smaller for `m_both`), while BIC — which
+penalises the 180 extra parameters more heavily — favours the invariant
+`m_free`. That split is itself informative: the departures from
+invariance are real enough for the likelihood-ratio test to see them at
+this N, but not so large that a criterion penalising complexity thinks
+they are worth the extra parameters. A researcher would want to look at
+*which* items differ by grade — and would want the better-replicated fit
+above — before deciding whether to treat the invariant model as good
+enough to interpret.
+
+## Labelling
+
+```{r label-check}
+measurement_summary(m_free)
+```
+
+This fit is unweighted and grouped, and its classes do not read the same
+way `vignette("survey_lca")`'s do — which is precisely the point of
+comparing them, and why the five labels used there are not reused
+unchanged here. That fit had one class high on essentially every item;
+this one splits that pattern in two: class 4 is where the hard-drug items
+(`cocaine_ever`, `glue_ever`, `meth_ever`, `ecstasy_ever`) and the smoking
+items peak, while class 5 is instead the class where the two sexual-risk
+items (`sex_before_13`, `sex_4plus_partners`) are far higher than in any
+other class, at moderate levels of everything else. There is no single
+"high risk across everything" class in this solution. Reading the table by
+the same descriptive rule as before — lowest on nearly everything, highest
+on a specific cluster of items relative to the rest — gives:
+
+```{r plot}
+plot(m_free,
+     class_labels = c("Low risk", "Alcohol-focused", "Early experimenters",
+                      "Hard drug users", "High sexual risk"),
+     main = "Health-risk behavior classes by grade (YRBS 2005, unweighted)")
+```
+
+Class 2 stands out on `drove_drinking` and `binge_drink_30d` specifically;
+class 3 stands out on the two early-onset items, `smoked_before_13` and
+`first_drink_before_13`, more than on the items that come later in
+adolescence. Both read the same way they did in the weighted fit, which is
+why "Alcohol-focused" and "Early experimenters" carry over; "Hard drug
+users" and "High sexual risk" replace the single "High risk" class because
+the two clusters of items no longer travel together in one class here.
+
+## References
+
+Collins, L. M., & Lanza, S. T. (2010). *Latent class and latent transition
+analysis: With applications in the social, behavioral, and health
+sciences*. Wiley.

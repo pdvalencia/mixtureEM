@@ -1,5 +1,33 @@
 # mixtureEM (development version)
 
+## Removed: the `janousch` dataset and its vignette
+
+The multi-group latent profile example built on `janousch` had grown into
+poor teaching material, and both the dataset and its vignette are gone from
+the package. The two things it taught -- a freed-variance latent profile
+analysis with class enumeration, covariates and distal outcomes, and a
+multiple-group latent class analysis with a measurement-invariance test --
+now live in the two new vignettes described below. This is a breaking
+change for any code that calls `data(janousch)`.
+
+## Added: `liang_ark_sim`, simulated bystander-intervention data
+
+A new bundled dataset with 300 cases, five continuous latent profile
+indicators, eight covariates and three continuous distal outcomes. It is
+simulated from the published parameters of an existing three-class latent
+profile solution and contains no real participant data; quantities computed
+on it describe the simulation, not new empirical findings.
+
+## Added: two vignettes
+
+`vignette("liang_ark_lpa")` walks through a full latent profile analysis on
+`liang_ark_sim`: class enumeration, what happens when class-specific
+variances are freed and collapse, the three-profile solution, covariates,
+and distal outcomes. `vignette("mglca_yrbs")` fits a multiple-group latent
+class analysis on the bundled `yrbs2005` data grouped by grade, testing
+first whether class prevalence differs by group under a measurement-
+invariant model and then testing measurement invariance itself.
+
 ## Added: hold a class's prevalence equal across groups
 
 `fit_mixture()`'s new `group_prevalence_equal` argument holds one or more
