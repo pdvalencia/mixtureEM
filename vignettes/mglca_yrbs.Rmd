@@ -180,31 +180,30 @@ measurement_summary(m_free)
 
 This fit is unweighted and grouped, and its classes do not read the same
 way `vignette("survey_lca")`'s do — which is precisely the point of
-comparing them, and why the five labels used there are not reused
-unchanged here. That fit had one class high on essentially every item;
+comparing them. That fit had one class high on essentially every item;
 this one splits that pattern in two: class 4 is where the hard-drug items
 (`cocaine_ever`, `glue_ever`, `meth_ever`, `ecstasy_ever`) and the smoking
 items peak, while class 5 is instead the class where the two sexual-risk
 items (`sex_before_13`, `sex_4plus_partners`) are far higher than in any
 other class, at moderate levels of everything else. There is no single
-"high risk across everything" class in this solution. Reading the table by
-the same descriptive rule as before — lowest on nearly everything, highest
-on a specific cluster of items relative to the rest — gives:
+"high risk across everything" class in this solution. In size order, the
+five classes are **Low Risk, Binge Drinkers, Early Experimenters, High
+Risk,** and **Sexual Risk-Takers**:
 
 ```{r plot}
 plot(m_free,
-     class_labels = c("Low risk", "Alcohol-focused", "Early experimenters",
-                      "Hard drug users", "High sexual risk"),
+     class_labels = c("Low Risk", "Binge Drinkers", "Early Experimenters",
+                      "High Risk", "Sexual Risk-Takers"),
      main = "Health-risk behavior classes by grade (YRBS 2005, unweighted)")
 ```
 
-Class 2 stands out on `drove_drinking` and `binge_drink_30d` specifically;
-class 3 stands out on the two early-onset items, `smoked_before_13` and
+Class 2 (Binge Drinkers) stands out on `drove_drinking` and
+`binge_drink_30d` specifically; class 3 (Early Experimenters) stands out
+on the two early-onset items, `smoked_before_13` and
 `first_drink_before_13`, more than on the items that come later in
-adolescence. Both read the same way they did in the weighted fit, which is
-why "Alcohol-focused" and "Early experimenters" carry over; "Hard drug
-users" and "High sexual risk" replace the single "High risk" class because
-the two clusters of items no longer travel together in one class here.
+adolescence. High Risk and Sexual Risk-Takers replace the single "High
+risk" class from the weighted fit because the hard-drug cluster and the
+sexual-risk cluster no longer travel together in one class here.
 
 ## References
 
