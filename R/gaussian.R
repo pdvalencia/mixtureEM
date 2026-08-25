@@ -233,11 +233,8 @@ m_step.gaussian_diag <- function(model_state, X, resp, weights = NULL, ...) {
   prior_obs <- alpha / model_state$n_components
   s2        <- .marginal_var(X, weights)
 
-  ss <- matrix(0, nrow = model_state$n_components, ncol = ncol(X))
-  for (c in seq_len(model_state$n_components)) {
-    diff_sq <- sweep(X, 2, means[c, ], "-")^2
-    ss[c, ] <- colSums(resp[, c] * diff_sq)
-  }
+  rx <- t(resp) %*% X                       # this is what `means` was built from
+  ss <- t(resp) %*% (X * X) - 2 * means * rx + means^2 * sum_resp
   covariances <- .pool_variances_over_classes(ss, sum_resp, prior_obs, s2,
                                               model_state$variances_equal)
   # Numerical guard only, and reachable only at alpha = 0, where the user has
