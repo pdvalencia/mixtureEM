@@ -5,7 +5,10 @@
 \alias{yrbs2005}
 \title{Youth Risk Behavior Survey, 2005 (national public-use file)}
 \format{
-A data frame with 13,917 rows (respondents) and 17 columns:
+A data frame with 13,840 rows (respondents) and 17 columns. This is
+Collins & Lanza's analysis sample: cases missing on \code{grade}, and the
+cases missing on every indicator, are dropped from the raw CDC file's
+13,917 records.
 \describe{
 \item{grade}{Factor, grade in school: \code{"9"}, \code{"10"}, \code{"11"}, \code{"12"}.}
 \item{sex}{Factor: \code{"Female"}, \code{"Male"}.}

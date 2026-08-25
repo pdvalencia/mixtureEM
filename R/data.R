@@ -14,7 +14,10 @@
 #' and `stratum` reproduce the complex sample design and can be passed to
 #' [`fit_mixture()`]'s `weights=`, `cluster=` and `strata=` arguments.
 #'
-#' @format A data frame with 13,917 rows (respondents) and 17 columns:
+#' @format A data frame with 13,840 rows (respondents) and 17 columns. This is
+#'   Collins & Lanza's analysis sample: cases missing on `grade`, and the
+#'   cases missing on every indicator, are dropped from the raw CDC file's
+#'   13,917 records.
 #' \describe{
 #'   \item{grade}{Factor, grade in school: `"9"`, `"10"`, `"11"`, `"12"`.}
 #'   \item{sex}{Factor: `"Female"`, `"Male"`.}
