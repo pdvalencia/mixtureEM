@@ -1,0 +1,189 @@
+---
+title: "Latent Profile Analysis: Bystander Responses to Sexual Harassment"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Latent Profile Analysis: Bystander Responses to Sexual Harassment}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+```{r setup}
+library(mixtureEM)
+```
+
+## What this dataset is
+
+`liang_ark_sim` is simulated data. It is drawn from the published parameters
+of Liang and Ark's Study 2 three-class latent profile solution, not from
+actual survey responses, and it contains no real bystander accounts. Fit
+statistics, standard errors and p-values computed on it below describe the
+simulation faithfully reproducing the published solution, not new findings
+about workplace bystander behavior, and should not be cited as such.
+
+Two columns exist only because the data are synthetic and no real dataset
+would carry them: `class_true`, the profile each case was actually drawn
+from, and `boundary`, which flags cases drawn from a blend of two profiles
+rather than one. This vignette deliberately does not look at either column
+until the very end, fitting the model exactly as an applied researcher
+would on real data.
+
+```{r data}
+data(liang_ark_sim)
+str(liang_ark_sim)
+```
+
+The five latent profile indicators are bystander actions in response to
+witnessing sexual harassment at work: `confront` (direct confrontation of
+the harasser), `distract` (distraction or interruption), `support`
+(emotional support to the target), `report` (reporting to an authority),
+and `discuss` (speaking with the target afterwards).
+
+## How many profiles?
+
+Equal (class-invariant) variances first — this is what the original study
+fitted and what `fit_mixture()` defaults to.
+
+```{r enumerate, cache = TRUE}
+ind <- liang_ark_sim[, c("confront", "distract", "support", "report", "discuss")]
+set.seed(1)
+comp <- compare_mixtures(ind, k_range = 1:5, measurement = "continuous",
+                         variances_equal = TRUE, n_init = 20)
+comp
+plot(comp)
+```
+
+BIC keeps improving out to five classes here, which is common with
+information criteria on a modest sample: the criterion never turns a
+corner and instead trades off against a solution getting harder to
+interpret and to replicate. The published analysis specified three
+profiles, and the section below carries that forward.
+
+## What happens when you free the variances
+
+```{r free-variance, cache = TRUE}
+set.seed(2)
+free_v <- fit_mixture(ind, n_classes = 3, measurement = "continuous",
+                      variances_equal = FALSE, n_init = 30)
+```
+
+Freeing the residual variances lets a class shrink onto a handful of cases
+and drive its own variance toward zero, which sends the likelihood to
+infinity and makes the solution uninterpretable; the package warns exactly
+this happened above. The prior on the variances (default strength 1) stops
+this from happening when set stronger:
+
+```{r free-variance-fixed, cache = TRUE}
+set.seed(2)
+free_v_fixed <- fit_mixture(ind, n_classes = 3, measurement = "continuous",
+                            variances_equal = FALSE, n_init = 30,
+                            bayes_constants = list(variances = 3))
+free_v_fixed
+```
+
+Setting the prior's strength to the number of classes is the setting that
+behaves the same way whatever K is. Even so, the equal-variance model is
+the one this vignette carries forward: it is what the published analysis
+specified, and parsimony is a real argument here, not a consolation prize
+for the free model being illegitimate.
+
+## The three-profile solution
+
+```{r fit, cache = TRUE}
+fit <- fit_mixture(ind, n_classes = 3, measurement = "continuous",
+                   variances_equal = TRUE, n_init = 20, random_state = 7)
+fit
+params <- measurement_summary(fit)
+```
+
+Classes come out sorted by size. Reading `params`: class 1 is high on
+`support` and unremarkable elsewhere, class 2 is low on all five
+indicators, and class 3 is high on all five. That is *supportive only*,
+*disengaged*, and *broad responders*, in that order:
+
+```{r plot, fig.height = 5.5}
+plot(fit, type = "bar",
+     class_labels = c("Supportive only", "Disengaged", "Broad responders"),
+     main = "Bystander response profiles")
+```
+
+## Who ends up in which profile? (covariates)
+
+```{r covariates, cache = TRUE}
+covs <- add_covariates(
+  fit,
+  ~ age + male + sh_experience + org_intolerance_sh + masc_job_context +
+    anger + empathy + curb_expectancy,
+  data = liang_ark_sim
+)
+summary(covs)
+```
+
+This is the three-step approach: the measurement model above is not
+re-estimated when the covariates go in, and the classification error from
+step three is corrected for. The reference class is class 1
+("Supportive only"), the default; the coefficients above read as the
+log-odds (and odds ratios) of landing in class 2 or 3 rather than class 1.
+Men are considerably more likely than women to be classified into the
+"Disengaged" profile rather than "Supportive only", and higher perceived
+organizational intolerance of harassment and higher anger both shift the
+odds toward the more active profiles.
+
+These coefficients are approximate even as a reproduction of the published
+study, because the simulated covariates were generated from
+class-conditional marginal moments while the published logits are mutually
+adjusted. Signs and rough magnitudes reproduce for the covariates that were
+significant in the original; `age` and `masc_job_context` were not
+significant there and their signs here are noise.
+
+## What follows from the profile? (distal outcomes)
+
+```{r outcomes, cache = TRUE}
+summary(add_outcome(fit, liang_ark_sim$harasser_aggression,
+                    outcome_type = "continuous"))
+summary(add_outcome(fit, liang_ark_sim$target_gratitude,
+                    outcome_type = "continuous"))
+summary(add_outcome(fit, liang_ark_sim$third_party_elevation,
+                    outcome_type = "continuous"))
+```
+
+Across all three outcomes the pattern is the same shape as the profiles
+themselves: the "Disengaged" class scores lowest and "Broad responders"
+scores highest, with "Supportive only" in between, and every pairwise
+contrast is significant. Confronting or reporting a harasser draws more
+aggression from them, but it is also what earns the target's gratitude and
+what elevates third parties' view of the situation — the active profiles
+pay a real cost and get a real benefit. These are BCH-corrected means, not
+plain averages within the modal-assigned class, so the classification
+error in step three is already accounted for.
+
+## A closing check the reader could not do with real data
+
+```{r recovery}
+table(class_assignments(fit), liang_ark_sim$class_true)
+classification_diagnostics(fit)
+```
+
+About 85% of cases are assigned to the profile they were actually
+simulated from. That is the realistic figure, not a shortfall: the
+generating design deliberately includes genuinely ambiguous respondents
+(the `boundary` column, ignored everywhere above) so that entropy lands
+near the published value of about 0.90 rather than the artificially sharp
+separation you get by simulating from a correctly specified model with no
+overlap. A real analysis has no `class_true` to check against, which is
+exactly what `classification_diagnostics()` is for.
+
+## References
+
+Liang, Y., & Park, Y. (2025). A spectrum of bystander actions: Latent
+profile analysis of sexual harassment intervention behavior at work.
+*Journal of Applied Psychology*. Advance online publication.
+<https://dx.doi.org/10.1037/apl0001280>.
