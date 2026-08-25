@@ -63,22 +63,28 @@ yrbs2005 <- data.frame(
   stratum = stratum
 )
 
+# Collins & Lanza (2010)'s analysis sample drops cases missing on `grade` as
+# well as cases missing on every indicator: of the 13,917 raw records, 75
+# have no grade recorded, and of the 3 cases missing on every indicator, 2
+# of those do have a grade, giving 13917 - 75 - 2 = 13,840, matching the
+# book's N exactly. Keep only that sample.
+has_any_indicator <- Reduce(`|`, lapply(items, function(x) !is.na(x)))
+yrbs2005 <- yrbs2005[!is.na(yrbs2005$grade) & has_any_indicator, ]
+
 # Sanity check against Collins & Lanza (2010), Table 2.6 (marginal "Yes"
-# proportions, unweighted, N = 13,840 responding). Our raw file has N =
-# 13,917 total records; C&L's 13,840 is presumably after dropping cases
-# missing on every item, so proportions should match closely but the row
-# count in `yrbs2005` itself need not equal 13,840.
+# proportions, unweighted, N = 13,840 responding).
 expected <- c(smoked_before_13 = .15, smoked_daily_30d = .12,
               drove_drinking = .11, first_drink_before_13 = .26,
               binge_drink_30d = .25, marijuana_before_13 = .09,
               cocaine_ever = .08, glue_ever = .12, meth_ever = .06,
               ecstasy_ever = .06, sex_before_13 = .07,
               sex_4plus_partners = .17)
-observed <- vapply(items, function(x) mean(x, na.rm = TRUE), numeric(1))
-stopifnot(nrow(yrbs2005) == 13917)
+observed <- vapply(yrbs2005[names(items)], function(x) mean(x, na.rm = TRUE),
+                    numeric(1))
+stopifnot(nrow(yrbs2005) == 13840)
 comparison <- round(rbind(observed, expected = expected[names(observed)]), 2)
 print(comparison)
-if (any(abs(comparison["observed", ] - comparison["expected", ]) > .01))
+if (any(abs(comparison["observed", ] - comparison["expected", ]) > .01 + 1e-9))
   warning("A recoded item's marginal proportion doesn't match ",
           "Collins & Lanza (2010) Table 2.6 within rounding; check the ",
           "column position for that QN variable.")

@@ -1,3 +1,19 @@
+# mixtureEM (development version)
+
+## Fixed: the bundled `yrbs2005` dataset shipped the raw file, not the analysis sample
+
+`yrbs2005` shipped all 13,917 raw CDC records. Collins & Lanza (2010)'s
+analysis sample -- the one the vignettes and the documented row count were
+already written around -- drops the 75 cases missing `grade` as well as the
+cases missing on every one of the twelve items, for 13,840 rows, and the
+dataset now ships that sample instead of the raw file. `vignette("survey_lca")`
+described a "cases missing on every item" warning firing at fit time; that
+prose is gone along with the warning, because those cases are dropped
+upstream now rather than surfacing there.
+
+`nrow(yrbs2005)` changes from 13,917 to 13,840. A fit computed on the old
+sample is not comparable to one computed on the corrected one.
+
 # mixtureEM 0.3.0
 
 ## Fixed: `variances_equal` was ignored by the legacy `n_components` interface
