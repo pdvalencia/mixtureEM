@@ -56,14 +56,12 @@ m_step.gaussian_unit <- function(model_state, X, resp, weights = NULL, ...) {
 
 #' @exportS3Method
 log_likelihood.gaussian_unit <- function(model_state, X, ...) {
-  n <- nrow(X)
-  log_eps <- matrix(0, nrow = n, ncol = model_state$n_components)
-  for (c in seq_len(model_state$n_components)) {
-    mean_c <- matrix(model_state$parameters$means[c, ], nrow = n, ncol = ncol(X), byrow = TRUE)
-    ll_matrix <- dnorm(X, mean = mean_c, sd = 1, log = TRUE)
-    log_eps[, c] <- rowSums(ll_matrix)
-  }
-  return(log_eps)
+  mu  <- model_state$parameters$means
+  out <- X %*% t(mu) +
+         rep(-0.5 * rowSums(mu * mu) - 0.5 * ncol(X) * log(2 * pi), each = nrow(X)) -
+         0.5 * rowSums(X * X)
+  dimnames(out) <- NULL
+  return(out)
 }
 
 #' @exportS3Method
@@ -114,15 +112,14 @@ m_step.gaussian_unit_nan <- function(model_state, X, resp, weights = NULL, ...) 
 
 #' @exportS3Method
 log_likelihood.gaussian_unit_nan <- function(model_state, X, ...) {
-  n <- nrow(X)
-  log_eps <- matrix(0, nrow = n, ncol = model_state$n_components)
-  for (c in seq_len(model_state$n_components)) {
-    mean_c <- matrix(model_state$parameters$means[c, ], nrow = n, ncol = ncol(X), byrow = TRUE)
-    ll_matrix <- dnorm(X, mean = mean_c, sd = 1, log = TRUE)
-    ll_matrix[is.na(ll_matrix)] <- 0 # FIML: missing cells drop out of the sum
-    log_eps[, c] <- rowSums(ll_matrix)
-  }
-  return(log_eps)
+  mu  <- model_state$parameters$means
+  X0  <- X
+  X0[is.na(X0)] <- 0
+  M   <- (!is.na(X)) * 1
+  out <- X0 %*% t(mu) + M %*% t(-0.5 * mu * mu - 0.5 * log(2 * pi)) -
+         0.5 * rowSums(X0 * X0)
+  dimnames(out) <- NULL
+  return(out)
 }
 
 #' @exportS3Method n_parameters gaussian_unit_nan
@@ -253,16 +250,13 @@ m_step.gaussian_diag <- function(model_state, X, resp, weights = NULL, ...) {
 
 #' @exportS3Method
 log_likelihood.gaussian_diag <- function(model_state, X, ...) {
-  n <- nrow(X)
-  log_eps <- matrix(0, nrow = n, ncol = model_state$n_components)
-  for (c in seq_len(model_state$n_components)) {
-    mean_c <- matrix(model_state$parameters$means[c, ], nrow = n, ncol = ncol(X), byrow = TRUE)
-    sd_c <- matrix(sqrt(model_state$parameters$covariances[c, ]), nrow = n, ncol = ncol(X), byrow = TRUE)
-
-    ll_matrix <- dnorm(X, mean = mean_c, sd = sd_c, log = TRUE)
-    log_eps[, c] <- rowSums(ll_matrix)
-  }
-  return(log_eps)
+  mu  <- model_state$parameters$means
+  v   <- model_state$parameters$covariances
+  Cd  <- -0.5 * (log(2 * pi * v) + mu * mu / v)
+  out <- -0.5 * ((X * X) %*% t(1 / v)) + X %*% t(mu / v) +
+         rep(rowSums(Cd), each = nrow(X))
+  dimnames(out) <- NULL
+  return(out)
 }
 
 #' @exportS3Method
@@ -337,15 +331,13 @@ m_step.gaussian_diag_nan <- function(model_state, X, resp, weights = NULL, ...) 
 
 #' @exportS3Method
 log_likelihood.gaussian_diag_nan <- function(model_state, X, ...) {
-  n <- nrow(X)
-  log_eps <- matrix(0, nrow = n, ncol = model_state$n_components)
-  for (c in seq_len(model_state$n_components)) {
-    mean_c <- matrix(model_state$parameters$means[c, ], nrow = n, ncol = ncol(X), byrow = TRUE)
-    sd_c <- matrix(sqrt(model_state$parameters$covariances[c, ]), nrow = n, ncol = ncol(X), byrow = TRUE)
-
-    ll_matrix <- dnorm(X, mean = mean_c, sd = sd_c, log = TRUE)
-    ll_matrix[is.na(ll_matrix)] <- 0 # FIML Masking
-    log_eps[, c] <- rowSums(ll_matrix)
-  }
-  return(log_eps)
+  mu  <- model_state$parameters$means
+  v   <- model_state$parameters$covariances
+  Cd  <- -0.5 * (log(2 * pi * v) + mu * mu / v)
+  X0  <- X
+  X0[is.na(X0)] <- 0
+  M   <- (!is.na(X)) * 1
+  out <- -0.5 * ((X0 * X0) %*% t(1 / v)) + X0 %*% t(mu / v) + M %*% t(Cd)
+  dimnames(out) <- NULL
+  return(out)
 }

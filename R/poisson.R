@@ -78,14 +78,11 @@ m_step.poisson <- function(model_state, X, resp, weights = NULL, alpha = NULL, .
 
 #' @exportS3Method
 log_likelihood.poisson <- function(model_state, X, ...) {
-  n <- nrow(X)
-  log_eps <- matrix(0, nrow = n, ncol = model_state$n_components)
-  for (c in seq_len(model_state$n_components)) {
-    rate_c <- matrix(model_state$parameters$rates[c, ],
-                     nrow = n, ncol = ncol(X), byrow = TRUE)
-    log_eps[, c] <- rowSums(dpois(X, lambda = rate_c, log = TRUE))
-  }
-  return(log_eps)
+  lam <- model_state$parameters$rates
+  out <- X %*% t(log(lam)) - rep(rowSums(lam), each = nrow(X)) -
+         rowSums(lgamma(X + 1))
+  dimnames(out) <- NULL
+  return(out)
 }
 
 #' @exportS3Method
@@ -136,14 +133,11 @@ m_step.poisson_nan <- function(model_state, X, resp, weights = NULL, alpha = NUL
 
 #' @exportS3Method
 log_likelihood.poisson_nan <- function(model_state, X, ...) {
-  n <- nrow(X)
-  log_eps <- matrix(0, nrow = n, ncol = model_state$n_components)
-  for (c in seq_len(model_state$n_components)) {
-    rate_c <- matrix(model_state$parameters$rates[c, ],
-                     nrow = n, ncol = ncol(X), byrow = TRUE)
-    ll_matrix <- dpois(X, lambda = rate_c, log = TRUE)
-    ll_matrix[is.na(ll_matrix)] <- 0 # FIML: missing cells drop out of the sum
-    log_eps[, c] <- rowSums(ll_matrix)
-  }
-  return(log_eps)
+  lam <- model_state$parameters$rates
+  X0  <- X
+  X0[is.na(X0)] <- 0
+  M   <- (!is.na(X)) * 1
+  out <- X0 %*% t(log(lam)) - M %*% t(lam) - rowSums(lgamma(X0 + 1) * M)
+  dimnames(out) <- NULL
+  return(out)
 }
