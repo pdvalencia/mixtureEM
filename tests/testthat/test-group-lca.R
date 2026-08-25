@@ -261,3 +261,163 @@ test_that("a group-only fit says what the 3-step default costs", {
                                  group = d$grp, group_effects = "measurement",
                                  n_steps = 1, n_init = 3, random_state = 1)))
 })
+
+# ------------------------------------------------------------------------------
+# `group_prevalence_equal`: freezing one or more classes' prevalence to a
+# single shared value across groups, on the probability scale directly
+# (Collins & Lanza sec. 5.11-5.12's restricted models). See
+# internal/ROADMAP.md Part 17.4 Item B and R/group_prevalence.R.
+# ------------------------------------------------------------------------------
+
+# Three groups, three classes, with class 2 genuinely pinned at the same
+# prevalence (.30) in every group while classes 1 and 3 trade off against each
+# other -- the one thing `group_effects = "prevalence"`'s ordinary regression
+# route cannot represent (a zero coefficient pins a class to the *reference
+# group's* share, not to one shared across every group).
+.make_pinned_group_data <- function(seed = 11, n = 1500) {
+  set.seed(seed)
+  J <- 6L; K <- 3L
+  grp  <- factor(sample(c("A", "B", "C"), n, replace = TRUE))
+  prev <- list(A = c(.55, .30, .15), B = c(.45, .30, .25), C = c(.35, .30, .35))
+  pis  <- rbind(rep(.10, J), rep(.50, J), rep(.90, J))
+  X <- matrix(NA_real_, n, J)
+  trueclass <- integer(n)
+  for (i in seq_len(n)) {
+    g  <- as.character(grp[i])
+    cl <- sample(1:K, 1, prob = prev[[g]])
+    trueclass[i] <- cl
+    X[i, ] <- rbinom(J, 1, pis[cl, ])
+  }
+  colnames(X) <- paste0("item", 1:J)
+  list(X = X, grp = grp, J = J, K = K, G = 3L, trueclass = trueclass, prev = prev)
+}
+
+test_that("group_prevalence_equal is numerically equivalent to the regression route when unconstrained", {
+  d <- .make_group_data()
+  fit_reg <- fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                         group = d$grp, group_effects = "prevalence",
+                         n_steps = 1, n_init = 10, random_state = 1)
+  fit_gp  <- fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                         group = d$grp, group_effects = "prevalence",
+                         group_prevalence_equal = integer(0),
+                         n_steps = 1, n_init = 10, random_state = 1)
+  expect_equal(fit_gp$metrics$ll, fit_reg$metrics$ll, tolerance = 1e-4)
+  expect_equal(fit_gp$metrics$n_params, fit_reg$metrics$n_params)
+})
+
+test_that("n_parameters.group_prevalence matches the hand-derived formula, including the |S| = K special case", {
+  d <- .make_pinned_group_data()
+  K <- d$K; G <- d$G
+
+  fit_none <- fit_mixture(d$X, n_classes = K, measurement = "binary",
+                          group = d$grp, group_effects = "prevalence",
+                          group_prevalence_equal = integer(0),
+                          n_steps = 1, n_init = 5, random_state = 1)
+  fit_one  <- fit_mixture(d$X, n_classes = K, measurement = "binary",
+                          group = d$grp, group_effects = "prevalence",
+                          group_prevalence_equal = 2,
+                          n_steps = 1, n_init = 5, random_state = 1)
+  fit_all  <- fit_mixture(d$X, n_classes = K, measurement = "binary",
+                          group = d$grp, group_effects = "prevalence",
+                          group_prevalence_equal = TRUE,
+                          n_steps = 1, n_init = 5, random_state = 1)
+
+  n_meas <- K * d$J
+  expect_equal(fit_none$metrics$n_params, n_meas + G * (K - 1))
+  expect_equal(fit_one$metrics$n_params,  n_meas + G * (K - 1) - 1 * (G - 1))
+  expect_equal(fit_all$metrics$n_params,  n_meas + (K - 1))
+
+  # D_ALL = the pooled (no-group) model: freezing every class is the same
+  # restriction as ignoring the grouping entirely.
+  fit_pooled <- fit_mixture(d$X, n_classes = K, measurement = "binary",
+                            n_steps = 1, n_init = 5, random_state = 1)
+  expect_equal(fit_all$metrics$n_params, fit_pooled$metrics$n_params)
+  expect_equal(fit_all$metrics$ll, fit_pooled$metrics$ll, tolerance = 1e-3)
+})
+
+test_that("group_prevalence_equal can recover a class genuinely pinned across groups", {
+  # Class labels are not identified independently of the measurement model
+  # (R/group_blocks.R's own warm-start comment makes the same point for the
+  # measurement side): a thorough search is free to relabel classes so that
+  # whichever real class is cheapest to freeze ends up in the requested slot,
+  # for *any* requested slot. That is a property of mixture-model label
+  # switching in general, not of this emission, so this test does not assume
+  # "freeze slot k" names the same real class across three separate fits.
+  # What it does assert is the substantive claim the M-step formula has to
+  # get right: freezing *some* class can cost nothing (the data really do
+  # have one), the LRT df matches the hand-derived formula, and the fit that
+  # finds the free lunch is the one whose frozen share actually lands on the
+  # true generating value.
+  d <- .make_pinned_group_data()
+  K <- d$K; G <- d$G
+
+  fit_free <- fit_mixture(d$X, n_classes = K, measurement = "binary",
+                          group = d$grp, group_effects = "prevalence",
+                          group_prevalence_equal = integer(0),
+                          n_steps = 1, n_init = 20, random_state = 1)
+
+  fits_frozen <- lapply(1:K, function(k)
+    suppressWarnings(fit_mixture(d$X, n_classes = K, measurement = "binary",
+                                 group = d$grp, group_effects = "prevalence",
+                                 group_prevalence_equal = k,
+                                 n_steps = 1, n_init = 20, random_state = 1)))
+
+  tests <- lapply(fits_frozen, lr_test, full = fit_free)
+  # Every frozen-class test compares nested models over the same `G - 1`
+  # df, whichever class ends up in the requested slot.
+  for (t in tests) expect_equal(t$df, G - 1)
+
+  p_values <- vapply(tests, function(t) t$p_value, numeric(1))
+  best <- which.max(p_values)
+  expect_gt(p_values[best], 0.05)
+
+  # The frozen share the best-fitting restriction settled on should sit near
+  # the true pinned value (.30 in every group), not merely be internally
+  # self-consistent.
+  frozen_share <- fits_frozen[[best]]$sm$parameters$gamma[1, best]
+  expect_lt(abs(frozen_share - 0.30), 0.05)
+})
+
+test_that("group_prevalence_equal rejects an out-of-range class index", {
+  d <- .make_group_data()
+  expect_error(
+    fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+               group = d$grp, group_effects = "prevalence",
+               group_prevalence_equal = d$K + 1,
+               n_steps = 1, n_init = 2),
+    "group_prevalence_equal"
+  )
+})
+
+test_that("group_prevalence_equal requires a prevalence effect and forbids predictors", {
+  d <- .make_group_data()
+  expect_error(
+    fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+               group = d$grp, group_effects = "measurement",
+               group_prevalence_equal = 1, n_init = 2),
+    "group_prevalence_equal"
+  )
+  expect_error(
+    fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+               group = d$grp, group_effects = "prevalence",
+               predictors = rnorm(nrow(d$X)),
+               group_prevalence_equal = 1, n_init = 2),
+    "group_prevalence_equal"
+  )
+})
+
+test_that("class_sizes() reports each group's own class sizes for a group-prevalence fit", {
+  d <- .make_pinned_group_data(n = 900)
+  fit <- fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                     group = d$grp, group_effects = "prevalence",
+                     group_prevalence_equal = integer(0),
+                     n_steps = 1, n_init = 10, random_state = 1)
+
+  by_group <- attr(class_sizes(fit), "by_group")
+  expect_equal(nrow(by_group), d$K * d$G)
+  expect_equal(sort(unique(as.character(by_group$group))), sort(levels(d$grp)))
+
+  # Each group's per-class proportions sum to one.
+  totals <- tapply(by_group$proportion, by_group$group, sum)
+  expect_equal(as.numeric(totals), rep(1, d$G), tolerance = 1e-6)
+})

@@ -140,6 +140,15 @@ build_emission <- function(descriptor, n_components = 2, ...) {
       # ------------------------------------------------------------------
     } else if (descriptor == "predict_class") {
       return(.construct_emission(covariate_model, args_list))
+
+      # ------------------------------------------------------------------
+      # A class's prevalence held equal across groups while the rest stay
+      # free (Collins & Lanza sec. 5.11-5.12's restricted models). Extra
+      # arguments (n_groups, frozen) reach here through fit_mixture()'s
+      # `group_prevalence_equal`. See R/group_prevalence.R.
+      # ------------------------------------------------------------------
+    } else if (descriptor == "group_prevalence") {
+      return(.construct_emission(group_prevalence_model, args_list))
     } else if (descriptor == "continuous_outcome") {
       return(.construct_emission(distal_continuous_model, args_list))
     } else if (descriptor == "continuous_outcome_adjusted") {

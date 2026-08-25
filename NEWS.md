@@ -1,5 +1,25 @@
 # mixtureEM (development version)
 
+## Added: hold a class's prevalence equal across groups
+
+`fit_mixture()`'s new `group_prevalence_equal` argument holds one or more
+classes' prevalence to a single shared value across every group while the
+remaining classes stay free within each group. This is a restriction the
+existing multinomial-logit route (`group_effects = "prevalence"` or
+`"both"`) cannot express: a zero coefficient on the group dummies pins a
+class to the *reference group's* prevalence, not to one shared across every
+group. The new model is fitted only when a constraint is actually
+requested, so an unconstrained fit is unaffected and numerically equivalent
+to the existing route. Standard errors for the frozen prevalences are not
+produced in this first pass; compare nested models with `lr_test()`.
+
+## Added: `class_sizes()` reports each group's own class sizes
+
+For a fit whose class prevalence varies by group (`group_effects =
+"prevalence"` or `"both"`), `class_sizes()` now attaches the per-group
+breakdown as a `"by_group"` attribute, reconstructed from whichever
+structural model produced it rather than by hand.
+
 ## Fixed: the bundled `yrbs2005` dataset shipped the raw file, not the analysis sample
 
 `yrbs2005` shipped all 13,917 raw CDC records. Collins & Lanza (2010)'s

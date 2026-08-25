@@ -165,13 +165,14 @@
   }
 
   # Final metrics
-  # When a covariate structural model is active it replaces the pooled class
-  # weights in the likelihood entirely (see `covariate_active` in
-  # `e_step()`), and `n_parameters.covariate()` already counts the full
-  # (K-1)*D free regression parameters, intercepts included. Adding the
-  # pooled-weights `K-1` term on top of that would double-count.
+  # When a structural model supplies class probabilities directly (see
+  # `.supplies_class_probs()`) it replaces the pooled class weights in the
+  # likelihood entirely (see `covariate_active` in `e_step()`), and its own
+  # `n_parameters()` already counts its full set of free class-probability
+  # parameters. Adding the pooled-weights `K-1` term on top of that would
+  # double-count.
   n_params <- n_parameters(model_state$mm)
-  if (!has_covariate(model_state$sm)) n_params <- n_params + (model_state$n_components - 1)
+  if (!.supplies_class_probs(model_state$sm)) n_params <- n_params + (model_state$n_components - 1)
   if (!is.null(model_state$sm)) n_params <- n_params + n_parameters(model_state$sm)
   ll       <- sum(model_state$sample_weights * model_state$lower_bound)
   resp     <- exp(model_state$log_resp)
