@@ -92,6 +92,7 @@ by the classes.</p>
 <span>  refine <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  bayes_constants <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  se <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"corrected"</span>, <span class="st">"robust"</span>, <span class="st">"hessian"</span><span class="op">)</span>,</span>
+<span>  n_cores <span class="op">=</span> <span class="fl">1L</span>,</span>
 <span>  X <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  Y <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_components <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -345,9 +346,11 @@ separation. <code>max_iter</code> defaults to 1000, following the iteration
 budget in Biernacki et al. (2003); when a fit stops at the cap, double it.
 <code><a href="../articles/estimation.html">vignette("estimation")</a></code> gives the figures behind both numbers.</p>
 <p>The cost is roughly linear in <code>n_init</code>, so it is easy to budget for a
-larger search: <code>n_init = 20</code> took about 16 seconds on a 4-class,
+larger search: <code>n_init = 20</code> took about 8 seconds on a 4-class,
 7-item binary model with 2,587 cases, so <code>n_init = 200</code> on the same
-model is a couple of minutes and <code>n_init = 1000</code> is closer to ten.</p>
+model is about a minute and a half and <code>n_init = 1000</code> about seven
+minutes. Raising <code>n_cores</code> divides all of these by roughly the number
+of cores given.</p>
 <p>More starts are not <em>monotonically</em> better on a large model. Where each
 EM iteration is expensive the search runs in two stages: a short pass ranks
 the starts and only the best fraction is run to convergence. That ranking is
@@ -456,6 +459,21 @@ over from step 1 to the step-3 sandwich, following Bakk et al.
 (2014); <code>"robust"</code> reports the sandwich alone;
 <code>"hessian"</code> inverts the step-3 observed
 information only. See <code><a href="covariate_se.html">covariate_se</a></code>.</p></dd>
+
+
+<dt id="arg-n-cores">n_cores<a class="anchor" aria-label="anchor" href="#arg-n-cores"></a></dt>
+<dd><p>Positive integer. Number of processes to spread the random
+starts over. The default, <code>1</code>, runs them one after another in the
+current session. Restarts are independent, so raising this divides the
+waiting time by roughly the number of cores given, and it is worth doing
+whenever <code>n_init</code> is large or a single fit is slow.</p>
+<p>The starting values are drawn in this session, in the order the sequential
+search would have drawn them, and the workers only fit what they are
+handed. Results are therefore identical for every <code>n_cores</code>: a value
+here changes how long a fit takes and nothing it reports.</p>
+<p>Each worker is a fresh R session that must load the package and receive a
+copy of the data, which costs a second or two and some memory. For a fit
+that already takes under a few seconds, leave this at <code>1</code>.</p></dd>
 
 
 <dt id="arg-x-y-n-components-structural">X, Y, n_components, structural<a class="anchor" aria-label="anchor" href="#arg-x-y-n-components-structural"></a></dt>

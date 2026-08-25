@@ -119,6 +119,7 @@ construction.</p>
 <span>  n_reps <span class="op">=</span> <span class="fl">100</span>,</span>
 <span>  n_init_base <span class="op">=</span> <span class="fl">20</span>,</span>
 <span>  n_init_boot <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>  n_cores <span class="op">=</span> <span class="fl">1L</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  <span class="va">...</span>,</span>
 <span>  from_fit <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -187,6 +188,18 @@ search is where the cost of the test lives. Dziak et al. (2014) used 50
 and note that too few restarts under the alternative can make the
 likelihood ratio come out negative. <code>blrt()</code> counts those draws and
 warns when there are any; if it does, raise this to <code>50</code>.</p></dd>
+
+
+<dt id="arg-n-cores">n_cores<a class="anchor" aria-label="anchor" href="#arg-n-cores"></a></dt>
+<dd><p>Positive integer. Number of processes to spread the bootstrap
+replicates over. Default <code>1</code> (sequential). This is the most expensive
+operation in the package – at the defaults it is over two thousand model
+fits – and the replicates are independent, so the wait falls roughly in
+proportion to the cores given.</p>
+<p>Each replicate draws from its own seed, fixed before any fitting begins, so
+the null distribution and the p-value are the same whatever <code>n_cores</code>
+is set to. Progress messages are printed only when <code>n_cores = 1</code>,
+since a worker cannot report into this session.</p></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>

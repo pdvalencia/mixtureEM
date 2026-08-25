@@ -19,6 +19,7 @@ bootstrap_covariates(
   X,
   Y,
   n_reps = 100,
+  n_cores = 1L,
   random_state = 123,
   ref_class = 1
 )

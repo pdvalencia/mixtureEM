@@ -2,6 +2,72 @@
 
 ## mixtureEM (development version)
 
+### Faster: the E-step no longer walks the sample a case at a time
+
+The E-step normalised its log-likelihoods with a row-wise
+[`apply()`](https://rdrr.io/r/base/apply.html), which calls a closure
+once per case on every EM iteration of every restart. Profiled on a
+13,840-case fit, that one line and its internals were over half the
+total runtime. It now uses the package’s own vectorised `logsumexp()`,
+which was already sitting in the same source file and already carried a
+comment saying [`apply()`](https://rdrr.io/r/base/apply.html) dominates
+the runtime wherever it is used. The same substitution was made in the
+L-BFGS objective, in the BCH and ML corrections, and in the distal
+softmax.
+
+Fits run roughly one and a half to two and a half times faster depending
+on the model, and every fitted value is unchanged to the last bit. The
+single behavioural difference is a case with zero likelihood under every
+class: its normalising constant used to come back `NaN` and is now
+`-Inf`, which is the correct value.
+
+### Added: `n_cores`, to fit independent models at the same time
+
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md),
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md),
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md),
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md),
+[`bivariate_residuals()`](https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.md)
+and
+[`bootstrap_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/bootstrap_covariates.md)
+gain an `n_cores` argument. It defaults to 1, which is the sequential
+behaviour these functions have always had. Above 1, the random starts –
+or the bootstrap replicates – are spread over that many processes.
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md),
+[`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md),
+[`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md)
+and
+[`compare_longitudinal()`](https://pdvalencia.github.io/mixtureEM/reference/compare_longitudinal.md)
+pass it through to the engine underneath.
+
+A bootstrap likelihood ratio test at the defaults is over two thousand
+model fits, and it is what this helps most: measured three times faster
+on four cores.
+
+Results do not depend on `n_cores`. Every random quantity a loop needs –
+the starting values of a restart, the synthetic data of a bootstrap
+replicate – is drawn in the calling session before any fitting begins,
+and a worker only fits what it is handed. The same seed therefore gives
+the same answer sequentially and on any number of processes.
+
+Each worker is a fresh R session that has to load the package and
+receive a copy of the data, which costs a second or two and some memory.
+On a fit that already takes a few seconds, leave `n_cores` at 1; it will
+otherwise be slower, not faster.
+
+### Changed: the bootstrap draws `blrt()` takes from a given seed
+
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md) now
+fixes one seed per replicate before any fitting starts. The replicates
+previously shared a single running stream, in which each draw depended
+on how many random numbers the previous replicate’s two fits happened to
+consume; that is what made the test impossible to reproduce across
+process counts. The null distribution obtained from a given seed
+therefore differs from the one this function produced before. It is the
+same estimator with a different set of draws and the difference is Monte
+Carlo error, but a p-value reported from an earlier version will not
+reproduce to the digit.
+
 ### Removed: the `janousch` dataset and its vignette
 
 The multi-group latent profile example built on `janousch` had grown

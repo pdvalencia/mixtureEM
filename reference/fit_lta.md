@@ -64,6 +64,7 @@ fit_lta(
   cluster = NULL,
   n_init = 20,
   max_iter = 1000,
+  n_cores = 1L,
   tol = 1e-08,
   smoothing = 1,
   random_state = NULL,
@@ -207,6 +208,14 @@ fit_lta(
   whose EM tolerance is fixed and not user-adjustable, `tol` here is a
   real, respected argument, because a chain mixture converges slowly
   enough that the fixed rule would not do.)
+
+- n_cores:
+
+  Positive integer. Number of processes to spread the random starts
+  over. Default `1` (sequential). These are the slowest fits in the
+  package and `n_init` is high by necessity, so this is where the
+  argument earns the most. Starting values are drawn in this session
+  before any fitting begins, so the fit is identical at every `n_cores`.
 
 - smoothing:
 

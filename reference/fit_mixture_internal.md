@@ -29,6 +29,7 @@ fit_mixture_internal(
   bayes_constants = NULL,
   warm_start = NULL,
   se = c("corrected", "robust", "hessian"),
+  n_cores = 1L,
   ...
 )
 ```
@@ -269,7 +270,7 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.725  [    0.014,    37.531]     0.873
+#>   Intercept                0.725  [    0.014,    37.614]     0.873
 #>   V1                       0.780  [    0.288,     2.113]     0.625
 #> =========================================================
 ```

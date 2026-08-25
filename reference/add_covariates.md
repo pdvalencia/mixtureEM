@@ -149,8 +149,8 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.760  [    0.000, 19039.950]     0.958
-#>   age                      0.929  [    0.280,     3.084]     0.904
+#>   Intercept                0.760  [    0.000, 19243.352]     0.958
+#>   age                      0.929  [    0.280,     3.086]     0.904
 #> =========================================================
 
 # The same covariate named in a formula against its data frame

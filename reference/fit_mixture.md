@@ -38,6 +38,7 @@ fit_mixture(
   refine = TRUE,
   bayes_constants = NULL,
   se = c("corrected", "robust", "hessian"),
+  n_cores = 1L,
   X = NULL,
   Y = NULL,
   n_components = NULL,
@@ -308,9 +309,11 @@ fit_mixture(
   gives the figures behind both numbers.
 
   The cost is roughly linear in `n_init`, so it is easy to budget for a
-  larger search: `n_init = 20` took about 16 seconds on a 4-class,
-  7-item binary model with 2,587 cases, so `n_init = 200` on the same
-  model is a couple of minutes and `n_init = 1000` is closer to ten.
+  larger search: `n_init = 20` took about 8 seconds on a 4-class, 7-item
+  binary model with 2,587 cases, so `n_init = 200` on the same model is
+  about a minute and a half and `n_init = 1000` about seven minutes.
+  Raising `n_cores` divides all of these by roughly the number of cores
+  given.
 
   More starts are not *monotonically* better on a large model. Where
   each EM iteration is expensive the search runs in two stages: a short
@@ -430,6 +433,24 @@ fit_mixture(
   `"robust"` reports the sandwich alone; `"hessian"` inverts the step-3
   observed information only. See
   [`covariate_se`](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md).
+
+- n_cores:
+
+  Positive integer. Number of processes to spread the random starts
+  over. The default, `1`, runs them one after another in the current
+  session. Restarts are independent, so raising this divides the waiting
+  time by roughly the number of cores given, and it is worth doing
+  whenever `n_init` is large or a single fit is slow.
+
+  The starting values are drawn in this session, in the order the
+  sequential search would have drawn them, and the workers only fit what
+  they are handed. Results are therefore identical for every `n_cores`:
+  a value here changes how long a fit takes and nothing it reports.
+
+  Each worker is a fresh R session that must load the package and
+  receive a copy of the data, which costs a second or two and some
+  memory. For a fit that already takes under a few seconds, leave this
+  at `1`.
 
 - X, Y, n_components, structural:
 

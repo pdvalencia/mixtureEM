@@ -24,7 +24,13 @@ p_a(r\|k)\\ p_b(s\|k)\\.
 ## Usage
 
 ``` r
-bivariate_residuals(object, n_reps = 0, n_init_boot = 10, verbose = FALSE)
+bivariate_residuals(
+  object,
+  n_reps = 0,
+  n_init_boot = 10,
+  n_cores = 1L,
+  verbose = FALSE
+)
 ```
 
 ## Arguments

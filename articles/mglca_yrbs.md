@@ -173,7 +173,7 @@ summary(covs)
 #>   Intercept                0.034  [    0.020,     0.058]    < .001
 #>   grade.10                 4.018  [    2.467,     6.544]    < .001
 #>   grade.11                 8.028  [    4.893,    13.173]    < .001
-#>   grade.12                11.636  [    7.063,    19.168]    < .001
+#>   grade.12                11.636  [    7.063,    19.169]    < .001
 #> 
 #> Class 3 ON
 #>   Intercept                0.196  [    0.170,     0.227]    < .001
@@ -196,7 +196,7 @@ summary(covs)
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   grade                    242.115   12    < .001
+#>   grade                    242.132   12    < .001
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================
@@ -228,7 +228,7 @@ lr_test(m_free, m_both)
 #> ---------------------------------------------------------
 #>   Restricted : LL =  -48032.8661   parameters = 76
 #>   Full       : LL =  -47528.9757   parameters = 256
-#>   -2 x diff  : 1007.7807   df = 180   p = < 1e-16
+#>   -2 x diff  : 1007.7808   df = 180   p = < 1e-16
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 
@@ -293,36 +293,34 @@ measurement_summary(m_free)
 This fit is unweighted and grouped, and its classes do not read the same
 way
 [`vignette("survey_lca")`](https://pdvalencia.github.io/mixtureEM/articles/survey_lca.md)’s
-do — which is precisely the point of comparing them, and why the five
-labels used there are not reused unchanged here. That fit had one class
-high on essentially every item; this one splits that pattern in two:
-class 4 is where the hard-drug items (`cocaine_ever`, `glue_ever`,
+do — which is precisely the point of comparing them. That fit had one
+class high on essentially every item; this one splits that pattern in
+two: class 4 is where the hard-drug items (`cocaine_ever`, `glue_ever`,
 `meth_ever`, `ecstasy_ever`) and the smoking items peak, while class 5
 is instead the class where the two sexual-risk items (`sex_before_13`,
 `sex_4plus_partners`) are far higher than in any other class, at
 moderate levels of everything else. There is no single “high risk across
-everything” class in this solution. Reading the table by the same
-descriptive rule as before — lowest on nearly everything, highest on a
-specific cluster of items relative to the rest — gives:
+everything” class in this solution. In size order, the five classes are
+**Low Risk, Binge Drinkers, Early Experimenters, High Risk,** and
+**Sexual Risk-Takers**:
 
 ``` r
 
 plot(m_free,
-     class_labels = c("Low risk", "Alcohol-focused", "Early experimenters",
-                      "Hard drug users", "High sexual risk"),
+     class_labels = c("Low Risk", "Binge Drinkers", "Early Experimenters",
+                      "High Risk", "Sexual Risk-Takers"),
      main = "Health-risk behavior classes by grade (YRBS 2005, unweighted)")
 ```
 
 ![](mglca_yrbs_files/figure-html/plot-1.png)
 
-Class 2 stands out on `drove_drinking` and `binge_drink_30d`
-specifically; class 3 stands out on the two early-onset items,
-`smoked_before_13` and `first_drink_before_13`, more than on the items
-that come later in adolescence. Both read the same way they did in the
-weighted fit, which is why “Alcohol-focused” and “Early experimenters”
-carry over; “Hard drug users” and “High sexual risk” replace the single
-“High risk” class because the two clusters of items no longer travel
-together in one class here.
+Class 2 (Binge Drinkers) stands out on `drove_drinking` and
+`binge_drink_30d` specifically; class 3 (Early Experimenters) stands out
+on the two early-onset items, `smoked_before_13` and
+`first_drink_before_13`, more than on the items that come later in
+adolescence. High Risk and Sexual Risk-Takers replace the single “High
+risk” class from the weighted fit because the hard-drug cluster and the
+sexual-risk cluster no longer travel together in one class here.
 
 ## References
 

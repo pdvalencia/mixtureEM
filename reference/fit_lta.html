@@ -164,6 +164,7 @@ them with <code><a href="lr_test.html">lr_test()</a></code>.</p>
 <span>  cluster <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_init <span class="op">=</span> <span class="fl">20</span>,</span>
 <span>  max_iter <span class="op">=</span> <span class="fl">1000</span>,</span>
+<span>  n_cores <span class="op">=</span> <span class="fl">1L</span>,</span>
 <span>  tol <span class="op">=</span> <span class="fl">1e-08</span>,</span>
 <span>  smoothing <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  random_state <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -301,6 +302,14 @@ cost of the search. Supplying either argument overrides all of this. (Unlike <co
 whose EM tolerance is fixed and not user-adjustable, <code>tol</code> here is a
 real, respected argument, because a chain mixture converges slowly
 enough that the fixed rule would not do.)</p></dd>
+
+
+<dt id="arg-n-cores">n_cores<a class="anchor" aria-label="anchor" href="#arg-n-cores"></a></dt>
+<dd><p>Positive integer. Number of processes to spread the random
+starts over. Default <code>1</code> (sequential). These are the slowest fits in the
+package and <code>n_init</code> is high by necessity, so this is where the argument
+earns the most. Starting values are drawn in this session before any
+fitting begins, so the fit is identical at every <code>n_cores</code>.</p></dd>
 
 
 <dt id="arg-smoothing">smoothing<a class="anchor" aria-label="anchor" href="#arg-smoothing"></a></dt>

@@ -76,7 +76,7 @@ selection <- compare_mixtures(ratings, k_range = 1:5,
 #> 2       2 -318.159     15  666.318  707.878  660.459   0.963        FALSE
 #> 3       3 -294.935     23  635.869  699.595  626.886   0.915        FALSE
 #> 4       4 -290.739     31  643.478  729.369  631.370   0.852        FALSE
-#> 5       5 -288.512     39  655.025  763.081  639.793   0.862        FALSE
+#> 5       5 -288.512     39  655.025  763.082  639.793   0.862        FALSE
 #> 
 #> -> Best model according to BIC: 3 classes
 ```
@@ -130,7 +130,7 @@ blrt_34
 #>   LR statistic     : 8.39
 #>   Bootstrap draws  : 50
 #> ---------------------------------------------------------
-#>   Bootstrap p      : p = 0.255
+#>   Bootstrap p      : p = 0.137
 #>   Conclusion       : no significant improvement over the 3-class model.
 #> =========================================================
 ```

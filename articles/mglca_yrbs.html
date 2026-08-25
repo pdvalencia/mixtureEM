@@ -228,7 +228,7 @@ as a covariate. The fix is the same either way — fit the plain
 <span><span class="co">#&gt;   Intercept                0.034  [    0.020,     0.058]    &lt; .001</span></span>
 <span><span class="co">#&gt;   grade.10                 4.018  [    2.467,     6.544]    &lt; .001</span></span>
 <span><span class="co">#&gt;   grade.11                 8.028  [    4.893,    13.173]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.12                11.636  [    7.063,    19.168]    &lt; .001</span></span>
+<span><span class="co">#&gt;   grade.12                11.636  [    7.063,    19.169]    &lt; .001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 3 ON</span></span>
 <span><span class="co">#&gt;   Intercept                0.196  [    0.170,     0.227]    &lt; .001</span></span>
@@ -251,7 +251,7 @@ as a covariate. The fix is the same either way — fit the plain
 <span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;                          Wald Chi2   df  P-Value</span></span>
-<span><span class="co">#&gt;   grade                    242.115   12    &lt; .001</span></span>
+<span><span class="co">#&gt;   grade                    242.132   12    &lt; .001</span></span>
 <span><span class="co">#&gt;   Note: a non-significant test beside large coefficients can be the</span></span>
 <span><span class="co">#&gt;         Hauck-Donner effect; confirm with wald_omnibus_test().</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
@@ -280,7 +280,7 @@ tests exactly that assumption:</p>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Restricted : LL =  -48032.8661   parameters = 76</span></span>
 <span><span class="co">#&gt;   Full       : LL =  -47528.9757   parameters = 256</span></span>
-<span><span class="co">#&gt;   -2 x diff  : 1007.7807   df = 180   p = &lt; 1e-16</span></span>
+<span><span class="co">#&gt;   -2 x diff  : 1007.7808   df = 180   p = &lt; 1e-16</span></span>
 <span><span class="co">#&gt;   The restriction is rejected: the full model fits significantly better.</span></span></code></pre></div>
 <p><code>m_both</code> carries a warning worth repeating rather than
 hiding: only 1 of the 20 requested starts converged to the
@@ -341,33 +341,31 @@ interpret.</p>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
 <p>This fit is unweighted and grouped, and its classes do not read the
 same way <code><a href="../articles/survey_lca.html">vignette("survey_lca")</a></code>’s do — which is precisely
-the point of comparing them, and why the five labels used there are not
-reused unchanged here. That fit had one class high on essentially every
-item; this one splits that pattern in two: class 4 is where the
+the point of comparing them. That fit had one class high on essentially
+every item; this one splits that pattern in two: class 4 is where the
 hard-drug items (<code>cocaine_ever</code>, <code>glue_ever</code>,
 <code>meth_ever</code>, <code>ecstasy_ever</code>) and the smoking items
 peak, while class 5 is instead the class where the two sexual-risk items
 (<code>sex_before_13</code>, <code>sex_4plus_partners</code>) are far
 higher than in any other class, at moderate levels of everything else.
 There is no single “high risk across everything” class in this solution.
-Reading the table by the same descriptive rule as before — lowest on
-nearly everything, highest on a specific cluster of items relative to
-the rest — gives:</p>
+In size order, the five classes are <strong>Low Risk, Binge Drinkers,
+Early Experimenters, High Risk,</strong> and <strong>Sexual
+Risk-Takers</strong>:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">m_free</span>,</span>
-<span>     class_labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Low risk"</span>, <span class="st">"Alcohol-focused"</span>, <span class="st">"Early experimenters"</span>,</span>
-<span>                      <span class="st">"Hard drug users"</span>, <span class="st">"High sexual risk"</span><span class="op">)</span>,</span>
+<span>     class_labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Low Risk"</span>, <span class="st">"Binge Drinkers"</span>, <span class="st">"Early Experimenters"</span>,</span>
+<span>                      <span class="st">"High Risk"</span>, <span class="st">"Sexual Risk-Takers"</span><span class="op">)</span>,</span>
 <span>     main <span class="op">=</span> <span class="st">"Health-risk behavior classes by grade (YRBS 2005, unweighted)"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="mglca_yrbs_files/figure-html/plot-1.png" class="r-plt" alt="" width="672"></p>
-<p>Class 2 stands out on <code>drove_drinking</code> and
-<code>binge_drink_30d</code> specifically; class 3 stands out on the two
-early-onset items, <code>smoked_before_13</code> and
-<code>first_drink_before_13</code>, more than on the items that come
-later in adolescence. Both read the same way they did in the weighted
-fit, which is why “Alcohol-focused” and “Early experimenters” carry
-over; “Hard drug users” and “High sexual risk” replace the single “High
-risk” class because the two clusters of items no longer travel together
-in one class here.</p>
+<p>Class 2 (Binge Drinkers) stands out on <code>drove_drinking</code>
+and <code>binge_drink_30d</code> specifically; class 3 (Early
+Experimenters) stands out on the two early-onset items,
+<code>smoked_before_13</code> and <code>first_drink_before_13</code>,
+more than on the items that come later in adolescence. High Risk and
+Sexual Risk-Takers replace the single “High risk” class from the
+weighted fit because the hard-drug cluster and the sexual-risk cluster
+no longer travel together in one class here.</p>
 </div>
 <div class="section level2">
 <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
