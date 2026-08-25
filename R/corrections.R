@@ -7,9 +7,9 @@ get_modal_resp <- function(resp) {
   K <- ncol(resp)
   modal <- matrix(0, nrow = n, ncol = K)
   assigned_classes <- max.col(resp, ties.method = "first")
-  for (i in 1:n) {
-    modal[i, assigned_classes[i]] <- 1
-  }
+  # One-hot the modal class by index rather than a row loop. Also correct for
+  # an empty `resp`, where `1:n` would have run over rows 1 and 0.
+  modal[cbind(seq_len(n), assigned_classes)] <- 1
   return(modal)
 }
 
@@ -246,7 +246,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
       W  <- sweep(po_given_x, 2, pi_k_clean, "*") *
         (RC %*% t(C_row_norm))
     } else {
-      lsh     <- apply(log_sm, 1, max)
+      lsh     <- .row_max(log_sm)
       sm_prob <- exp(log_sm - lsh)
       sm_prob <- sm_prob / rowSums(sm_prob)
       Z_mat   <- sm_prob %*% C_row_norm
@@ -435,14 +435,14 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   sm_logp_full <- matrix(0, nrow = nrow(X), ncol = K)
   if (any(keep)) {
     log_sm_f <- log_likelihood(model_state$sm, Y_clean)
-    lsh_f    <- apply(log_sm_f, 1, max)
+    lsh_f    <- .row_max(log_sm_f)
     sp_f     <- exp(log_sm_f - lsh_f)
     sp_f     <- sp_f / rowSums(sp_f)
     sm_logp_full[keep, ] <- log(pmax(sp_f, 1e-300))
   }
 
   log_comb_full <- log(pmax(p_a_gvn_x_full, 1e-300)) + sm_logp_full
-  max_lcf       <- apply(log_comb_full, 1, max)
+  max_lcf       <- .row_max(log_comb_full)
   log_norm_full <- max_lcf + log(rowSums(exp(sweep(log_comb_full, 1, max_lcf, "-"))))
 
   model_state$log_resp    <- sweep(log_comb_full, 1, log_norm_full, "-")

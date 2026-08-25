@@ -238,6 +238,16 @@ generate_synthetic_data <- function(mm, classes, N) {
 #'   and note that too few restarts under the alternative can make the
 #'   likelihood ratio come out negative. \code{blrt()} counts those draws and
 #'   warns when there are any; if it does, raise this to \code{50}.
+#' @param n_cores Positive integer. Number of processes to spread the bootstrap
+#'   replicates over. Default \code{1} (sequential). This is the most expensive
+#'   operation in the package -- at the defaults it is over two thousand model
+#'   fits -- and the replicates are independent, so the wait falls roughly in
+#'   proportion to the cores given.
+#'
+#'   Each replicate draws from its own seed, fixed before any fitting begins, so
+#'   the null distribution and the p-value are the same whatever \code{n_cores}
+#'   is set to. Progress messages are printed only when \code{n_cores = 1},
+#'   since a worker cannot report into this session.
 #' @param verbose Logical; print progress while bootstrapping. Default
 #'   \code{TRUE}.
 #' @param ... Additional arguments passed to the fitting engine.
@@ -284,7 +294,7 @@ generate_synthetic_data <- function(mm, classes, N) {
 #'
 #' @export
 blrt <- function(indicators, k_small, k_large, measurement,
-                 n_reps = 100, n_init_base = 20, n_init_boot = 10,
+                 n_reps = 100, n_init_base = 20, n_init_boot = 10, n_cores = 1L,
                  verbose = TRUE, ..., from_fit = NULL, X = NULL) {
 
   supplied            <- !missing(indicators)
@@ -335,10 +345,24 @@ blrt <- function(indicators, k_small, k_large, measurement,
   alt_model  <- fit_engine(Xd, k_large, n_init = n_init_base)
 
   obs_diff  <- 2 * (alt_model$metrics$ll - null_model$metrics$ll)
-  null_dist <- numeric(n_reps)
   N         <- nrow(Xd)
 
-  for (i in seq_len(n_reps)) {
+  # One seed per replicate, all drawn here before any fitting starts.
+  #
+  # A replicate is now a self-contained function of its seed: the seed fixes the
+  # class draw, the synthetic data built from it, and the starting values of the
+  # two fits. That is what makes the null distribution independent of `n_cores`,
+  # so a p-value obtained on eight cores is the p-value obtained on one.
+  #
+  # It also means the draws no longer share one running stream, in which each
+  # replicate depended on how many random numbers the previous replicate's fits
+  # happened to consume. The null distribution from a given seed therefore
+  # differs from the one this function produced before; it is the same estimator
+  # with a different set of draws, and the difference is Monte Carlo error.
+  seeds <- sample.int(.Machine$integer.max, n_reps)
+
+  one_rep <- function(i) {
+    set.seed(seeds[i])
     classes <- sample(seq_len(k_small), size = N, replace = TRUE,
                       prob = null_model$weights)
     X_gen   <- generate_synthetic_data(null_model$mm, classes, N)
@@ -350,12 +374,21 @@ blrt <- function(indicators, k_small, k_large, measurement,
     m_alt_gen  <- fit_engine(X_gen, k_large, n_init = n_init_boot,
                              refine = FALSE)
 
-    null_dist[i] <- 2 * (m_alt_gen$metrics$ll - m_null_gen$metrics$ll)
-
-    if (verbose && (i %% max(1L, n_reps %/% 10L) == 0L))
-      message(sprintf("  %d / %d draws complete", i, n_reps))
+    2 * (m_alt_gen$metrics$ll - m_null_gen$metrics$ll)
   }
 
+  # Progress is reported only on the sequential path: a worker's messages do not
+  # reach this session, and a count that stops at zero is worse than none.
+  if (n_cores > 1L) {
+    null_dist <- unlist(.par_lapply(seq_len(n_reps), one_rep, n_cores = n_cores))
+  } else {
+    null_dist <- numeric(n_reps)
+    for (i in seq_len(n_reps)) {
+      null_dist[i] <- one_rep(i)
+      if (verbose && (i %% max(1L, n_reps %/% 10L) == 0L))
+        message(sprintf("  %d / %d draws complete", i, n_reps))
+    }
+  }
   p_val <- (sum(null_dist >= obs_diff) + 1) / (n_reps + 1)
 
   .blrt_check_granularity(p_val, n_reps)

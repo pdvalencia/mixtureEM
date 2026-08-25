@@ -13,6 +13,7 @@ blrt(
   n_reps = 100,
   n_init_base = 20,
   n_init_boot = 10,
+  n_cores = 1L,
   verbose = TRUE,
   ...,
   from_fit = NULL,
@@ -64,6 +65,17 @@ search is where the cost of the test lives. Dziak et al. (2014) used 50
 and note that too few restarts under the alternative can make the
 likelihood ratio come out negative. \code{blrt()} counts those draws and
 warns when there are any; if it does, raise this to \code{50}.}
+
+\item{n_cores}{Positive integer. Number of processes to spread the bootstrap
+replicates over. Default \code{1} (sequential). This is the most expensive
+operation in the package -- at the defaults it is over two thousand model
+fits -- and the replicates are independent, so the wait falls roughly in
+proportion to the cores given.
+
+Each replicate draws from its own seed, fixed before any fitting begins, so
+the null distribution and the p-value are the same whatever \code{n_cores}
+is set to. Progress messages are printed only when \code{n_cores = 1},
+since a worker cannot report into this session.}
 
 \item{verbose}{Logical; print progress while bootstrapping. Default
 \code{TRUE}.}

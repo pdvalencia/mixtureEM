@@ -97,6 +97,11 @@
 #'   count is 1; the answer there is `n_init = 100`, and a maximum that still
 #'   does not replicate at 100 starts points at the specification rather than at
 #'   the search. See `vignette("estimation")`.
+#' @param n_cores Positive integer. Number of processes to spread the random
+#'   starts over. Default `1` (sequential). These are the slowest fits in the
+#'   package and `n_init` is high by necessity, so this is where the argument
+#'   earns the most. Starting values are drawn in this session before any
+#'   fitting begins, so the fit is identical at every `n_cores`.
 #' @param max_iter,tol EM iteration limit and relative convergence tolerance.
 #'   A mixture over chains (`n_classes` > 1) converges much more slowly and
 #'   defaults to a tighter `tol` of 1e-11 and 5000 iterations, since the shared
@@ -234,6 +239,7 @@ fit_lta <- function(indicators,
                     cluster = NULL,
                     n_init = 20,
                     max_iter = 1000,
+                    n_cores = 1L,
                     tol = 1e-8,
                     smoothing = 1.0,
                     random_state = NULL,
@@ -450,12 +456,23 @@ fit_lta <- function(indicators,
   # loop: the first is a ranking pass stopped at 250 iterations, and its
   # log-likelihoods are not the maxima of anything.
   final_lls <- numeric(0)
-  for (init in seq_len(max(1L, n_init))) {
-    if (!is.null(random_state)) set.seed(random_state + init)
-    cand <- try(.lta_em(.lta_random_start(state, X), X,
-                        max_iter = if (staged) min(250L, max_iter) else max_iter,
-                        tol = if (staged) 1e-7 else tol, alpha = alpha),
-                silent = TRUE)
+  # The random starts are drawn here, in restart order, and fitted afterwards.
+  # .lta_random_start() is the only RNG consumer on this path -- .lta_em() draws
+  # nothing -- so this takes the same numbers the sequential loop took and makes
+  # each restart a deterministic function of the start it is given. The fits can
+  # then run on workers without moving a value, at any `n_cores`.
+  starts <- lapply(seq_len(max(1L, n_init)), function(i) {
+    if (!is.null(random_state)) set.seed(random_state + i)
+    .lta_random_start(state, X)
+  })
+  cands <- .par_lapply(starts, function(s)
+    try(.lta_em(s, X,
+                max_iter = if (staged) min(250L, max_iter) else max_iter,
+                tol = if (staged) 1e-7 else tol, alpha = alpha),
+        silent = TRUE),
+    n_cores = n_cores)
+
+  for (cand in cands) {
     if (inherits(cand, "try-error")) next
     if (staged) stage1[[length(stage1) + 1L]] <- cand
     else {
@@ -466,10 +483,12 @@ fit_lta <- function(indicators,
 
   if (staged && length(stage1)) {
     ord <- order(vapply(stage1, `[[`, numeric(1), "loglik"), decreasing = TRUE)
-    for (i in utils::head(ord, n_survivors)) {
+    survivors <- .par_lapply(utils::head(ord, n_survivors), function(i) {
       cand <- try(.lta_em(stage1[[i]], X, max_iter = max_iter, tol = tol,
                           alpha = alpha), silent = TRUE)
-      if (inherits(cand, "try-error")) cand <- stage1[[i]]
+      if (inherits(cand, "try-error")) stage1[[i]] else cand
+    }, n_cores = n_cores)
+    for (cand in survivors) {
       final_lls <- c(final_lls, cand$loglik)
       if (is.null(best) || cand$loglik > best$loglik) best <- cand
     }

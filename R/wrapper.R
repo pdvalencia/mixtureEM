@@ -1909,7 +1909,8 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
                                  refine = TRUE,
                                  bayes_constants = NULL,
                                  warm_start = NULL,
-                                 se = c("corrected", "robust", "hessian"), ...) {
+                                 se = c("corrected", "robust", "hessian"),
+                                 n_cores = 1L, ...) {
 
   weight_type <- match.arg(weight_type)
   se          <- match.arg(se)
@@ -2157,11 +2158,13 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 
   if (n_steps == 1) {
     model_state <- fit_em(model_state, X, Y, n_init, max_iter, random_state,
-                          refine = refine, warm_start = warm_start)
+                          refine = refine, warm_start = warm_start,
+                          n_cores = n_cores)
 
   } else {
     model_state <- fit_em(model_state, X, NULL, n_init, max_iter, random_state,
-                          refine = refine, warm_start = warm_start)
+                          refine = refine, warm_start = warm_start,
+                          n_cores = n_cores)
 
     # Step 1 metrics (measurement model only)
     if (n_steps == 3)
@@ -2756,9 +2759,11 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   \code{vignette("estimation")} gives the figures behind both numbers.
 #'
 #'   The cost is roughly linear in \code{n_init}, so it is easy to budget for a
-#'   larger search: \code{n_init = 20} took about 16 seconds on a 4-class,
+#'   larger search: \code{n_init = 20} took about 8 seconds on a 4-class,
 #'   7-item binary model with 2,587 cases, so \code{n_init = 200} on the same
-#'   model is a couple of minutes and \code{n_init = 1000} is closer to ten.
+#'   model is about a minute and a half and \code{n_init = 1000} about seven
+#'   minutes. Raising \code{n_cores} divides all of these by roughly the number
+#'   of cores given.
 #'
 #'   More starts are not \emph{monotonically} better on a large model. Where each
 #'   EM iteration is expensive the search runs in two stages: a short pass ranks
@@ -2852,6 +2857,20 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   (2014); \code{"robust"} reports the sandwich alone;
 #'   \code{"hessian"} inverts the step-3 observed
 #'   information only. See \code{\link{covariate_se}}.
+#' @param n_cores Positive integer. Number of processes to spread the random
+#'   starts over. The default, \code{1}, runs them one after another in the
+#'   current session. Restarts are independent, so raising this divides the
+#'   waiting time by roughly the number of cores given, and it is worth doing
+#'   whenever \code{n_init} is large or a single fit is slow.
+#'
+#'   The starting values are drawn in this session, in the order the sequential
+#'   search would have drawn them, and the workers only fit what they are
+#'   handed. Results are therefore identical for every \code{n_cores}: a value
+#'   here changes how long a fit takes and nothing it reports.
+#'
+#'   Each worker is a fresh R session that must load the package and receive a
+#'   copy of the data, which costs a second or two and some memory. For a fit
+#'   that already takes under a few seconds, leave this at \code{1}.
 #' @param X,Y,n_components,structural Deprecated legacy arguments retained for
 #'   backward compatibility; prefer \code{indicators}, \code{n_classes},
 #'   \code{predictors}, and \code{outcome}.
@@ -2975,6 +2994,7 @@ fit_mixture <- function(indicators = NULL,
                         refine = TRUE,
                         bayes_constants = NULL,
                         se = c("corrected", "robust", "hessian"),
+                        n_cores = 1L,
                         X = NULL, Y = NULL, n_components = NULL, structural = NULL,
                         ...) {
 
@@ -3050,7 +3070,7 @@ fit_mixture <- function(indicators = NULL,
       order_by_size = order_by_size, weights = weights,
       weight_type = weight_type,
       strata = strata, cluster = cluster, refine = refine,
-      bayes_constants = bayes_constants, se = se,
+      bayes_constants = bayes_constants, se = se, n_cores = n_cores,
       variances_equal = isTRUE(variances_equal), ...))
   }
 
@@ -3273,6 +3293,7 @@ fit_mixture <- function(indicators = NULL,
     weight_type = weight_type,
     strata = strata, cluster = cluster, refine = refine,
     bayes_constants = bayes_constants, warm_start = group_warm_start,
+    n_cores = n_cores,
     se = se), dots))
 
   if (length(mm$recode)) fit$binary_recode <- mm$recode
@@ -3532,6 +3553,7 @@ print.mixture_model <- function(x, ...) {
 compare_mixtures <- function(X, k_range = 1:5, measurement,
                              n_init = 10, n_steps = 1,
                              vlmr = c("none", "standard", "robust", "both"),
+                             n_cores = 1L,
                              ...) {
   if (missing(measurement)) .require_measurement(X)
   vlmr <- match.arg(vlmr)
@@ -3568,7 +3590,8 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
     fit <- do.call(fit_mixture_internal,
                    c(list(X = X, Y = NULL, n_components = k,
                           measurement = measurement,
-                          n_steps = n_steps, n_init = n_init), dots))
+                          n_steps = n_steps, n_init = n_init,
+                          n_cores = n_cores), dots))
     models[[paste0("K", k)]] <- fit
     results[[k]] <- data.frame(
       Classes = k, LL = fit$metrics$ll, Params = fit$metrics$n_params,

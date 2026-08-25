@@ -4,7 +4,13 @@
 \alias{bivariate_residuals}
 \title{Bivariate Residuals}
 \usage{
-bivariate_residuals(object, n_reps = 0, n_init_boot = 10, verbose = FALSE)
+bivariate_residuals(
+  object,
+  n_reps = 0,
+  n_init_boot = 10,
+  n_cores = 1L,
+  verbose = FALSE
+)
 }
 \arguments{
 \item{object}{A model fitted by \code{\link[=fit_mixture]{fit_mixture()}} or \code{\link[=fit_rmlca]{fit_rmlca()}} with

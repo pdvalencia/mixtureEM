@@ -666,7 +666,7 @@ print.mcar_test <- function(x, ...) {
 #' and latent transition analysis. \emph{Structural Equation Modeling},
 #' \emph{22}(2), 169-177.
 #' @export
-bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10,
+bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10, n_cores = 1L,
                                 verbose = FALSE) {
   n_reps <- as.integer(n_reps)
   if (is.na(n_reps) || n_reps < 0L)
@@ -721,7 +721,8 @@ bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10,
   bvr <- .bvr_matrix(items, X, object$sample_weights, resp)
 
   if (n_reps > 0L)
-    attr(bvr, "p") <- .bvr_bootstrap(object, bvr, n_reps, n_init_boot, verbose)
+    attr(bvr, "p") <- .bvr_bootstrap(object, bvr, n_reps, n_init_boot, verbose,
+                                     n_cores = n_cores)
 
   attr(bvr, "total") <- sum(bvr, na.rm = TRUE)
   class(bvr) <- c("bivariate_residuals", "matrix", "array")
@@ -781,7 +782,8 @@ bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10,
 # need no alignment to the classes of the observed fit -- the residual is a
 # function of the two-way margins, which are invariant to relabelling the
 # classes, so align_classes() would only cost time.
-.bvr_bootstrap <- function(object, obs, n_reps, n_init_boot, verbose) {
+.bvr_bootstrap <- function(object, obs, n_reps, n_init_boot, verbose,
+                          n_cores = 1L) {
   K <- object$n_components
   N <- nrow(object$data)
   J <- nrow(obs)
@@ -792,7 +794,12 @@ bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10,
   if (verbose)
     message(sprintf("Bivariate residuals: %d bootstrap draws...", n_reps))
 
-  for (i in seq_len(n_reps)) {
+  # One seed per draw, fixed before any fitting, so the reference distribution
+  # does not depend on `n_cores`.
+  seeds <- sample.int(.Machine$integer.max, n_reps)
+
+  one_rep <- function(i) {
+    set.seed(seeds[i])
     classes <- sample(seq_len(K), size = N, replace = TRUE,
                       prob = object$weights)
     X_gen   <- generate_synthetic_data(object$mm, classes, N)
@@ -810,21 +817,32 @@ bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10,
       X = X_gen, n_components = K,
       measurement = object$measurement_descriptor,
       n_init = n_init_boot, refine = FALSE), silent = TRUE)
-    if (inherits(rep_fit, "try-error")) next
+    if (inherits(rep_fit, "try-error")) return(NULL)
 
     items_r <- .fit_item_probs(rep_fit$mm, ncol(X_gen), colnames(X_gen))
     gamma_r <- .marginal_class_weights(rep_fit)
-    if (is.null(items_r) || is.null(gamma_r)) next
+    if (is.null(items_r) || is.null(gamma_r)) return(NULL)
 
-    boot <- .bvr_matrix(items_r, X_gen, rep_fit$sample_weights,
-                        exp(rep_fit$log_resp))
+    .bvr_matrix(items_r, X_gen, rep_fit$sample_weights,
+                exp(rep_fit$log_resp))
+  }
 
+  draws <- if (n_cores > 1L) {
+    .par_lapply(seq_len(n_reps), one_rep, n_cores = n_cores)
+  } else {
+    lapply(seq_len(n_reps), function(i) {
+      b <- one_rep(i)
+      if (verbose && (i %% max(1L, n_reps %/% 10L) == 0L))
+        message(sprintf("  %d / %d draws complete", i, n_reps))
+      b
+    })
+  }
+
+  for (boot in draws) {
+    if (is.null(boot)) next
     good <- !is.na(boot) & !is.na(obs)
     ok[good] <- ok[good] + 1L
     ge[good] <- ge[good] + (boot[good] >= obs[good])
-
-    if (verbose && (i %% max(1L, n_reps %/% 10L) == 0L))
-      message(sprintf("  %d / %d draws complete", i, n_reps))
   }
 
   p <- ifelse(ok > 0L, ge / ok, NA_real_)

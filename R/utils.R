@@ -13,12 +13,10 @@ logsumexp <- function(x, MARGIN = 1) {
     if (max_x == -Inf) return(-Inf)
     return(max_x + log(sum(exp(x - max_x))))
   } else {
-    # Row maxima via max.col() rather than apply(): the row-wise form is the
+    # Row maxima via .row_max() rather than apply(): the row-wise form is the
     # inner loop of the forward-backward recursion in latent transition models
     # and apply() dominates the runtime there.
-    max_x <- if (MARGIN == 1)
-      x[cbind(seq_len(nrow(x)), max.col(x, ties.method = "first"))]
-    else apply(x, MARGIN, max)
+    max_x <- if (MARGIN == 1) .row_max(x) else apply(x, MARGIN, max)
     max_x[max_x == -Inf] <- 0
     if (MARGIN == 1) {
       res <- max_x + log(rowSums(exp(x - max_x)))
@@ -28,6 +26,12 @@ logsumexp <- function(x, MARGIN = 1) {
     return(res)
   }
 }
+
+# Row maxima of a matrix. Same result as apply(x, 1, max), but apply() builds a
+# list of rows and calls the closure once per case, which is the single largest
+# cost in the E-step of a large fit. max.col() does the search in one pass; the
+# tie rule is irrelevant here because only the value is taken, never the index.
+.row_max <- function(x) x[cbind(seq_len(nrow(x)), max.col(x, ties.method = "first"))]
 
 # Row indices of cases with no observed value on any measurement indicator.
 #
@@ -465,7 +469,7 @@ distal_one_hot <- function(Y, max_val) {
 distal_forward <- function(Z, beta_matrix) {
   logits_active <- Z %*% t(beta_matrix)
   logits_full   <- cbind(0, logits_active)
-  max_logits    <- apply(logits_full, 1, max)
+  max_logits    <- .row_max(logits_full)
   exp_logits    <- exp(sweep(logits_full, 1, max_logits, "-"))
   return(sweep(exp_logits, 1, rowSums(exp_logits), "/"))
 }
