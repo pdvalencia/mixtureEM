@@ -61,7 +61,6 @@ here four waves of one item):
 ```{r enumerate, cache = TRUE}
 selection <- compare_longitudinal(drink, k_range = 2:4, model = "rmlca",
                                   times = 4, n_init = 10, verbose = FALSE)
-selection
 ```
 
 BIC correctly picks the three classes we generated.
@@ -72,7 +71,6 @@ BIC correctly picks the three classes we generated.
 fit <- fit_rmlca(drink, n_classes = 3, times = 4, n_init = 20,
                  random_state = 7)
 fit
-class_sizes(fit)
 ```
 
 The item-response probabilities per wave — the trajectories themselves —
