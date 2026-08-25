@@ -67,16 +67,10 @@ m_step.bernoulli <- function(model_state, X, resp, weights = NULL, alpha = NULL,
 
 #' @exportS3Method
 log_likelihood.bernoulli <- function(model_state, X, ...) {
-  log_eps <- matrix(0, nrow = nrow(X), ncol = model_state$n_components)
-  for (c in seq_len(model_state$n_components)) {
-    pi_c <- model_state$parameters$pis[c, ]
-    # Small epsilon just in case, though the prior makes 0s impossible
-    pi_c <- pmax(pmin(pi_c, 1 - 1e-15), 1e-15)
-    term1 <- sweep(X, 2, log(pi_c), "*")
-    term2 <- sweep(1 - X, 2, log(1 - pi_c), "*")
-    log_eps[, c] <- rowSums(term1 + term2)
-  }
-  return(log_eps)
+  p   <- pmax(pmin(model_state$parameters$pis, 1 - 1e-15), 1e-15)
+  out <- X %*% t(log(p) - log1p(-p)) + rep(rowSums(log1p(-p)), each = nrow(X))
+  dimnames(out) <- NULL
+  return(out)
 }
 
 #' @exportS3Method
@@ -126,17 +120,13 @@ m_step.bernoulli_nan <- function(model_state, X, resp, weights = NULL, alpha = N
 
 #' @exportS3Method
 log_likelihood.bernoulli_nan <- function(model_state, X, ...) {
-  log_eps <- matrix(0, nrow = nrow(X), ncol = model_state$n_components)
-  for (c in seq_len(model_state$n_components)) {
-    pi_c <- model_state$parameters$pis[c, ]
-    pi_c <- pmax(pmin(pi_c, 1 - 1e-15), 1e-15)
-    term1 <- sweep(X, 2, log(pi_c), "*")
-    term2 <- sweep(1 - X, 2, log(1 - pi_c), "*")
-    sum_mat <- term1 + term2
-    sum_mat[is.na(sum_mat)] <- 0 # FIML: Ignore missing values in the sum
-    log_eps[, c] <- rowSums(sum_mat)
-  }
-  return(log_eps)
+  p   <- pmax(pmin(model_state$parameters$pis, 1 - 1e-15), 1e-15)
+  X0  <- X
+  X0[is.na(X0)] <- 0
+  M   <- (!is.na(X)) * 1
+  out <- X0 %*% t(log(p) - log1p(-p)) + M %*% t(log1p(-p))
+  dimnames(out) <- NULL
+  return(out)
 }
 
 # ------------------------------------------------------------------------------
@@ -254,14 +244,10 @@ m_step.multinoulli <- function(model_state, X, resp, weights = NULL, alpha = NUL
 
 #' @exportS3Method
 log_likelihood.multinoulli <- function(model_state, X, ...) {
-  X_oh <- one_hot(X, model_state$max_val)
-  log_eps <- matrix(0, nrow = nrow(X), ncol = model_state$n_components)
-
-  for (c in seq_len(model_state$n_components)) {
-    pi_c <- pmax(pmin(model_state$parameters$pis[c, ], 1 - 1e-15), 1e-15)
-    log_eps[, c] <- rowSums(sweep(X_oh, 2, log(pi_c), "*"))
-  }
-  return(log_eps)
+  p   <- pmax(pmin(model_state$parameters$pis, 1 - 1e-15), 1e-15)
+  out <- one_hot(X, model_state$max_val) %*% t(log(p))
+  dimnames(out) <- NULL
+  return(out)
 }
 
 #' @exportS3Method
