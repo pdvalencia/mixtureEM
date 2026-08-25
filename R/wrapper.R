@@ -712,11 +712,62 @@ class_sizes.mixture_model <- function(object, ...) {
   modal <- max.col(resp, ties.method = "first")
   n_tot <- sum(w)
 
-  data.frame(
+  out <- data.frame(
     class      = seq_len(K),
     proportion = as.vector(object$weights),
     n_expected = as.vector(object$weights) * n_tot,
     n_modal    = vapply(seq_len(K), function(k) sum(w[modal == k]), numeric(1))
+  )
+
+  by_group <- .group_class_sizes(object, w = w, modal = modal)
+  if (!is.null(by_group)) attr(out, "by_group") <- by_group
+  out
+}
+
+# Per-group breakdown for a multiple-group fit whose prevalence varies by
+# group (`group_effects = "prevalence"` or `"both"`) -- both the benchmark's
+# recovery check and Collins & Lanza's Tables 5.13/5.17/5.21 want the `G x K`
+# matrix, and until now it was reconstructed by hand (the vignette did it,
+# and so did test-group-lca.R). Returns NULL for a fit with no group
+# prevalence effect (nothing to break down: `object$weights` already is the
+# whole story) rather than the pooled figures repeated once per group, which
+# would misreport a configural-measurement-only fit as having per-group
+# prevalences it does not.
+.group_class_sizes <- function(object, w, modal) {
+  gi <- object$group_info
+  if (is.null(gi) || is.null(object$sm)) return(NULL)
+
+  K    <- object$n_components
+  levs <- gi$levels
+  G    <- length(levs)
+
+  probs <- if (inherits(object$sm, "group_prevalence")) {
+    object$sm$parameters$gamma
+  } else if (inherits(object$sm, "covariate")) {
+    # One dummy-coded row per group level, in the same treatment-contrast
+    # coding `.lta_group_design()` built the fitted regression on (first
+    # level = reference), rather than expanding to one row per case only to
+    # drop the duplicates -- a case's row depends on nothing but its own
+    # group.
+    D <- matrix(0, G, G - 1L)
+    if (G > 1L) for (i in 2:G) D[i, i - 1L] <- 1
+    Z <- cbind(1, D)
+    softmax_rows(Z %*% t(object$sm$parameters$beta))
+  } else {
+    return(NULL)
+  }
+
+  g_idx <- as.integer(gi$factor)
+  n_q   <- vapply(seq_len(G), function(q) sum(w[g_idx == q]), numeric(1))
+
+  data.frame(
+    group      = rep(levs, times = K),
+    class      = rep(seq_len(K), each = G),
+    proportion = as.vector(probs),
+    n_expected = as.vector(probs) * rep(n_q, times = K),
+    n_modal    = as.vector(vapply(seq_len(K), function(k)
+      vapply(seq_len(G), function(q) sum(w[g_idx == q & modal == k]), numeric(1)),
+      numeric(G)))
   )
 }
 
@@ -2617,6 +2668,22 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   The two are alternatives, not combinable. Categorical indicators have a
 #'   single kind of parameter, so for them this constraint and
 #'   \code{group_invariant_items} coincide and only the latter is offered.
+#' @param group_prevalence_equal Class indices (or \code{TRUE} for all
+#'   classes) whose prevalence is held to one shared value across every group,
+#'   while the remaining classes' prevalences stay free within each group
+#'   (Collins & Lanza's restricted multiple-group models, sec. 5.11-5.12).
+#'   Requires \code{group_effects} to be \code{"prevalence"} or \code{"both"}.
+#'   \code{NULL} (the default) leaves every class's prevalence free by group,
+#'   fit through the ordinary class-membership regression on \code{group} —
+#'   the two are numerically equivalent when unconstrained, but only the
+#'   regression route has \code{predict_class}'s usual Wald-testable
+#'   coefficients. This is why: an ordinary regression coefficient of zero on
+#'   the group dummies pins a class to the \emph{reference group}'s
+#'   prevalence, not to one shared across every group, so there is no
+#'   coefficient value that expresses this constraint. Standard errors for the
+#'   frozen prevalences are not produced in this first pass; compare nested
+#'   models with \code{lr_test()} instead. An out-of-range class index is an
+#'   error, never silently ignored.
 #' @param variances_equal Logical, for continuous indicators only: hold each
 #'   item's variance equal across the classes, so the classes differ in location
 #'   only. This is the homoscedastic latent profile model and the default
@@ -2892,6 +2959,7 @@ fit_mixture <- function(indicators = NULL,
                         group_effects = c("both", "measurement", "prevalence", "none"),
                         group_invariant_items = NULL,
                         group_invariant_params = NULL,
+                        group_prevalence_equal = NULL,
                         variances_equal = NULL,
                         n_steps = 1,
                         correction = "none",
@@ -3010,6 +3078,18 @@ fit_mixture <- function(indicators = NULL,
          "groups, which only `group_effects = \"both\"` or \"measurement\" ",
          "frees in the first place.", call. = FALSE)
 
+  if (!is.null(group_prevalence_equal)) {
+    if (!group_effects %in% c("both", "prevalence"))
+      stop("`group_prevalence_equal` constrains the prevalence effect, ",
+           "which only `group_effects = \"both\"` or \"prevalence\" frees ",
+           "in the first place.", call. = FALSE)
+    if (!is.null(predictors))
+      stop("`group_prevalence_equal` fits per-group class probabilities ",
+           "directly and has no slot for additional `predictors`. Fit the ",
+           "unconstrained model with `predictors` and use add_covariates() ",
+           "afterwards instead.", call. = FALSE)
+  }
+
   # --- Measurement model (single-type or mixed) -------------------------------
   mm                 <- .normalize_measurement(measurement, indicators)
   X_use              <- mm$indicators
@@ -3122,7 +3202,30 @@ fit_mixture <- function(indicators = NULL,
   # prevalences while the measurement model above is whatever the
   # `group_effects` "measurement" branch left it (pooled, unless that branch
   # also ran).
-  if (!is.null(group) && group_effects %in% c("both", "prevalence")) {
+  #
+  # `group_prevalence_equal` switches to a different structural engine
+  # entirely (R/group_prevalence.R): the ordinary multinomial-logit route
+  # above has no way to hold one class's prevalence equal across groups while
+  # leaving the others free (a zero coefficient pins a class to the reference
+  # group's prevalence, not to a shared one), so this is used **only** when a
+  # constraint is actually requested. An unconstrained fit keeps the logit
+  # route above unchanged, so no existing fitted value moves and the 3-step
+  # path, `ll_knownclass`, `analytical_wald_test()` and `add_covariates()` all
+  # keep working exactly as before.
+  if (!is.null(group) && !is.null(group_prevalence_equal)) {
+    n_groups <- nlevels(group_info$factor)
+    frozen <- if (isTRUE(group_prevalence_equal)) seq_len(n_classes)
+              else as.integer(group_prevalence_equal)
+    if (anyNA(frozen) || any(frozen < 1L | frozen > n_classes))
+      stop(sprintf(
+        "`group_prevalence_equal` must name class indices between 1 and %d (the number of classes); got: %s.",
+        n_classes, paste(group_prevalence_equal, collapse = ", ")), call. = FALSE)
+
+    structural_engine <- "group_prevalence"
+    Y_use <- as.integer(group_info$factor)
+    group_extra_args <- utils::modifyList(
+      group_extra_args, list(n_groups = n_groups, frozen = frozen))
+  } else if (!is.null(group) && group_effects %in% c("both", "prevalence")) {
     structural_engine <- "predict_class"
     Y_use <- if (is.null(Y_use)) group_info$design
              else .cbind_covariates(Y_use, group_info$design)

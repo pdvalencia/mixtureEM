@@ -2,12 +2,23 @@
 # S3 Core EM Algorithm
 # ==============================================================================
 
-# Helper to check if structural model contains a covariate
-has_covariate <- function(sm) {
+# Does the structural model supply class probabilities directly, in place of
+# the pooled marginal weights? `covariate` does it via a class-membership
+# regression; `group_prevalence` (R/group_prevalence.R) does it via one
+# probability vector per group. Both meet the same contract --
+# `log_likelihood(sm, Y)` already returns an n x K matrix of log P(class | .),
+# so the marginal weights must not be added on top (`e_step()`), the model has
+# no slot `refine_lbfgs()` can polish (its packing has none for a
+# per-case/per-group class-probability table), and its own `n_parameters()`
+# already counts the free class probabilities, so the pooled `K-1` must not be
+# added again (`stepwise.R`). Named for what it means rather than for the
+# first model that needed it, so a third model meeting the same contract only
+# has to be added to this list, not re-derived at each call site.
+.supplies_class_probs <- function(sm) {
   if (is.null(sm)) return(FALSE)
-  if (inherits(sm, "covariate")) return(TRUE)
+  if (inherits(sm, c("covariate", "group_prevalence"))) return(TRUE)
   if (inherits(sm, "nested")) {
-    return(any(sapply(sm$models, function(m) inherits(m, "covariate"))))
+    return(any(sapply(sm$models, function(m) inherits(m, c("covariate", "group_prevalence")))))
   }
   return(FALSE)
 }
@@ -29,13 +40,14 @@ e_step <- function(model_state, X, Y = NULL) {
     log_prob <- log_prob + log_likelihood(model_state$sm, Y)
   }
 
-  # 3. Add Marginal Prior ONLY if the covariate model is not actively providing
-  # class probabilities.  A covariate SM is "active" only when Y is non-NULL AND
-  # the SM is a covariate type — in that case log_likelihood(sm, Y) already
-  # encodes P(class | z_i) so adding log_weights would double-count.
-  # When Y = NULL (e.g. during step-1 of 3-step estimation), the covariate SM
+  # 3. Add Marginal Prior ONLY if the structural model is not actively
+  # supplying class probabilities of its own. Such an SM is "active" only
+  # when Y is non-NULL AND it is one of the types `.supplies_class_probs()`
+  # recognises — in that case log_likelihood(sm, Y) already encodes
+  # P(class | .) so adding log_weights would double-count.
+  # When Y = NULL (e.g. during step-1 of 3-step estimation), the SM
   # contributes nothing and marginal class weights MUST still be applied.
-  covariate_active <- !is.null(Y) && has_covariate(model_state$sm)
+  covariate_active <- !is.null(Y) && .supplies_class_probs(model_state$sm)
   if (!covariate_active) {
     log_weights <- log(model_state$weights + 1e-15)
     log_prob    <- sweep(log_prob, 2, log_weights, "+")
@@ -224,7 +236,7 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
   # vanished to 0.0003 without it, and cut the number of restarts reaching the
   # best solution from 19 of 21 to 1 of 21, because it perturbed each restart
   # differently. EM alone is the whole estimator for these models.
-  if (!is.null(Y) && has_covariate(model_state$sm)) return(model_state)
+  if (!is.null(Y) && .supplies_class_probs(model_state$sm)) return(model_state)
   # K=1 has no weight parameters; the M-step already gives the exact analytic
   # solution (item marginals), so L-BFGS is a no-op and the K-2 index arithmetic
   # below produces an out-of-bounds sequence that triggers a sweep() warning.

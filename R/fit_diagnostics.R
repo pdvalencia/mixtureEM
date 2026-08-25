@@ -86,7 +86,7 @@
 # model-implied table from; the callers refuse those models rather than
 # quietly averaging over cases.
 .marginal_class_weights <- function(object) {
-  if (has_covariate(object$sm)) return(NULL)
+  if (.supplies_class_probs(object$sm)) return(NULL)
   object$weights
 }
 

@@ -230,7 +230,7 @@ lta_g2 <- function(object) {
                 data = object$data, mm = object$mm,
                 weights = object$sample_weights,
                 ll_case = object$lower_bound,
-                conditional = has_covariate(object$sm),
+                conditional = .supplies_class_probs(object$sm),
                 label = if (inherits(object, "rmlca")) "RMLCA" else "Mixture"))
   stop("Unsupported model object.", call. = FALSE)
 }

@@ -17,6 +17,7 @@ fit_mixture(
   group_effects = c("both", "measurement", "prevalence", "none"),
   group_invariant_items = NULL,
   group_invariant_params = NULL,
+  group_prevalence_equal = NULL,
   variances_equal = NULL,
   n_steps = 1,
   correction = "none",
@@ -171,6 +172,23 @@ the fully heterogeneous one, that their invariance test compares against.
 The two are alternatives, not combinable. Categorical indicators have a
 single kind of parameter, so for them this constraint and
 \code{group_invariant_items} coincide and only the latter is offered.}
+
+\item{group_prevalence_equal}{Class indices (or \code{TRUE} for all
+classes) whose prevalence is held to one shared value across every group,
+while the remaining classes' prevalences stay free within each group
+(Collins & Lanza's restricted multiple-group models, sec. 5.11-5.12).
+Requires \code{group_effects} to be \code{"prevalence"} or \code{"both"}.
+\code{NULL} (the default) leaves every class's prevalence free by group,
+fit through the ordinary class-membership regression on \code{group} —
+the two are numerically equivalent when unconstrained, but only the
+regression route has \code{predict_class}'s usual Wald-testable
+coefficients. This is why: an ordinary regression coefficient of zero on
+the group dummies pins a class to the \emph{reference group}'s
+prevalence, not to one shared across every group, so there is no
+coefficient value that expresses this constraint. Standard errors for the
+frozen prevalences are not produced in this first pass; compare nested
+models with \code{lr_test()} instead. An out-of-range class index is an
+error, never silently ignored.}
 
 \item{variances_equal}{Logical, for continuous indicators only: hold each
 item's variance equal across the classes, so the classes differ in location
