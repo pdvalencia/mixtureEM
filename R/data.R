@@ -129,3 +129,91 @@
 #'   sociodemographic, item-response and covariate numbers this recoding and
 #'   the package vignette are checked against.
 "ventura_leon"
+
+#' Simulated bystander intervention data (Liang & Ark, Study 2 analogue)
+#'
+#' @description
+#' **Synthetic data.** This dataset contains no real participant responses. It
+#' is drawn from the estimated parameters of the published three-class latent
+#' profile solution in Liang and Ark's Study 2, so that the analysis can be
+#' taught reproducibly. The authors' original data are not redistributed here.
+#'
+#' Five bystander-action indicators define three profiles: a *supportive-only*
+#' profile (high emotional support, low everything else), a *disengaged*
+#' profile (uniformly low), and a *broad responder* profile (uniformly high).
+#'
+#' @format A data frame with 300 rows and 19 variables:
+#' \describe{
+#'   \item{id}{Row identifier.}
+#'   \item{age}{Age in years (18-70).}
+#'   \item{male}{Sex, 0 = female, 1 = male. 3 values missing.}
+#'   \item{org_intolerance_sh}{Organizational intolerance of sexual harassment
+#'     (OITSH): perceived likelihood that the organization would respond to a
+#'     harassment incident, 1-5, mean of 3 items.}
+#'   \item{masc_job_context}{Masculine job-gender context: perceived percentage
+#'     of males in the respondent's work unit and among their supervisors,
+#'     0-1 slider.}
+#'   \item{sh_experience}{Prior sexual-harassment experience, 1-4, mean of 28
+#'     items. 1 missing.}
+#'   \item{anger}{Anger at the harassment incident, 1-5, mean of 3 items.}
+#'   \item{empathy}{Empathy for the target, 1-5, mean of 3 items.}
+#'   \item{curb_expectancy}{Expectancy that sexual harassment can be curbed,
+#'     1-5, mean of 4 items.}
+#'   \item{confront}{LPA indicator: direct confrontation of the harasser, 1-5.}
+#'   \item{distract}{LPA indicator: distraction or interruption, 1-5.}
+#'   \item{support}{LPA indicator: emotional support to the target, 1-5.}
+#'   \item{report}{LPA indicator: reporting to an authority, 1-5.}
+#'   \item{discuss}{LPA indicator: speaking with the target afterwards, 1-5.}
+#'   \item{harasser_aggression}{Distal outcome (BCH): the harasser's aggression
+#'     toward the bystander after the intervention, single item, 1-5.}
+#'   \item{target_gratitude}{Distal outcome (BCH): the target's gratitude
+#'     toward the bystander after the intervention, single item, 1-5.
+#'     1 missing.}
+#'   \item{third_party_elevation}{Distal outcome (BCH): other third parties'
+#'     moral elevation in response to the bystander's action, 1-5, mean of 4
+#'     items. 1 missing.}
+#'   \item{class_true}{Generating profile (1, 2, 3). Present only because the
+#'     data are simulated; no real dataset would carry this.}
+#'   \item{boundary}{\code{TRUE} for cases drawn from a blend of two profiles
+#'     rather than one. These are the genuinely ambiguous respondents that give
+#'     the data a realistic entropy; also a synthetic-only column.}
+#' }
+#'
+#' @section Interpretation warning:
+#' Fit statistics, standard errors, and p-values computed on this dataset
+#' describe the simulation, not the original study. Do not cite them as
+#' empirical findings about bystander intervention. Cite the paper for the
+#' substantive results and this package for the simulated data.
+#'
+#' @section Known departures from the original:
+#' A fraction of cases (flagged by \code{boundary}) are drawn from a blend of
+#' two profiles, so the indicator block is deliberately not generated exactly
+#' from the three-class model -- this is what gives the data a realistic
+#' entropy instead of the artificially sharp separation you get by simulating
+#' from a correctly specified model. Covariate-to-class logits are approximate
+#' rather than exact; the indicators are independent of the covariates and
+#' outcomes within class; item-level variables are not simulated. See
+#' \code{vignette("liang_ark_lpa")}.
+#'
+#' @source Simulated from the estimated three-class solution reported in
+#'   Liang & Ark, *A spectrum of bystander actions: Latent profile analysis of
+#'   sexual harassment intervention*. The generator and the full
+#'   generating-parameter tables are not distributed with the package.
+#'
+#' @examples
+#' data(liang_ark_sim)
+#'
+#' # The three profiles
+#' aggregate(
+#'   cbind(confront, distract, support, report, discuss) ~ class_true,
+#'   data = liang_ark_sim, FUN = mean
+#' )
+#'
+#' \donttest{
+#' # Blind recovery: free means, equal diagonal variances (as fitted originally)
+#' ind <- c("confront", "distract", "support", "report", "discuss")
+#' fit <- fit_mixture(liang_ark_sim[, ind], n_classes = 3,
+#'                    measurement = "continuous", n_init = 10)
+#' table(class_assignments(fit), liang_ark_sim$class_true)
+#' }
+"liang_ark_sim"
