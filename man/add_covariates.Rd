@@ -43,8 +43,11 @@ whose classes were assigned that way.}
 \item{max_iter}{Maximum iterations for the step-3 estimation.}
 
 \item{data}{Optional data frame to take the covariates from, in which case
-\code{predictors} may be a one-sided formula (\code{~ age + sex}) or a vector of
-column names instead of the columns themselves.}
+\code{predictors} may be a one-sided formula (\code{~ age + sex}, or \code{~ age * sex}
+for an interaction) or a vector of column names instead of the columns
+themselves. A formula's terms -- a factor's dummies, an interaction's
+several columns -- are recognised as one term by the omnibus Wald test in
+\code{\link[=analytical_wald_test]{analytical_wald_test()}}.}
 
 \item{...}{Currently unused.}
 }

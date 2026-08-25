@@ -421,3 +421,18 @@ test_that("class_sizes() reports each group's own class sizes for a group-preval
   totals <- tapply(by_group$proportion, by_group$group, sum)
   expect_equal(as.numeric(totals), rep(1, d$G), tolerance = 1e-6)
 })
+
+test_that("print() points to ll_knownclass only for a group= fit", {
+  d <- .make_group_data()
+  fit_group <- fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                           group = d$grp, group_effects = "prevalence",
+                           n_steps = 1, n_init = 5, random_state = 1)
+  out_group <- capture.output(print(fit_group))
+  expect_true(any(grepl("ll_knownclass", out_group, fixed = TRUE)))
+
+  fit_plain <- suppressWarnings(fit_mixture(d$X, n_classes = d$K,
+                                            measurement = "binary",
+                                            n_init = 5, random_state = 1))
+  out_plain <- capture.output(print(fit_plain))
+  expect_false(any(grepl("ll_knownclass", out_plain, fixed = TRUE)))
+})

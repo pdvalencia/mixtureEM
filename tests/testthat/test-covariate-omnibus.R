@@ -87,6 +87,52 @@ test_that("the grouping reaches the fitted model, aligned with beta", {
 })
 
 # ------------------------------------------------------------------------------
+# A formula predictors, resolved against `data`
+# ------------------------------------------------------------------------------
+
+test_that("a formula predictors expands an interaction and groups it into one term", {
+  d <- .omni_sim()
+  fit <- suppressMessages(fit_mixture(
+    d$X, n_classes = 3, measurement = "binary",
+    predictors = ~ Marital * Age, data = d$Z,
+    n_steps = 3, correction = "ML", n_init = 5, random_state = 1))
+  K <- 3L
+
+  terms <- fit$sm$parameters$terms
+  expect_true("Marital:Age" %in% terms)
+  expect_equal(sum(terms == "Marital:Age"), 2L)   # Marital's 2 dummies x Age
+
+  w <- analytical_wald_test(fit, "Marital:Age")
+  expect_equal(w$df, (K - 1L) * 2L)
+})
+
+test_that("a formula predictors matches the hand-built matrix it replaces", {
+  d  <- .omni_sim()
+  mm <- model.matrix(~ Marital * Age, data = d$Z)[, -1]
+
+  a <- suppressMessages(fit_mixture(
+    d$X, n_classes = 3, measurement = "binary", predictors = mm,
+    n_steps = 3, correction = "ML", n_init = 5, random_state = 1))
+  b <- suppressMessages(fit_mixture(
+    d$X, n_classes = 3, measurement = "binary",
+    predictors = ~ Marital * Age, data = d$Z,
+    n_steps = 3, correction = "ML", n_init = 5, random_state = 1))
+
+  # Same design, same fit -- the formula spelling only adds bookkeeping.
+  expect_equal(a$metrics$ll, b$metrics$ll)
+  expect_null(attr(mm, "covariate_terms"))
+  expect_true("Marital:Age" %in% b$sm$parameters$terms)
+})
+
+test_that("a formula predictors with no `data` errors rather than guessing", {
+  d <- .omni_sim()
+  expect_error(
+    fit_mixture(d$X, n_classes = 3, measurement = "binary",
+               predictors = ~ Marital, n_init = 2),
+    "`data` must be supplied")
+})
+
+# ------------------------------------------------------------------------------
 # The test built on it
 # ------------------------------------------------------------------------------
 
