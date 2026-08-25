@@ -138,8 +138,6 @@ one_hot <- function(X, max_val) {
   D <- ncol(X)
   out <- matrix(0, nrow = n, ncol = D * max_val)
 
-  row_indices <- row(X)
-  col_base <- (col(X) - 1) * max_val
   valid <- !is.na(X)
 
   # Guard against float values: R silently truncates non-integer subscripts,
@@ -167,9 +165,10 @@ one_hot <- function(X, max_val) {
   }
 
   if (any(valid)) {
-    target_rows <- row_indices[valid]
-    target_cols <- col_base[valid] + X[valid]
-    out[cbind(target_rows, target_cols)] <- 1
+    idx <- which(valid)
+    r   <- (idx - 1L) %% n + 1L
+    cb  <- ((idx - 1L) %/% n) * max_val
+    out[cbind(r, cb + X[idx])] <- 1
   }
   return(out)
 }
