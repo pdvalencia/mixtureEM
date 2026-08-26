@@ -94,6 +94,16 @@ sort_model_classes <- function(model_state) {
           sm$parameters$V_robust <- Vr[idx_map, idx_map, drop = FALSE]
         }
       }
+      # The group-prevalence emission stores a G x K matrix of per-group class
+      # probabilities: its *columns* are the classes, not its rows, so it is the
+      # one structural parameter permuted on the second margin. `frozen` names
+      # class indices and has to travel with it, or a fitted object reports a
+      # restriction sitting on a different class from the one that carries it.
+      if (inherits(sm, "group_prevalence") && !is.null(sm$parameters[["gamma"]])) {
+        sm$parameters$gamma <- sm$parameters$gamma[, new_order, drop = FALSE]
+        if (length(sm$frozen))
+          sm$frozen <- sort(match(sm$frozen, new_order))
+      }
       if (!is.null(sm$parameters[["pis"]])) {
         sm$parameters$pis <- sm$parameters$pis[new_order, , drop = FALSE]
       }
