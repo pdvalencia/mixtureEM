@@ -123,3 +123,82 @@ n_parameters.group_prevalence <- function(model_state, ...) {
   nS <- length(model_state$frozen)
   if (nS < K) G * (K - 1) - nS * (G - 1) else K - 1
 }
+
+# ------------------------------------------------------------------------------
+# Anchoring a constrained fit to an unconstrained one
+# ------------------------------------------------------------------------------
+
+# The `G x K` matrix of per-group class probabilities a fitted multiple-group
+# model implies, whichever of the two prevalence parameterisations produced it.
+# .group_class_sizes() (R/wrapper.R) reads it from here rather than rebuilding
+# it inline.
+.group_gamma_matrix <- function(object) {
+  gi <- object$group_info
+  if (is.null(gi) || is.null(object$sm)) return(NULL)
+  if (inherits(object$sm, "group_prevalence"))
+    return(object$sm$parameters$gamma)
+  if (!inherits(object$sm, "covariate")) return(NULL)
+  # One dummy-coded row per group level, in the same treatment-contrast coding
+  # .lta_group_design() built the fitted regression on (first level =
+  # reference), rather than expanding to one row per case only to drop the
+  # duplicates -- a case's row depends on nothing but its own group.
+  G <- length(gi$levels)
+  D <- matrix(0, G, G - 1L)
+  if (G > 1L) for (i in 2:G) D[i, i - 1L] <- 1
+  softmax_rows(cbind(1, D) %*% t(object$sm$parameters$beta))
+}
+
+# `start_from`: run one fit anchored at another fit's solution, with the random
+# restarts off. Built only by fit_mixture()'s `group_prevalence_equal` branch.
+#
+# "Class k has the same prevalence in every group" is a restriction on a *named*
+# class, and a mixture's classes are named only by their own parameters. Permute
+# the emission's class rows and the columns of `gamma` together and the frozen
+# slot lands on a different substantive class at exactly the same likelihood, so
+# the restricted model's *global* maximum is one and the same number for every
+# k: whichever class is cheapest to freeze. A search reports that number every
+# time, and it is not the answer to the question. What the question asks for is
+# the maximum in the basin of the unrestricted solution, where class k still
+# means what it meant there.
+#
+# This is therefore the one warm start in the package allowed to *replace* the
+# search rather than join it, and the caller has to ask for it by name.
+# Everywhere else -- R/group_blocks.R, and Shireman, Steinley and Brusco (2017)
+# behind it -- an informed start competes with the random pool on
+# log-likelihood, and that competition is the whole safety argument. Here there
+# is nothing left to compete for: every basin the random pool could find is the
+# same basin relabelled.
+#
+# Clogg and Goodman (1985, p. 89) single this restriction out as the one needing
+# "special treatment", and the reference program reaches the same arrangement
+# from the other side: its per-class gamma restriction is written as an
+# equivalence set, and supplying starting values (which is how the restriction
+# is anchored) makes its random-start option unavailable in the same call.
+.group_prevalence_warm_start <- function(donor) {
+  force(donor)
+  gamma0 <- .group_gamma_matrix(donor)
+  function(model_state, X, Y) {
+    if (is.null(gamma0) || is.null(donor$mm) || is.null(model_state$sm) ||
+        !identical(dim(gamma0),
+                   c(as.integer(model_state$sm$n_groups),
+                     as.integer(model_state$n_components))))
+      stop("`start_from` does not describe the same model as this fit.",
+           call. = FALSE)
+    # A freshly built emission carries no parameters at all, so it is
+    # initialised here for its shape and every value is then overwritten from
+    # the donor.
+    mm <- .copy_emission_parameters(init_params(model_state$mm, X, NULL),
+                                    donor$mm)
+    if (is.null(mm))
+      stop("`start_from`'s measurement model is not the same shape as this ",
+           "fit's; the anchor must differ from it only in ",
+           "`group_prevalence_equal`.", call. = FALSE)
+    model_state$mm      <- mm
+    model_state$weights <- donor$weights
+    # Deliberately *not* projected onto the constraint surface, unlike
+    # init_params.group_prevalence(). The seed is the unrestricted solution,
+    # which is the whole point of anchoring; the first M-step projects it.
+    model_state$sm$parameters$gamma <- gamma0
+    model_state
+  }
+}

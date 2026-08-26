@@ -418,6 +418,66 @@ test_that("group_prevalence_equal can recover a class genuinely pinned across gr
   expect_lt(abs(frozen_share - 0.30), 0.05)
 })
 
+test_that("start_from anchors the per-class restriction to one solution's labels", {
+  # The test above had to decline to assume that "freeze slot k" names the same
+  # real class across three separate fits, because a search is free to relabel.
+  # `start_from` is the argument that removes that freedom, so this test asserts
+  # what that one could not: with every restricted fit anchored at `fit_free`,
+  # the class the data really did pin (.30 in every group) is the one -- and the
+  # only one -- whose restriction costs nothing.
+  d <- .make_pinned_group_data()
+  K <- d$K; G <- d$G
+
+  fit_free <- fit_mixture(d$X, n_classes = K, measurement = "binary",
+                          group = d$grp, group_effects = "prevalence",
+                          group_prevalence_equal = integer(0),
+                          n_steps = 1, n_init = 20, random_state = 1)
+
+  # Which slot the pinned class landed in is read off fit_free rather than
+  # assumed: order_by_size may have put it anywhere.
+  bg     <- attr(class_sizes(fit_free), "by_group")
+  spread <- vapply(seq_len(K), function(k)
+    diff(range(bg$proportion[bg$class == k])), numeric(1))
+  pinned <- which.min(spread)
+
+  tests <- suppressWarnings(lapply(seq_len(K), function(k)
+    lr_test(fit_mixture(d$X, n_classes = K, measurement = "binary",
+                        group = d$grp, group_effects = "prevalence",
+                        group_prevalence_equal = k, start_from = fit_free,
+                        n_steps = 1), fit_free)))
+
+  for (t in tests) expect_equal(t$df, G - 1)
+  p <- vapply(tests, function(t) t$p_value, numeric(1))
+  expect_gt(p[pinned], 0.05)
+  expect_true(all(p[-pinned] < 0.05))
+})
+
+test_that("start_from is refused outside the per-class restriction, and with n_init", {
+  d <- .make_pinned_group_data(n = 600)
+  anchor <- fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                        group = d$grp, group_effects = "prevalence",
+                        group_prevalence_equal = integer(0),
+                        n_steps = 1, n_init = 5, random_state = 1)
+
+  expect_error(
+    fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                group = d$grp, group_effects = "prevalence",
+                start_from = anchor, n_steps = 1, n_init = 5),
+    "start_from")
+  expect_error(
+    fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                group = d$grp, group_effects = "prevalence",
+                group_prevalence_equal = 2, start_from = anchor,
+                n_steps = 1, n_init = 5),
+    "n_init")
+  expect_error(
+    fit_mixture(d$X, n_classes = d$K + 1L, measurement = "binary",
+                group = d$grp, group_effects = "prevalence",
+                group_prevalence_equal = 2, start_from = anchor,
+                n_steps = 1),
+    "classes")
+})
+
 test_that("group_prevalence_equal rejects an out-of-range class index", {
   d <- .make_group_data()
   expect_error(
