@@ -25,9 +25,14 @@ library(mixtureEM)
 `liang_ark_sim` is simulated data. It is drawn from the published parameters
 of Liang and Ark's Study 2 three-class latent profile solution, not from
 actual survey responses, and it contains no real bystander accounts. Fit
-statistics, standard errors and p-values computed on it below describe the
-simulation faithfully reproducing the published solution, not new findings
-about workplace bystander behavior, and should not be cited as such.
+statistics, standard errors and p-values computed on it below are properties
+of this simulated dataset, not of Liang and Park's study, and should not be
+cited as findings about workplace bystander behavior. The simulation
+reproduces the published solution closely where the indicators are concerned
+— refitted profile means land within about 0.15 of a scale point of the
+published ones, and entropy comes out near the published .905 — and only
+approximately for the covariates, for the reason given in the covariate
+section below.
 
 Two columns exist only because the data are synthetic and no real dataset
 would carry them: `class_true`, the profile each case was actually drawn
@@ -57,7 +62,6 @@ ind <- liang_ark_sim[, c("confront", "distract", "support", "report", "discuss")
 set.seed(1)
 comp <- compare_mixtures(ind, k_range = 1:5, measurement = "continuous",
                          variances_equal = TRUE, n_init = 20)
-comp
 plot(comp)
 ```
 
@@ -115,6 +119,14 @@ plot(fit, type = "bar",
      main = "Bystander response profiles")
 ```
 
+These three labels are this vignette's, chosen to describe the response
+pattern. Liang and Park name the same three profiles after the level of
+personal risk each one involves: what is called *Supportive only* here is their
+**low-risk intervention** profile, *Broad responders* is their **active
+intervention** profile, and *Disengaged* is their **no/limited intervention**
+profile. The profiles are the same; only the names differ. Use theirs when
+reporting against the paper.
+
 ## Who ends up in which profile? (covariates)
 
 ```{r covariates, cache = TRUE}
@@ -169,7 +181,6 @@ error in step three is already accounted for.
 
 ```{r recovery}
 table(class_assignments(fit), liang_ark_sim$class_true)
-classification_diagnostics(fit)
 ```
 
 About 85% of cases are assigned to the profile they were actually
@@ -180,6 +191,10 @@ near the published value of about 0.90 rather than the artificially sharp
 separation you get by simulating from a correctly specified model with no
 overlap. A real analysis has no `class_true` to check against, which is
 exactly what `classification_diagnostics()` is for.
+
+```{r diagnostics}
+classification_diagnostics(fit)
+```
 
 ## References
 
