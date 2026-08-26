@@ -77,7 +77,9 @@ diagonal. When `n_reps > 0` a matrix of bootstrap p-values, laid out the
 same way, is attached as the `"p"` attribute and printed beside each
 residual. The sum of all pairwise residuals is attached as the `"total"`
 attribute and printed as "Total BVR", a single headline number for how
-much local dependence the model as a whole is carrying. For a continuous
+much local dependence the model as a whole is carrying. For a
+multiple-group measurement fit, `"n_groups"` and `"by_group"` (a named
+list of each group's own matrix) are attached as well. For a continuous
 measurement model, an object of class `bivariate_residuals_gaussian`
 holding the modification index and expected parameter change per pair
 per class, the model-implied residual covariance and correlation, and a
@@ -141,6 +143,17 @@ still read it as descriptive when missingness is heavy. For categorical
 indicators this is the same statistic, with the same divisor, that
 another program reports as a bivariate residual, and the values agree
 closely on the same fit.
+
+For a `group_effects = "measurement"` fit, each pair's residual is the
+sum of that pair's own chi-square in every group, divided by the number
+of groups contributing a value times \\(R_a - 1)(R_b - 1)\\ – the
+group-blocks analogue of what
+[`absolute_fit()`](https://pdvalencia.github.io/mixtureEM/reference/absolute_fit.md)
+does for the global statistic. Every group's own matrix, in the item's
+own names rather than the padded block layout, is attached as
+`attr(x, "by_group")`. `n_reps` bootstrap calibration is not yet
+available for this case; the uncalibrated residuals are returned with a
+message saying so.
 
 For a plain continuous (Gaussian) measurement model with no missing
 data, a different statistic is returned instead: for each item pair and

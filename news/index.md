@@ -2,6 +2,51 @@
 
 ## mixtureEM (development version)
 
+### Fixed: `absolute_fit()` and `bivariate_residuals()` on a `group_effects = "measurement"` fit
+
+Both statistics used to be computed over the padded J\*Q item matrix a
+multiple-group measurement fit stores internally, treating every group’s
+copy of each item as a distinct item. That made the implied contingency
+table `prod(levels)^Q` cells instead of the `Q * prod(levels)` a
+`P(y | group)` model actually implies – silently, since the wrong table
+is still a real table and the wrong `df` still produces a p-value, just
+the wrong one (an inflated `df` from the padded table understating the
+discrepancy between model and data, not a refusal). Both functions now
+condition on the group:
+[`absolute_fit()`](https://pdvalencia.github.io/mixtureEM/reference/absolute_fit.md)’s
+degrees of freedom are `Q(W - 1) - npar` (which is today’s formula at
+`Q = 1`, so an ungrouped fit is unaffected), and
+[`bivariate_residuals()`](https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.md)
+returns one item-by-item matrix combining every group’s own pairwise
+chi-square rather than a mostly-`NA` matrix duplicated `Q` times. Both
+attach the per-group breakdown (`$by_group` / `attr(x, "by_group")`)
+alongside the combined statistic. `group_effects = "both"` fits always
+carry a covariate structural model for the prevalence effect and were,
+and remain, refused outright by the existing conditional-model check –
+refit with `group_effects = "measurement"` to check the measurement side
+on its own.
+
+### Documentation: the group-dummy Wald test and a `"categorical"` block’s parameter count
+
+[`?fit_mixture`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)’s
+`group_effects` argument now warns against testing “is this class the
+same size in every group” with
+[`analytical_wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/analytical_wald_test.md)
+on the group dummies: that test asks whether a class’s log-odds departs
+from the reference group’s, a comparison relative to the group average
+rather than a literal constancy test, and the two can disagree.
+`group_prevalence_equal` plus
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+is the exact test, and the multiple-group vignette now makes the same
+point where it demonstrates that route.
+
+[`?fit_mixture`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)’s
+`measurement` argument now documents a real counting limitation: a
+single `"categorical"` block uses one `max_val` for the whole block, so
+an item with fewer levels than the block’s maximum is still charged for
+that maximum, inflating `n_params`, AIC and BIC. The mixed `list`
+spelling, splitting items by their own level count, is the remedy.
+
 ### Fixed: `n_cores` was undocumented on four entry points
 
 `n_cores` was added to

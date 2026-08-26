@@ -2,8 +2,8 @@
 
 ### Worked examples
 
-- [Infidelity Behavior Patterns: LCA with Covariates and a Distal
-  Outcome](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.md):
+- [Infidelity Behavior Patterns: LCA with
+  Covariates](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.md):
 - [Latent Profile Analysis: Bystander Responses to Sexual
   Harassment](https://pdvalencia.github.io/mixtureEM/articles/liang_ark_lpa.md):
 - [Choosing the Number of

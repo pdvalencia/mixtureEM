@@ -26,7 +26,7 @@ by the classes."></head><body>
       <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates</a></li>
     <li><a class="dropdown-item" href="../articles/liang_ark_lpa.html">Latent Profile Analysis: Bystander Responses to Sexual Harassment</a></li>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
@@ -144,7 +144,19 @@ converted for you, with a message saying which level became the 1, since
 that is what the reported probabilities refer to.</p>
 <p><code>"categorical"</code> expects integer codes running 1, 2, 3, ...; add 1 to a
 0-based item. <code>"count"</code> fits a Poisson model, one rate per item and
-class, and needs non-negative integers.</p></dd>
+class, and needs non-negative integers.</p>
+<p><strong>Known issue: a single <code>"categorical"</code> block charges every
+item the same parameter count.</strong> It uses one <code>max_val</code> for the whole
+block — the number of levels in whichever item has the most — so any item
+with fewer levels than that maximum is still costed as if it had that
+many. A block mixing a two-level item with a four-level one charges the
+two-level item for four, inflating <code>n_params</code> and, with it, AIC and
+BIC. The remedy is the mixed <code>list</code> spelling above: give items with
+different numbers of levels their own entries — a two-level item as its
+own <code>"binary"</code> entry, or several <code>"categorical"</code> entries
+grouped by level count — rather than putting them all in one
+<code>"categorical"</code> block. Per-item level counting inside a single
+polytomous block is not implemented.</p></dd>
 
 
 <dt id="arg-predictors">predictors<a class="anchor" aria-label="anchor" href="#arg-predictors"></a></dt>
@@ -244,7 +256,15 @@ all (sec. 5.11). Pass <code>n_steps = 1</code> for both fits.</p>
 <p>There is a fourth setting, <code>"measurement"</code>, which frees the item
 parameters while holding the class sizes pooled. It answers an unusual
 question and is rarely what is wanted; <code>"both"</code> is the configural model
-the invariance literature actually compares against.</p></dd>
+the invariance literature actually compares against.</p>
+<p><strong>Do not test "is this class the same size in every group" with
+<code><a href="analytical_wald_test.html">analytical_wald_test</a></code> on the group dummies.</strong> That test
+asks whether a class's log-odds relative to the reference class departs
+from the reference group's — a comparison relative to the group average,
+not a test that the class's probability is literally constant across
+groups — and it can reach the wrong conclusion where the two disagree.
+<code>group_prevalence_equal</code> fits the actual restriction, and
+<code><a href="lr_test.html">lr_test()</a></code> against the unrestricted fit is the exact test of it.</p></dd>
 
 
 <dt id="arg-group-invariant-items">group_invariant_items<a class="anchor" aria-label="anchor" href="#arg-group-invariant-items"></a></dt>

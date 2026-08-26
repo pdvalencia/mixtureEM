@@ -11,13 +11,13 @@ Source:
 [`inst/CITATION`](https://github.com/pdvalencia/mixtureEM/blob/main/inst/CITATION)
 
 Valencia, P. D. (2026). mixtureEM: Latent class and profile analysis via
-mixture modelling (Version 0.2.0) \[R package\].
+mixture modelling (Version 0.3.0) \[R package\].
 https://github.com/pdvalencia/mixtureEM
 
     @Manual{,
       title = {{mixtureEM}: Latent class and profile analysis via mixture modelling},
       author = {Pablo D. Valencia},
       year = {2026},
-      note = {R package version 0.2.0},
+      note = {R package version 0.3.0},
       url = {https://github.com/pdvalencia/mixtureEM},
     }

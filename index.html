@@ -35,7 +35,7 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome</a></li>
+<li><a class="dropdown-item" href="articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates</a></li>
     <li><a class="dropdown-item" href="articles/liang_ark_lpa.html">Latent Profile Analysis: Bystander Responses to Sexual Harassment</a></li>
     <li><a class="dropdown-item" href="articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
@@ -65,7 +65,7 @@
 </h1></div>
 <p><a href="https://lifecycle.r-lib.org/articles/stages.html#experimental" class="external-link"><img src="https://img.shields.io/badge/lifecycle-experimental-orange.svg" alt="Lifecycle: experimental"></a> <a href="https://github.com/pdvalencia/mixtureEM/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/pdvalencia/mixtureEM/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></p>
 <p>Latent class and latent profile analysis for applied researchers.</p>
-<p><strong>mixtureEM</strong> helps you find hidden subgroups in your data and describe them (Collins &amp; Lanza, 2010).</p>
+<p>You already suspect your data holds distinct subgroups — different ways people respond to a workplace survey, different patterns of health-risk behavior, different trajectories through an intervention. You know these hidden subgroups exist; you just need a principled way to coax them out of the data rather than guessing at cutpoints. <strong>mixtureEM</strong> does that (Collins &amp; Lanza, 2010), and describes the groups it finds in plain, reusable output.</p>
 <ul>
 <li>If you have ever run an LCA, assigned everyone to their most likely class, and then run ANOVAs or chi-squares on the labels, this package exists for you. The step that is easiest to get wrong — relating classes to external variables — is the one mixtureEM automates correctly, using the bias-adjusted three-step estimators from the methodological literature (Bakk et al., 2014; Vermunt, 2010).</li>
 <li>If you have never run an LCA, this package exists for you too. Every step ships with a sensible default, and the output reads like the table you would put in a paper, so you do not need the estimation theory memorized to get correct answers out.</li>
@@ -83,8 +83,16 @@
 <div class="section level2">
 <h2 id="quick-start">Quick start<a class="anchor" aria-label="anchor" href="#quick-start"></a>
 </h2>
-<p>A complete analysis takes just a handful of calls. Using the bundled <code>ventura_leon</code> data — 16 yes/no infidelity items from 400 young adults (run <code><a href="reference/ventura_leon.html">?ventura_leon</a></code> for dataset details) — you can fit a model and view the class sizes:</p>
+<p>A complete analysis takes three steps: decide how many classes to keep, fit the model and describe the classes it finds, and relate those classes to the variables you actually care about. All three use the bundled <code>ventura_leon</code> data — 16 yes/no infidelity items from 400 young adults (run <code><a href="reference/ventura_leon.html">?ventura_leon</a></code> for dataset details).</p>
+<p><strong>Step 1: How many classes fit best?</strong></p>
+<p><code><a href="reference/compare_mixtures.html">compare_mixtures()</a></code> fits a range of class counts and reports the information criteria and diagnostics side by side. At the package’s default twenty random restarts per class count, six models is real work, so it is shown here rather than run on every render of this page — the <a href="https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.html"><code>class_enumeration</code> vignette</a> walks through reading its output on this exact data:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://pdvalencia.github.io/mixtureEM/">mixtureEM</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">ventura_leon</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/compare_mixtures.html">compare_mixtures</a></span><span class="op">(</span><span class="va">ventura_leon</span><span class="op">[</span>, <span class="fl">7</span><span class="op">:</span><span class="fl">22</span><span class="op">]</span>, measurement <span class="op">=</span> <span class="st">"binary"</span>, k_range <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span><span class="op">)</span></span></code></pre></div>
+<p><strong>Step 2: Fit the model and describe the classes.</strong></p>
+<p>Four classes turn out to be the interpretable choice here:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://pdvalencia.github.io/mixtureEM/">mixtureEM</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">items</span> <span class="op">&lt;-</span> <span class="va">ventura_leon</span><span class="op">[</span>, <span class="fl">7</span><span class="op">:</span><span class="fl">22</span><span class="op">]</span>   <span class="co"># the 16 infidelity items</span></span>
@@ -96,13 +104,50 @@
 <span><span class="co">#&gt; 2     2  0.2699044  107.96177     106</span></span>
 <span><span class="co">#&gt; 3     3  0.1581894   63.27577      63</span></span>
 <span><span class="co">#&gt; 4     4  0.1442674   57.70695      58</span></span></code></pre></div>
-<p>You can then easily plot the item-response probabilities to interpret the classes:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span>, class_labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Fidelity"</span>, <span class="st">"Affective interest"</span>,</span>
 <span>                           <span class="st">"Infidelity"</span>, <span class="st">"Sexual desire"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p><img src="reference/figures/README-example-plot-1.png" alt="Item-response probabilities for the four fitted classes across the 16 infidelity items, one line per class." width="100%"></p>
+<p><strong>Step 3: Relate the classes to covariates.</strong></p>
+<p>Who ends up in which class? <code><a href="reference/add_covariates.html">add_covariates()</a></code> applies the bias-adjusted three-step correction (Bakk et al., 2014; Vermunt, 2010) automatically, so the classes you just interpreted do not shift under you:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit_cov</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/add_covariates.html">add_covariates</a></span><span class="op">(</span><span class="va">fit</span>, <span class="op">~</span> <span class="va">sex</span> <span class="op">+</span> <span class="va">age</span>, data <span class="op">=</span> <span class="va">ventura_leon</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_cov</span><span class="op">)</span></span>
+<span><span class="co">#&gt; =========================================================</span></span>
+<span><span class="co">#&gt;              STRUCTURAL MODEL SUMMARY                    </span></span>
+<span><span class="co">#&gt; =========================================================</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)</span></span>
+<span><span class="co">#&gt; Reference Class: 1</span></span>
+<span><span class="co">#&gt; Standard errors: Bakk-Oberski-Vermunt corrected (robust step 3, hessian step 1)</span></span>
+<span><span class="co">#&gt; ---------------------------------------------------------</span></span>
+<span><span class="co">#&gt;                               OR         [95% CI]         P-Value</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Class 2 ON</span></span>
+<span><span class="co">#&gt;   Intercept                1.178  [    0.234,     5.924]     0.842</span></span>
+<span><span class="co">#&gt;   sex.Female               2.641  [    1.104,     6.318]     0.029</span></span>
+<span><span class="co">#&gt;   age                      0.942  [    0.884,     1.003]     0.063</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Class 3 ON</span></span>
+<span><span class="co">#&gt;   Intercept                0.315  [    0.104,     0.953]     0.041</span></span>
+<span><span class="co">#&gt;   sex.Female               0.342  [    0.183,     0.641]    &lt; .001</span></span>
+<span><span class="co">#&gt;   age                      1.033  [    0.997,     1.071]     0.074</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Class 4 ON</span></span>
+<span><span class="co">#&gt;   Intercept                0.247  [    0.078,     0.779]     0.017</span></span>
+<span><span class="co">#&gt;   sex.Female               0.656  [    0.331,     1.299]     0.226</span></span>
+<span><span class="co">#&gt;   age                      1.024  [    0.985,     1.065]     0.227</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
+<span><span class="co">#&gt; ---------------------------------------------------------</span></span>
+<span><span class="co">#&gt;                          Wald Chi2   df  P-Value</span></span>
+<span><span class="co">#&gt;   sex                       23.066    3    &lt; .001</span></span>
+<span><span class="co">#&gt;   age                        9.645    3     0.022</span></span>
+<span><span class="co">#&gt;   Note: a non-significant test beside large coefficients can be the</span></span>
+<span><span class="co">#&gt;         Hauck-Donner effect; confirm with wald_omnibus_test().</span></span>
+<span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
 <blockquote>
-<p>Choosing how many classes to keep, reading the full item-response table, relating classes to covariates with a bias correction, and describing them by a distal outcome are each one function call away. The <a href="https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html"><code>ventura_leon</code> worked example</a> walks through all of it on this exact fit.</p>
+<p>Reading the full item-response table and describing classes by a distal outcome are each one function call away too. The <a href="https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html"><code>ventura_leon</code> worked example</a> walks through all of it on this exact fit.</p>
 </blockquote>
 <hr>
 </div>
@@ -132,7 +177,7 @@
 <td><a href="https://pdvalencia.github.io/mixtureEM/articles/liang_ark_lpa.html"><code>liang_ark_lpa</code></a></td>
 </tr>
 <tr>
-<td>Multiple-group LCA, measurement invariance across groups</td>
+<td>Multiple-group LCA: do the classes mean the same thing in every group before comparing their prevalences?</td>
 <td><code>fit_mixture(group = )</code></td>
 <td><a href="https://pdvalencia.github.io/mixtureEM/articles/mglca_yrbs.html"><code>mglca_yrbs</code></a></td>
 </tr>
@@ -151,15 +196,15 @@
 <tr>
 <td>Distal outcomes (BCH / ML)</td>
 <td><code><a href="reference/add_outcome.html">add_outcome()</a></code></td>
-<td><a href="https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html"><code>ventura_leon</code></a></td>
+<td><a href="https://pdvalencia.github.io/mixtureEM/articles/liang_ark_lpa.html"><code>liang_ark_lpa</code></a></td>
 </tr>
 <tr>
-<td>Repeated-measures LCA (trajectory classes)</td>
+<td>Repeated-measures LCA: trajectory classes over time, e.g. “Stable Low”, “Escalating”, “Persistent”</td>
 <td><code><a href="reference/fit_rmlca.html">fit_rmlca()</a></code></td>
 <td><a href="https://pdvalencia.github.io/mixtureEM/articles/rmlca.html"><code>rmlca</code></a></td>
 </tr>
 <tr>
-<td>Latent transition analysis, mover-stayer models</td>
+<td>Latent transition analysis, mover-stayer models: if someone is Depressed at Wave 1, what is the probability they are Not Depressed at Wave 2?</td>
 <td><code><a href="reference/fit_lta.html">fit_lta()</a></code></td>
 <td><a href="https://pdvalencia.github.io/mixtureEM/articles/lta.html"><code>lta</code></a></td>
 </tr>
@@ -187,9 +232,11 @@
 <li>
 <strong>Conceptual workflow.</strong> Choose a model, <em>then</em> examine covariates and outcomes on that fitted model — <code>add_covariates(fit, ...)</code> and <code>add_outcome(fit, ...)</code> never re-estimate the classes you already inspected.</li>
 <li>
-<strong>Sound defaults.</strong> Stepwise analyses apply the recommended bias correction and uncertainty-aware standard errors unless you say otherwise; where a default has a literature, the default follows it.</li>
+<strong>Guards against the classify-and-analyze trap.</strong> The most common mistake in mixture modeling — one you may already have made without realizing it — is assigning each case to its most likely class and then running an ordinary ANOVA or chi-square on the labels. That ignores classification uncertainty and biases results toward the null. Stepwise analyses apply the recommended bias correction and uncertainty-aware standard errors unless you say otherwise; where a default has a literature, the default follows it.</li>
 <li>
-<strong>Readable output, reusable numbers.</strong> Summaries print as formatted tables <em>and</em> return tidy data frames.</li>
+<strong>Takes your survey design seriously.</strong> Large surveys are rarely a simple random sample. When your data carries sampling weights, strata, and clusters, mixtureEM accounts for them — it will not just pretend your complex survey is a simple random sample.</li>
+<li>
+<strong>Readable output, reusable numbers.</strong> Summaries print as formatted tables <em>and</em> return tidy data frames, not deeply nested lists of matrices you have to pick apart by hand.</li>
 <li>
 <strong>No dependency stack.</strong> Built using base R only, meaning it installs cleanly anywhere R does.</li>
 </ul>
@@ -200,7 +247,7 @@
 </h2>
 <p>If you use mixtureEM in published research, please cite it as:</p>
 <blockquote>
-<p>Valencia, P. D. (2026). mixtureEM: Latent class and profile analysis via mixture modelling (Version 0.2.0) [R package]. <a href="https://github.com/pdvalencia/mixtureEM" class="external-link uri">https://github.com/pdvalencia/mixtureEM</a></p>
+<p>Valencia, P. D. (2026). mixtureEM: Latent class and profile analysis via mixture modelling (Version 0.3.0) [R package]. <a href="https://github.com/pdvalencia/mixtureEM" class="external-link uri">https://github.com/pdvalencia/mixtureEM</a></p>
 </blockquote>
 </div>
 <div class="section level2">

@@ -42,7 +42,7 @@ that reference distribution."></head><body>
       <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates</a></li>
     <li><a class="dropdown-item" href="../articles/liang_ark_lpa.html">Latent Profile Analysis: Bystander Responses to Sexual Harassment</a></li>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
@@ -107,7 +107,8 @@ that reference distribution.</p>
 statistics do not apply. With missing data, also <code>g2_mcar</code>, <code>x2_mcar</code>,
 <code>cressie_read_mcar</code>, <code>df_mcar</code> and <code>p_value_mcar</code> for the block computed
 under MCAR, <code>ll_sat</code> for the saturated model's log-likelihood, and
-<code>mar = TRUE</code>.</p>
+<code>mar = TRUE</code>. For a multiple-group measurement fit, also <code>n_groups</code> and
+<code>by_group</code>, a data frame of each group's own <code>g2</code>/<code>x2</code>/<code>cressie_read</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="missing-data">Missing data<a class="anchor" aria-label="anchor" href="#missing-data"></a></h2>
@@ -126,6 +127,26 @@ underneath; use <code><a href="mcar_test.html">mcar_test()</a></code> to test th
 can be slow, or refused outright, once the number of indicator categories
 crossed together grows large – the same \(W\) that already makes the
 complete-data table sparse.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="multiple-group-fits">Multiple-group fits<a class="anchor" aria-label="anchor" href="#multiple-group-fits"></a></h2>
+
+
+<p>For a <code>group_effects = "measurement"</code> fit, the model is
+\(P(y \mid \mathrm{group})\), so the saturated comparison is one \(W\)
+-cell table <em>per group</em>, not one \(W\)-cell table for the pooled
+data: \(df = Q(W - 1) - P\) for \(Q\) groups, and the statistics are
+the sum of each group's own. The per-group breakdown is returned in
+<code>$by_group</code>. As with the missing-data statistics, this is a
+within-package diagnostic: do not compare its level to another program's
+single-model goodness of fit, which under missing data can disagree with
+this one by more than a factor of two on the very same fit even though
+the two agree on everything that can be compared – the log-likelihood
+and every likelihood-ratio test built from it.
+<code>group_effects = "both"</code> instead attaches a covariate structural
+model for the prevalence effect and is refused as any conditional model
+is; refit with <code>group_effects = "measurement"</code> to check the
+measurement side on its own.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>

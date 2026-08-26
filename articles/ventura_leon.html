@@ -5,12 +5,12 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome • mixtureEM</title>
+<title>Infidelity Behavior Patterns: LCA with Covariates • mixtureEM</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome">
+<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Infidelity Behavior Patterns: LCA with Covariates">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -33,7 +33,7 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome</a></li>
+<li><a class="dropdown-item" href="../articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates</a></li>
     <li><a class="dropdown-item" href="../articles/liang_ark_lpa.html">Latent Profile Analysis: Bystander Responses to Sexual Harassment</a></li>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
@@ -64,7 +64,7 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
 
-      <h1>Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome</h1>
+      <h1>Infidelity Behavior Patterns: LCA with Covariates</h1>
             
       
       <small class="dont-index">Source: <a href="https://github.com/pdvalencia/mixtureEM/blob/main/vignettes/ventura_leon.Rmd" class="external-link"><code>vignettes/ventura_leon.Rmd</code></a></small>
@@ -377,67 +377,12 @@ classification is (almost) perfect, which is rarely true in
 practice.</p>
 </div>
 <div class="section level2">
-<h2 id="a-distal-outcome-mean-age-by-class">A distal outcome: mean age by class<a class="anchor" aria-label="anchor" href="#a-distal-outcome-mean-age-by-class"></a>
-</h2>
-<p>Covariates ask “who ends up in which class?”. The complementary
-question — “how do the classes differ on some outcome?” — is a
-<em>distal outcome</em> analysis, and it reuses the same fitted model
-through <code><a href="../reference/add_outcome.html">add_outcome()</a></code>. Here we describe the classes by
-their mean age (the BCH correction is the default for a continuous
-outcome; Bakk &amp; Vermunt, 2016). Age already entered the model as a
-covariate above, so treating it as a distal outcome too does not answer
-a substantively new question — we reuse it purely because it is a
-continuous variable already at hand, to keep the example self-contained;
-a real distal-outcome analysis would pick a variable the classes are
-actually expected to predict.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit_age</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/add_outcome.html">add_outcome</a></span><span class="op">(</span><span class="va">fit</span>, <span class="va">ventura_leon</span><span class="op">$</span><span class="va">age</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Outcome treated as continuous (set `outcome_type` to override).</span></span>
-<span><span class="co">#&gt; Using 'BCH' bias correction (set `correction` to override).</span></span>
-<span><span class="va">age_results</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_age</span><span class="op">)</span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt;              STRUCTURAL MODEL SUMMARY                    </span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; CONTINUOUS DISTAL OUTCOME (MEANS)</span></span>
-<span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Omnibus test (class differences): Wald chi^2(3) = 17.84, p  &lt; .001</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt;                  Mean       [95% CI]        SE</span></span>
-<span><span class="co">#&gt;   Class 1       25.235  [24.181, 26.289]     0.538</span></span>
-<span><span class="co">#&gt;   Class 2       23.142  [22.007, 24.276]     0.579</span></span>
-<span><span class="co">#&gt;   Class 3       27.554  [25.329, 29.780]     1.135</span></span>
-<span><span class="co">#&gt;   Class 4       27.148  [24.897, 29.398]     1.148</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Pairwise class differences:</span></span>
-<span><span class="co">#&gt;                     Difference       [95% CI]        P-Value</span></span>
-<span><span class="co">#&gt;   Class 2 vs 1        -2.093  [-3.717, -0.469]     0.012</span></span>
-<span><span class="co">#&gt;   Class 3 vs 1         2.319  [-0.143,  4.781]     0.065</span></span>
-<span><span class="co">#&gt;   Class 4 vs 1         1.913  [-0.568,  4.393]     0.131</span></span>
-<span><span class="co">#&gt;   Class 3 vs 2         4.412  [ 1.910,  6.914]    &lt; .001</span></span>
-<span><span class="co">#&gt;   Class 4 vs 2         4.006  [ 1.426,  6.586]     0.002</span></span>
-<span><span class="co">#&gt;   Class 4 vs 3        -0.407  [-3.572,  2.759]     0.801</span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="va">age_results</span><span class="op">$</span><span class="va">outcome</span><span class="op">$</span><span class="va">means</span></span>
-<span><span class="co">#&gt;   class     mean        se    lower    upper</span></span>
-<span><span class="co">#&gt; 1     1 25.23505 0.5377852 24.18099 26.28911</span></span>
-<span><span class="co">#&gt; 2     2 23.14177 0.5788384 22.00725 24.27630</span></span>
-<span><span class="co">#&gt; 3     3 27.55414 1.1354995 25.32856 29.77972</span></span>
-<span><span class="co">#&gt; 4     4 27.14763 1.1481233 24.89731 29.39795</span></span></code></pre></div>
-<p>The omnibus Wald test in the printed output asks whether the class
-means differ at all, before the per-class table is read.</p>
-</div>
-<div class="section level2">
 <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
 </h2>
 <p>Bakk, Z., Oberski, D. L., &amp; Vermunt, J. K. (2014). Relating
 latent class assignments to external variables: Standard errors for
 correct inference. <em>Political Analysis</em>, <em>22</em>(4), 520–540.
 <a href="https://doi.org/10.1093/pan/mpu003" class="external-link uri">https://doi.org/10.1093/pan/mpu003</a></p>
-<p>Bakk, Z., &amp; Vermunt, J. K. (2016). Robustness of stepwise latent
-class modeling with continuous distal outcomes. <em>Structural Equation
-Modeling</em>, <em>23</em>(1), 20–31. <a href="https://doi.org/10.1080/10705511.2014.955104" class="external-link uri">https://doi.org/10.1080/10705511.2014.955104</a></p>
 <p>Ventura-León, J., Reyes, A., Valencia, P. D., Tocto-Muñoz, S.,
 Gamboa-Melgar, G., Ruiz-Castro, J., &amp; Lino-Cruz, C. (2025).
 Exploring infidelity behavior patterns in a sample of Peruvian young

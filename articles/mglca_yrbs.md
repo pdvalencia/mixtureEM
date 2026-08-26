@@ -142,6 +142,16 @@ restriction — pass it the index of the class to freeze and it holds that
 column of the per-group class probabilities to one shared value while
 the rest adjust freely.
 
+This is a likelihood-ratio test, not a Wald test on the class-membership
+regression’s group coefficients, and that is deliberate. A Wald test on
+a group dummy asks whether one class’s log-odds relative to the
+reference class departs from the reference group’s — a comparison
+relative to the group average, not “is this class’s share literally the
+same in every group” — and the two questions can disagree.
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+against the unrestricted fit, as used below, is the exact test of the
+question actually being asked.
+
 There is a wrinkle a straightforward call does not handle. A mixture
 model’s classes are not identified independently across separate fits:
 nothing pins “class 1” to the same substantive group of respondents from

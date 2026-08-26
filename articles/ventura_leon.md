@@ -1,4 +1,4 @@
-# Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome
+# Infidelity Behavior Patterns: LCA with Covariates
 
 ``` r
 
@@ -337,72 +337,12 @@ whenever classes are related to external variables: the “obvious”
 approach of classifying and then testing is only valid when
 classification is (almost) perfect, which is rarely true in practice.
 
-## A distal outcome: mean age by class
-
-Covariates ask “who ends up in which class?”. The complementary question
-— “how do the classes differ on some outcome?” — is a *distal outcome*
-analysis, and it reuses the same fitted model through
-[`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md).
-Here we describe the classes by their mean age (the BCH correction is
-the default for a continuous outcome; Bakk & Vermunt, 2016). Age already
-entered the model as a covariate above, so treating it as a distal
-outcome too does not answer a substantively new question — we reuse it
-purely because it is a continuous variable already at hand, to keep the
-example self-contained; a real distal-outcome analysis would pick a
-variable the classes are actually expected to predict.
-
-``` r
-
-fit_age <- add_outcome(fit, ventura_leon$age)
-#> Outcome treated as continuous (set `outcome_type` to override).
-#> Using 'BCH' bias correction (set `correction` to override).
-age_results <- summary(fit_age)
-#> =========================================================
-#>              STRUCTURAL MODEL SUMMARY                    
-#> =========================================================
-#> 
-#> CONTINUOUS DISTAL OUTCOME (MEANS)
-#> ---------------------------------------------------------
-#> 
-#> Omnibus test (class differences): Wald chi^2(3) = 17.84, p  < .001
-#> 
-#>                  Mean       [95% CI]        SE
-#>   Class 1       25.235  [24.181, 26.289]     0.538
-#>   Class 2       23.142  [22.007, 24.276]     0.579
-#>   Class 3       27.554  [25.329, 29.780]     1.135
-#>   Class 4       27.148  [24.897, 29.398]     1.148
-#> 
-#> Pairwise class differences:
-#>                     Difference       [95% CI]        P-Value
-#>   Class 2 vs 1        -2.093  [-3.717, -0.469]     0.012
-#>   Class 3 vs 1         2.319  [-0.143,  4.781]     0.065
-#>   Class 4 vs 1         1.913  [-0.568,  4.393]     0.131
-#>   Class 3 vs 2         4.412  [ 1.910,  6.914]    < .001
-#>   Class 4 vs 2         4.006  [ 1.426,  6.586]     0.002
-#>   Class 4 vs 3        -0.407  [-3.572,  2.759]     0.801
-#> =========================================================
-age_results$outcome$means
-#>   class     mean        se    lower    upper
-#> 1     1 25.23505 0.5377852 24.18099 26.28911
-#> 2     2 23.14177 0.5788384 22.00725 24.27630
-#> 3     3 27.55414 1.1354995 25.32856 29.77972
-#> 4     4 27.14763 1.1481233 24.89731 29.39795
-```
-
-The omnibus Wald test in the printed output asks whether the class means
-differ at all, before the per-class table is read.
-
 ## References
 
 Bakk, Z., Oberski, D. L., & Vermunt, J. K. (2014). Relating latent class
 assignments to external variables: Standard errors for correct
 inference. *Political Analysis*, *22*(4), 520–540.
 <https://doi.org/10.1093/pan/mpu003>
-
-Bakk, Z., & Vermunt, J. K. (2016). Robustness of stepwise latent class
-modeling with continuous distal outcomes. *Structural Equation
-Modeling*, *23*(1), 20–31.
-<https://doi.org/10.1080/10705511.2014.955104>
 
 Ventura-León, J., Reyes, A., Valencia, P. D., Tocto-Muñoz, S.,
 Gamboa-Melgar, G., Ruiz-Castro, J., & Lino-Cruz, C. (2025). Exploring

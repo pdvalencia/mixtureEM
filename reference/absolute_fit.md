@@ -41,7 +41,8 @@ An object of class `absolute_fit` with elements `g2`, `x2`,
 statistics do not apply. With missing data, also `g2_mcar`, `x2_mcar`,
 `cressie_read_mcar`, `df_mcar` and `p_value_mcar` for the block computed
 under MCAR, `ll_sat` for the saturated model's log-likelihood, and
-`mar = TRUE`.
+`mar = TRUE`. For a multiple-group measurement fit, also `n_groups` and
+`by_group`, a data frame of each group's own `g2`/`x2`/`cressie_read`.
 
 ## Missing data
 
@@ -61,6 +62,24 @@ to test that assumption on its own. This can be slow, or refused
 outright, once the number of indicator categories crossed together grows
 large – the same \\W\\ that already makes the complete-data table
 sparse.
+
+## Multiple-group fits
+
+For a `group_effects = "measurement"` fit, the model is \\P(y \mid
+\mathrm{group})\\, so the saturated comparison is one \\W\\ -cell table
+*per group*, not one \\W\\-cell table for the pooled data: \\df =
+Q(W - 1) - P\\ for \\Q\\ groups, and the statistics are the sum of each
+group's own. The per-group breakdown is returned in `$by_group`. As with
+the missing-data statistics, this is a within-package diagnostic: do not
+compare its level to another program's single-model goodness of fit,
+which under missing data can disagree with this one by more than a
+factor of two on the very same fit even though the two agree on
+everything that can be compared – the log-likelihood and every
+likelihood-ratio test built from it. `group_effects = "both"` instead
+attaches a covariate structural model for the prevalence effect and is
+refused as any conditional model is; refit with
+`group_effects = "measurement"` to check the measurement side on its
+own.
 
 ## References
 
