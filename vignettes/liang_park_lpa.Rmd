@@ -22,8 +22,8 @@ library(mixtureEM)
 
 ## What this dataset is
 
-`liang_ark_sim` is simulated data. It is drawn from the published parameters
-of Liang and Ark's Study 2 three-class latent profile solution, not from
+`liang_park_sim` is simulated data. It is drawn from the published parameters
+of Liang and Park's Study 2 three-class latent profile solution, not from
 actual survey responses, and it contains no real bystander accounts. Fit
 statistics, standard errors and p-values computed on it below are properties
 of this simulated dataset, not of Liang and Park's study, and should not be
@@ -42,8 +42,8 @@ until the very end, fitting the model exactly as an applied researcher
 would on real data.
 
 ```{r data}
-data(liang_ark_sim)
-str(liang_ark_sim)
+data(liang_park_sim)
+str(liang_park_sim)
 ```
 
 The five latent profile indicators are bystander actions in response to
@@ -58,7 +58,7 @@ Equal (class-invariant) variances first — this is what the original study
 fitted and what `fit_mixture()` defaults to.
 
 ```{r enumerate, cache = TRUE}
-ind <- liang_ark_sim[, c("confront", "distract", "support", "report", "discuss")]
+ind <- liang_park_sim[, c("confront", "distract", "support", "report", "discuss")]
 set.seed(1)
 comp <- compare_mixtures(ind, k_range = 1:5, measurement = "continuous",
                          variances_equal = TRUE, n_init = 20)
@@ -134,7 +134,7 @@ covs <- add_covariates(
   fit,
   ~ age + male + sh_experience + org_intolerance_sh + masc_job_context +
     anger + empathy + curb_expectancy,
-  data = liang_ark_sim
+  data = liang_park_sim
 )
 summary(covs)
 ```
@@ -159,11 +159,11 @@ significant there and their signs here are noise.
 ## What follows from the profile? (distal outcomes)
 
 ```{r outcomes, cache = TRUE}
-summary(add_outcome(fit, liang_ark_sim$harasser_aggression,
+summary(add_outcome(fit, liang_park_sim$harasser_aggression,
                     outcome_type = "continuous"))
-summary(add_outcome(fit, liang_ark_sim$target_gratitude,
+summary(add_outcome(fit, liang_park_sim$target_gratitude,
                     outcome_type = "continuous"))
-summary(add_outcome(fit, liang_ark_sim$third_party_elevation,
+summary(add_outcome(fit, liang_park_sim$third_party_elevation,
                     outcome_type = "continuous"))
 ```
 
@@ -180,7 +180,7 @@ error in step three is already accounted for.
 ## A closing check the reader could not do with real data
 
 ```{r recovery}
-table(class_assignments(fit), liang_ark_sim$class_true)
+table(class_assignments(fit), liang_park_sim$class_true)
 ```
 
 About 85% of cases are assigned to the profile they were actually
