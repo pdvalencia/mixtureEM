@@ -413,7 +413,8 @@ test_that("group_prevalence_equal can recover a class genuinely pinned across gr
   # The frozen share the best-fitting restriction settled on should sit near
   # the true pinned value (.30 in every group), not merely be internally
   # self-consistent.
-  frozen_share <- fits_frozen[[best]]$sm$parameters$gamma[1, best]
+  best_fit     <- fits_frozen[[best]]
+  frozen_share <- best_fit$sm$parameters$gamma[1, best_fit$sm$frozen]
   expect_lt(abs(frozen_share - 0.30), 0.05)
 })
 

@@ -1,5 +1,20 @@
 # mixtureEM (development version)
 
+## Fixed: `class_sizes()` reported a `group_prevalence_equal` fit's per-group class sizes against the wrong classes
+
+`class_sizes()` reported a `group_prevalence_equal` fit's per-group class
+sizes against the wrong classes. The `G x K` matrix of per-group class
+probabilities is indexed by class on its columns rather than its rows, and
+the routine that sorts a fitted model's classes by size permuted every other
+structural parameter but not that one, so the per-group breakdown, the stored
+matrix and the record of which class was restricted were all left in the
+pre-sort labelling while the item parameters and posteriors moved. No
+log-likelihood, parameter count or likelihood-ratio test is affected --- the
+sort runs after fitting and only relabels --- but which class each per-group
+figure belonged to was wrong whenever the classes did not already happen to be
+in size order. Fits made through the ordinary `group_effects = "prevalence"`
+route were never affected.
+
 ## Fixed: `absolute_fit()` and `bivariate_residuals()` on a `group_effects = "measurement"` fit
 
 Both statistics used to be computed over the padded J*Q item matrix a
@@ -155,7 +170,7 @@ multiple-group latent class analysis with a measurement-invariance test --
 now live in the two new vignettes described below. This is a breaking
 change for any code that calls `data(janousch)`.
 
-## Added: `liang_ark_sim`, simulated bystander-intervention data
+## Added: `liang_park_sim`, simulated bystander-intervention data
 
 A new bundled dataset with 300 cases, five continuous latent profile
 indicators, eight covariates and three continuous distal outcomes. It is
@@ -165,8 +180,8 @@ on it describe the simulation, not new empirical findings.
 
 ## Added: two vignettes
 
-`vignette("liang_ark_lpa")` walks through a full latent profile analysis on
-`liang_ark_sim`: class enumeration, what happens when class-specific
+`vignette("liang_park_lpa")` walks through a full latent profile analysis on
+`liang_park_sim`: class enumeration, what happens when class-specific
 variances are freed and collapse, the three-profile solution, covariates,
 and distal outcomes. `vignette("mglca_yrbs")` fits a multiple-group latent
 class analysis on the bundled `yrbs2005` data grouped by grade, testing
