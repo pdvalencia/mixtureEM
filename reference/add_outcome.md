@@ -96,7 +96,8 @@ add_outcome(
 
   Optional data frame to take the variables from, in which case
   `outcome` may be a one-sided formula naming one column (`~ bmi`), and
-  `covariates` a one-sided formula or a vector of column names.
+  `covariates` a one-sided formula (interactions included, e.g.
+  `~ age * sex`) or a vector of column names.
 
 - ...:
 

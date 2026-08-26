@@ -55,6 +55,11 @@ compare_mixtures(
   matrix, `"robust"` for the variant that substitutes the sandwich
   covariance, or `"both"`. See Details for why it is off by default.
 
+- n_cores:
+
+  Positive integer. Number of processes to spread the random starts
+  over, within each K. Default `1` (sequential).
+
 - ...:
 
   Additional arguments passed to

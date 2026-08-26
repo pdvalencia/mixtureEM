@@ -119,8 +119,11 @@ whose classes were assigned that way.</p></dd>
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>Optional data frame to take the covariates from, in which case
-<code>predictors</code> may be a one-sided formula (<code>~ age + sex</code>) or a vector of
-column names instead of the columns themselves.</p></dd>
+<code>predictors</code> may be a one-sided formula (<code>~ age + sex</code>, or <code>~ age * sex</code>
+for an interaction) or a vector of column names instead of the columns
+themselves. A formula's terms – a factor's dummies, an interaction's
+several columns – are recognised as one term by the omnibus Wald test in
+<code><a href="analytical_wald_test.html">analytical_wald_test()</a></code>.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>

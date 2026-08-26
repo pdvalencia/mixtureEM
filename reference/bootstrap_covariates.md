@@ -45,6 +45,11 @@ bootstrap_covariates(
 
   Positive integer. Number of bootstrap replications. Default is `100`.
 
+- n_cores:
+
+  Positive integer. Number of processes to spread the bootstrap
+  replicates over. Default `1` (sequential).
+
 - random_state:
 
   Integer seed for reproducibility. Default is `123`.

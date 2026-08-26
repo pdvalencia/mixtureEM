@@ -68,6 +68,7 @@ by the classes.</p>
 <span>  n_classes <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  <span class="va">measurement</span>,</span>
 <span>  predictors <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  data <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  outcome <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  outcome_covariates <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  outcome_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"continuous"</span>, <span class="st">"categorical"</span><span class="op">)</span>,</span>
@@ -149,7 +150,19 @@ class, and needs non-negative integers.</p></dd>
 <dt id="arg-predictors">predictors<a class="anchor" aria-label="anchor" href="#arg-predictors"></a></dt>
 <dd><p>Optional covariates that predict latent class membership.
 Supplying this fits a class-membership regression (the "predict class"
-structural model). Mutually exclusive with <code>outcome</code>.</p></dd>
+structural model). Mutually exclusive with <code>outcome</code>. Besides a
+matrix, data frame, or bare vector, <code>predictors</code> can be a one-sided
+formula (e.g. <code>~ grade * factor(year)</code>) evaluated against
+<code>data</code>; a factor's dummies and an interaction's several columns are
+then recognised as one term by <code><a href="analytical_wald_test.html">analytical_wald_test</a></code>'s
+omnibus test, which a hand-built <code><a href="https://rdrr.io/r/stats/model.matrix.html" class="external-link">model.matrix()</a></code> cannot offer (see
+<code>group</code>, below, for why a hand-built matrix is sometimes needed
+anyway).</p></dd>
+
+
+<dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
+<dd><p>Data frame that a formula <code>predictors</code> is evaluated
+against. Ignored unless <code>predictors</code> is a formula.</p></dd>
 
 
 <dt id="arg-outcome">outcome<a class="anchor" aria-label="anchor" href="#arg-outcome"></a></dt>
@@ -188,17 +201,17 @@ themselves; see <code>group_effects</code>.</p>
 <p><strong>A covariate whose effect on class membership differs by group</strong>
 – moderation, not just adjustment – does not need <code>group</code> at all:
 build the interaction into <code>predictors</code> directly, e.g.
-<code>predictors = model.matrix(~ grade * factor(year))[, -1]</code> handed to
-<code>fit_mixture()</code> in place of a plain covariate matrix. Leave
+<code>predictors = ~ grade * factor(year), data = df</code>. Leave
 <code>group</code> unset for this (or use
 <code>group_effects = "measurement"</code> if the item parameters should also
 be free by group): a <code>"prevalence"</code> or <code>"both"</code> group effect
 appends the group's own design to <code>predictors</code> internally, so the
-group columns would then appear twice. A covariate matrix built this way
-also carries none of the column-to-variable bookkeeping a data-frame
-<code>predictors</code> does, so functions like <code><a href="analytical_wald_test.html">analytical_wald_test</a></code> need
-the individual interaction column names rather than a single variable
-name.</p></dd>
+group columns would then appear twice. A covariate matrix built by hand
+instead (<code>model.matrix(~ grade * factor(year))[, -1]</code>) works the
+same way but carries none of the column-to-variable bookkeeping the
+formula spelling does, so functions like
+<code><a href="analytical_wald_test.html">analytical_wald_test</a></code> would need the individual interaction
+column names rather than a single variable name.</p></dd>
 
 
 <dt id="arg-group-effects">group_effects<a class="anchor" aria-label="anchor" href="#arg-group-effects"></a></dt>
@@ -238,7 +251,12 @@ the invariance literature actually compares against.</p></dd>
 <dd><p>Item indices or names held equal across
 groups even when <code>group_effects</code> frees the measurement model
 (Collins &amp; Lanza's partial-invariance models, sec. 5.9). <code>NULL</code>
-(the default) leaves every item free, i.e. a fully configural model.</p></dd>
+(the default) leaves every item free, i.e. a fully configural model.
+Works with a mixed (<code>list</code>) <code>measurement</code> too; naming an item
+by its column name is unaffected, but naming it by integer position must
+use the position after <code>measurement</code> regroups columns by type (the
+order <code>fit_mixture()</code>'s own <code>measurement</code> <code>list</code> names them
+in), not the original column order.</p></dd>
 
 
 <dt id="arg-group-invariant-params">group_invariant_params<a class="anchor" aria-label="anchor" href="#arg-group-invariant-params"></a></dt>

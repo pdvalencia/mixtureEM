@@ -14,6 +14,7 @@ fit_mixture(
   n_classes = 2,
   measurement,
   predictors = NULL,
+  data = NULL,
   outcome = NULL,
   outcome_covariates = NULL,
   outcome_type = c("auto", "continuous", "categorical"),
@@ -98,7 +99,21 @@ fit_mixture(
 
   Optional covariates that predict latent class membership. Supplying
   this fits a class-membership regression (the "predict class"
-  structural model). Mutually exclusive with `outcome`.
+  structural model). Mutually exclusive with `outcome`. Besides a
+  matrix, data frame, or bare vector, `predictors` can be a one-sided
+  formula (e.g. `~ grade * factor(year)`) evaluated against `data`; a
+  factor's dummies and an interaction's several columns are then
+  recognised as one term by
+  [`analytical_wald_test`](https://pdvalencia.github.io/mixtureEM/reference/analytical_wald_test.md)'s
+  omnibus test, which a hand-built
+  [`model.matrix()`](https://rdrr.io/r/stats/model.matrix.html) cannot
+  offer (see `group`, below, for why a hand-built matrix is sometimes
+  needed anyway).
+
+- data:
+
+  Data frame that a formula `predictors` is evaluated against. Ignored
+  unless `predictors` is a formula.
 
 - outcome:
 
@@ -136,17 +151,18 @@ fit_mixture(
   **A covariate whose effect on class membership differs by group** –
   moderation, not just adjustment – does not need `group` at all: build
   the interaction into `predictors` directly, e.g.
-  `predictors = model.matrix(~ grade * factor(year))[, -1]` handed to
-  `fit_mixture()` in place of a plain covariate matrix. Leave `group`
-  unset for this (or use `group_effects = "measurement"` if the item
+  `predictors = ~ grade * factor(year), data = df`. Leave `group` unset
+  for this (or use `group_effects = "measurement"` if the item
   parameters should also be free by group): a `"prevalence"` or `"both"`
   group effect appends the group's own design to `predictors`
   internally, so the group columns would then appear twice. A covariate
-  matrix built this way also carries none of the column-to-variable
-  bookkeeping a data-frame `predictors` does, so functions like
+  matrix built by hand instead
+  (`model.matrix(~ grade * factor(year))[, -1]`) works the same way but
+  carries none of the column-to-variable bookkeeping the formula
+  spelling does, so functions like
   [`analytical_wald_test`](https://pdvalencia.github.io/mixtureEM/reference/analytical_wald_test.md)
-  need the individual interaction column names rather than a single
-  variable name.
+  would need the individual interaction column names rather than a
+  single variable name.
 
 - group_effects:
 
@@ -191,7 +207,12 @@ fit_mixture(
   Item indices or names held equal across groups even when
   `group_effects` frees the measurement model (Collins & Lanza's
   partial-invariance models, sec. 5.9). `NULL` (the default) leaves
-  every item free, i.e. a fully configural model.
+  every item free, i.e. a fully configural model. Works with a mixed
+  (`list`) `measurement` too; naming an item by its column name is
+  unaffected, but naming it by integer position must use the position
+  after `measurement` regroups columns by type (the order
+  `fit_mixture()`'s own `measurement` `list` names them in), not the
+  original column order.
 
 - group_invariant_params:
 

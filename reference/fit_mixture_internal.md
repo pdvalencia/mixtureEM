@@ -168,6 +168,11 @@ fit_mixture_internal(
   for the differences and when they matter. Ignored for other structural
   models and for `n_steps = 1`.
 
+- n_cores:
+
+  Positive integer. Number of processes to spread the random starts
+  over. Default `1` (sequential).
+
 - ...:
 
   Additional arguments passed to the measurement or structural model

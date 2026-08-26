@@ -2,6 +2,80 @@
 
 ## mixtureEM (development version)
 
+### Fixed: `n_cores` was undocumented on four entry points
+
+`n_cores` was added to
+[`bivariate_residuals()`](https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.md),
+[`bootstrap_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/bootstrap_covariates.md),
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+and
+[`fit_mixture_internal()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture_internal.md)
+when parallel restarts landed, but the `@param` block was only written
+for two of the six functions that gained the argument. `R CMD check`
+flagged the other four as an `Rd \usage sections` warning. All four now
+document what `n_cores` spreads across for that function (bootstrap
+replicates or random starts). No code changed and no fitted number
+moves.
+
+### Added: partial measurement invariance across groups now works with mixed-type indicators
+
+`group_invariant_items` (and the corresponding partial invariance in
+[`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md)/[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md))
+used to refuse a mixed (list) `measurement` outright rather than risk
+it: the item-to-column bookkeeping and the parameter count both assumed
+every item cost the same, which is only true when every item is the same
+type. Both now resolve an item to its own sub-model first, so a
+partially-invariant model can mix binary and categorical (or continuous)
+indicators freely, and a fit’s `n_params` counts each item’s own
+parameter cost rather than an average across types. No
+previously-reachable fitted number moves.
+
+### Changed: `fit_lta()` now warns when `bayes_constants$latent` is set
+
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+has always accepted all four `bayes_constants` names, but the
+initial-status and transition priors are governed by the separate
+`smoothing` argument, and `latent` was silently ignored. A user
+translating another program’s single four-way prior specification could
+set it and lose a quarter of it without a word.
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+now warns when `latent` is present in the list, naming `smoothing` as
+the argument that actually does the job. No fitted value moves.
+
+### Added: a formula `predictors`, with `data`
+
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+gains a `data` argument, and `predictors` can now be a one-sided formula
+(`~ age + sex`, or `~ grade * factor(year)` for an interaction)
+evaluated against it, the same spelling
+[`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md)
+and
+[`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md)
+already accept. A factor’s dummies and an interaction’s several columns
+are recognised as one term by
+[`analytical_wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/analytical_wald_test.md)’s
+omnibus test – exactly the bookkeeping a hand-built
+`model.matrix(...)[, -1]` cannot carry, which is what the documentation
+used to recommend for a covariate whose effect on class membership is
+moderated by another variable.
+[`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md)
+and
+[`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md)’s
+existing formula support is upgraded the same way: an interaction named
+in the formula is now actually expanded and grouped, rather than only
+its main-effect variables being extracted.
+
+### Changed: `print()` now points to `ll_knownclass` for a `group=` fit
+
+A fit with a grouping variable has always carried
+`metrics$ll_knownclass` and `metrics$n_params_knownclass` – the
+log-likelihood and parameter count on the scale software that treats the
+group as an observed-without-error class would report – but nothing in
+the printed output said so, and the printed `Log-Likelihood` is on the
+other scale. [`print()`](https://rdrr.io/r/base/print.html) now adds one
+line naming both when they are present. No printed or fitted number
+moves otherwise.
+
 ### Faster: the E-step no longer walks the sample a case at a time
 
 The E-step normalised its log-likelihoods with a row-wise

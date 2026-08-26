@@ -69,8 +69,12 @@ add_covariates(
 - data:
 
   Optional data frame to take the covariates from, in which case
-  `predictors` may be a one-sided formula (`~ age + sex`) or a vector of
-  column names instead of the columns themselves.
+  `predictors` may be a one-sided formula (`~ age + sex`, or
+  `~ age * sex` for an interaction) or a vector of column names instead
+  of the columns themselves. A formula's terms – a factor's dummies, an
+  interaction's several columns – are recognised as one term by the
+  omnibus Wald test in
+  [`analytical_wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/analytical_wald_test.md).
 
 - ...:
 

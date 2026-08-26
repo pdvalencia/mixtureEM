@@ -60,6 +60,11 @@ bivariate_residuals(
   the final refinement step, since a replicate needs a residual rather
   than polished estimates.
 
+- n_cores:
+
+  Positive integer. Number of processes to spread the bootstrap
+  replicates over. Default `1` (sequential).
+
 - verbose:
 
   Report bootstrap progress.

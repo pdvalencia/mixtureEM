@@ -66,6 +66,7 @@ m_free
 #>   SABIC          : 96548.90
 #>   Rel. Entropy   : 0.8046
 #>   Best solution  : found by 6 of 20 starts
+#>   (Comparing with software that counts the grouping variable's own proportions? Use metrics$ll_knownclass = -67215.74 and metrics$n_params_knownclass = 79.)
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 66.06%
