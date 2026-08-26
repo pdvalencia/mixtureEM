@@ -619,6 +619,8 @@ print.mcar_test <- function(x, ...) {
 #' @param n_init_boot Random starts per bootstrap replicate. Replicates are
 #'   refit without the final refinement step, since a replicate needs a
 #'   residual rather than polished estimates.
+#' @param n_cores Positive integer. Number of processes to spread the
+#'   bootstrap replicates over. Default \code{1} (sequential).
 #' @param verbose Report bootstrap progress.
 #' @return For categorical indicators, an object of class
 #'   `bivariate_residuals`: a lower-triangular indicator-by-indicator matrix,

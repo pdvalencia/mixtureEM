@@ -28,6 +28,9 @@ measurement model.}
 refit without the final refinement step, since a replicate needs a
 residual rather than polished estimates.}
 
+\item{n_cores}{Positive integer. Number of processes to spread the
+bootstrap replicates over. Default \code{1} (sequential).}
+
 \item{verbose}{Report bootstrap progress.}
 }
 \value{

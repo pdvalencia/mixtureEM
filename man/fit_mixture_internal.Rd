@@ -125,6 +125,9 @@ step-3 observed information alone. See \code{\link{covariate_se}} for the
 differences and when they matter. Ignored for other structural models and
 for \code{n_steps = 1}.}
 
+\item{n_cores}{Positive integer. Number of processes to spread the random
+starts over. Default \code{1} (sequential).}
+
 \item{...}{Additional arguments passed to the measurement or structural
 model constructors (e.g., \code{max_val} for multinoulli models).}
 }

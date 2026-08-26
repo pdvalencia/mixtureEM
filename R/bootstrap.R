@@ -108,6 +108,8 @@ align_classes <- function(orig_mat, boot_mat) {
 #'   \code{model_state}.
 #' @param n_reps Positive integer. Number of bootstrap replications.
 #'   Default is \code{100}.
+#' @param n_cores Positive integer. Number of processes to spread the
+#'   bootstrap replicates over. Default \code{1} (sequential).
 #' @param random_state Integer seed for reproducibility. Default is \code{123}.
 #' @param ref_class Integer. Reference class for centering bootstrap betas.
 #'   Should match the \code{ref_class} used in subsequent calls to
