@@ -89,7 +89,7 @@ covariate analysis is design-based too: the standard errors below are
 linearized (sandwich) estimates that respect the strata and clusters.
 
 ```{r covariates, cache = TRUE}
-fit_cov <- add_covariates(fit, yrbs2005[, c("grade", "sex")])
+fit_cov <- add_covariates(fit, yrbs2005[, "sex", drop = FALSE])
 results <- summary(fit_cov)
 ```
 
