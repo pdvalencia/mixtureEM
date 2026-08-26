@@ -146,11 +146,11 @@ summary(fit_cov)
 | Analysis | Function | Worked example |
 |----|----|----|
 | Latent class analysis (binary / categorical / count items) | `fit_mixture()` | [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html) |
-| Latent profile analysis (continuous items), class enumeration, covariates and distal outcomes | `fit_mixture()` | [`liang_ark_lpa`](https://pdvalencia.github.io/mixtureEM/articles/liang_ark_lpa.html) |
+| Latent profile analysis (continuous items), class enumeration, covariates and distal outcomes | `fit_mixture()` | [`liang_park_lpa`](https://pdvalencia.github.io/mixtureEM/articles/liang_park_lpa.html) |
 | Multiple-group LCA: do the classes mean the same thing in every group before comparing their prevalences? | `fit_mixture(group = )` | [`mglca_yrbs`](https://pdvalencia.github.io/mixtureEM/articles/mglca_yrbs.html) |
 | Choosing the number of classes (ICs, BLRT, fit diagnostics) | `compare_mixtures()`, `blrt()` | [`class_enumeration`](https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.html) |
 | Predictors of class membership (3-step ML) | `add_covariates()` | [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html) |
-| Distal outcomes (BCH / ML) | `add_outcome()` | [`liang_ark_lpa`](https://pdvalencia.github.io/mixtureEM/articles/liang_ark_lpa.html) |
+| Distal outcomes (BCH / ML) | `add_outcome()` | [`liang_park_lpa`](https://pdvalencia.github.io/mixtureEM/articles/liang_park_lpa.html) |
 | Repeated-measures LCA: trajectory classes over time, e.g. “Stable Low”, “Escalating”, “Persistent” | `fit_rmlca()` | [`rmlca`](https://pdvalencia.github.io/mixtureEM/articles/rmlca.html) |
 | Latent transition analysis, mover-stayer models: if someone is Depressed at Wave 1, what is the probability they are Not Depressed at Wave 2? | `fit_lta()` | [`lta`](https://pdvalencia.github.io/mixtureEM/articles/lta.html) |
 | Latent class growth analysis, growth mixture models | `fit_lcga()`, `fit_gmm()` | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |

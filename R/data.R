@@ -130,12 +130,12 @@
 #'   the package vignette are checked against.
 "ventura_leon"
 
-#' Simulated bystander intervention data (Liang & Ark, Study 2 analogue)
+#' Simulated bystander intervention data (Liang & Park, Study 2 analogue)
 #'
 #' @description
 #' **Synthetic data.** This dataset contains no real participant responses. It
 #' is drawn from the estimated parameters of the published three-class latent
-#' profile solution in Liang and Ark's Study 2, so that the analysis can be
+#' profile solution in Liang and Park's Study 2, so that the analysis can be
 #' taught reproducibly. The authors' original data are not redistributed here.
 #'
 #' Five bystander-action indicators define three profiles: a *supportive-only*
@@ -193,27 +193,29 @@
 #' from a correctly specified model. Covariate-to-class logits are approximate
 #' rather than exact; the indicators are independent of the covariates and
 #' outcomes within class; item-level variables are not simulated. See
-#' \code{vignette("liang_ark_lpa")}.
+#' \code{vignette("liang_park_lpa")}.
 #'
 #' @source Simulated from the estimated three-class solution reported in
-#'   Liang & Ark, *A spectrum of bystander actions: Latent profile analysis of
-#'   sexual harassment intervention*. The generator and the full
-#'   generating-parameter tables are not distributed with the package.
+#'   Liang, Y., & Park, Y. (2025). A spectrum of bystander actions: Latent
+#'   profile analysis of sexual harassment intervention behavior at work.
+#'   \emph{Journal of Applied Psychology}. Advance online publication.
+#'   \doi{10.1037/apl0001280}. The generator and the full generating-parameter
+#'   tables are not distributed with the package.
 #'
 #' @examples
-#' data(liang_ark_sim)
+#' data(liang_park_sim)
 #'
 #' # The three profiles
 #' aggregate(
 #'   cbind(confront, distract, support, report, discuss) ~ class_true,
-#'   data = liang_ark_sim, FUN = mean
+#'   data = liang_park_sim, FUN = mean
 #' )
 #'
 #' \donttest{
 #' # Blind recovery: free means, equal diagonal variances (as fitted originally)
 #' ind <- c("confront", "distract", "support", "report", "discuss")
-#' fit <- fit_mixture(liang_ark_sim[, ind], n_classes = 3,
+#' fit <- fit_mixture(liang_park_sim[, ind], n_classes = 3,
 #'                    measurement = "continuous", n_init = 10)
-#' table(class_assignments(fit), liang_ark_sim$class_true)
+#' table(class_assignments(fit), liang_park_sim$class_true)
 #' }
-"liang_ark_sim"
+"liang_park_sim"
