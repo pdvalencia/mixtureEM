@@ -27,6 +27,9 @@ structural model (fitted with \code{structural = "covariate"}).}
 \item{n_reps}{Positive integer. Number of bootstrap replications.
 Default is \code{100}.}
 
+\item{n_cores}{Positive integer. Number of processes to spread the
+bootstrap replicates over. Default \code{1} (sequential).}
+
 \item{random_state}{Integer seed for reproducibility. Default is \code{123}.}
 
 \item{ref_class}{Integer. Reference class for centering bootstrap betas.

@@ -1857,6 +1857,8 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   step-3 observed information alone. See \code{\link{covariate_se}} for the
 #'   differences and when they matter. Ignored for other structural models and
 #'   for \code{n_steps = 1}.
+#' @param n_cores Positive integer. Number of processes to spread the random
+#'   starts over. Default \code{1} (sequential).
 #' @param ... Additional arguments passed to the measurement or structural
 #'   model constructors (e.g., \code{max_val} for multinoulli models).
 #'
@@ -3531,6 +3533,8 @@ print.mixture_model <- function(x, ...) {
 #'   \code{"standard"} for Vuong's own formulae on the ordinary covariance
 #'   matrix, \code{"robust"} for the variant that substitutes the sandwich
 #'   covariance, or \code{"both"}. See Details for why it is off by default.
+#' @param n_cores Positive integer. Number of processes to spread the random
+#'   starts over, within each K. Default \code{1} (sequential).
 #' @param ... Additional arguments passed to \code{\link{fit_mixture}}.
 #'
 #' @return An object of class `mixture_comparison`: a named list with three

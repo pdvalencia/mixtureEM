@@ -36,6 +36,9 @@ of K against K+1 classes, and in which form: \code{"none"} (the default),
 matrix, \code{"robust"} for the variant that substitutes the sandwich
 covariance, or \code{"both"}. See Details for why it is off by default.}
 
+\item{n_cores}{Positive integer. Number of processes to spread the random
+starts over, within each K. Default \code{1} (sequential).}
+
 \item{...}{Additional arguments passed to \code{\link{fit_mixture}}.}
 }
 \value{

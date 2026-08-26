@@ -1,5 +1,15 @@
 # mixtureEM (development version)
 
+## Fixed: `n_cores` was undocumented on four entry points
+
+`n_cores` was added to `bivariate_residuals()`, `bootstrap_covariates()`,
+`compare_mixtures()` and `fit_mixture_internal()` when parallel restarts
+landed, but the `@param` block was only written for two of the six functions
+that gained the argument. `R CMD check` flagged the other four as an `Rd
+\usage sections` warning. All four now document what `n_cores` spreads across
+for that function (bootstrap replicates or random starts). No code changed
+and no fitted number moves.
+
 ## Added: partial measurement invariance across groups now works with mixed-type indicators
 
 `group_invariant_items` (and the corresponding partial invariance in
