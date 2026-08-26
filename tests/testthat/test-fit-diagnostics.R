@@ -514,3 +514,142 @@ test_that("the diagnostics print without error", {
   expect_silent(plot(big, max_shade = 4))
 })
 
+# ------------------------------------------------------------------------------
+# Multiple-group (group_effects = "measurement") fits
+# ------------------------------------------------------------------------------
+#
+# A group_blocks fit pads J items into J*Q columns, one block per group
+# (R/group_blocks.R). Handed to the ordinary code unchanged, that padding
+# makes .categorical_item_probs() see J*Q distinct items and build a table of
+# prod(levels)^Q cells rather than the Q * prod(levels) the fitted model
+# (Q separate P(y | group) tables) actually implies. The fix routes a
+# group_blocks fit through its own group-aware path; these tests check the
+# result against a hand-enumerated brute force, not just that it runs.
+
+# Two groups, three binary items, two classes, item probabilities set to
+# differ by group so the fitted model is genuinely group-varying.
+.group_diag_sim <- function(n_per_group = 400, seed = 42) {
+  set.seed(seed)
+  J <- 3
+  rho <- list(
+    A = matrix(c(.8, .7, .6, .2, .3, .4), 2, J, byrow = TRUE),
+    B = matrix(c(.75, .65, .55, .25, .35, .45), 2, J, byrow = TRUE))
+  gamma <- c(.6, .4)
+  draw <- function(r) {
+    k <- sample(1:2, n_per_group, replace = TRUE, prob = gamma)
+    X <- matrix(NA_real_, n_per_group, J)
+    for (j in 1:J) X[, j] <- rbinom(n_per_group, 1, r[k, j])
+    X
+  }
+  X <- rbind(draw(rho$A), draw(rho$B))
+  colnames(X) <- paste0("y", 1:J)
+  list(X = X, group = factor(rep(c("A", "B"), each = n_per_group)))
+}
+
+# The brute-force reference: enumerate the 2^J response patterns and compute
+# each group's own model-implied probability from that group's own fitted
+# item probabilities and the (pooled) class weights, entirely independently
+# of the package's own absolute_fit() implementation.
+.group_brute_g2 <- function(fit) {
+  J <- fit$mm$n_items
+  cells <- as.matrix(expand.grid(rep(list(0:1), J)))
+  gamma <- fit$weights
+  g2_total <- 0
+  for (q in seq_along(fit$mm$models)) {
+    pis <- fit$mm$models[[q]]$parameters$pis
+    K <- nrow(pis)
+    probs <- apply(cells, 1, function(cell) {
+      sum(vapply(seq_len(K), function(k)
+        gamma[k] * prod(ifelse(cell == 1, pis[k, ], 1 - pis[k, ])),
+        numeric(1)))
+    })
+    rows <- which(as.integer(fit$group_info$factor) == q)
+    Xg <- .strip_block_prefix(fit$data[rows, .time_block_cols(q, J), drop = FALSE])
+    key_cells <- apply(cells, 1, paste, collapse = "|")
+    obs <- as.numeric(table(factor(apply(Xg, 1, paste, collapse = "|"),
+                                   levels = key_cells)))
+    exp_c <- nrow(Xg) * probs
+    g2_total <- g2_total + 2 * sum(ifelse(obs > 0, obs * log(obs / exp_c), 0))
+  }
+  g2_total
+}
+
+test_that("absolute_fit() on a group-varying measurement fit matches a hand-enumerated Q x W table", {
+  sim <- .group_diag_sim()
+  fit <- fit_mixture(sim$X, n_classes = 2, measurement = "binary",
+                     group = sim$group, group_effects = "measurement",
+                     n_steps = 1, n_init = 5, random_state = 1)
+
+  af <- absolute_fit(fit)
+  expect_s3_class(af, "absolute_fit")
+  expect_null(af$mar)   # no missing data here
+
+  W <- 2^3
+  Q <- 2L
+  expect_equal(af$n_cells, Q * W)
+  expect_equal(af$df, Q * (W - 1L) - fit$metrics$n_params)
+  expect_equal(af$g2, .group_brute_g2(fit), tolerance = 1e-8)
+
+  # The per-group breakdown sums to the total.
+  expect_equal(sum(af$by_group$g2), af$g2, tolerance = 1e-8)
+  expect_equal(nrow(af$by_group), Q)
+})
+
+test_that("the Q(W-1)-npar formula reduces to the ungrouped df at Q=1", {
+  # A pure arithmetic identity, asserted directly rather than by fitting a
+  # one-group model (`group=` always requires at least two levels): the
+  # roadmap's requirement is that the grouped formula not silently change
+  # what the ungrouped path already computes.
+  W <- 44L; npar <- 13L
+  expect_equal(1L * (W - 1L) - npar, W - npar - 1L)
+})
+
+test_that("absolute_fit() on a group-varying fit still handles missing data under MAR", {
+  sim <- .group_diag_sim(n_per_group = 500, seed = 7)
+  X <- sim$X
+  X[sample(length(X), floor(0.05 * length(X)))] <- NA
+  fit <- fit_mixture(X, n_classes = 2, measurement = "binary",
+                     group = sim$group, group_effects = "measurement",
+                     n_steps = 1, n_init = 5, random_state = 1)
+  expect_true(anyNA(fit$data))
+
+  af <- absolute_fit(fit)
+  expect_true(af$mar)
+  expect_equal(af$df, 2L * (2^3 - 1L) - fit$metrics$n_params)
+  expect_true(af$g2 >= 0)
+  expect_equal(nrow(af$by_group), 2L)
+})
+
+test_that("group_effects='both' is still refused as a conditional model, unchanged", {
+  sim <- .group_diag_sim(n_per_group = 100, seed = 3)
+  fit <- suppressWarnings(fit_mixture(
+    sim$X, n_classes = 2, measurement = "binary",
+    group = sim$group, group_effects = "both",
+    n_steps = 1, n_init = 2, random_state = 1))
+  expect_message(expect_null(absolute_fit(fit)), "covariates")
+  expect_message(expect_null(bivariate_residuals(fit)), "covariates")
+})
+
+test_that("bivariate_residuals() on a group-varying fit is J x J, in item names, not J*Q x J*Q", {
+  sim <- .group_diag_sim()
+  fit <- fit_mixture(sim$X, n_classes = 2, measurement = "binary",
+                     group = sim$group, group_effects = "measurement",
+                     n_steps = 1, n_init = 5, random_state = 1)
+
+  bvr <- bivariate_residuals(fit)
+  expect_equal(dim(bvr), c(3L, 3L))
+  expect_equal(rownames(bvr), c("y1", "y2", "y3"))
+  expect_equal(attr(bvr, "n_groups"), 2L)
+  by_group <- attr(bvr, "by_group")
+  expect_named(by_group, c("A", "B"))
+  expect_equal(dim(by_group$A), c(3L, 3L))
+
+  # The combined residual for a pair is the group-average of that pair's own
+  # chi-square, not merely their sum -- averaging is what keeps it centred
+  # near 1 the way the single-group statistic is.
+  df_pair <- 1  # two binary items: (2-1)*(2-1)
+  a <- by_group$A[2, 1] * df_pair
+  b <- by_group$B[2, 1] * df_pair
+  expect_equal(bvr[2, 1], (a + b) / (2 * df_pair))
+})
+

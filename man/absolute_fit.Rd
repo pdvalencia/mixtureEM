@@ -17,7 +17,8 @@ An object of class \code{absolute_fit} with elements \code{g2}, \code{x2},
 statistics do not apply. With missing data, also \code{g2_mcar}, \code{x2_mcar},
 \code{cressie_read_mcar}, \code{df_mcar} and \code{p_value_mcar} for the block computed
 under MCAR, \code{ll_sat} for the saturated model's log-likelihood, and
-\code{mar = TRUE}.
+\code{mar = TRUE}. For a multiple-group measurement fit, also \code{n_groups} and
+\code{by_group}, a data frame of each group's own \code{g2}/\code{x2}/\code{cressie_read}.
 }
 \description{
 Compares the observed response-pattern frequencies with those the model
@@ -50,6 +51,25 @@ underneath; use \code{\link[=mcar_test]{mcar_test()}} to test that assumption on
 can be slow, or refused outright, once the number of indicator categories
 crossed together grows large -- the same \eqn{W} that already makes the
 complete-data table sparse.
+}
+
+\section{Multiple-group fits}{
+
+For a \code{group_effects = "measurement"} fit, the model is
+\eqn{P(y \mid \mathrm{group})}, so the saturated comparison is one \eqn{W}
+-cell table \emph{per group}, not one \eqn{W}-cell table for the pooled
+data: \eqn{df = Q(W - 1) - P} for \eqn{Q} groups, and the statistics are
+the sum of each group's own. The per-group breakdown is returned in
+\verb{$by_group}. As with the missing-data statistics, this is a
+within-package diagnostic: do not compare its level to another program's
+single-model goodness of fit, which under missing data can disagree with
+this one by more than a factor of two on the very same fit even though
+the two agree on everything that can be compared -- the log-likelihood
+and every likelihood-ratio test built from it.
+\code{group_effects = "both"} instead attaches a covariate structural
+model for the prevalence effect and is refused as any conditional model
+is; refit with \code{group_effects = "measurement"} to check the
+measurement side on its own.
 }
 
 \examples{

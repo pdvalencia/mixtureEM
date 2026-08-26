@@ -1,5 +1,26 @@
 # mixtureEM (development version)
 
+## Fixed: `absolute_fit()` and `bivariate_residuals()` on a `group_effects = "measurement"` fit
+
+Both statistics used to be computed over the padded J*Q item matrix a
+multiple-group measurement fit stores internally, treating every group's
+copy of each item as a distinct item. That made the implied contingency
+table `prod(levels)^Q` cells instead of the `Q * prod(levels)` a `P(y |
+group)` model actually implies -- silently, since the wrong table is still
+a real table and the wrong `df` still produces a p-value, just the wrong
+one (an inflated `df` from the padded table understating the discrepancy
+between model and data, not a refusal). Both functions now condition on the
+group: `absolute_fit()`'s degrees of freedom are `Q(W - 1) - npar` (which is
+today's formula at `Q = 1`, so an ungrouped fit is unaffected), and
+`bivariate_residuals()` returns one item-by-item matrix combining every
+group's own pairwise chi-square rather than a mostly-`NA` matrix duplicated
+`Q` times. Both attach the per-group breakdown (`$by_group` /
+`attr(x, "by_group")`) alongside the combined statistic. `group_effects =
+"both"` fits always carry a covariate structural model for the prevalence
+effect and were, and remain, refused outright by the existing
+conditional-model check -- refit with `group_effects = "measurement"` to
+check the measurement side on its own.
+
 ## Documentation: the group-dummy Wald test and a `"categorical"` block's parameter count
 
 `?fit_mixture`'s `group_effects` argument now warns against testing "is this

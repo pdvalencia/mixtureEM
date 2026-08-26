@@ -91,6 +91,45 @@
 }
 
 # ------------------------------------------------------------------------------
+# Multiple-group (group_blocks) fits
+# ------------------------------------------------------------------------------
+#
+# A `group_effects = "measurement"` (or `"both"`) fit's data is padded into a
+# J*Q matrix, one J-column block per group, with a case's own group's block
+# populated and every other block structurally NA (R/group_blocks.R). Treating
+# that padded matrix as one ordinary W-cell table -- which is what happens if
+# `absolute_fit()`/`bivariate_residuals()` are handed it unchanged -- is wrong
+# twice over: `.categorical_item_probs()` unlists every group's block as if
+# they were J*Q distinct items, so the "table" it builds has
+# `prod(levels)^Q` cells rather than the `Q * prod(levels)` the fitted model
+# (`Q` separate `P(y | group)` tables) actually implies, and the two disagree
+# by orders of magnitude once Q > 1. `"both"` additionally always attaches a
+# covariate structural model for the prevalence effect, so it is already
+# caught by the ordinary conditional-model refusal above and never reaches
+# this branch; only `"measurement"` (pooled prevalence, group-varying items)
+# does.
+.is_group_blocks <- function(object) inherits(object$mm, "group_blocks")
+
+# One entry per group: that group's own J-column slice of the padded data
+# (never NA-padded on its own account, since a case's own block is always
+# populated), its case weights, and its own block's measurement sub-model
+# (itself `nested` for a mixed-measurement group model).
+.group_block_slices <- function(object) {
+  mm  <- object$mm
+  J   <- mm$n_items
+  Q   <- mm$n_blocks
+  g   <- as.integer(object$group_info$factor)
+  X   <- object$data
+  w   <- object$sample_weights
+  lvl <- levels(object$group_info$factor)
+  lapply(seq_len(Q), function(q) {
+    rows <- which(g == q)
+    list(X = .strip_block_prefix(X[rows, .time_block_cols(q, J), drop = FALSE]),
+         w = w[rows], mm = mm$models[[q]], label = lvl[q])
+  })
+}
+
+# ------------------------------------------------------------------------------
 # Absolute fit
 # ------------------------------------------------------------------------------
 
@@ -127,6 +166,23 @@
 #' crossed together grows large -- the same \eqn{W} that already makes the
 #' complete-data table sparse.
 #'
+#' @section Multiple-group fits:
+#' For a \code{group_effects = "measurement"} fit, the model is
+#' \eqn{P(y \mid \mathrm{group})}, so the saturated comparison is one \eqn{W}
+#' -cell table \emph{per group}, not one \eqn{W}-cell table for the pooled
+#' data: \eqn{df = Q(W - 1) - P} for \eqn{Q} groups, and the statistics are
+#' the sum of each group's own. The per-group breakdown is returned in
+#' `$by_group`. As with the missing-data statistics, this is a
+#' within-package diagnostic: do not compare its level to another program's
+#' single-model goodness of fit, which under missing data can disagree with
+#' this one by more than a factor of two on the very same fit even though
+#' the two agree on everything that can be compared -- the log-likelihood
+#' and every likelihood-ratio test built from it.
+#' \code{group_effects = "both"} instead attaches a covariate structural
+#' model for the prevalence effect and is refused as any conditional model
+#' is; refit with \code{group_effects = "measurement"} to check the
+#' measurement side on its own.
+#'
 #' @param object A model fitted by [`fit_mixture()`], [`fit_rmlca()`] or
 #'   [`fit_lta()`].
 #' @return An object of class `absolute_fit` with elements `g2`, `x2`,
@@ -135,7 +191,8 @@
 #'   statistics do not apply. With missing data, also `g2_mcar`, `x2_mcar`,
 #'   `cressie_read_mcar`, `df_mcar` and `p_value_mcar` for the block computed
 #'   under MCAR, `ll_sat` for the saturated model's log-likelihood, and
-#'   `mar = TRUE`.
+#'   `mar = TRUE`. For a multiple-group measurement fit, also `n_groups` and
+#'   `by_group`, a data frame of each group's own `g2`/`x2`/`cressie_read`.
 #' @seealso [`bivariate_residuals()`] for the local counterpart,
 #'   [`classification_table()`], [`blrt()`], [`mcar_test()`] for testing the
 #'   missingness mechanism on its own.
@@ -165,6 +222,8 @@ absolute_fit <- function(object) {
             "measurement model on its own, or use `n_steps = 3`.")
     return(NULL)
   }
+
+  if (.is_group_blocks(object)) return(.absolute_fit_grouped(object, info))
 
   levels_per_col <- .longitudinal_col_levels(info$mm, ncol(X))
   if (is.null(levels_per_col)) {
@@ -400,11 +459,150 @@ absolute_fit <- function(object) {
     class = "absolute_fit")
 }
 
+# ------------------------------------------------------------------------------
+# Absolute fit, group-aware
+# ------------------------------------------------------------------------------
+#
+# The saturated reference for a `group_effects = "measurement"` fit is the
+# Q x W table, not the W table: the fitted model is P(y | group), so the
+# comparison it implies is one W-cell saturated model per group, not one
+# W-cell model for the pooled data. `df = Q(W - 1) - npar` follows the same
+# convention `absolute_fit()` already uses (`df = W - npar - 1` there is
+# `(W - 1) - npar`, i.e. this formula at Q = 1); every group's own MAR
+# partition is scored by exactly the machinery `.absolute_fit_mar()` uses
+# (`.saturated_mar()`, `.mar_partition_stats()`), and the four statistics are
+# summed across groups because G^2, X^2, Cressie-Read and the saturated-model
+# difference are all additive over independent tables. A group with no
+# missing values still routes through the same per-pattern machinery (there
+# is then exactly one pattern, "everything observed") rather than a separate
+# fast path, because with one pattern the saturated model's own EM converges
+# to the empirical table and its contribution vanishes -- the same numbers a
+# dedicated complete-data path would give, without a second code path to keep
+# in sync.
+.absolute_fit_grouped <- function(object, info) {
+  mm <- object$mm
+  J  <- mm$n_items
+  Q  <- mm$n_blocks
+
+  slices <- .group_block_slices(object)
+  levels_per_col <- .longitudinal_col_levels(slices[[1L]]$mm, J)
+  if (is.null(levels_per_col)) {
+    message("Absolute fit requires categorical indicators throughout: there ",
+            "is no response-pattern contingency table to compare against ",
+            "once an indicator is continuous. See `bivariate_residuals()` ",
+            "for a local diagnostic that is defined for continuous ",
+            "indicators, or `blrt()` for a global test that does not need ",
+            "one.")
+    return(NULL)
+  }
+  W <- prod(levels_per_col)
+
+  # The guard `.saturated_mar()` applies per call is sized for one group's own
+  # table; the total cost here is Q such calls, so check the multiple-group
+  # total up front rather than discovering it partway through the loop.
+  n_patterns_g <- vapply(slices, function(s) nrow(unique(is.na(s$X))), integer(1))
+  if (Q * W > 1e5 || Q * W * max(n_patterns_g) > 2e7) {
+    message("Absolute fit needs the full crossing of categories, repeated ",
+            "for each of the ", Q, " groups (", W, " cells per group, ",
+            Q * W, " in total), which is too large to enumerate. Compare ",
+            "models with BIC or a likelihood-ratio test instead.")
+    return(NULL)
+  }
+
+  gamma <- .marginal_class_weights(object)
+  p     <- info$n_params
+  any_missing <- FALSE
+  totals <- list(g2_model = 0, x2_model = 0, cr_model = 0, di_model = 0,
+                 g2_sat = 0, x2_sat = 0, cr_sat = 0, s_terms = 0L,
+                 n_patterns = 0L, ll_sat = 0)
+  by_group <- vector("list", Q)
+
+  for (q in seq_len(Q)) {
+    s     <- slices[[q]]
+    items <- .fit_item_probs(s$mm, J, colnames(s$X))
+    if (anyNA(s$X)) any_missing <- TRUE
+
+    sat <- .saturated_mar(s$X, lapply(items, `[[`, "categories"), s$w)
+    if (is.null(sat)) {
+      message("Absolute fit needs the full crossing of categories (", W,
+              " cells) for group '", s$label, "', which is too large to ",
+              "enumerate. Compare models with BIC or a likelihood-ratio ",
+              "test instead.")
+      return(NULL)
+    }
+    st <- .mar_partition_stats(s$X, items, gamma, sat, s$w)
+
+    # st$n_patterns counts distinct MISSINGNESS patterns (the MCAR partition),
+    # not distinct observed response patterns -- with no missing data that is
+    # always 1 regardless of how many response patterns actually occurred, so
+    # it is the wrong number for the sparsity note the print method gives.
+    # Count response patterns directly, the way the ungrouped fast path does.
+    n_resp_patterns <- length(unique(apply(s$X, 1, paste, collapse = "\r")))
+
+    by_group[[q]] <- data.frame(
+      group = s$label, g2 = st$g2_model - st$g2_sat,
+      x2 = st$x2_model - st$x2_sat, cressie_read = st$cr_model - st$cr_sat,
+      n_patterns = n_resp_patterns, stringsAsFactors = FALSE)
+
+    totals$g2_model   <- totals$g2_model + st$g2_model
+    totals$x2_model   <- totals$x2_model + st$x2_model
+    totals$cr_model   <- totals$cr_model + st$cr_model
+    totals$di_model   <- totals$di_model + st$di_model * 2 * sum(s$w)
+    totals$g2_sat     <- totals$g2_sat + st$g2_sat
+    totals$x2_sat     <- totals$x2_sat + st$x2_sat
+    totals$cr_sat     <- totals$cr_sat + st$cr_sat
+    totals$s_terms    <- totals$s_terms + st$s_terms
+    totals$n_patterns <- totals$n_patterns + n_resp_patterns
+    totals$ll_sat     <- totals$ll_sat + sat$ll
+  }
+
+  N       <- sum(info$weights)
+  df_mar  <- Q * (W - 1L) - p
+  g2      <- totals$g2_model - totals$g2_sat
+  x2      <- totals$x2_model - totals$x2_sat
+  cr      <- totals$cr_model - totals$cr_sat
+
+  p_of <- function(stat, df)
+    if (df > 0) stats::pchisq(stat, df, lower.tail = FALSE) else NA_real_
+
+  out <- list(g2 = g2, x2 = x2, cressie_read = cr, df = df_mar,
+             p_value = p_of(g2, df_mar), p_value_x2 = p_of(x2, df_mar),
+             p_value_cressie_read = p_of(cr, df_mar),
+             dissimilarity = totals$di_model / (2 * N),
+             n_cells = Q * W, n_patterns = totals$n_patterns, n_params = p,
+             label = info$label, n_groups = Q,
+             by_group = do.call(rbind, by_group))
+
+  # The MCAR sub-block is only meaningful, and only shown, when some group
+  # actually has missing values -- otherwise every group's saturated
+  # contribution is ~0 (one pattern, "everything observed") and the block
+  # would just repeat the headline numbers under a misleading banner.
+  if (any_missing) {
+    df_mcar <- totals$s_terms - p
+    out$g2_mcar             <- totals$g2_model
+    out$x2_mcar             <- totals$x2_model
+    out$cressie_read_mcar   <- totals$cr_model
+    out$df_mcar             <- df_mcar
+    out$p_value_mcar        <- p_of(totals$g2_model, df_mcar)
+    out$ll_sat              <- totals$ll_sat
+    out$mar                 <- TRUE
+  }
+
+  structure(out, class = "absolute_fit")
+}
+
 #' @export
 print.absolute_fit <- function(x, ...) {
   cat("=========================================================\n")
   cat("                  ABSOLUTE FIT                           \n")
   cat("=========================================================\n")
+  if (!is.null(x$n_groups))
+    cat(sprintf(paste0(
+      "Multiple-group fit: %d groups, %d cells each -- see `$by_group` for ",
+      "the per-group breakdown. This is a within-package diagnostic; do ",
+      "not compare its level to another program's single-model goodness ",
+      "of fit.\n"),
+      x$n_groups, x$n_cells / x$n_groups))
   if (isTRUE(x$mar))
     cat("Missing data: statistics computed under MAR, by comparing\n",
         "the model to a saturated baseline on the same partition\n",
@@ -588,6 +786,15 @@ print.mcar_test <- function(x, ...) {
 #' the same statistic, with the same divisor, that another program reports as
 #' a bivariate residual, and the values agree closely on the same fit.
 #'
+#' For a \code{group_effects = "measurement"} fit, each pair's residual is
+#' the sum of that pair's own chi-square in every group, divided by the
+#' number of groups contributing a value times \eqn{(R_a - 1)(R_b - 1)} --
+#' the group-blocks analogue of what [`absolute_fit()`] does for the global
+#' statistic. Every group's own matrix, in the item's own names rather than
+#' the padded block layout, is attached as \code{attr(x, "by_group")}.
+#' \code{n_reps} bootstrap calibration is not yet available for this case;
+#' the uncalibrated residuals are returned with a message saying so.
+#'
 #' For a plain continuous (Gaussian) measurement model with no missing data, a
 #' different statistic is returned instead: for each item pair and class, the
 #' modification index (Sorbom, 1989) for freeing the within-class residual
@@ -629,7 +836,9 @@ print.mcar_test <- function(x, ...) {
 #'   printed beside each residual. The sum of all pairwise residuals is
 #'   attached as the `"total"` attribute and printed as "Total BVR", a single
 #'   headline number for how much local dependence the model as a whole is
-#'   carrying. For a continuous measurement model, an
+#'   carrying. For a multiple-group measurement fit, `"n_groups"` and
+#'   `"by_group"` (a named list of each group's own matrix) are attached as
+#'   well. For a continuous measurement model, an
 #'   object of class `bivariate_residuals_gaussian` holding the modification
 #'   index and expected parameter change per pair per class, the model-implied
 #'   residual covariance and correlation, and a count of pairs where the
@@ -698,6 +907,14 @@ bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10, n_cores = 
             "model-implied two-way table. Refit the measurement model on its ",
             "own, or use `n_steps = 3`.")
     return(NULL)
+  }
+
+  if (.is_group_blocks(object)) {
+    if (n_reps > 0L)
+      message("`n_reps` bootstrap calibration is not yet available for a ",
+              "multiple-group measurement model; returning the ",
+              "uncalibrated residuals.")
+    return(.bivariate_residuals_grouped(object))
   }
 
   items <- .fit_item_probs(object$mm, ncol(X), colnames(X))
@@ -774,6 +991,60 @@ bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10, n_cores = 
                             (length(ib$categories) - 1L))
   }
 
+  bvr
+}
+
+# Bivariate residuals for a group_blocks fit: each group's own pair-by-pair
+# chi-square (`.bvr_matrix()` on that group's own slice, own item
+# probabilities, and its own cases' posteriors), summed across groups the
+# same way `.absolute_fit_grouped()` sums G^2 -- the divisor grows with the
+# number of groups actually contributing a value for that pair (ordinarily
+# every group, but a pair neither item of which any case in some group
+# observed is possible under heavy missingness). This gives one J x J matrix
+# in the item's own names, not the J*Q one `.fit_item_probs()` would build
+# from the padded block layout, with the per-group matrices attached
+# separately for the "where does it come from" question.
+.bivariate_residuals_grouped <- function(object) {
+  mm <- object$mm
+  J  <- mm$n_items
+  Q  <- mm$n_blocks
+  g  <- as.integer(object$group_info$factor)
+  lvl <- levels(object$group_info$factor)
+
+  slices <- .group_block_slices(object)
+  resp_all <- exp(object$log_resp)
+
+  items1  <- .fit_item_probs(slices[[1L]]$mm, J, colnames(slices[[1L]]$X))
+  nms     <- vapply(items1, `[[`, character(1), "name")
+  df_pair <- outer(vapply(items1, function(it) length(it$categories) - 1L, integer(1)),
+                   vapply(items1, function(it) length(it$categories) - 1L, integer(1)))
+
+  chisq_total <- matrix(0, J, J)
+  n_contrib   <- matrix(0L, J, J)
+  by_group    <- vector("list", Q)
+  names(by_group) <- lvl
+
+  for (q in seq_len(Q)) {
+    s     <- slices[[q]]
+    items <- .fit_item_probs(s$mm, J, colnames(s$X))
+    rows  <- which(g == q)
+    bvr_q <- .bvr_matrix(items, s$X, s$w, resp_all[rows, , drop = FALSE])
+    dimnames(bvr_q) <- list(nms, nms)
+    by_group[[q]] <- bvr_q
+
+    ok <- !is.na(bvr_q)
+    chisq_total[ok] <- chisq_total[ok] + bvr_q[ok] * df_pair[ok]
+    n_contrib[ok]    <- n_contrib[ok] + 1L
+  }
+
+  bvr <- matrix(NA_real_, J, J, dimnames = list(nms, nms))
+  ok  <- n_contrib > 0L
+  bvr[ok] <- chisq_total[ok] / (n_contrib[ok] * df_pair[ok])
+
+  attr(bvr, "total")    <- sum(bvr, na.rm = TRUE)
+  attr(bvr, "n_groups") <- Q
+  attr(bvr, "by_group") <- by_group
+  class(bvr) <- c("bivariate_residuals", "matrix", "array")
   bvr
 }
 
@@ -862,6 +1133,11 @@ print.bivariate_residuals <- function(x, digits = 4, ...) {
   cat("               BIVARIATE RESIDUALS                       \n")
   cat("=========================================================\n")
   cat("Pearson chi-square per item pair, divided by its df.\n")
+  if (!is.null(attr(x, "n_groups")))
+    cat(sprintf(paste0("Multiple-group fit: %d groups, summed per pair -- ",
+                       "see `attr(x, \"by_group\")` for each group's own ",
+                       "matrix.\n"),
+               attr(x, "n_groups")))
   if (is.null(p)) {
     cat("Ranks which pairs strain the model. NOT a calibrated\n")
     cat("test: referred to chi-square this statistic almost\n")
