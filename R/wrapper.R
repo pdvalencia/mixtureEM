@@ -2579,6 +2579,19 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   \code{"categorical"} expects integer codes running 1, 2, 3, ...; add 1 to a
 #'   0-based item. \code{"count"} fits a Poisson model, one rate per item and
 #'   class, and needs non-negative integers.
+#'
+#'   \strong{Known issue: a single \code{"categorical"} block charges every
+#'   item the same parameter count.} It uses one \code{max_val} for the whole
+#'   block — the number of levels in whichever item has the most — so any item
+#'   with fewer levels than that maximum is still costed as if it had that
+#'   many. A block mixing a two-level item with a four-level one charges the
+#'   two-level item for four, inflating \code{n_params} and, with it, AIC and
+#'   BIC. The remedy is the mixed \code{list} spelling above: give items with
+#'   different numbers of levels their own entries — a two-level item as its
+#'   own \code{"binary"} entry, or several \code{"categorical"} entries
+#'   grouped by level count — rather than putting them all in one
+#'   \code{"categorical"} block. Per-item level counting inside a single
+#'   polytomous block is not implemented.
 #' @param predictors Optional covariates that predict latent class membership.
 #'   Supplying this fits a class-membership regression (the "predict class"
 #'   structural model). Mutually exclusive with \code{outcome}. Besides a
@@ -2654,6 +2667,15 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   parameters while holding the class sizes pooled. It answers an unusual
 #'   question and is rarely what is wanted; \code{"both"} is the configural model
 #'   the invariance literature actually compares against.
+#'
+#'   \strong{Do not test "is this class the same size in every group" with
+#'   \code{\link{analytical_wald_test}} on the group dummies.} That test
+#'   asks whether a class's log-odds relative to the reference class departs
+#'   from the reference group's — a comparison relative to the group average,
+#'   not a test that the class's probability is literally constant across
+#'   groups — and it can reach the wrong conclusion where the two disagree.
+#'   \code{group_prevalence_equal} fits the actual restriction, and
+#'   [`lr_test()`] against the unrestricted fit is the exact test of it.
 #' @section Multiple-group models:
 #' Under \code{group_effects = "both"} or \code{"measurement"} each group's item
 #' parameters are estimated from that group's own cases, so the \emph{class
