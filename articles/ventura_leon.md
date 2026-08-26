@@ -248,7 +248,7 @@ results <- summary(fit_cov)
 #>   sex.Female                       2.631  [    1.070,     6.469]     0.035
 #>   age                              0.929  [    0.863,     1.000]     0.048
 #>   sexual_orientation.Nothtrsxl     0.948  [    0.393,     2.288]     0.905
-#>   relationship_duration.Long       1.056  [    0.488,     2.287]     0.890
+#>   relationship_duration.Long       1.056  [    0.488,     2.288]     0.890
 #> 
 #> Class 3 ON
 #>   Intercept                        0.230  [    0.070,     0.753]     0.015
@@ -269,8 +269,8 @@ results <- summary(fit_cov)
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                           Wald Chi2   df  P-Value
-#>   sex                        22.971    3    < .001
-#>   age                        11.944    3     0.008
+#>   sex                        22.970    3    < .001
+#>   age                        11.943    3     0.008
 #>   sexual_orientation          6.404    3     0.094
 #>   relationship_duration       1.973    3     0.578
 #>   Note: a non-significant test beside large coefficients can be the
@@ -292,19 +292,19 @@ tables invisibly, so the odds ratios are available as a data frame:
 
 head(results$coefficients)
 #>   class                                term    estimate         se          z
-#> 1     2                           Intercept  0.48662640 0.91475043  0.5319772
-#> 2     2                          sex.Female  0.96734780 0.45899305  2.1075435
-#> 3     2                                 age -0.07369463 0.03734657 -1.9732638
-#> 4     2 sexual_orientation.Not heterosexual -0.05372910 0.44969586 -0.1194787
-#> 5     2          relationship_duration.Long  0.05461223 0.39430951  0.1385009
-#> 6     3                           Intercept -1.46794278 0.60420897 -2.4295283
+#> 1     2                           Intercept  0.48662640 0.91476753  0.5319673
+#> 2     2                          sex.Female  0.96734780 0.45900470  2.1074900
+#> 3     2                                 age -0.07369463 0.03734818 -1.9731788
+#> 4     2 sexual_orientation.Not heterosexual -0.05372910 0.44969917 -0.1194779
+#> 5     2          relationship_duration.Long  0.05461223 0.39431573  0.1384987
+#> 6     3                           Intercept -1.46794278 0.60421112 -2.4295197
 #>            p        OR   OR_lower  OR_upper
-#> 1 0.59474177 1.6268187 0.27082445 9.7721571
-#> 2 0.03507050 2.6309574 1.07006717 6.4686937
-#> 3 0.04846551 0.9289553 0.86338557 0.9995048
-#> 4 0.90489608 0.9476888 0.39253366 2.2879925
-#> 5 0.88984454 1.0561310 0.48761242 2.2874985
-#> 6 0.01511848 0.2303990 0.07049649 0.7529976
+#> 1 0.59474866 1.6268187 0.27081538 9.7724847
+#> 2 0.03507513 2.6309574 1.07004273 6.4688414
+#> 3 0.04847520 0.9289553 0.86338285 0.9995079
+#> 4 0.90489678 0.9476888 0.39253111 2.2880073
+#> 5 0.88984626 1.0561310 0.48760648 2.2875264
+#> 6 0.01511885 0.2303990 0.07049619 0.7530008
 ```
 
 Reference class 1 is Fidelity (the largest class). Reading the odds

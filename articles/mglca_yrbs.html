@@ -188,73 +188,89 @@ scale.</p>
 <span><span class="co">#&gt; [1] -67528.13</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="why-the-per-class-tests-are-not-here">Why the per-class tests are not here<a class="anchor" aria-label="anchor" href="#why-the-per-class-tests-are-not-here"></a>
+<h2 id="per-class-tests-does-this-classs-prevalence-differ-by-grade">Per-class tests: does <em>this</em> class’s prevalence differ by
+grade?<a class="anchor" aria-label="anchor" href="#per-class-tests-does-this-classs-prevalence-differ-by-grade"></a>
 </h2>
-<p>The textbook’s per-class comparisons each hold <em>one</em> class’s
-marginal probability exactly equal across grades while the other four
-float and renormalise. That is a nonlinear constraint on the softmax
-class probabilities, not a linear constraint on the underlying
-multinomial-logit coefficients, and mixtureEM — like most
-implementations — constrains the coefficients, not the probabilities
-directly. So that specific per-class test is not reproduced here.</p>
-<p>The linear alternative that <em>is</em> available answers a closely
-related question: does grade shift the log-odds of landing in a given
-class against the reference class at all? <code><a href="../reference/add_covariates.html">add_covariates()</a></code>
-provides exactly that, with an omnibus Wald test across all classes at
-once — but it needs an unconditional step-1 fit to start from, and
-<code>m_free</code> does not qualify: having been fit with
-<code>group = grade</code>, its classes already condition on grade as a
-class-membership predictor, so grade cannot be added to it a second time
-as a covariate. The fix is the same either way — fit the plain
-(ungrouped) model and add grade afterwards:</p>
+<p>The omnibus test above says prevalence differs by grade somewhere
+among the five classes, but the textbook goes further and asks the
+question separately for each class: hold Low Risk’s share fixed across
+grades while the other four float and renormalise, refit, and see how
+much likelihood that costs. Repeated five times, this reproduces the
+chapter’s Table 5.24. <code>group_prevalence_equal</code> fits exactly
+this restriction — pass it the index of the class to freeze and it holds
+that column of the per-group class probabilities to one shared value
+while the rest adjust freely.</p>
+<p>There is a wrinkle a straightforward call does not handle. A mixture
+model’s classes are not identified independently across separate fits:
+nothing pins “class 1” to the same substantive group of respondents from
+one <code><a href="../reference/fit_mixture.html">fit_mixture()</a></code> call to the next, so a search run five
+times, once per requested class, is free to relabel <em>which</em> real
+class lands in whichever slot was asked for. Left to its own devices the
+optimiser takes the escape hatch every time — it reports whichever class
+is <em>cheapest</em> to freeze, regardless of which one was requested,
+because that fit has the higher likelihood and wins the random-restart
+comparison. Running <code>group_prevalence_equal</code> directly, five
+times, mostly reproduces the same answer (the cost of freezing High
+Risk, the cheapest class) instead of five different ones.</p>
+<p>The fix is to anchor each fit to <code>m_free</code>’s own solution
+rather than searching from scratch. <code><a href="../reference/class_sizes.html">class_sizes()</a></code>’s
+<code>by_group</code> attribute gives the per-grade class probabilities
+<code>m_free</code> already settled on; seeding a fit at those values,
+plus <code>m_free</code>’s own item-response probabilities, starts EM in
+the one basin where “class k” already means the same thing it means in
+<code>m_free</code>. <code><a href="../reference/fit_mixture_internal.html">fit_mixture_internal()</a></code> (the
+lower-level engine behind <code><a href="../reference/fit_mixture.html">fit_mixture()</a></code>) takes a
+<code>warm_start</code> function for exactly this, and
+<code>n_init = 0</code> tells it to refine only from that seed rather
+than compete it against random restarts:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
-<span><span class="va">base_fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">items</span>, n_classes <span class="op">=</span> <span class="fl">5</span>, measurement <span class="op">=</span> <span class="st">"binary"</span>,</span>
-<span>                        n_init <span class="op">=</span> <span class="fl">20</span>, max_iter <span class="op">=</span> <span class="fl">2000</span><span class="op">)</span></span>
-<span><span class="va">covs</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/add_covariates.html">add_covariates</a></span><span class="op">(</span><span class="va">base_fit</span>, <span class="op">~</span> <span class="va">grade</span>, data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>grade <span class="op">=</span> <span class="va">grade</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Using 'ML' bias correction (set `correction` to override).</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">covs</span><span class="op">)</span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt;              STRUCTURAL MODEL SUMMARY                    </span></span>
-<span><span class="co">#&gt; =========================================================</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)</span></span>
-<span><span class="co">#&gt; Reference Class: 1</span></span>
-<span><span class="co">#&gt; Standard errors: Bakk-Oberski-Vermunt corrected (robust step 3, hessian step 1)</span></span>
-<span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt;                               OR         [95% CI]         P-Value</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Class 2 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.034  [    0.020,     0.058]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.10                 4.018  [    2.467,     6.544]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.11                 8.028  [    4.893,    13.173]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.12                11.636  [    7.063,    19.169]    &lt; .001</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Class 3 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.196  [    0.170,     0.227]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.10                 0.791  [    0.661,     0.945]     0.010</span></span>
-<span><span class="co">#&gt;   grade.11                 0.549  [    0.442,     0.682]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.12                 0.365  [    0.271,     0.492]    &lt; .001</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Class 4 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.075  [    0.063,     0.090]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.10                 0.996  [    0.790,     1.257]     0.976</span></span>
-<span><span class="co">#&gt;   grade.11                 1.108  [    0.879,     1.397]     0.386</span></span>
-<span><span class="co">#&gt;   grade.12                 1.233  [    0.975,     1.560]     0.080</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Class 5 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.058  [    0.042,     0.078]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.10                 0.903  [    0.643,     1.269]     0.557</span></span>
-<span><span class="co">#&gt;   grade.11                 1.159  [    0.823,     1.632]     0.399</span></span>
-<span><span class="co">#&gt;   grade.12                 1.332  [    0.924,     1.921]     0.124</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
-<span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt;                          Wald Chi2   df  P-Value</span></span>
-<span><span class="co">#&gt;   grade                    242.132   12    &lt; .001</span></span>
-<span><span class="co">#&gt;   Note: a non-significant test beside large coefficients can be the</span></span>
-<span><span class="co">#&gt;         Hauck-Donner effect; confirm with wald_omnibus_test().</span></span>
-<span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">by_group</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="fu"><a href="../reference/class_sizes.html">class_sizes</a></span><span class="op">(</span><span class="va">m_free</span><span class="op">)</span>, <span class="st">"by_group"</span><span class="op">)</span></span>
+<span><span class="va">n_grades</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/nlevels.html" class="external-link">nlevels</a></span><span class="op">(</span><span class="va">grade</span><span class="op">)</span></span>
+<span><span class="va">n_classes</span> <span class="op">&lt;-</span> <span class="fl">5</span></span>
+<span><span class="va">gamma0</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fl">0</span>, <span class="va">n_grades</span>, <span class="va">n_classes</span><span class="op">)</span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">i</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">by_group</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">gr</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/match.html" class="external-link">match</a></span><span class="op">(</span><span class="va">by_group</span><span class="op">$</span><span class="va">group</span><span class="op">[</span><span class="va">i</span><span class="op">]</span>, <span class="fu"><a href="https://rdrr.io/r/base/levels.html" class="external-link">levels</a></span><span class="op">(</span><span class="va">grade</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="va">gamma0</span><span class="op">[</span><span class="va">gr</span>, <span class="va">by_group</span><span class="op">$</span><span class="va">class</span><span class="op">[</span><span class="va">i</span><span class="op">]</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="va">by_group</span><span class="op">$</span><span class="va">proportion</span><span class="op">[</span><span class="va">i</span><span class="op">]</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="va">anchor_at_m_free</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">model_state</span>, <span class="va">X</span>, <span class="va">Y</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">model_state</span><span class="op">$</span><span class="va">weights</span> <span class="op">&lt;-</span> <span class="va">m_free</span><span class="op">$</span><span class="va">weights</span></span>
+<span>  <span class="va">model_state</span><span class="op">$</span><span class="va">mm</span> <span class="op">&lt;-</span> <span class="va">m_free</span><span class="op">$</span><span class="va">mm</span></span>
+<span>  <span class="va">model_state</span><span class="op">$</span><span class="va">sm</span><span class="op">$</span><span class="va">parameters</span><span class="op">$</span><span class="va">gamma</span> <span class="op">&lt;-</span> <span class="va">gamma0</span></span>
+<span>  <span class="va">model_state</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="va">class_labels</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Low Risk"</span>, <span class="st">"Binge Drinkers"</span>, <span class="st">"Early Experimenters"</span>,</span>
+<span>                  <span class="st">"High Risk"</span>, <span class="st">"Sexual Risk-Takers"</span><span class="op">)</span></span>
+<span><span class="va">freeze_class</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">k</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="../reference/fit_mixture_internal.html">fit_mixture_internal</a></span><span class="op">(</span>X <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">items</span><span class="op">)</span>, Y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">grade</span><span class="op">)</span>,</span>
+<span>                       n_components <span class="op">=</span> <span class="va">n_classes</span>, measurement <span class="op">=</span> <span class="st">"binary"</span>,</span>
+<span>                       structural <span class="op">=</span> <span class="st">"group_prevalence"</span>, n_steps <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>                       n_init <span class="op">=</span> <span class="fl">0</span>, max_iter <span class="op">=</span> <span class="fl">2000</span>,</span>
+<span>                       warm_start <span class="op">=</span> <span class="va">anchor_at_m_free</span>,</span>
+<span>                       n_groups <span class="op">=</span> <span class="va">n_grades</span>, frozen <span class="op">=</span> <span class="va">k</span><span class="op">)</span></span>
+<span><span class="op">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">per_class</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">5</span>, <span class="kw">function</span><span class="op">(</span><span class="va">k</span><span class="op">)</span> <span class="fu"><a href="../reference/lr_test.html">lr_test</a></span><span class="op">(</span><span class="fu">freeze_class</span><span class="op">(</span><span class="va">k</span><span class="op">)</span>, <span class="va">m_free</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>class <span class="op">=</span> <span class="va">class_labels</span>,</span>
+<span>          dG2 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">per_class</span>, <span class="kw">function</span><span class="op">(</span><span class="va">t</span><span class="op">)</span> <span class="va">t</span><span class="op">$</span><span class="va">statistic</span>, <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">numeric</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>          df <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">per_class</span>, <span class="kw">function</span><span class="op">(</span><span class="va">t</span><span class="op">)</span> <span class="va">t</span><span class="op">$</span><span class="va">df</span>, <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">numeric</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>          p_value <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">per_class</span>, <span class="kw">function</span><span class="op">(</span><span class="va">t</span><span class="op">)</span> <span class="va">t</span><span class="op">$</span><span class="va">p_value</span>, <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">numeric</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt;                 class         dG2 df       p_value</span></span>
+<span><span class="co">#&gt; 1            Low Risk  61.2464552  3  3.183513e-13</span></span>
+<span><span class="co">#&gt; 2      Binge Drinkers 468.0697346  3 3.962496e-101</span></span>
+<span><span class="co">#&gt; 3 Early Experimenters 176.4318330  3  5.199765e-38</span></span>
+<span><span class="co">#&gt; 4           High Risk   0.4150451  3  9.371173e-01</span></span>
+<span><span class="co">#&gt; 5  Sexual Risk-Takers   5.6799906  3  1.282609e-01</span></span></code></pre></div>
+<p>Each row matches the textbook’s Table 5.24 to about one decimal
+(61.3, 468.5, 176.6, 0.4 and 5.7, in the same class order as above), and
+the pattern makes substantive sense against the item plot above: Binge
+Drinkers, the class whose share changes most across grades in that plot,
+is the most expensive to force flat by a wide margin, while High Risk
+barely moves across grades and costs almost nothing to freeze. The
+all-classes restriction from the previous section (dG2 = 624.8, df = 12,
+against the book’s 625.5) is the sum of a similar idea applied to every
+class’s share at once, not to each one separately.</p>
 </div>
 <div class="section level2">
 <h2 id="testing-measurement-invariance-itself">Testing measurement invariance itself<a class="anchor" aria-label="anchor" href="#testing-measurement-invariance-itself"></a>
@@ -265,7 +281,7 @@ question was. <code>group_effects = "both"</code> frees the
 item-response probabilities by grade as well as the class sizes, and
 comparing it with the invariant baseline via <code><a href="../reference/lr_test.html">lr_test()</a></code>
 tests exactly that assumption:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
 <span><span class="va">m_both</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">items</span>, n_classes <span class="op">=</span> <span class="fl">5</span>, measurement <span class="op">=</span> <span class="st">"binary"</span>,</span>
 <span>                      group <span class="op">=</span> <span class="va">grade</span>, group_effects <span class="op">=</span> <span class="st">"both"</span>,</span>
@@ -313,7 +329,7 @@ interpret.</p>
 <div class="section level2">
 <h2 id="labelling">Labelling<a class="anchor" aria-label="anchor" href="#labelling"></a>
 </h2>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/measurement_summary.html">measurement_summary</a></span><span class="op">(</span><span class="va">m_free</span><span class="op">)</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt;              MEASUREMENT MODEL PARAMETERS                </span></span>
@@ -352,7 +368,7 @@ There is no single “high risk across everything” class in this solution.
 In size order, the five classes are <strong>Low Risk, Binge Drinkers,
 Early Experimenters, High Risk,</strong> and <strong>Sexual
 Risk-Takers</strong>:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">m_free</span>,</span>
 <span>     class_labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Low Risk"</span>, <span class="st">"Binge Drinkers"</span>, <span class="st">"Early Experimenters"</span>,</span>
 <span>                      <span class="st">"High Risk"</span>, <span class="st">"Sexual Risk-Takers"</span><span class="op">)</span>,</span>

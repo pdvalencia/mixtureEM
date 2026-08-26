@@ -129,78 +129,100 @@ m_none$metrics$ll_knownclass
 #> [1] -67528.13
 ```
 
-## Why the per-class tests are not here
+## Per-class tests: does *this* class’s prevalence differ by grade?
 
-The textbook’s per-class comparisons each hold *one* class’s marginal
-probability exactly equal across grades while the other four float and
-renormalise. That is a nonlinear constraint on the softmax class
-probabilities, not a linear constraint on the underlying
-multinomial-logit coefficients, and mixtureEM — like most
-implementations — constrains the coefficients, not the probabilities
-directly. So that specific per-class test is not reproduced here.
+The omnibus test above says prevalence differs by grade somewhere among
+the five classes, but the textbook goes further and asks the question
+separately for each class: hold Low Risk’s share fixed across grades
+while the other four float and renormalise, refit, and see how much
+likelihood that costs. Repeated five times, this reproduces the
+chapter’s Table 5.24. `group_prevalence_equal` fits exactly this
+restriction — pass it the index of the class to freeze and it holds that
+column of the per-group class probabilities to one shared value while
+the rest adjust freely.
 
-The linear alternative that *is* available answers a closely related
-question: does grade shift the log-odds of landing in a given class
-against the reference class at all?
-[`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md)
-provides exactly that, with an omnibus Wald test across all classes at
-once — but it needs an unconditional step-1 fit to start from, and
-`m_free` does not qualify: having been fit with `group = grade`, its
-classes already condition on grade as a class-membership predictor, so
-grade cannot be added to it a second time as a covariate. The fix is the
-same either way — fit the plain (ungrouped) model and add grade
-afterwards:
+There is a wrinkle a straightforward call does not handle. A mixture
+model’s classes are not identified independently across separate fits:
+nothing pins “class 1” to the same substantive group of respondents from
+one
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+call to the next, so a search run five times, once per requested class,
+is free to relabel *which* real class lands in whichever slot was asked
+for. Left to its own devices the optimiser takes the escape hatch every
+time — it reports whichever class is *cheapest* to freeze, regardless of
+which one was requested, because that fit has the higher likelihood and
+wins the random-restart comparison. Running `group_prevalence_equal`
+directly, five times, mostly reproduces the same answer (the cost of
+freezing High Risk, the cheapest class) instead of five different ones.
+
+The fix is to anchor each fit to `m_free`’s own solution rather than
+searching from scratch.
+[`class_sizes()`](https://pdvalencia.github.io/mixtureEM/reference/class_sizes.md)’s
+`by_group` attribute gives the per-grade class probabilities `m_free`
+already settled on; seeding a fit at those values, plus `m_free`’s own
+item-response probabilities, starts EM in the one basin where “class k”
+already means the same thing it means in `m_free`.
+[`fit_mixture_internal()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture_internal.md)
+(the lower-level engine behind
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md))
+takes a `warm_start` function for exactly this, and `n_init = 0` tells
+it to refine only from that seed rather than compete it against random
+restarts:
 
 ``` r
 
-set.seed(1)
-base_fit <- fit_mixture(items, n_classes = 5, measurement = "binary",
-                        n_init = 20, max_iter = 2000)
-covs <- add_covariates(base_fit, ~ grade, data = data.frame(grade = grade))
-#> Using 'ML' bias correction (set `correction` to override).
-summary(covs)
-#> =========================================================
-#>              STRUCTURAL MODEL SUMMARY                    
-#> =========================================================
-#> 
-#> CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)
-#> Reference Class: 1
-#> Standard errors: Bakk-Oberski-Vermunt corrected (robust step 3, hessian step 1)
-#> ---------------------------------------------------------
-#>                               OR         [95% CI]         P-Value
-#> 
-#> Class 2 ON
-#>   Intercept                0.034  [    0.020,     0.058]    < .001
-#>   grade.10                 4.018  [    2.467,     6.544]    < .001
-#>   grade.11                 8.028  [    4.893,    13.173]    < .001
-#>   grade.12                11.636  [    7.063,    19.169]    < .001
-#> 
-#> Class 3 ON
-#>   Intercept                0.196  [    0.170,     0.227]    < .001
-#>   grade.10                 0.791  [    0.661,     0.945]     0.010
-#>   grade.11                 0.549  [    0.442,     0.682]    < .001
-#>   grade.12                 0.365  [    0.271,     0.492]    < .001
-#> 
-#> Class 4 ON
-#>   Intercept                0.075  [    0.063,     0.090]    < .001
-#>   grade.10                 0.996  [    0.790,     1.257]     0.976
-#>   grade.11                 1.108  [    0.879,     1.397]     0.386
-#>   grade.12                 1.233  [    0.975,     1.560]     0.080
-#> 
-#> Class 5 ON
-#>   Intercept                0.058  [    0.042,     0.078]    < .001
-#>   grade.10                 0.903  [    0.643,     1.269]     0.557
-#>   grade.11                 1.159  [    0.823,     1.632]     0.399
-#>   grade.12                 1.332  [    0.924,     1.921]     0.124
-#> 
-#> OMNIBUS TEST PER COVARIATE (effect across all classes)
-#> ---------------------------------------------------------
-#>                          Wald Chi2   df  P-Value
-#>   grade                    242.132   12    < .001
-#>   Note: a non-significant test beside large coefficients can be the
-#>         Hauck-Donner effect; confirm with wald_omnibus_test().
-#> =========================================================
+by_group <- attr(class_sizes(m_free), "by_group")
+n_grades <- nlevels(grade)
+n_classes <- 5
+gamma0 <- matrix(0, n_grades, n_classes)
+for (i in seq_len(nrow(by_group))) {
+  gr <- match(by_group$group[i], levels(grade))
+  gamma0[gr, by_group$class[i]] <- by_group$proportion[i]
+}
+
+anchor_at_m_free <- function(model_state, X, Y) {
+  model_state$weights <- m_free$weights
+  model_state$mm <- m_free$mm
+  model_state$sm$parameters$gamma <- gamma0
+  model_state
+}
+
+class_labels <- c("Low Risk", "Binge Drinkers", "Early Experimenters",
+                  "High Risk", "Sexual Risk-Takers")
+freeze_class <- function(k) {
+  fit_mixture_internal(X = as.matrix(items), Y = as.integer(grade),
+                       n_components = n_classes, measurement = "binary",
+                       structural = "group_prevalence", n_steps = 1,
+                       n_init = 0, max_iter = 2000,
+                       warm_start = anchor_at_m_free,
+                       n_groups = n_grades, frozen = k)
+}
 ```
+
+``` r
+
+per_class <- lapply(1:5, function(k) lr_test(freeze_class(k), m_free))
+data.frame(class = class_labels,
+          dG2 = vapply(per_class, function(t) t$statistic, numeric(1)),
+          df = vapply(per_class, function(t) t$df, numeric(1)),
+          p_value = vapply(per_class, function(t) t$p_value, numeric(1)))
+#>                 class         dG2 df       p_value
+#> 1            Low Risk  61.2464552  3  3.183513e-13
+#> 2      Binge Drinkers 468.0697346  3 3.962496e-101
+#> 3 Early Experimenters 176.4318330  3  5.199765e-38
+#> 4           High Risk   0.4150451  3  9.371173e-01
+#> 5  Sexual Risk-Takers   5.6799906  3  1.282609e-01
+```
+
+Each row matches the textbook’s Table 5.24 to about one decimal (61.3,
+468.5, 176.6, 0.4 and 5.7, in the same class order as above), and the
+pattern makes substantive sense against the item plot above: Binge
+Drinkers, the class whose share changes most across grades in that plot,
+is the most expensive to force flat by a wide margin, while High Risk
+barely moves across grades and costs almost nothing to freeze. The
+all-classes restriction from the previous section (dG2 = 624.8, df = 12,
+against the book’s 625.5) is the sum of a similar idea applied to every
+class’s share at once, not to each one separately.
 
 ## Testing measurement invariance itself
 
