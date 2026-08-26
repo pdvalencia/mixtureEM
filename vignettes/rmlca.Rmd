@@ -56,11 +56,12 @@ head(drink)
 
 `compare_longitudinal()` fits a range of class counts (an RMLCA is fitted
 via `fit_rmlca()`, which needs to know how the columns map to occasions —
-here four waves of one item):
+here four waves of one item) and prints the information criteria side by
+side:
 
 ```{r enumerate, cache = TRUE}
 selection <- compare_longitudinal(drink, k_range = 2:4, model = "rmlca",
-                                  times = 4, n_init = 10, verbose = FALSE)
+                                  times = 4, n_init = 10)
 ```
 
 BIC correctly picks the three classes we generated.
