@@ -139,6 +139,14 @@ fit_rmlca <- function(indicators,
 # ------------------------------------------------------------------------------
 
 # Turn the user's invariance request into an explicit vector of item indices.
+#
+# `measurement` is accepted (rather than dropped from the signature) because a
+# mixed measurement block changes what an *integer* `invariant_items` means:
+# .normalize_measurement() regroups indicator columns by type, so item_names
+# (and therefore a name lookup below) already reflects the regrouped order,
+# but a caller naming items by their original integer position does not get
+# that translation. A caller documents this in its own @param; nothing here
+# needs to special-case `measurement` beyond accepting it for that note.
 .resolve_invariance <- function(time_invariance, invariant_items, item_names,
                                 measurement) {
   J <- length(item_names)
@@ -151,9 +159,6 @@ fit_rmlca <- function(indicators,
         stop('measurement_invariance = "partial" also needs `invariant_items`, ',
              "naming which items are held equal across occasions.",
              call. = FALSE)
-      if (is.list(measurement))
-        stop("Partial invariance is not defined for a mixed measurement block; ",
-             'use "full" or "none".', call. = FALSE)
       idx <- if (is.character(invariant_items))
         match(invariant_items, item_names) else as.integer(invariant_items)
       if (anyNA(idx) || any(idx < 1L) || any(idx > J))

@@ -1,5 +1,17 @@
 # mixtureEM (development version)
 
+## Added: partial measurement invariance across groups now works with mixed-type indicators
+
+`group_invariant_items` (and the corresponding partial invariance in
+`fit_rmlca()`/`fit_lta()`) used to refuse a mixed (list) `measurement` outright
+rather than risk it: the item-to-column bookkeeping and the parameter count
+both assumed every item cost the same, which is only true when every item is
+the same type. Both now resolve an item to its own sub-model first, so a
+partially-invariant model can mix binary and categorical (or continuous)
+indicators freely, and a fit's `n_params` counts each item's own parameter
+cost rather than an average across types. No previously-reachable fitted
+number moves.
+
 ## Changed: `fit_lta()` now warns when `bayes_constants$latent` is set
 
 `fit_lta()` has always accepted all four `bayes_constants` names, but the

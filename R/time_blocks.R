@@ -100,16 +100,51 @@ time_blocks_model <- function(n_components, n_items, n_times,
 
 # Columns of a sub-model's parameter matrix that belong to the given items.
 # One column per item for Bernoulli/Gaussian; max_val columns per item for the
-# one-hot layout used by multinoulli.
+# one-hot layout used by multinoulli. Not meaningful for a `nested` sub-model,
+# which has no single flat parameter matrix -- see .item_submodel_map() below.
 .item_param_cols <- function(sub, items) {
   M <- sub$max_val
   if (is.null(M)) return(as.integer(items))
   as.integer(unlist(lapply(items, function(j) ((j - 1L) * M + 1L):(j * M))))
 }
 
-# Copy the parameter columns of the given items from `src` into `dst`.
+# Item j of a `nested` (mixed-measurement) sub-model lives in exactly one of
+# its own sub-models, at exactly one run of that sub-model's OWN item range.
+# `columns_per_model` (set in build_emission()'s list branch, from
+# .normalize_measurement()'s `n_columns`) already counts raw items, not
+# one-hot-expanded parameter columns -- .item_param_cols() is what expands an
+# item index into `max_val` parameter columns for a multinoulli sub-model, one
+# level down from here. Items are grouped consecutively by sub-model
+# (.normalize_measurement() lays out columns that way), so a running item
+# offset over `columns_per_model` partitions the global item range. Returns a
+# named list, keyed by sub-model name, of that sub-model's own (local) item
+# indices; a sub-model that owns none of `items` is absent from the result.
+.item_submodel_map <- function(sub, items) {
+  items  <- as.integer(items)
+  offset <- 0L
+  map    <- list()
+  for (name in names(sub$models)) {
+    n_j <- sub$columns_per_model[[name]]
+    lo  <- offset + 1L; hi <- offset + n_j
+    local <- items[items >= lo & items <= hi] - offset
+    if (length(local)) map[[name]] <- local
+    offset <- hi
+  }
+  map
+}
+
+# Copy the parameter columns of the given items from `src` into `dst`. For a
+# `nested` src (a mixed-measurement sub-model), this recurses through
+# .item_submodel_map() so a constrained item is copied inside its own
+# sub-model and nowhere else; `dst` must have the same sub-model structure.
 .copy_item_params <- function(dst, src, items) {
   if (!length(items)) return(dst)
+  if (inherits(src, "nested")) {
+    map <- .item_submodel_map(src, items)
+    for (name in names(map))
+      dst$models[[name]] <- .copy_item_params(dst$models[[name]], src$models[[name]], map[[name]])
+    return(dst)
+  }
   cols <- .item_param_cols(src, items)
   for (nm in c("pis", "means", "covariances")) {
     if (!is.null(src$parameters[[nm]]))
@@ -296,7 +331,34 @@ n_parameters.blocks <- function(model_state, ...) {
       sizes[[nm]] * (if (nm %in% inv_p) 1L else Bn), numeric(1))))
   }
 
-  n_inv    <- length(model_state$invariant_items)
-  per_item <- n_parameters(model_state$models[[1]]) / J
-  per_item * (n_inv + (J - n_inv) * model_state$n_blocks)
+  # Per-item invariance: each item costs its own parameter count once if held
+  # equal across blocks, Bn times otherwise. A flat sub-model costs the same
+  # per item everywhere, so this reduces to the old average-based formula
+  # (`per_item * (n_inv + (J - n_inv) * Bn)`) -- asserted as a regression guard
+  # in test-group-lca.R. A `nested` (mixed-measurement) sub-model does not: a
+  # multinoulli item costs more than a Bernoulli one, so the per-item vector
+  # below is required to get a partially-invariant mixed model right.
+  inv     <- model_state$invariant_items
+  is_inv  <- seq_len(J) %in% inv
+  per_item <- .per_item_nparams(model_state$models[[1]], J)
+  sum(per_item * ifelse(is_inv, 1L, model_state$n_blocks))
+}
+
+# Parameter count per item of a sub-model covering J items: one number
+# repeated J times for a flat sub-model, or -- for a `nested` (mixed-
+# measurement) sub-model -- each item's own sub-model's per-item count,
+# placed at that item's position in the global 1:J item range (see
+# .item_submodel_map() for why the ranges are consecutive and how they are
+# found).
+.per_item_nparams <- function(sub, J) {
+  if (!inherits(sub, "nested")) return(rep(n_parameters(sub) / J, J))
+
+  out    <- numeric(J)
+  offset <- 0L
+  for (name in names(sub$models)) {
+    n_j <- sub$columns_per_model[[name]]
+    out[(offset + 1L):(offset + n_j)] <- n_parameters(sub$models[[name]]) / n_j
+    offset <- offset + n_j
+  }
+  out
 }

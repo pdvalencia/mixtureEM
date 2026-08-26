@@ -68,6 +68,45 @@ test_that("n_params accounting matches hand-derived formulas for each group_effe
                K * (n_inv + (J - n_inv) * G) + (K - 1) * G)
 })
 
+# ------------------------------------------------------------------------------
+# `group_invariant_items` with a mixed (list) `measurement` -- Part 17.4 Item A.
+# Previously refused outright ("Partial invariance is not defined for a mixed
+# measurement block"); .item_param_cols()/.copy_item_params() assumed a flat
+# sub-model and n_parameters.blocks() averaged a per-item cost that a mixed
+# block does not actually have uniformly (see R/time_blocks.R). Two binary
+# items and one trichotomous item, one binary item held equal across groups
+# along with the trichotomous one, the other binary item left free.
+# ------------------------------------------------------------------------------
+
+.make_mixed_group_data <- function(seed = 13, n = 600) {
+  set.seed(seed)
+  K <- 2L
+  grp  <- factor(sample(c("A", "B"), n, replace = TRUE))
+  cl   <- sample(1:K, n, replace = TRUE)
+  y1   <- rbinom(n, 1, ifelse(cl == 1, .2, .8))
+  y2   <- rbinom(n, 1, ifelse(cl == 1, .3, .7))
+  z1   <- sample(1:3, n, replace = TRUE,
+                prob = c(1, 1, 1)) # marginal draw, class-independence not needed
+  z1   <- ifelse(cl == 1, pmin(z1, 2), pmax(z1, 2))
+  data.frame(y1 = y1, y2 = y2, z1 = z1, grp = grp)
+}
+
+test_that("n_parameters accounts for a mixed-measurement partial-invariance fit", {
+  d <- .make_mixed_group_data()
+  K <- 2L; G <- 2L
+  fit <- fit_mixture(
+    d[, c("y1", "y2", "z1")], n_classes = K,
+    measurement = list(binary = c("y1", "y2"), categorical = "z1"),
+    group = d$grp, group_effects = "both",
+    group_invariant_items = c("y2", "z1"),
+    n_steps = 1, n_init = 3, random_state = 1)
+
+  # Per-item cost: K per binary item, K * (M - 1) per trichotomous item.
+  # y2 and z1 held equal across the G blocks (once each); y1 free (G times).
+  n_meas <- (K * 1L) + (K * 2L) + (K * G)
+  expect_equal(fit$metrics$n_params, n_meas + (K - 1) * G)
+})
+
 test_that("lr_test() rejects both false null hypotheses with correct df", {
   d <- .make_group_data()
   K <- d$K; J <- d$J; G <- 2L

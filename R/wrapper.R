@@ -2672,6 +2672,11 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   groups even when \code{group_effects} frees the measurement model
 #'   (Collins & Lanza's partial-invariance models, sec. 5.9). \code{NULL}
 #'   (the default) leaves every item free, i.e. a fully configural model.
+#'   Works with a mixed (\code{list}) \code{measurement} too; naming an item
+#'   by its column name is unaffected, but naming it by integer position must
+#'   use the position after \code{measurement} regroups columns by type (the
+#'   order [`fit_mixture()`]'s own \code{measurement} \code{list} names them
+#'   in), not the original column order.
 #' @param group_invariant_params For continuous indicators, which \emph{kind}
 #'   of parameter is held equal across groups when \code{group_effects} frees
 #'   the measurement model: \code{"means"}, \code{"covariances"}, or both.
@@ -3197,7 +3202,16 @@ fit_mixture <- function(indicators = NULL,
         group_invariant_items, item_names, measurement)
       n_groups <- nlevels(group_info$factor)
       X_grp  <- .pad_group_blocks(X_use, group_info$factor)
-      engine <- .longitudinal_measurement_spec(measurement, X_grp,
+      # `measurement_engine`, not `measurement`: for a mixed (list) measurement
+      # model this has already been normalised into the model/n_columns
+      # descriptor .resolve_emission_descriptor()'s list branch expects, and its
+      # column order matches X_use/X_grp. The raw user-facing `measurement` (a
+      # named list of column selectors) is not that shape, and reaches this
+      # error from .resolve_emission_descriptor() if passed directly:
+      # `$ operator is invalid for atomic vectors`. Single-type measurement is
+      # unaffected, since there `measurement_engine` and `measurement` are the
+      # same string.
+      engine <- .longitudinal_measurement_spec(measurement_engine, X_grp,
                                                n_items = ncol(X_use),
                                                n_times = n_groups)
       X_use              <- engine$X
