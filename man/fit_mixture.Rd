@@ -168,7 +168,12 @@ the invariance literature actually compares against.}
 \item{group_invariant_items}{Item indices or names held equal across
 groups even when \code{group_effects} frees the measurement model
 (Collins & Lanza's partial-invariance models, sec. 5.9). \code{NULL}
-(the default) leaves every item free, i.e. a fully configural model.}
+(the default) leaves every item free, i.e. a fully configural model.
+Works with a mixed (\code{list}) \code{measurement} too; naming an item
+by its column name is unaffected, but naming it by integer position must
+use the position after \code{measurement} regroups columns by type (the
+order \code{\link[=fit_mixture]{fit_mixture()}}'s own \code{measurement} \code{list} names them
+in), not the original column order.}
 
 \item{group_invariant_params}{For continuous indicators, which \emph{kind}
 of parameter is held equal across groups when \code{group_effects} frees
