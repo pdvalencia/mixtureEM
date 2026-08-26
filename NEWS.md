@@ -1,23 +1,5 @@
 # mixtureEM (development version)
 
-## Documentation: let `compare_longitudinal()` print its own table in `rmlca.Rmd`
-
-The class-enumeration chunk passed `verbose = FALSE`, so the "BIC correctly
-picks the three classes we generated" claim that follows had no table
-backing it in the rendered vignette, unlike the equivalent
-`compare_mixtures()` chunks elsewhere. Dropping `verbose = FALSE` lets the
-call print its own information-criteria table, matching the pattern used
-in `class_enumeration.Rmd` and `ventura_leon.Rmd`. No number changes.
-
-## Documentation: dropped `grade` from the `survey_lca` covariate step
-
-The vignette's stepwise covariate example regressed class membership on
-both `grade` and `sex`. `grade` is nearly collinear with one class's size in
-this sample, and the fit returned an odds ratio of 42.9 with a confidence
-interval running to 469 -- a real but uninformative number that cost five
-extra minutes of vignette build for no didactic gain. The example now
-regresses on `sex` alone.
-
 ## Fixed: `absolute_fit()` and `bivariate_residuals()` on a `group_effects = "measurement"` fit
 
 Both statistics used to be computed over the padded J*Q item matrix a
