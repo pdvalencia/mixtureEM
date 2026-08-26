@@ -1,5 +1,21 @@
 # mixtureEM (development version)
 
+## Documentation: the group-dummy Wald test and a `"categorical"` block's parameter count
+
+`?fit_mixture`'s `group_effects` argument now warns against testing "is this
+class the same size in every group" with `analytical_wald_test()` on the
+group dummies: that test asks whether a class's log-odds departs from the
+reference group's, a comparison relative to the group average rather than a
+literal constancy test, and the two can disagree. `group_prevalence_equal`
+plus `lr_test()` is the exact test, and the multiple-group vignette now
+makes the same point where it demonstrates that route.
+
+`?fit_mixture`'s `measurement` argument now documents a real counting
+limitation: a single `"categorical"` block uses one `max_val` for the whole
+block, so an item with fewer levels than the block's maximum is still
+charged for that maximum, inflating `n_params`, AIC and BIC. The mixed
+`list` spelling, splitting items by their own level count, is the remedy.
+
 ## Fixed: `n_cores` was undocumented on four entry points
 
 `n_cores` was added to `bivariate_residuals()`, `bootstrap_covariates()`,
