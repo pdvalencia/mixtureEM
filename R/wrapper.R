@@ -751,21 +751,8 @@ class_sizes.mixture_model <- function(object, ...) {
   levs <- gi$levels
   G    <- length(levs)
 
-  probs <- if (inherits(object$sm, "group_prevalence")) {
-    object$sm$parameters$gamma
-  } else if (inherits(object$sm, "covariate")) {
-    # One dummy-coded row per group level, in the same treatment-contrast
-    # coding `.lta_group_design()` built the fitted regression on (first
-    # level = reference), rather than expanding to one row per case only to
-    # drop the duplicates -- a case's row depends on nothing but its own
-    # group.
-    D <- matrix(0, G, G - 1L)
-    if (G > 1L) for (i in 2:G) D[i, i - 1L] <- 1
-    Z <- cbind(1, D)
-    softmax_rows(Z %*% t(object$sm$parameters$beta))
-  } else {
-    return(NULL)
-  }
+  probs <- .group_gamma_matrix(object)
+  if (is.null(probs)) return(NULL)
 
   g_idx <- as.integer(gi$factor)
   n_q   <- vapply(seq_len(G), function(q) sum(w[g_idx == q]), numeric(1))
@@ -2741,6 +2728,28 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   frozen prevalences are not produced in this first pass; compare nested
 #'   models with \code{lr_test()} instead. An out-of-range class index is an
 #'   error, never silently ignored.
+#'   Naming a strict subset of the classes also needs \code{start_from}; see
+#'   there for why a search cannot answer the per-class question on its own.
+#' @param start_from A fitted model to start from, in place of the random
+#'   restarts. Available only alongside \code{group_prevalence_equal}: pass the
+#'   unrestricted multiple-group fit that the restricted one is going to be
+#'   tested against, and the restricted fit starts from its item parameters and
+#'   its per-group class probabilities and runs no other start. \code{n_init} is
+#'   not accepted at the same time, because there are no random restarts left
+#'   for it to size.
+#'
+#'   The reason it is needed: "class \emph{k} has the same prevalence in every
+#'   group" is a restriction on a \emph{named} class, and a mixture's classes are
+#'   named only by their own parameters, so permuting the labels moves the
+#'   restriction to a different class at exactly the same likelihood. The
+#'   restricted model's global maximum is therefore the same number whichever
+#'   class is named — the cheapest one to freeze — and a search finds it every
+#'   time. What the question asks for is the maximum near the unrestricted
+#'   solution, and that is what an anchored fit returns. Everywhere else in this
+#'   package an informed starting value competes with the random restarts rather
+#'   than replacing them; this is the exception, and it has to be asked for by
+#'   name. Standard errors are not produced for the restricted prevalences
+#'   either way; compare the two fits with \code{lr_test()}.
 #' @param variances_equal Logical, for continuous indicators only: hold each
 #'   item's variance equal across the classes, so the classes differ in location
 #'   only. This is the homoscedastic latent profile model and the default
@@ -3034,6 +3043,7 @@ fit_mixture <- function(indicators = NULL,
                         group_invariant_items = NULL,
                         group_invariant_params = NULL,
                         group_prevalence_equal = NULL,
+                        start_from = NULL,
                         variances_equal = NULL,
                         n_steps = 1,
                         correction = "none",
@@ -3060,6 +3070,7 @@ fit_mixture <- function(indicators = NULL,
   weight_type   <- match.arg(weight_type)
   steps_set     <- !missing(n_steps)
   corr_set      <- !missing(correction)
+  n_init_set    <- !missing(n_init)
   measurement_missing <- missing(measurement)
 
   # Capture the unevaluated expressions the user supplied so that a single
@@ -3153,6 +3164,12 @@ fit_mixture <- function(indicators = NULL,
          "groups, which only `group_effects = \"both\"` or \"measurement\" ",
          "frees in the first place.", call. = FALSE)
 
+  if (!is.null(start_from) && is.null(group_prevalence_equal))
+    stop("`start_from` is available only alongside `group_prevalence_equal`. ",
+         "The per-class prevalence restriction is the one that needs an ",
+         "anchored fit; an ordinary fit should search from random starts.",
+         call. = FALSE)
+
   if (!is.null(group_prevalence_equal)) {
     if (!group_effects %in% c("both", "prevalence"))
       stop("`group_prevalence_equal` constrains the prevalence effect, ",
@@ -3214,7 +3231,9 @@ fit_mixture <- function(indicators = NULL,
         if (inherits(out, "try-error")) NULL else out
       }
 
-      pooled_fit <- .sub_fit(NULL)
+      # A `start_from` anchor overrides this warm start entirely, so do not pay
+      # for one that is going to be thrown away.
+      pooled_fit <- if (is.null(start_from)) .sub_fit(NULL) else NULL
       # A failure here costs the warm start and nothing else: the group model is
       # still fitted from random starts exactly as before.
       if (!is.null(pooled_fit)) {
@@ -3319,6 +3338,27 @@ fit_mixture <- function(indicators = NULL,
     Y_use <- as.integer(group_info$factor)
     group_extra_args <- utils::modifyList(
       group_extra_args, list(n_groups = n_groups, frozen = frozen))
+
+    if (!is.null(start_from)) {
+      if (!inherits(start_from, "mixture_model"))
+        stop("`start_from` must be a model fitted by fit_mixture().",
+             call. = FALSE)
+      if (!identical(as.integer(start_from$n_components), as.integer(n_classes)))
+        stop(sprintf(paste0(
+          "`start_from` has %d classes and this fit asks for %d. The anchor ",
+          "must be the same model with the constraint lifted."),
+          start_from$n_components, n_classes), call. = FALSE)
+      if (is.null(start_from$group_info) ||
+          !identical(start_from$group_info$levels, group_info$levels))
+        stop("`start_from` must be a multiple-group fit on the same `group` ",
+             "variable as this one.", call. = FALSE)
+      if (n_init_set)
+        stop("`start_from` fits from that solution alone and runs no random ",
+             "restarts, so `n_init` has nothing to size. Drop it.",
+             call. = FALSE)
+      group_warm_start <- .group_prevalence_warm_start(start_from)
+      n_init <- 0L
+    }
   } else if (!is.null(group) && group_effects %in% c("both", "prevalence")) {
     structural_engine <- "predict_class"
     Y_use <- if (is.null(Y_use)) group_info$design

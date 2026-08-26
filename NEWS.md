@@ -1,5 +1,16 @@
 # mixtureEM (development version)
 
+## Added: `start_from`, an anchored fit for the per-class prevalence restriction
+
+`fit_mixture()` gains `start_from`, which anchors a `group_prevalence_equal`
+fit at an unrestricted fit's own solution instead of searching from random
+starts. Without it the per-class restriction cannot be tested at all on data
+whose classes sit close together: the restricted model's likelihood is
+unchanged by relabelling, so a search returns whichever class is cheapest to
+freeze no matter which one was asked for. It is the only place in the package
+where a starting value replaces the search rather than competing with it, and
+it is refused outside `group_prevalence_equal`.
+
 ## Fixed: `class_sizes()` reported a `group_prevalence_equal` fit's per-group class sizes against the wrong classes
 
 `class_sizes()` reported a `group_prevalence_equal` fit's per-group class

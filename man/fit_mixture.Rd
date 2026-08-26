@@ -19,6 +19,7 @@ fit_mixture(
   group_invariant_items = NULL,
   group_invariant_params = NULL,
   group_prevalence_equal = NULL,
+  start_from = NULL,
   variances_equal = NULL,
   n_steps = 1,
   correction = "none",
@@ -227,7 +228,30 @@ prevalence, not to one shared across every group, so there is no
 coefficient value that expresses this constraint. Standard errors for the
 frozen prevalences are not produced in this first pass; compare nested
 models with \code{lr_test()} instead. An out-of-range class index is an
-error, never silently ignored.}
+error, never silently ignored.
+Naming a strict subset of the classes also needs \code{start_from}; see
+there for why a search cannot answer the per-class question on its own.}
+
+\item{start_from}{A fitted model to start from, in place of the random
+restarts. Available only alongside \code{group_prevalence_equal}: pass the
+unrestricted multiple-group fit that the restricted one is going to be
+tested against, and the restricted fit starts from its item parameters and
+its per-group class probabilities and runs no other start. \code{n_init} is
+not accepted at the same time, because there are no random restarts left
+for it to size.
+
+The reason it is needed: "class \emph{k} has the same prevalence in every
+group" is a restriction on a \emph{named} class, and a mixture's classes are
+named only by their own parameters, so permuting the labels moves the
+restriction to a different class at exactly the same likelihood. The
+restricted model's global maximum is therefore the same number whichever
+class is named — the cheapest one to freeze — and a search finds it every
+time. What the question asks for is the maximum near the unrestricted
+solution, and that is what an anchored fit returns. Everywhere else in this
+package an informed starting value competes with the random restarts rather
+than replacing them; this is the exception, and it has to be asked for by
+name. Standard errors are not produced for the restricted prevalences
+either way; compare the two fits with \code{lr_test()}.}
 
 \item{variances_equal}{Logical, for continuous indicators only: hold each
 item's variance equal across the classes, so the classes differ in location
