@@ -1,8 +1,8 @@
 ---
-title: "Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome"
+title: "Infidelity Behavior Patterns: LCA with Covariates"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Infidelity Behavior Patterns: LCA with Covariates and a Distal Outcome}
+  %\VignetteIndexEntry{Infidelity Behavior Patterns: LCA with Covariates}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -176,37 +176,11 @@ whenever classes are related to external variables: the "obvious" approach
 of classifying and then testing is only valid when classification is
 (almost) perfect, which is rarely true in practice.
 
-## A distal outcome: mean age by class
-
-Covariates ask "who ends up in which class?". The complementary question —
-"how do the classes differ on some outcome?" — is a *distal outcome*
-analysis, and it reuses the same fitted model through `add_outcome()`.
-Here we describe the classes by their mean age (the BCH correction is the
-default for a continuous outcome; Bakk & Vermunt, 2016). Age already
-entered the model as a covariate above, so treating it as a distal outcome
-too does not answer a substantively new question — we reuse it purely
-because it is a continuous variable already at hand, to keep the example
-self-contained; a real distal-outcome analysis would pick a variable the
-classes are actually expected to predict.
-
-```{r distal}
-fit_age <- add_outcome(fit, ventura_leon$age)
-age_results <- summary(fit_age)
-age_results$outcome$means
-```
-
-The omnibus Wald test in the printed output asks whether the class means
-differ at all, before the per-class table is read.
-
 ## References
 
 Bakk, Z., Oberski, D. L., & Vermunt, J. K. (2014). Relating latent class
 assignments to external variables: Standard errors for correct inference.
 *Political Analysis*, *22*(4), 520–540. <https://doi.org/10.1093/pan/mpu003>
-
-Bakk, Z., & Vermunt, J. K. (2016). Robustness of stepwise latent class
-modeling with continuous distal outcomes. *Structural Equation Modeling*,
-*23*(1), 20–31. <https://doi.org/10.1080/10705511.2014.955104>
 
 Ventura-León, J., Reyes, A., Valencia, P. D., Tocto-Muñoz, S.,
 Gamboa-Melgar, G., Ruiz-Castro, J., & Lino-Cruz, C. (2025). Exploring
