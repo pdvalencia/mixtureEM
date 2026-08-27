@@ -22,22 +22,38 @@ library(mixtureEM)
 
 ## The question
 
-A latent class model assumes the classes mean the same thing to every case
-in the data. When the data span groups — here, four grades of high school
-— that assumption is worth checking rather than taking for granted, and it
-splits into two separate questions. First, *measurement invariance*: do the
-twelve health-risk items mean the same thing to a ninth-grader as to a
-twelfth-grader, in the sense that the same class membership implies the
-same item-response probabilities regardless of grade? Second, if
-invariance holds, *prevalence*: are the risk classes more common in some
-grades than others? The second question is only interpretable once the
-first is settled — a prevalence comparison between groups whose items do
-not function the same way is comparing different things.
+A latent class model assumes the classes mean the same thing to every case in
+the data. When the data span groups — here, four grades of high school — that
+assumption is worth checking rather than taking for granted, and it splits into
+two questions that have to be asked in that order. First, *measurement
+invariance*: do the twelve health-risk items mean the same thing to a
+ninth-grader as to a twelfth-grader, in the sense that the same class membership
+implies the same item-response probabilities regardless of grade? Second, and
+only once the first is settled, *prevalence*: are the risk classes more common
+in some grades than others? A prevalence comparison between groups whose items
+do not function the same way is comparing different things.
 
-This uses the same `yrbs2005` data as `vignette("survey_lca")`, but
-unweighted, matching how the textbook this pipeline follows presents it;
-see that vignette for the same items analysed with the sampling design in
-play.
+Clogg and Goodman (1985) introduced the simultaneous — multiple-group — latent
+structure model, and set out the three models as a ladder. Their vocabulary is
+worth having, because it is the vocabulary the literature uses:
+
+| The model | `group_effects` | Clogg and Goodman's name |
+|---|---|---|
+| items and class sizes both free by grade | `"both"` | heterogeneous, unrestricted |
+| items pooled, class sizes free by grade | `"prevalence"` | partially homogeneous |
+| items and class sizes both pooled | `"none"` | homogeneous |
+
+The middle rung is the one that carries the invariance assumption: in it, as
+Kankaraš, Moors and Vermunt (2011) put it, "the relationships between indicator
+items and the latent variable are identical across groups so that the class
+memberships have the same meaning in all groups." So the pipeline below fits all
+three models, tests the middle rung against the top one first, and only then
+tests the bottom rung against the middle.
+
+The worked example is Collins and Lanza's (2010, ch. 5). It uses the same
+`yrbs2005` data as `vignette("survey_lca")`, but unweighted, matching how they
+present it; see that vignette for the same items analysed with the sampling
+design in play.
 
 ## Data
 
@@ -51,7 +67,12 @@ grade <- yrbs2005$grade
 table(grade)
 ```
 
-## The baseline: prevalences free, measurement invariant
+## Step 1: do the items mean the same thing in every grade?
+
+The invariant model first. `group_effects = "prevalence"` pools the
+item-response probabilities across grades — that pooling *is* the
+measurement-invariance assumption — while letting each grade have its own class
+sizes:
 
 ```{r baseline, cache = TRUE}
 set.seed(1)
@@ -61,143 +82,13 @@ m_free <- fit_mixture(items, n_classes = 5, measurement = "binary",
 m_free
 ```
 
-`group_effects = "prevalence"` pools the item-response probabilities
-across grades — that pooling *is* the measurement-invariance assumption —
-while letting each grade have its own class sizes. A four-group,
-five-class fit on this many cases is materially more expensive per start
-than the package's other vignettes; the solution above replicated across
+A four-group, five-class fit on this many cases is materially more expensive per
+start than the package's other vignettes; the solution above replicated across
 6 of the 20 starts.
 
-## The constrained model and the omnibus test
-
-Fitting the same model with `group_effects = "none"` forces every grade to
-share the same class sizes as well, which is the null hypothesis that
-prevalence does not differ by grade at all:
-
-```{r constrained, cache = TRUE}
-set.seed(1)
-m_none <- fit_mixture(items, n_classes = 5, measurement = "binary",
-                      group = grade, group_effects = "none",
-                      n_init = 5, max_iter = 2000, n_steps = 1)
-lr_test(m_none, m_free)
-```
-
-`lr_test()` takes the restricted model first and the full model second —
-reversing the order is an error. With four grades and five classes there
-are (4 - 1) x (5 - 1) = 12 free prevalence contrasts between the two
-models, and the printed `df` above confirms it. The restriction is
-rejected: class prevalence does differ by grade. This reproduces the "all
-five latent classes" comparison from the textbook's prevalence-differences
-table.
-
-Because `group = grade` is supplied, both fits above also report a
-log-likelihood on the known-class scale, `metrics$ll_knownclass` — that is
-the number that lines up with what other programs print for this kind of
-model, as opposed to `metrics$ll`, which is on this package's own
-1-step scale.
-
-```{r ll-knownclass}
-m_free$metrics$ll_knownclass
-m_none$metrics$ll_knownclass
-```
-
-## Per-class tests: does *this* class's prevalence differ by grade?
-
-The omnibus test above says prevalence differs by grade somewhere among the
-five classes, but the textbook goes further and asks the question
-separately for each class: hold Low Risk's share fixed across grades while
-the other four float and renormalise, refit, and see how much likelihood
-that costs. Repeated five times, this reproduces the chapter's Table 5.24.
-`group_prevalence_equal` fits exactly this restriction — pass it the index
-of the class to freeze and it holds that column of the per-group class
-probabilities to one shared value while the rest adjust freely.
-
-This is a likelihood-ratio test, not a Wald test on the class-membership
-regression's group coefficients, and that is deliberate. A Wald test on a
-group dummy asks whether one class's log-odds relative to the reference
-class departs from the reference group's — a comparison relative to the
-group average, not "is this class's share literally the same in every
-group" — and the two questions can disagree. `lr_test()` against the
-unrestricted fit, as used below, is the exact test of the question actually
-being asked.
-
-There is a wrinkle a straightforward call does not handle. A mixture
-model's classes are not identified independently across separate fits:
-nothing pins "class 1" to the same substantive group of respondents from
-one `fit_mixture()` call to the next, so a search run five times, once per
-requested class, is free to relabel *which* real class lands in whichever
-slot was asked for. Left to its own devices the optimiser takes the escape
-hatch every time — it reports whichever class is *cheapest* to freeze,
-regardless of which one was requested, because that fit has the higher
-likelihood and wins the random-restart comparison. Running
-`group_prevalence_equal` directly, five times, mostly reproduces the same
-answer (the cost of freezing High Risk, the cheapest class) instead of five
-different ones.
-
-The fix is to anchor each fit to `m_free`'s own solution rather than
-searching from scratch. `class_sizes()`'s `by_group` attribute gives the
-per-grade class probabilities `m_free` already settled on; seeding a fit at
-those values, plus `m_free`'s own item-response probabilities, starts EM
-in the one basin where "class k" already means the same thing it means in
-`m_free`. `fit_mixture_internal()` (the lower-level engine behind
-`fit_mixture()`) takes a `warm_start` function for exactly this, and
-`n_init = 0` tells it to refine only from that seed rather than compete it
-against random restarts:
-
-```{r per-class-setup, cache = TRUE}
-by_group <- attr(class_sizes(m_free), "by_group")
-n_grades <- nlevels(grade)
-n_classes <- 5
-gamma0 <- matrix(0, n_grades, n_classes)
-for (i in seq_len(nrow(by_group))) {
-  gr <- match(by_group$group[i], levels(grade))
-  gamma0[gr, by_group$class[i]] <- by_group$proportion[i]
-}
-
-anchor_at_m_free <- function(model_state, X, Y) {
-  model_state$weights <- m_free$weights
-  model_state$mm <- m_free$mm
-  model_state$sm$parameters$gamma <- gamma0
-  model_state
-}
-
-class_labels <- c("Low Risk", "Binge Drinkers", "Early Experimenters",
-                  "High Risk", "Sexual Risk-Takers")
-freeze_class <- function(k) {
-  fit_mixture_internal(X = as.matrix(items), Y = as.integer(grade),
-                       n_components = n_classes, measurement = "binary",
-                       structural = "group_prevalence", n_steps = 1,
-                       n_init = 0, max_iter = 2000,
-                       warm_start = anchor_at_m_free,
-                       n_groups = n_grades, frozen = k)
-}
-```
-
-```{r per-class-tests, cache = TRUE}
-per_class <- lapply(1:5, function(k) lr_test(freeze_class(k), m_free))
-data.frame(class = class_labels,
-          dG2 = vapply(per_class, function(t) t$statistic, numeric(1)),
-          df = vapply(per_class, function(t) t$df, numeric(1)),
-          p_value = vapply(per_class, function(t) t$p_value, numeric(1)))
-```
-
-Each row matches the textbook's Table 5.24 to about one decimal (61.3,
-468.5, 176.6, 0.4 and 5.7, in the same class order as above), and
-the pattern makes substantive sense against the item plot above: Binge
-Drinkers, the class whose share changes most across grades in that plot, is
-the most expensive to force flat by a wide margin, while High Risk barely
-moves across grades and costs almost nothing to freeze. The all-classes
-restriction from the previous section (dG2 = 624.8, df = 12, against the
-book's 625.5) is the sum of a similar idea applied to every class's share
-at once, not to each one separately.
-
-## Testing measurement invariance itself
-
-Section 3's pooling of the item probabilities across grades was an
-assumption, not a given — it can be tested the same way the prevalence
-question was. `group_effects = "both"` frees the item-response
-probabilities by grade as well as the class sizes, and comparing it with
-the invariant baseline via `lr_test()` tests exactly that assumption:
+`group_effects = "both"` frees the item-response probabilities by grade as well
+as the class sizes, and comparing the two by likelihood ratio tests exactly the
+assumption the invariant model is making:
 
 ```{r invariance, cache = TRUE}
 set.seed(1)
@@ -207,68 +98,174 @@ m_both <- fit_mixture(items, n_classes = 5, measurement = "binary",
 lr_test(m_free, m_both)
 ```
 
-`m_both` carries a warning worth repeating rather than hiding: only 1 of
-the 20 requested starts converged to the log-likelihood reported above,
-so this solution has not been shown to be the global optimum the way
-`m_free`'s was. 256 parameters spread across five classes and four
-grades is a much harder surface to search than the models earlier in
-this vignette, and `n_init = 20` is not enough to be confident of it here
-— the package's own advice is to refit with `n_init = 100` before
-reporting this specific comparison as a finding rather than an
-illustration.
+`lr_test()` takes the restricted model first and the full model second —
+reversing the order is an error.
 
-With N in the thousands, a likelihood-ratio test like this one also has
-power to detect even a trivially small departure from invariance, so a
-rejection on its own does not settle the question — it is worth reading
-the information criteria alongside the test rather than the p-value in
-isolation. Here the test rejects invariance decisively, which on its own
-would be unsurprising at this sample size. But the two information
-criteria disagree about which model is preferable: AIC favours the fully
-group-varying model (it is smaller for `m_both`), while BIC — which
-penalises the 180 extra parameters more heavily — favours the invariant
-`m_free`. That split is itself informative: the departures from
-invariance are real enough for the likelihood-ratio test to see them at
-this N, but not so large that a criterion penalising complexity thinks
-they are worth the extra parameters. A researcher would want to look at
-*which* items differ by grade — and would want the better-replicated fit
-above — before deciding whether to treat the invariant model as good
-enough to interpret.
+`m_both` carries a warning worth repeating rather than hiding: only 1 of the 20
+requested starts converged to the log-likelihood reported above, so this solution
+has not been shown to be the global optimum the way `m_free`'s was. 256
+parameters spread across five classes and four grades is a much harder surface to
+search than the models later in this vignette, and `n_init = 20` is not enough to
+be confident of it here — the package's own advice is to refit with
+`n_init = 100` before reporting this specific comparison as a finding rather than
+an illustration.
 
-## Labelling
+With N in the thousands, a likelihood-ratio test like this one also has power to
+detect even a trivially small departure from invariance, so a rejection on its
+own does not settle the question. Kankaraš, Moors and Vermunt (2011) make the
+point directly: "when sample sizes are large, likelihood-ratio tests tend to be
+too conservative, indicating misfit even for minimal differences between two
+models", and "since they also control for sample size, BIC and CAIC are preferred
+fit statistics in situations when sample size is large." Here the test rejects
+invariance decisively, which on its own would be unsurprising at this sample
+size. But the two information criteria disagree about which model is preferable:
+AIC favours the fully group-varying model (it is smaller for `m_both`), while
+BIC — which penalises the 180 extra parameters more heavily — favours the
+invariant `m_free`. That split is itself informative: the departures from
+invariance are real enough for the likelihood-ratio test to see them at this N,
+but not so large that a criterion penalising complexity thinks they are worth the
+extra parameters.
+
+`m_free` is therefore the model the rest of this vignette carries forward. A
+researcher would want to look at *which* items differ by grade — and would want
+the better-replicated fit — before treating the invariant model as settled rather
+than as good enough to interpret.
+
+## The five classes
 
 ```{r label-check}
 measurement_summary(m_free)
 ```
 
-This fit is unweighted and grouped, and its classes do not read the same
-way `vignette("survey_lca")`'s do — which is precisely the point of
-comparing them. That fit had one class high on essentially every item;
-this one splits that pattern in two: class 4 is where the hard-drug items
-(`cocaine_ever`, `glue_ever`, `meth_ever`, `ecstasy_ever`) and the smoking
-items peak, while class 5 is instead the class where the two sexual-risk
-items (`sex_before_13`, `sex_4plus_partners`) are far higher than in any
-other class, at moderate levels of everything else. There is no single
-"high risk across everything" class in this solution. In size order, the
-five classes are **Low Risk, Binge Drinkers, Early Experimenters, High
-Risk,** and **Sexual Risk-Takers**:
+This fit is unweighted and grouped, and its classes do not read the same way
+`vignette("survey_lca")`'s do — which is precisely the point of comparing them.
+That fit had one class high on essentially every item; this one splits that
+pattern in two: class 4 is where the hard-drug items (`cocaine_ever`,
+`glue_ever`, `meth_ever`, `ecstasy_ever`) and the smoking items peak, while
+class 5 is instead the class where the two sexual-risk items (`sex_before_13`,
+`sex_4plus_partners`) are far higher than in any other class, at moderate levels
+of everything else. There is no single "high risk across everything" class in
+this solution. In size order, the five classes are **Low Risk, Binge Drinkers,
+Early Experimenters, High Risk,** and **Sexual Risk-Takers**:
 
 ```{r plot}
-plot(m_free,
-     class_labels = c("Low Risk", "Binge Drinkers", "Early Experimenters",
-                      "High Risk", "Sexual Risk-Takers"),
+class_labels <- c("Low Risk", "Binge Drinkers", "Early Experimenters",
+                  "High Risk", "Sexual Risk-Takers")
+plot(m_free, class_labels = class_labels,
      main = "Health-risk behavior classes by grade (YRBS 2005, unweighted)")
 ```
 
-Class 2 (Binge Drinkers) stands out on `drove_drinking` and
-`binge_drink_30d` specifically; class 3 (Early Experimenters) stands out
-on the two early-onset items, `smoked_before_13` and
-`first_drink_before_13`, more than on the items that come later in
-adolescence. High Risk and Sexual Risk-Takers replace the single "High
-risk" class from the weighted fit because the hard-drug cluster and the
-sexual-risk cluster no longer travel together in one class here.
+Class 2 (Binge Drinkers) stands out on `drove_drinking` and `binge_drink_30d`
+specifically; class 3 (Early Experimenters) stands out on the two early-onset
+items, `smoked_before_13` and `first_drink_before_13`, more than on the items
+that come later in adolescence. High Risk and Sexual Risk-Takers replace the
+single "High risk" class from the weighted fit because the hard-drug cluster and
+the sexual-risk cluster no longer travel together in one class here.
+
+## Step 2: are the classes more common in some grades than others?
+
+Fitting the same model with `group_effects = "none"` forces every grade to
+share the same class sizes as well, which is the null hypothesis that
+prevalence does not differ by grade at all — Clogg and Goodman's homogeneous
+model:
+
+```{r constrained, cache = TRUE}
+set.seed(1)
+m_none <- fit_mixture(items, n_classes = 5, measurement = "binary",
+                      group = grade, group_effects = "none",
+                      n_init = 5, max_iter = 2000, n_steps = 1)
+lr_test(m_none, m_free)
+```
+
+With four grades and five classes there are (4 - 1) x (5 - 1) = 12 free
+prevalence contrasts between the two models, and the printed `df` above confirms
+it. The restriction is rejected: class prevalence does differ by grade. This
+reproduces the "all five latent classes" comparison from Collins and Lanza's
+prevalence-differences table.
+
+Because `group = grade` is supplied, `m_free` and `m_none` also report a
+log-likelihood on the known-class scale, `metrics$ll_knownclass` — that is the
+number that lines up with what other programs print for this kind of model, as
+opposed to `metrics$ll`, which is on this package's own 1-step scale.
+
+```{r ll-knownclass}
+m_free$metrics$ll_knownclass
+m_none$metrics$ll_knownclass
+```
+
+## Step 3: which class's prevalence differs by grade?
+
+The omnibus test says prevalence differs by grade somewhere among the five
+classes. Collins and Lanza go further and ask the question separately for each
+class: hold Low Risk's share fixed across grades while the other four float and
+renormalise, refit, and see how much likelihood that costs. Repeated five times,
+this reproduces their Table 5.24. `group_prevalence_equal` fits exactly this
+restriction — pass it the index of the class to freeze and it holds that column
+of the per-grade class probabilities to one shared value while the rest adjust
+freely.
+
+Two things about the restriction are worth knowing before reading the table.
+
+**It is tested by likelihood ratio, not by a Wald test on the class-membership
+regression's group coefficients, and that is deliberate.** A Wald test on a group
+dummy asks whether one class's log-odds relative to the reference class departs
+from the reference group's — a comparison relative to the group average, not "is
+this class's share literally the same in every grade" — and the two questions can
+disagree. Clogg and Goodman single this restriction out as one needing "special
+treatment": for a restriction of exactly this form, they note, "the group sizes
+must be taken into account in order to obtain the correct restrictions and the
+appropriate likelihood equations." `lr_test()` against the unrestricted fit is
+the exact test of the question actually being asked.
+
+**Each restricted fit has to be anchored to the unrestricted solution, so the
+random restarts are switched off.** A mixture model's classes are named only by
+their own parameters, and "class *k* has the same prevalence in every grade" is a
+restriction on a *named* class: permute the labels and the frozen slot lands on a
+different substantive class at exactly the same likelihood. The restricted
+model's *global* maximum is therefore one and the same number whichever class is
+named — whichever class is cheapest to freeze — and a search reports that number
+every time, for every k. What the question asks for is the maximum near the
+unrestricted solution, where class *k* still means what it means in `m_free`.
+`start_from = m_free` supplies exactly that: it seeds each fit at `m_free`'s own
+item-response probabilities and per-grade class sizes and runs no other start.
+This is the one place in the package where a starting value replaces the search
+rather than joining it, and other latent-class software arrives at the same
+arrangement from the other side — the restriction is expressed there by supplying
+the unrestricted solution as starting values, and supplying starting values makes
+the random-start option unavailable in the same call.
+
+```{r per-class, cache = TRUE}
+per_class <- lapply(1:5, function(k)
+  lr_test(fit_mixture(items, n_classes = 5, measurement = "binary",
+                      group = grade, group_effects = "prevalence",
+                      group_prevalence_equal = k, start_from = m_free,
+                      n_steps = 1, max_iter = 2000),
+          m_free))
+data.frame(class = class_labels,
+           dG2 = vapply(per_class, function(t) t$statistic, numeric(1)),
+           df = vapply(per_class, function(t) t$df, numeric(1)),
+           p_value = vapply(per_class, function(t) t$p_value, numeric(1)))
+```
+
+Each row matches Collins and Lanza's Table 5.24 to about one decimal (61.3,
+468.5, 176.6, 0.4 and 5.7, in the same class order as above), and the pattern
+makes substantive sense against the item plot above: Binge Drinkers, the class
+whose share changes most across grades in that plot, is the most expensive to
+force flat by a wide margin, while High Risk barely moves across grades and costs
+almost nothing to freeze. The all-classes restriction from the previous section
+(dG2 = 624.8, df = 12, against the book's 625.5) is the sum of a similar idea
+applied to every class's share at once, not to each one separately.
 
 ## References
 
+Clogg, C. C., & Goodman, L. A. (1985). Simultaneous latent structure analysis in
+several groups. *Sociological Methodology*, *15*, 81-110.
+
 Collins, L. M., & Lanza, S. T. (2010). *Latent class and latent transition
-analysis: With applications in the social, behavioral, and health
-sciences*. Wiley.
+analysis: With applications in the social, behavioral, and health sciences*.
+Wiley.
+
+Kankaraš, M., Moors, G., & Vermunt, J. K. (2011). Testing for measurement
+invariance with latent class analysis. In E. Davidov, P. Schmidt, & J. Billiet
+(Eds.), *Cross-cultural analysis: Methods and applications* (pp. 359-384).
+Routledge.
