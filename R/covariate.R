@@ -48,6 +48,15 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 # `start` warm-starts the optimiser from a previous coefficient matrix. Inside an
 # EM loop successive M-steps move the coefficients very little, so starting from
 # the last iteration's values cuts the work sharply without changing the optimum.
+#
+# Estimation runs on the table of unique covariate patterns whenever fewer than
+# half the rows are distinct, which is the ordinary case for a grouping
+# variable or a set of dummies. This is exact rather than an approximation: the
+# objective and its gradient depend on the rows only through the per-pattern
+# sums of `w_i * resp_ik` and `w_i`, and the Hessian only through the latter,
+# so a pattern's rows can be replaced by their weighted mean responsibility
+# carrying the pattern's total weight. A regression on continuous covariates
+# has no duplicate rows to exploit and runs the full-data path unchanged.
 .fit_mnl <- function(Z, resp, weights = NULL, augment = TRUE, start = NULL,
                      alpha = 0) {
   K <- ncol(resp)
@@ -65,21 +74,48 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   # augmenting; the ghost never does.
   prior_rows <- isTRUE(augment) && alpha > 0
 
+  # The objective, its gradient and its Hessian depend on the rows only through
+  # per-pattern sums, so a regression whose covariates take few distinct values
+  # -- a grouping variable, a handful of dummies -- can be fitted on the pattern
+  # table instead of the full n rows with no approximation. `resp_d` is the
+  # weighted mean responsibility within a pattern and `w_d` the pattern's total
+  # weight, which is the pairing that leaves nll, gradient and Hessian all
+  # unchanged. The key is built from per-column `match()` codes rather than from
+  # the values themselves so that two doubles can never be merged by a shared
+  # printed representation. Skipped when fewer than half the rows are duplicates
+  # (a continuous covariate), which leaves that path running exactly the code it
+  # ran before.
+  codes <- lapply(seq_len(D), function(j) match(Z[, j], unique(Z[, j])))
+  key   <- do.call(paste, c(codes, sep = "\r"))
+  u     <- !duplicated(key)
+  agg   <- sum(u) <= nrow(Z) / 2
+  if (agg) {
+    idx <- match(key, key[u])
+    w_d <- as.vector(rowsum(w_vec, idx))
+    if (any(w_d <= 0)) {
+      agg <- FALSE
+    } else {
+      Z_d    <- Z[u, , drop = FALSE]
+      resp_d <- rowsum(resp * w_vec, idx) / w_d
+    }
+  }
+  if (!agg) { Z_d <- Z; resp_d <- resp; w_d <- w_vec }
+
   if (prior_rows) {
-    Zu      <- unique(Z)
+    Zu      <- if (agg) Z_d else unique(Z)
     U0      <- nrow(Zu)
     w_prior <- alpha / (K * U0)
     Z_pri    <- Zu[rep(seq_len(U0), times = K), , drop = FALSE]
     resp_pri <- diag(K)[rep(seq_len(K), each = U0), , drop = FALSE]
-    Z_aug    <- rbind(Z, Z_pri)
-    resp_aug <- rbind(resp, resp_pri)
-    w_aug    <- c(w_vec, rep(w_prior, K * U0))
+    Z_aug    <- rbind(Z_d, Z_pri)
+    resp_aug <- rbind(resp_d, resp_pri)
+    w_aug    <- c(w_d, rep(w_prior, K * U0))
   } else if (isTRUE(augment)) {
-    Z_aug    <- rbind(Z, matrix(colMeans(Z), nrow = K, ncol = D, byrow = TRUE))
-    resp_aug <- rbind(resp, diag(K))
-    w_aug    <- c(w_vec, rep(0.01, K))
+    Z_aug    <- rbind(Z_d, matrix(colMeans(Z), nrow = K, ncol = D, byrow = TRUE))
+    resp_aug <- rbind(resp_d, diag(K))
+    w_aug    <- c(w_d, rep(0.01, K))
   } else {
-    Z_aug <- Z; resp_aug <- resp; w_aug <- w_vec
+    Z_aug <- Z_d; resp_aug <- resp_d; w_aug <- w_d
   }
 
   nll_func <- function(pars) {
@@ -118,9 +154,9 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   # sm$parameters$hessian with the inverse of the step-3 sandwich; it is only on
   # the fallback paths — BCH, n_steps = 1, covariate-plus-distal — that nothing
   # overwrites it and confint()/the analytical Wald read the matrix built here.
-  Z_h    <- if (prior_rows) Z_aug else Z
-  w_h    <- if (prior_rows) w_aug else w_vec
-  prob_h <- if (prior_rows) probs_for(beta, Z_aug) else prob
+  Z_h    <- if (prior_rows) Z_aug else Z_d
+  w_h    <- if (prior_rows) w_aug else w_d
+  prob_h <- probs_for(beta, Z_h)
 
   H <- matrix(0, (K - 1) * D, (K - 1) * D)
   for (k in seq_len(K - 1)) {

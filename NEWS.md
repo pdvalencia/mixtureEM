@@ -1,5 +1,26 @@
 # mixtureEM (development version)
 
+## Faster: the class-membership regression no longer re-fits on every row of every EM iteration
+
+`.fit_mnl()`, the multinomial logistic regression behind a covariate or group
+structural model, ran a full `optim(method = "BFGS")` on all `n` rows in every
+M-step of every EM iteration, even when those rows carried only a handful of
+distinct covariate patterns. On a 13,840-row, four-group fit that regression
+was 99% of the cost of a grouped iteration. It now fits on the table of unique
+covariate patterns whenever fewer than half the rows are distinct, which is
+the ordinary case for a grouping variable or a set of dummies. This is exact,
+not an approximation: the objective, its gradient and its Hessian depend on
+the rows only through per-pattern sums, so a pattern's rows can be replaced by
+their weighted mean responsibility carrying the pattern's total weight. A
+regression on continuous covariates has no duplicate rows to exploit and runs
+the same code as before.
+
+A converged five-class, four-group fit on that data ran 17x faster with an
+identical iteration count and a log-likelihood agreeing to 8 significant
+figures; `vignettes/mglca_yrbs.Rmd`, which fits several such models, knits in
+about 23 minutes where it used to take roughly 2 hours. No fitted value,
+standard error or printed number changes.
+
 ## Added: `start_from`, an anchored fit for the per-class prevalence restriction
 
 `fit_mixture()` gains `start_from`, which anchors a `group_prevalence_equal`
