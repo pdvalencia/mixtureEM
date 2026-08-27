@@ -196,8 +196,8 @@ on it describe the simulation, not new empirical findings.
 variances are freed and collapse, the three-profile solution, covariates,
 and distal outcomes. `vignette("mglca_yrbs")` fits a multiple-group latent
 class analysis on the bundled `yrbs2005` data grouped by grade, testing
-first whether class prevalence differs by group under a measurement-
-invariant model and then testing measurement invariance itself.
+measurement invariance first and then whether class prevalence differs by
+group, class by class.
 
 ## Added: hold a class's prevalence equal across groups
 
