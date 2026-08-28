@@ -1,5 +1,23 @@
 # mixtureEM (development version)
 
+## Fixed: `fit_ml()` wrote step-3 ML-corrected posteriors in the wrong orientation
+
+The classification-error matrix was applied transposed when `fit_ml()` wrote
+back `log_resp`/`lower_bound` after its EM loop. The fitted structural-model
+coefficients were unaffected -- they come out of the EM loop itself, which
+used the matrix correctly -- but the posterior class probabilities returned
+alongside them were not, under both modal and proportional assignment.
+Posteriors from `fit_ml()` change; coefficients do not.
+
+## Changed: `blrt()` now refuses a weighted or design-based comparison
+
+`blrt()`'s bootstrap null distribution is drawn i.i.d. -- no weights, no
+clustering -- while a fit made under `weights`, `strata`, or `cluster`
+carries them in its observed statistic. The two were never comparable, and
+nothing said so. `blrt()` now stops rather than returning a p-value from the
+wrong null; there is no correction for this yet. Refit without the design
+arguments, or treat the result as a diagnostic rather than a calibrated test.
+
 ## Fixed: `lr_test()` had no scaling correction under sampling weights or a survey design
 
 Under sampling weights, or a complex survey design (`strata`/`cluster`), the
