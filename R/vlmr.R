@@ -102,8 +102,16 @@
 # likelihood Vuong's theory is stated for.
 #
 # Returns NULL when the measurement model has no packable parameter vector.
+#
+# Packs via `.joint_pack()`/`.joint_ll_case()` (R/step3_variance.R), not the
+# plain `.step1_pack()`/`.step1_ll_case()`: when `fit$sm` supplies class
+# probabilities directly (a `group`/covariate structural model), theta1 has to
+# include it and `ll` has to be the joint model's own log-likelihood, or `A`
+# and the scores below describe a model nothing was ever optimised against.
+# The joint functions fall through to the plain ones whenever `sm` is absent
+# or inactive, so an ordinary LCA/LPA fit packs exactly as before.
 .vlmr_pieces <- function(fit) {
-  par <- .step1_pack(fit)
+  par <- .joint_pack(fit)
   if (is.null(par) || !length(par)) return(NULL)
   X <- fit$data
   if (is.null(X)) return(NULL)
@@ -115,11 +123,11 @@
   s <- vapply(seq_len(p), function(m) {
     a <- par; a[m] <- a[m] + h[m]
     b <- par; b[m] <- b[m] - h[m]
-    w * (.step1_ll_case(fit, X, a) - .step1_ll_case(fit, X, b)) / (2 * h[m])
+    w * (.joint_ll_case(fit, X, a) - .joint_ll_case(fit, X, b)) / (2 * h[m])
   }, numeric(n))
   dim(s) <- c(n, p)
 
-  ll <- function(v) sum(w * .step1_ll_case(fit, X, v))
+  ll <- function(v) sum(w * .joint_ll_case(fit, X, v))
   list(s = s, A = .step1_fd_hessian(ll, par), ll = ll(par), p = p, n = n)
 }
 
@@ -187,19 +195,18 @@
 # meat under simple weighting, or the PSU-aggregated survey meat when a
 # design is declared.
 #
-# Returns NULL -- the caller's cue to refuse rather than compute -- when the
-# fit carries a structural model (`.step1_pack()` covers the measurement
-# model only, not a covariate or group regression on class membership: using
-# it anyway would silently drop the structural model from the packed
-# log-likelihood) or when the measurement model has no unconstrained packing
-# at all (`.step1_pack_mm()` returns NULL for growth and other structured
-# families). Restricted to `mixture_model` fits for the same reason
-# `.vlmr_pair()` is: an `lta_model`'s state does not share `.step1_pack()`'s
-# field names (`n_components`, `weights`), so calling it in would go straight
-# to malformed output at .step1_pack(), never a clean NULL.
+# Returns NULL -- the caller's cue to refuse rather than compute -- wherever
+# `.joint_pack()` (R/step3_variance.R) does: a structural model whose family
+# has no unconstrained packing (`group_prevalence`), a fit that was not a
+# genuine one-step joint EM (`n_steps != 1`, so `mm` and `sm` were never
+# estimated under one shared E-step), or a measurement model with no
+# unconstrained packing at all (`.step1_pack_mm()` returns NULL for growth and
+# other structured families). Restricted to `mixture_model` fits for the same
+# reason `.vlmr_pair()` is: an `lta_model`'s state does not share
+# `.joint_pack()`'s field names (`n_components`, `weights`), so calling it in
+# would go straight to malformed output, never a clean NULL.
 .scaling_pieces <- function(info) {
   if (!inherits(info$fit, "mixture_model")) return(NULL)
-  if (.supplies_class_probs(info$fit$sm)) return(NULL)
   pieces <- .vlmr_pieces(info$fit)
   if (is.null(pieces)) return(NULL)
   A <- -pieces$A

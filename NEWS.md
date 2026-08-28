@@ -11,13 +11,25 @@ scaling factor applied, with the raw and scaled statistics both reported.
 Frequency weights are unaffected, since a frequency of 10 is ten identical
 cases and its likelihood is a true likelihood rather than a pseudo one.
 
-The correction is computed for plain measurement models -- the ordinary case
-of comparing two weighted or design-based fits with no covariate or group
-regression on class membership. A fit that does carry one of those now
-refuses with an explanation naming `wald_omnibus_test()` and
-`analytical_wald_test()` as the tests that remain valid under the design,
-rather than silently returning an uncorrected number. `longitudinal_lrt()`
-inherits the same behavior, since it only delegates to `lr_test()`.
+The correction now also reaches a fit that carries a `group`/covariate
+structural model -- exactly the shape a weighted multiple-group invariance
+test combines from `vignette("mglca_yrbs")` and `vignette("survey_lca")` --
+provided the class-membership regression was fit jointly with the measurement
+model (`n_steps = 1`, the way both vignettes already call `fit_mixture()`). A
+fit whose structural model uses the `group_prevalence_equal` parameterisation,
+or whose measurement family has no unconstrained packing, still refuses with
+an explanation naming `wald_omnibus_test()` and `analytical_wald_test()` as
+the tests that remain valid under the design, rather than silently returning
+an uncorrected number. `longitudinal_lrt()` inherits the same behavior, since
+it only delegates to `lr_test()`.
+
+A second, unrelated defect surfaced while extending the correction to
+structural models and is fixed alongside it: comparing two multiple-group
+fits at the *default* (3-step) estimation setting differenced two step-3
+pseudo-likelihoods of the class-membership regression, not the joint models'
+own log-likelihoods, and could return a negative, meaningless statistic.
+`lr_test()` now refuses that comparison outright, naming `n_steps = 1` as the
+fix, rather than returning a number that happens to look plausible.
 
 No previously-shipped call is affected: every `lr_test()` call in the
 package's own vignettes fits without weights, so their printed statistics are

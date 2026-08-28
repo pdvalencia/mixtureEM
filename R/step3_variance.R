@@ -419,6 +419,93 @@ NULL
 }
 
 # ------------------------------------------------------------------------------
+# Structural-block packing, for a fit whose structural model supplies class
+# probabilities directly (`covariate`; see .supplies_class_probs() in
+# R/em_core.R) rather than through the pooled `weights` above.
+#
+# `.step1_pack()`/`.step1_unpack()` above are also called with `sm` present
+# (from `.step3_covariate_vcov()`'s Bakk-Oberski-Vermunt correction), and
+# there the omission of `sm` is deliberate: "step one" in that formula means
+# the measurement-only fit BOV's derivation is stated for, with the step-three
+# regression's uncertainty added separately. Extending them to include `sm`
+# would silently change that unrelated, already-correct calculation. The
+# functions below are additive instead: `.joint_pack()`/`.joint_unpack()`/
+# `.joint_ll_case()` are the ones R/vlmr.R calls, and they fall through to the
+# plain step-one functions whenever `sm` is absent or does not supply class
+# probabilities, so a plain LCA/LPA fit packs exactly as before.
+# ------------------------------------------------------------------------------
+
+# Only the "covariate" family has an unconstrained representation here: its
+# K x D beta matrix, with the anchor class's row pinned at zero, is already
+# unconstrained on the free K-1 rows -- no transform needed, unlike the
+# emission families in .step1_pack_sub(). `group_prevalence` parameterises a
+# constrained simplex per group instead (R/group_prevalence.R) and has no such
+# representation, so it returns NULL here exactly as an unsupported emission
+# family does, and the caller falls back to Option A.
+.step1_pack_sm <- function(sm) {
+  if (!inherits(sm, "covariate")) return(NULL)
+  beta <- sm$parameters$beta
+  K <- nrow(beta)
+  if (K < 2L) return(numeric(0))
+  as.vector(t(beta[seq_len(K - 1L), , drop = FALSE]))
+}
+
+.step1_unpack_sm <- function(sm, par) {
+  if (!inherits(sm, "covariate")) return(sm)
+  beta <- sm$parameters$beta
+  K <- nrow(beta); D <- ncol(beta)
+  if (K < 2L) return(sm)
+  B <- matrix(par, K - 1L, D, byrow = TRUE)
+  sm$parameters$beta <- rbind(B, 0)
+  sm
+}
+
+# The measurement block followed by the structural block, when `sm` is active;
+# otherwise identical to `.step1_pack()`. Returns NULL wherever the extension
+# does not reach: `sm`'s family is not packable (`.step1_pack_sm()` above), the
+# fit's own structural data was not retained (`model_state$Y`, absent on a fit
+# from before this was added), or the fit was not a genuine one-step joint EM
+# (`n_steps != 1`) -- a step-3 fit's `mm` and `sm` were not estimated under one
+# shared E-step, so packing them together would reconstruct a model whose
+# likelihood was never the objective anything was optimised against. `lr_test()`
+# refuses that case earlier and more specifically (`.is_step3_conditional()`,
+# R/lta_methods.R); this is a second, independent guard for any other caller of
+# `.joint_pack()`, chiefly the VLMR K-vs-K+1 comparison (R/vlmr.R), which has
+# the identical hole for the identical reason.
+.joint_pack <- function(model_state) {
+  sm <- model_state$sm
+  if (is.null(sm) || !.supplies_class_probs(sm)) return(.step1_pack(model_state))
+  pm <- .step1_pack_mm(model_state$mm)
+  if (is.null(pm)) return(NULL)
+  if (!isTRUE(model_state$n_steps == 1) || is.null(model_state$Y)) return(NULL)
+  ps <- .step1_pack_sm(sm)
+  if (is.null(ps)) return(NULL)
+  c(pm, ps)
+}
+
+.joint_unpack <- function(model_state, par) {
+  sm <- model_state$sm
+  if (is.null(sm) || !.supplies_class_probs(sm))
+    return(.step1_unpack(model_state, par))
+  nm <- length(.step1_pack_mm(model_state$mm))
+  model_state$mm <- .step1_unpack_mm(model_state$mm, par[seq_len(nm)])
+  model_state$sm <- .step1_unpack_sm(sm, par[seq_along(par) > nm])
+  model_state
+}
+
+# Case-level log-likelihood at an arbitrary joint theta1, mm and sm together.
+# Falls through to `.step1_ll_case()` (which reads `model_state$weights`
+# instead) whenever `sm` is absent or inactive.
+.joint_ll_case <- function(model_state, X, par) {
+  sm <- model_state$sm
+  if (is.null(sm) || !.supplies_class_probs(sm))
+    return(.step1_ll_case(model_state, X, par))
+  ms <- .joint_unpack(model_state, par)
+  logsumexp(log_likelihood(ms$mm, X) + log_likelihood(ms$sm, model_state$Y),
+            MARGIN = 1)
+}
+
+# ------------------------------------------------------------------------------
 # 3. The corrected variance
 # ------------------------------------------------------------------------------
 
