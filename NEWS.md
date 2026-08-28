@@ -1,5 +1,24 @@
 # mixtureEM (development version)
 
+## Fixed: `fit_ml()`'s written-back posteriors were still wrong after the orientation fix
+
+The orientation fix below removed a stray transpose, but the block that wrote
+`log_resp`/`lower_bound` back after the EM loop was recomputing a posterior
+from scratch -- a fresh E-step on the raw indicators recombined with the
+fitted structural model -- rather than reading off the classification-weight
+matrix the EM loop was already maximising the structural model against every
+iteration. The two are not the same quantity: the recomputation does not
+correspond to Vermunt's (2010) derivation of the step-3 likelihood, and its
+"Overall" mean class probabilities did not reproduce another program's own
+step-3 posteriors against an external reference dataset. `fit_ml()` now
+returns that internal matrix directly, which reproduces the reference
+program's posteriors to four decimals. Coefficients and standard errors are
+unaffected, since they come from the EM loop's own `m_step()`, not from this
+write-back; only the
+posterior class probabilities returned by `add_covariates()` and
+`add_outcome()` under `correction = "ML"` change, and so do any diagnostics
+computed from them (entropy, the reported log-likelihood/AIC/BIC/SABIC).
+
 ## Add global (Viterbi) decoding for `fit_lta()`
 
 `class_assignments()` on an `lta_model` decoded locally only: it read the

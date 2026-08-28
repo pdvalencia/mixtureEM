@@ -240,8 +240,8 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
     if (inherits(model_state$sm, c("distal_pooled", "distal_regression"))) {
       po_given_x <- exp(log_sm)                      # n_clean x K
       Z_mat      <- sweep(po_given_x, 2, pi_k_clean, "*") %*% C_row_norm
-      current_ll <- sum(w_clean * rowSums(
-        A1 * log(pmax(Z_mat, 1e-300))))
+      ll_case    <- rowSums(A1 * log(pmax(Z_mat, 1e-300)))
+      current_ll <- sum(w_clean * ll_case)
       RC <- A1 / pmax(Z_mat, 1e-300)
       W  <- sweep(po_given_x, 2, pi_k_clean, "*") *
         (RC %*% t(C_row_norm))
@@ -250,8 +250,8 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
       sm_prob <- exp(log_sm - lsh)
       sm_prob <- sm_prob / rowSums(sm_prob)
       Z_mat   <- sm_prob %*% C_row_norm
-      current_ll <- sum(w_clean * rowSums(
-        A1 * log(pmax(Z_mat, 1e-300))))
+      ll_case    <- rowSums(A1 * log(pmax(Z_mat, 1e-300)))
+      current_ll <- sum(w_clean * ll_case)
       R <- A1 / pmax(Z_mat, 1e-300)
       W <- sm_prob * (R %*% t(C_row_norm))
     }
@@ -427,26 +427,32 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
     }
   }
 
-  e_res_full <- e_step(model_state, X, NULL)
-  resp1_full <- exp(e_res_full$log_resp)
-
-  p_a_gvn_x_full <- resp1_full %*% C_row_norm
-
-  sm_logp_full <- matrix(0, nrow = nrow(X), ncol = K)
-  if (any(keep)) {
-    log_sm_f <- log_likelihood(model_state$sm, Y_clean)
-    lsh_f    <- .row_max(log_sm_f)
-    sp_f     <- exp(log_sm_f - lsh_f)
-    sp_f     <- sp_f / rowSums(sp_f)
-    sm_logp_full[keep, ] <- log(pmax(sp_f, 1e-300))
-  }
-
-  log_comb_full <- log(pmax(p_a_gvn_x_full, 1e-300)) + sm_logp_full
-  max_lcf       <- .row_max(log_comb_full)
-  log_norm_full <- max_lcf + log(rowSums(exp(sweep(log_comb_full, 1, max_lcf, "-"))))
-
-  model_state$log_resp    <- sweep(log_comb_full, 1, log_norm_full, "-")
-  model_state$lower_bound <- log_norm_full
+  # The written-back posteriors are W itself, not a fresh recombination.
+  #
+  # Vermunt (2010, eq. 13) treats step 3 as a genuine LC model fit on an
+  # expanded data set (K pseudo-records per case, the assigned-class variable
+  # A1 as a fixed-response indicator, the covariates as predictors of x); see
+  # this file's header comment. W is that model's own E-step posterior
+  # P(x | a_i, z_i), aggregated back to one row per case by construction --
+  # it is exactly what m_step() has been fitting the structural model against
+  # every iteration, at whatever iterate the loop above converged to. There is
+  # no second, independent posterior to compute here.
+  #
+  # `keep` is always all-TRUE ("Retain every case", above), so W already
+  # covers every row of X and Y -- recomputing a posterior "for the full
+  # data" by re-running the E-step on the raw indicators and recombining it
+  # with the fitted covariate model, as this block used to do, is not a
+  # second way of getting the same answer: the LC likelihood the EM loop
+  # maximises is P(a_i | z_i), not a product of the indicators' own
+  # measurement-model density and the classification-error term, so that
+  # recombination does not correspond to any quantity Vermunt's derivation
+  # defines. It was also never validated against another program's own
+  # step-3 output: `internal/validation-tests/test-step3-prior-validation.R`
+  # confirms colMeans(W) reproduces that program's overall posterior class
+  # probabilities (0.4419 / 0.2954 / 0.2627) to four decimals, which the old
+  # recombination did not.
+  model_state$log_resp    <- log(pmax(W, 1e-300))
+  model_state$lower_bound <- ll_case
 
   return(model_state)
 }
