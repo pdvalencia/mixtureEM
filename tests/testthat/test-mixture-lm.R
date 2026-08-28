@@ -40,8 +40,12 @@ test_that("the stayer restriction costs the parameters it should", {
                n_init = 3, random_state = 6, standard_errors = FALSE,
                max_iter = 300, tol = 1e-8)
 
-  free <- do.call(fit_lta, c(args, n_classes = 2))
-  ms   <- do.call(fit_lta, c(args, mover_stayer = TRUE))
+  # Structural properties (parameter counts, tau's fixed diagonal), not
+  # convergence, are what this test checks: uninformative i.i.d. random data
+  # at n_init = 3 is not expected to converge within max_iter, and that is
+  # not the point being tested here.
+  free <- suppressWarnings(do.call(fit_lta, c(args, n_classes = 2)))
+  ms   <- suppressWarnings(do.call(fit_lta, c(args, mover_stayer = TRUE)))
 
   # Free: 1 class weight + 2 x 1 initial + 2 classes x 2 matrices x 2 rows x 1
   # + 4 items x 2 statuses. Mover-stayer drops the stayer's four rows.
@@ -69,9 +73,12 @@ test_that("covariates are refused rather than silently ignored", {
 test_that("standard errors are declined, not reported wrongly", {
   set.seed(23)
   X <- matrix(rbinom(300 * 9, 1, 0.5), ncol = 9)
-  fit <- fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
-                 mover_stayer = TRUE, n_init = 3, random_state = 8,
-                 max_iter = 300, tol = 1e-8)
+  # Same non-convergence noise as above, and equally beside the point: this
+  # test only checks that se is declined outright, not what it converges to.
+  fit <- suppressWarnings(fit_lta(
+    X, n_statuses = 2, times = 3, measurement = "binary",
+    mover_stayer = TRUE, n_init = 3, random_state = 8,
+    max_iter = 300, tol = 1e-8))
   expect_null(fit$se)
   expect_output(print(fit), "standard errors are not available")
 })
