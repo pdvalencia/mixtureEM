@@ -34,6 +34,16 @@
   sprintf("%s (%.1f%%)", as.vector(base), weights * 100)
 }
 
+# A one-line footnote for a fit whose class prevalence varies by group
+# (`group_effects = "prevalence"` or `"both"`): the legend percentages above
+# come from `x$weights`, the pooled marginal shares across all groups, not the
+# per-group breakdown the model actually estimates. NULL for every other fit,
+# so the mtext() call this feeds is silent for the common case.
+.group_pooled_note <- function(x) {
+  if (is.null(.group_gamma_matrix(x))) return(NULL)
+  "Legend percentages are pooled across groups; see class_sizes() for the by-group breakdown."
+}
+
 # Does a (possibly nested) measurement model contain any block plotted on the
 # observed data range? Continuous means and Poisson rates are both rescaled
 # against the raw indicators, so both need the raw data to be available.
@@ -318,11 +328,19 @@ plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
   # the bottom margin the 45-degree item names. A fixed margin either clips
   # long labels or wastes space on short ones.
   mar_right  <- min(3 + 0.45 * max(nchar(labels)), 18)
-  mar_bottom <- max(6, min(3.5 + 0.4 * max(nchar(colnames(plot_mat))), 12))
+  n_footnotes <- as.integer(any(grepl("\\*", colnames(plot_mat)))) +
+    as.integer(!is.null(.group_pooled_note(x)))
+  mar_bottom <- max(6, min(3.5 + 0.4 * max(nchar(colnames(plot_mat))), 12)) +
+    max(0, n_footnotes - 1)
   # The first item's rotated label leans left of the axis, so the left margin
   # grows with it too (the y-axis title needs the 4-line floor regardless).
   mar_left   <- max(4, min(2 + 0.25 * nchar(colnames(plot_mat)[1]), 8))
-  par(mar = c(mar_bottom, mar_left, 4, mar_right), xpd = TRUE)
+  # A `main` with embedded line breaks needs the top margin to grow with it --
+  # base R's title() does not reserve extra room for a multi-line string on
+  # its own.
+  n_title_lines <- lengths(gregexpr("\n", main %||% "")) + 1
+  mar_top <- 2 + 2 * n_title_lines
+  par(mar = c(mar_bottom, mar_left, mar_top, mar_right), xpd = TRUE)
 
   matplot(
     x    = seq_len(n_items),
@@ -371,10 +389,15 @@ plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
     title  = "Class"
   )
 
+  footnotes <- character(0)
   if (any(grepl("\\*", colnames(plot_mat))))
+    footnotes <- c(footnotes,
+                   "* Continuous items min-max scaled; ordinal items shown as scaled expected category.")
+  footnotes <- c(footnotes, .group_pooled_note(x))
+  for (i in seq_along(footnotes))
     mtext(
-      "* Continuous items min-max scaled; ordinal items shown as scaled expected category.",
-      side = 1, line = mar_bottom - 1.2, adj = 0, cex = 0.8, font = 3,
+      footnotes[i],
+      side = 1, line = mar_bottom - 1.2 + (i - 1), adj = 0, cex = 0.8, font = 3,
       col = "grey30"
     )
 
@@ -416,9 +439,11 @@ plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
   # Same reasoning as the profile plot: the right margin is sized by the legend
   # it holds and the bottom margin by the item names, which need room only in
   # proportion to their length when they are rotated.
+  gp_note <- .group_pooled_note(x)
   mar_right  <- min(3 + 0.45 * max(nchar(labels)), 18)
-  mar_bottom <- if (rotate)
-    max(6, min(3.5 + 0.4 * max(nchar(item_labels)), 12)) else 4
+  mar_bottom <- (if (rotate)
+    max(6, min(3.5 + 0.4 * max(nchar(item_labels)), 12)) else 4) +
+    (if (is.null(gp_note)) 0 else 1)
   par(mar = c(mar_bottom, 4.5, 4, mar_right), xpd = TRUE)
 
   lim  <- max(abs(H), na.rm = TRUE)
@@ -454,6 +479,10 @@ plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
     x = x_pos, y = par("usr")[4], legend = labels, fill = my_colors,
     border = NA, bty = "n", cex = 0.9, title = "Class"
   )
+
+  if (!is.null(gp_note))
+    mtext(gp_note, side = 1, line = mar_bottom - 1.2, adj = 0, cex = 0.8,
+          font = 3, col = "grey30")
 
   invisible(x)
 }
@@ -497,8 +526,10 @@ plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
 
   old_par <- par(no.readonly = TRUE)
   on.exit(par(old_par))
+  gp_note <- .group_pooled_note(x)
   mar_right  <- min(3 + 0.45 * max(nchar(labels)), 18)
-  mar_bottom <- max(6, min(3.5 + 0.4 * max(nchar(item_labels)), 12))
+  mar_bottom <- max(6, min(3.5 + 0.4 * max(nchar(item_labels)), 12)) +
+    (if (is.null(gp_note)) 0 else 1)
   mar_left   <- max(4.5, min(2 + 0.25 * nchar(item_labels[1]), 8))
   par(mar = c(mar_bottom, mar_left, 4, mar_right), xpd = TRUE)
 
@@ -543,6 +574,10 @@ plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
     x = x_pos, y = par("usr")[4], legend = labels, col = my_colors,
     pch = my_shapes, lty = 1, lwd = 2, bty = "n", cex = 0.9, title = "Class"
   )
+
+  if (!is.null(gp_note))
+    mtext(gp_note, side = 1, line = mar_bottom - 1.2, adj = 0, cex = 0.8,
+          font = 3, col = "grey30")
 
   .cat_label_legend(item_labels, indent = "")
 

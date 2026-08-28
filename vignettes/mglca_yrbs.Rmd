@@ -152,7 +152,7 @@ Early Experimenters, High Risk,** and **Sexual Risk-Takers**:
 class_labels <- c("Low Risk", "Binge Drinkers", "Early Experimenters",
                   "High Risk", "Sexual Risk-Takers")
 plot(m_free, class_labels = class_labels,
-     main = "Health-risk behavior classes by grade (YRBS 2005, unweighted)")
+     main = "Health-risk behavior classes by grade\n(YRBS 2005, unweighted)")
 ```
 
 Class 2 (Binge Drinkers) stands out on `drove_drinking` and `binge_drink_30d`

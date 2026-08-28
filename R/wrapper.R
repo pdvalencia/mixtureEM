@@ -3524,9 +3524,13 @@ print.mixture_model <- function(x, ...) {
                 x$metrics$ll_knownclass,
                 as.integer(x$metrics$n_params_knownclass)))
   cat("---------------------------------------------------------\n")
-  cat("Class Weights (Sizes):\n")
+  by_group_gamma <- .group_gamma_matrix(x)
+  cat(if (is.null(by_group_gamma)) "Class Weights (Sizes):\n"
+      else "Class Weights (Sizes, pooled across groups):\n")
   for (i in seq_along(x$weights))
     cat(sprintf("  Class %d: %.2f%%\n", i, x$weights[i] * 100))
+  if (!is.null(by_group_gamma))
+    cat("  (Prevalence varies by group; see class_sizes(model) for the by-group breakdown.)\n")
   cat("=========================================================\n")
   # A warning is transient; someone opening a saved fit months later should
   # still see that its variances collapsed. See R/gaussian_boundary.R.
