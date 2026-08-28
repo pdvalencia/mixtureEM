@@ -344,6 +344,22 @@ blrt <- function(indicators, k_small, k_large, measurement,
   null_model <- fit_engine(Xd, k_small, n_init = n_init_base)
   alt_model  <- fit_engine(Xd, k_large, n_init = n_init_base)
 
+  # The bootstrap null below is drawn i.i.d. -- no weights, no clustering --
+  # while a weighted or design-based observed fit's statistic already carries
+  # them, so the two are not comparable. `lr_test()` refuses the analogous
+  # case (R/lta_methods.R) via the same predicate; `blrt()` has no correction
+  # to fall back on the way `lr_test()` does, because a bootstrap p-value
+  # from the wrong null is not a weaker answer, it is a different question.
+  if (.needs_scaling_correction(.nested_fit_info(null_model)) ||
+      .needs_scaling_correction(.nested_fit_info(alt_model)))
+    stop(paste(
+      "blrt() was fit under sampling weights or a complex survey design, so",
+      "the observed statistic is a pseudo-likelihood-ratio but the bootstrap",
+      "null distribution above is drawn i.i.d. and carries neither. There is",
+      "currently no design-aware correction for this comparison -- refit",
+      "without `weights`/`strata`/`cluster`, or treat this as a diagnostic",
+      "rather than a calibrated test."), call. = FALSE)
+
   obs_diff  <- 2 * (alt_model$metrics$ll - null_model$metrics$ll)
   N         <- nrow(Xd)
 

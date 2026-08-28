@@ -430,7 +430,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   e_res_full <- e_step(model_state, X, NULL)
   resp1_full <- exp(e_res_full$log_resp)
 
-  p_a_gvn_x_full <- resp1_full %*% t(C_row_norm)
+  p_a_gvn_x_full <- resp1_full %*% C_row_norm
 
   sm_logp_full <- matrix(0, nrow = nrow(X), ncol = K)
   if (any(keep)) {
