@@ -1,5 +1,32 @@
 # mixtureEM (development version)
 
+## Add global (Viterbi) decoding for `fit_lta()`
+
+`class_assignments()` on an `lta_model` decoded locally only: it read the
+occasion-by-occasion posterior and took the modal status at each occasion
+separately. That can return a status sequence the fitted model itself gives
+zero probability, if the transition between two locally-favoured statuses is
+one `forbidden_transitions` rules out or the fit merely scores as very
+unlikely, and a user reading off "each case's trajectory through the
+statuses" is the single most common use of this function. `type = "viterbi"`
+adds global decoding: the single most probable status *sequence*, via the
+max-product form of the same forward recursion `class_assignments()` already
+runs, with the backward pass a max instead of a traceback (Bartolucci,
+Farcomeni & Pennoni, 2013, sec. 7.5.2). On a fixture with a monotone
+three-stage design and every backward transition forbidden, local decoding
+crosses a structurally zero transition for 1 of 400 cases; global decoding
+never can, by construction, and the two decodings disagree on the path for
+104 of those 400. With `n_classes` > 1 the class and the path are decoded
+jointly, which is the model's own MAP and not the same question as "the best
+path within the marginally modal class": on a mover-stayer fixture, 55 of the
+301 cases jointly assigned to the stayer class had a *locally* decoded path
+that moved, which cannot happen once class and path are decoded together, and
+the jointly decoded class itself differs from the marginal modal class for
+27.6% of cases. The returned path carries its own posterior probability as
+`attr(, "probability")` and, with more than one class, the decoded class as
+`attr(, "class_assigned")`. No existing return value or fitted number
+changes.
+
 ## Fix `lr_test()`'s and `vlmr_test()`'s scaled statistic for a one-step covariate model
 
 `.step1_pack_sm()` packed a covariate structural model's coefficients on the

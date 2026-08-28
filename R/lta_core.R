@@ -214,6 +214,86 @@
 }
 
 # ------------------------------------------------------------------------------
+# Global (Viterbi) decoding
+# ------------------------------------------------------------------------------
+#
+# .lta_forward_backward() answers "what is the marginal status at occasion t?",
+# one occasion at a time; the most probable status at every occasion need not
+# be a sequence the model gives any probability at all, if the transition
+# between two locally-favoured statuses happens to be forbidden or merely
+# unlikely. Viterbi decoding instead finds the single most probable *sequence*
+# S_1..S_T, replacing the forward recursion's sum over origin statuses with a
+# max: same tau_from() shape as .lta_forward_backward(), max instead of
+# logsumexp forward, then a backward trace of which origin fed each maximum.
+.lta_viterbi_one <- function(logB, log_delta, log_tau) {
+  Tn <- length(logB)
+  n  <- nrow(logB[[1]])
+  K  <- ncol(logB[[1]])
+
+  tau_from <- function(t, k) {
+    LT <- log_tau[[t]]
+    if (is.list(LT)) LT[[k]] else matrix(LT[k, ], n, K, byrow = TRUE)
+  }
+  row_max <- function(m) do.call(pmax, as.data.frame(m))
+
+  lp <- vector("list", Tn)
+  lp[[1]] <- if (is.matrix(log_delta)) logB[[1]] + log_delta else
+    sweep(logB[[1]], 2, log_delta, "+")
+  if (Tn > 1L) for (t in 2:Tn) {
+    prev <- lp[[t - 1]]
+    m <- matrix(0, n, K)
+    for (l in seq_len(K)) {
+      cand <- matrix(0, n, K)
+      for (k in seq_len(K)) cand[, k] <- prev[, k] + tau_from(t - 1L, k)[, l]
+      m[, l] <- row_max(cand)
+    }
+    lp[[t]] <- m + logB[[t]]
+  }
+
+  path <- matrix(0L, n, Tn)
+  path[, Tn] <- max.col(lp[[Tn]], ties.method = "first")
+  if (Tn > 1L) for (t in (Tn - 1L):1L) {
+    nxt  <- path[, t + 1L]
+    cand <- matrix(0, n, K)
+    for (k in seq_len(K))
+      cand[, k] <- lp[[t]][, k] + tau_from(t, k)[cbind(seq_len(n), nxt)]
+    path[, t] <- max.col(cand, ties.method = "first")
+  }
+  list(path = path, logp = row_max(lp[[Tn]]))
+}
+
+# With more than one latent class, decoding has to consider class and path
+# jointly rather than plugging the marginal modal class into its own chain's
+# best path: the two questions are not separable, since which chain a case
+# most plausibly followed depends on which class it is in. Running the single-
+# chain recursion once per class and taking the per-case maximum over
+# (class, path) together is exact and needs no further convention.
+.lta_viterbi <- function(state) {
+  C    <- state$n_classes %||% 1L
+  logB <- .lta_emission_loglik(state$mm, state$data)
+
+  if (C == 1L) {
+    v <- .lta_viterbi_one(logB, .lta_log_delta(state), .lta_log_tau(state))
+    return(list(path = v$path, logp = v$logp, class = NULL))
+  }
+
+  per <- lapply(seq_len(C), function(c) {
+    st <- .lta_class_state(state, c)
+    v  <- .lta_viterbi_one(logB, .lta_log_delta(st), .lta_log_tau(st))
+    v$logp <- v$logp + log(pmax(state$class_weights[c], 1e-300))
+    v
+  })
+  L   <- do.call(cbind, lapply(per, `[[`, "logp"))
+  cls <- max.col(L, ties.method = "first")
+  path <- matrix(0L, nrow(L), state$n_times)
+  for (c in seq_len(C)) {
+    i <- cls == c
+    if (any(i)) path[i, ] <- per[[c]]$path[i, , drop = FALSE]
+  }
+  list(path = path, logp = L[cbind(seq_len(nrow(L)), cls)], class = cls)
+}
+
+# ------------------------------------------------------------------------------
 # One EM run from the current parameter values
 # ------------------------------------------------------------------------------
 .lta_em <- function(state, X, max_iter = 1000, tol = 1e-8, alpha = 1.0) {

@@ -8,7 +8,7 @@
 \usage{
 \method{class_assignments}{lta_model}(
   object,
-  type = c("modal", "posterior", "both"),
+  type = c("modal", "posterior", "both", "viterbi"),
   occasion = NULL,
   ...
 )
@@ -24,7 +24,8 @@ models) or an \code{lta_model}.}
 \item{type}{What to return. \code{"modal"} (default) gives the assigned
 class; \code{"posterior"} the full matrix of posterior probabilities;
 \code{"both"} a data frame carrying the assignment, its probability, and
-the posterior columns.}
+the posterior columns; \code{"viterbi"}, for an \code{lta_model} only,
+globally decodes the single most probable status sequence (see Details).}
 
 \item{occasion}{For an \code{lta_model}, the index of a single occasion. Omit for
 every occasion, which \code{type = "both"} does not support.}
@@ -51,6 +52,18 @@ same convention \code{\link[=status_prevalences]{status_prevalences()}} and the 
 occasion at the shape the mixture methods return; omit it for all of them at
 once. To assign the latent \emph{class} of a mixture latent Markov model, use
 \code{object$class_posterior}.
+
+\code{type = "viterbi"} decodes globally instead: it returns the single most
+probable \emph{sequence} of statuses across all occasions at once, rather than
+the most probable status at each occasion taken separately. The two can
+disagree — the occasion-by-occasion assignment above may string together a
+sequence the model itself gives zero probability, if a locally-favoured
+status at one occasion can only be reached by a transition the model
+forbids or scores as unlikely, while Viterbi decoding can never do that. Its
+\code{occasion} argument still selects one occasion's column of that path; it
+does not change which path is decoded. With \code{n_classes} > 1 the class and
+the path are decoded jointly, and the class each case was assigned to is
+available as \code{attr(result, "class_assigned")}.
 
 Modal class assignment discards classification error. Do not use the returned
 class as though it were an observed variable in a subsequent regression,

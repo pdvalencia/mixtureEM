@@ -789,7 +789,8 @@ class_sizes.mixture_model <- function(object, ...) {
 #' @param type What to return. \code{"modal"} (default) gives the assigned
 #'   class; \code{"posterior"} the full matrix of posterior probabilities;
 #'   \code{"both"} a data frame carrying the assignment, its probability, and
-#'   the posterior columns.
+#'   the posterior columns; \code{"viterbi"}, for an \code{lta_model} only,
+#'   globally decodes the single most probable status sequence (see Details).
 #' @param ... Passed to methods.
 #'
 #' @return For \code{"modal"}, an integer vector of length n. For

@@ -70,16 +70,44 @@ transition_matrix <- function(object, occasion = NULL, class = NULL) {
 #' once. To assign the latent *class* of a mixture latent Markov model, use
 #' `object$class_posterior`.
 #'
+#' `type = "viterbi"` decodes globally instead: it returns the single most
+#' probable *sequence* of statuses across all occasions at once, rather than
+#' the most probable status at each occasion taken separately. The two can
+#' disagree — the occasion-by-occasion assignment above may string together a
+#' sequence the model itself gives zero probability, if a locally-favoured
+#' status at one occasion can only be reached by a transition the model
+#' forbids or scores as unlikely, while Viterbi decoding can never do that. Its
+#' `occasion` argument still selects one occasion's column of that path; it
+#' does not change which path is decoded. With `n_classes` > 1 the class and
+#' the path are decoded jointly, and the class each case was assigned to is
+#' available as `attr(result, "class_assigned")`.
+#'
 #' @param occasion For an `lta_model`, the index of a single occasion. Omit for
 #'   every occasion, which `type = "both"` does not support.
 #' @export
 class_assignments.lta_model <- function(object,
-                                        type = c("modal", "posterior", "both"),
+                                        type = c("modal", "posterior", "both",
+                                                 "viterbi"),
                                         occasion = NULL, ...) {
   type <- match.arg(type)
   gam  <- object$gamma
   labs <- object$longitudinal$time_labels
   st   <- paste0("Status ", seq_len(object$n_statuses))
+
+  if (type == "viterbi") {
+    v <- .lta_viterbi(object)
+    if (!is.null(occasion)) {
+      if (length(occasion) != 1L || !occasion %in% seq_along(gam))
+        stop("`occasion` must be a single index between 1 and ", length(gam),
+             ".", call. = FALSE)
+      return(v$path[, occasion])
+    }
+    out <- v$path
+    colnames(out) <- labs
+    attr(out, "probability")    <- exp(v$logp - object$ll_case)
+    attr(out, "class_assigned") <- v$class
+    return(out)
+  }
 
   if (!is.null(occasion)) {
     if (length(occasion) != 1L || !occasion %in% seq_along(gam))
