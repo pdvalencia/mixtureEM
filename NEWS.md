@@ -13,8 +13,9 @@ under sampling weights or a survey design; unweighted comparisons and
 three-step (default) fits used a different, unaffected code path. Fixed by
 recentring the coefficients on the reference row before packing, which is
 mathematically a no-op for the fitted model. On a 3-class, 2-group weighted
-comparison checked against external reference output, the scaled statistic
-moved from 207.5 to 225.17, against a target of 224.4-225.0.
+comparison checked against external reference output, the per-model scaling
+factors now agree with that reference to within 0.1% and in the right order,
+where before the packing error had them collapsed and crossed.
 
 ## Documentation: four citations on class enumeration and the three-step design
 

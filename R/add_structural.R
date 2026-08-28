@@ -259,8 +259,8 @@
 #' refit with `predictors` supplied to `fit_mixture()` directly.** Jiang,
 #' Elliott, Sammel and Wang (2016) name the failure mode of that one-step
 #' alternative: when a covariate participates in forming the classes, the
-#' joint model "tend[s] to have a high chance of artificially creating
-#' spurious mixture components to enhance [predictive accuracy] for the sample
+#' joint models "tend to have a high chance of artificially creating
+#' spurious mixture components to enhance predictive accuracy for the sample
 #' that is used to derive the model," and the apparent gain does not survive
 #' an independent validation sample. Their simulation also found the
 #' deviance-based criteria (AIC, BIC) more reliable for choosing the number of
