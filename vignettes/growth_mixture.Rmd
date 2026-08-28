@@ -192,6 +192,15 @@ blrt(k_small = 2, k_large = 3, from_fit = fit_gmm2, n_reps = 100)
   criteria at every class count, the class sizes and the classification
   diagnostics; `compare_longitudinal()`, `class_sizes()` and
   `classification_diagnostics()` supply them.
+* **Enumerate before you restrict the within-class model, not after.** Liu
+  (2011) recommends fitting the least restrictive trajectory model first —
+  an LCGA or GMM with `random_effects = "intercept_slope"` and
+  `residual = "occasion"` rather than a single shared residual — and
+  imposing a simpler covariance structure only once the class count is
+  settled, because "within-class model misspecification might lead to
+  spurious latent classes". Deciding K on the most restrictive model in
+  the sequence risks a class count that is compensating for structure the
+  model was not given, rather than describing a real subgroup.
 
 ## References
 
@@ -208,6 +217,10 @@ Jung, T., & Wickrama, K. A. S. (2008). An introduction to latent class
 growth analysis and growth mixture modeling. *Social and Personality
 Psychology Compass*, *2*(1), 302–317.
 <https://doi.org/10.1111/j.1751-9004.2007.00054.x>
+
+Liu, M. (2011). *Class enumeration and parameter estimation for the growth
+mixture model and the growth mixture item response theory model* (Doctoral
+dissertation). University of Maryland.
 
 Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
 growth mixture models (GMM). In *International Encyclopedia of Education*
