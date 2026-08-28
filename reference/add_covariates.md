@@ -108,7 +108,7 @@ just be refit with `predictors` supplied to
 [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
 directly.** Jiang, Elliott, Sammel and Wang (2016) name the failure mode
 of that one-step alternative: when a covariate participates in forming
-the classes, the joint model "tends to have a high chance of
+the classes, the joint models "tend to have a high chance of
 artificially creating spurious mixture components to enhance predictive
 accuracy for the sample that is used to derive the model," and the
 apparent gain does not survive an independent validation sample. Their
