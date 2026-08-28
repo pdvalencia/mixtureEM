@@ -152,8 +152,12 @@ test_that("a count block inside a mixed model upgrades to FIML when it has NAs",
 test_that("BLRT and the profile plot support count models", {
   d <- make_count_data(n = 600, seed = 12)
 
-  test <- blrt(d$X, k_small = 1, k_large = 2, measurement = "count",
-               n_reps = 10, n_init_base = 3, n_init_boot = 2, verbose = FALSE)
+  # n_reps = 10 is a deliberate speed fixture: this test checks that the count
+  # family reaches blrt() at all, not the resolution of the p-value, so the
+  # granularity note blrt() emits at that setting is expected here.
+  test <- suppressWarnings(blrt(d$X, k_small = 1, k_large = 2,
+               measurement = "count",
+               n_reps = 10, n_init_base = 3, n_init_boot = 2, verbose = FALSE))
   expect_true(test$obs_diff > 0)
   expect_length(test$null_dist, 10L)
   expect_true(test$p_value >= 0 && test$p_value <= 1)
