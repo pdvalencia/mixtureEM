@@ -53,8 +53,8 @@
   : Constructor for Gaussian models
 - [`lcga_model()`](https://pdvalencia.github.io/mixtureEM/reference/lcga_model.md)
   : Constructor for latent class growth models
-- [`liang_ark_sim`](https://pdvalencia.github.io/mixtureEM/reference/liang_ark_sim.md)
-  : Simulated bystander intervention data (Liang & Ark, Study 2
+- [`liang_park_sim`](https://pdvalencia.github.io/mixtureEM/reference/liang_park_sim.md)
+  : Simulated bystander intervention data (Liang & Park, Study 2
   analogue)
 - [`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
   : Likelihood-Ratio Test for Two Nested Models (deprecated name)

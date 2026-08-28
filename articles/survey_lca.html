@@ -34,7 +34,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates</a></li>
-    <li><a class="dropdown-item" href="../articles/liang_ark_lpa.html">Latent Profile Analysis: Bystander Responses to Sexual Harassment</a></li>
+    <li><a class="dropdown-item" href="../articles/liang_park_lpa.html">Latent Profile Analysis: Bystander Responses to Sexual Harassment</a></li>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
@@ -191,7 +191,7 @@ covariate analysis is design-based too: the standard errors below are
 linearized (sandwich) estimates that respect the strata and
 clusters.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit_cov</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/add_covariates.html">add_covariates</a></span><span class="op">(</span><span class="va">fit</span>, <span class="va">yrbs2005</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grade"</span>, <span class="st">"sex"</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">fit_cov</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/add_covariates.html">add_covariates</a></span><span class="op">(</span><span class="va">fit</span>, <span class="va">yrbs2005</span><span class="op">[</span>, <span class="st">"sex"</span>, drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Using 'ML' bias correction (set `correction` to override).</span></span>
 <span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_cov</span><span class="op">)</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
@@ -205,38 +205,25 @@ clusters.</p>
 <span><span class="co">#&gt;                               OR         [95% CI]         P-Value</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 2 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.181  [    0.147,     0.222]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.10                 0.742  [    0.622,     0.884]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.11                 0.569  [    0.444,     0.731]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.12                 0.466  [    0.351,     0.618]    &lt; .001</span></span>
-<span><span class="co">#&gt;   sex.Male                 1.768  [    1.487,     2.103]    &lt; .001</span></span>
+<span><span class="co">#&gt;   Intercept                0.126  [    0.103,     0.155]    &lt; .001</span></span>
+<span><span class="co">#&gt;   sex.Male                 1.876  [    1.561,     2.255]    &lt; .001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 3 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.006  [    0.001,     0.066]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.10                10.626  [    1.014,   111.354]     0.049</span></span>
-<span><span class="co">#&gt;   grade.11                25.418  [    2.465,   262.061]     0.007</span></span>
-<span><span class="co">#&gt;   grade.12                42.946  [    3.930,   469.258]     0.002</span></span>
-<span><span class="co">#&gt;   sex.Male                 1.323  [    1.072,     1.632]     0.009</span></span>
+<span><span class="co">#&gt;   Intercept                0.106  [    0.081,     0.140]    &lt; .001</span></span>
+<span><span class="co">#&gt;   sex.Male                 1.217  [    0.986,     1.502]     0.068</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 4 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.041  [    0.026,     0.067]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.10                 1.687  [    0.875,     3.253]     0.119</span></span>
-<span><span class="co">#&gt;   grade.11                 2.934  [    1.891,     4.551]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.12                 2.750  [    1.754,     4.310]    &lt; .001</span></span>
-<span><span class="co">#&gt;   sex.Male                 0.706  [    0.558,     0.892]     0.004</span></span>
+<span><span class="co">#&gt;   Intercept                0.082  [    0.065,     0.104]    &lt; .001</span></span>
+<span><span class="co">#&gt;   sex.Male                 0.685  [    0.545,     0.861]     0.001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 5 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.041  [    0.030,     0.057]    &lt; .001</span></span>
-<span><span class="co">#&gt;   grade.10                 0.919  [    0.630,     1.341]     0.660</span></span>
-<span><span class="co">#&gt;   grade.11                 0.758  [    0.509,     1.131]     0.175</span></span>
-<span><span class="co">#&gt;   grade.12                 0.899  [    0.641,     1.260]     0.535</span></span>
-<span><span class="co">#&gt;   sex.Male                 2.093  [    1.605,     2.730]    &lt; .001</span></span>
+<span><span class="co">#&gt;   Intercept                0.037  [    0.029,     0.047]    &lt; .001</span></span>
+<span><span class="co">#&gt;   sex.Male                 2.124  [    1.641,     2.748]    &lt; .001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;                          Wald Chi2   df  P-Value</span></span>
-<span><span class="co">#&gt;   grade                    338.281   12    &lt; .001</span></span>
-<span><span class="co">#&gt;   sex                       65.398    4    &lt; .001</span></span>
+<span><span class="co">#&gt;   sex                       75.168    4    &lt; .001</span></span>
 <span><span class="co">#&gt;   Note: a non-significant test beside large coefficients can be the</span></span>
 <span><span class="co">#&gt;         Hauck-Donner effect; confirm with wald_omnibus_test().</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>

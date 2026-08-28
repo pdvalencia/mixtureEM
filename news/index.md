@@ -2,6 +2,57 @@
 
 ## mixtureEM (development version)
 
+### Faster: the class-membership regression no longer re-fits on every row of every EM iteration
+
+`.fit_mnl()`, the multinomial logistic regression behind a covariate or
+group structural model, ran a full `optim(method = "BFGS")` on all `n`
+rows in every M-step of every EM iteration, even when those rows carried
+only a handful of distinct covariate patterns. On a 13,840-row,
+four-group fit that regression was 99% of the cost of a grouped
+iteration. It now fits on the table of unique covariate patterns
+whenever fewer than half the rows are distinct, which is the ordinary
+case for a grouping variable or a set of dummies. This is exact, not an
+approximation: the objective, its gradient and its Hessian depend on the
+rows only through per-pattern sums, so a pattern’s rows can be replaced
+by their weighted mean responsibility carrying the pattern’s total
+weight. A regression on continuous covariates has no duplicate rows to
+exploit and runs the same code as before.
+
+A converged five-class, four-group fit on that data ran 17x faster with
+an identical iteration count and a log-likelihood agreeing to 8
+significant figures; `vignettes/mglca_yrbs.Rmd`, which fits several such
+models, knits in about 23 minutes where it used to take roughly 2 hours.
+No fitted value, standard error or printed number changes.
+
+### Added: `start_from`, an anchored fit for the per-class prevalence restriction
+
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+gains `start_from`, which anchors a `group_prevalence_equal` fit at an
+unrestricted fit’s own solution instead of searching from random starts.
+Without it the per-class restriction cannot be tested at all on data
+whose classes sit close together: the restricted model’s likelihood is
+unchanged by relabelling, so a search returns whichever class is
+cheapest to freeze no matter which one was asked for. It is the only
+place in the package where a starting value replaces the search rather
+than competing with it, and it is refused outside
+`group_prevalence_equal`.
+
+### Fixed: `class_sizes()` reported a `group_prevalence_equal` fit’s per-group class sizes against the wrong classes
+
+[`class_sizes()`](https://pdvalencia.github.io/mixtureEM/reference/class_sizes.md)
+reported a `group_prevalence_equal` fit’s per-group class sizes against
+the wrong classes. The `G x K` matrix of per-group class probabilities
+is indexed by class on its columns rather than its rows, and the routine
+that sorts a fitted model’s classes by size permuted every other
+structural parameter but not that one, so the per-group breakdown, the
+stored matrix and the record of which class was restricted were all left
+in the pre-sort labelling while the item parameters and posteriors
+moved. No log-likelihood, parameter count or likelihood-ratio test is
+affected — the sort runs after fitting and only relabels — but which
+class each per-group figure belonged to was wrong whenever the classes
+did not already happen to be in size order. Fits made through the
+ordinary `group_effects = "prevalence"` route were never affected.
+
 ### Fixed: `absolute_fit()` and `bivariate_residuals()` on a `group_effects = "measurement"` fit
 
 Both statistics used to be computed over the padded J\*Q item matrix a
@@ -198,7 +249,7 @@ measurement-invariance test – now live in the two new vignettes
 described below. This is a breaking change for any code that calls
 `data(janousch)`.
 
-### Added: `liang_ark_sim`, simulated bystander-intervention data
+### Added: `liang_park_sim`, simulated bystander-intervention data
 
 A new bundled dataset with 300 cases, five continuous latent profile
 indicators, eight covariates and three continuous distal outcomes. It is
@@ -209,15 +260,14 @@ findings.
 
 ### Added: two vignettes
 
-[`vignette("liang_ark_lpa")`](https://pdvalencia.github.io/mixtureEM/articles/liang_ark_lpa.md)
-walks through a full latent profile analysis on `liang_ark_sim`: class
+[`vignette("liang_park_lpa")`](https://pdvalencia.github.io/mixtureEM/articles/liang_park_lpa.md)
+walks through a full latent profile analysis on `liang_park_sim`: class
 enumeration, what happens when class-specific variances are freed and
 collapse, the three-profile solution, covariates, and distal outcomes.
 [`vignette("mglca_yrbs")`](https://pdvalencia.github.io/mixtureEM/articles/mglca_yrbs.md)
 fits a multiple-group latent class analysis on the bundled `yrbs2005`
-data grouped by grade, testing first whether class prevalence differs by
-group under a measurement- invariant model and then testing measurement
-invariance itself.
+data grouped by grade, testing measurement invariance first and then
+whether class prevalence differs by group, class by class.
 
 ### Added: hold a class’s prevalence equal across groups
 

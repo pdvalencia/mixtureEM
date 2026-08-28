@@ -5,7 +5,7 @@
 - [Infidelity Behavior Patterns: LCA with
   Covariates](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.md):
 - [Latent Profile Analysis: Bystander Responses to Sexual
-  Harassment](https://pdvalencia.github.io/mixtureEM/articles/liang_ark_lpa.md):
+  Harassment](https://pdvalencia.github.io/mixtureEM/articles/liang_park_lpa.md):
 - [Choosing the Number of
   Classes](https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.md):
 - [Repeated-Measures LCA: Patterns of Change Over

@@ -156,11 +156,11 @@ summary(fit_cov)
 | Analysis | Function | Worked example |
 |----|----|----|
 | Latent class analysis (binary / categorical / count items) | [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md) | [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html) |
-| Latent profile analysis (continuous items), class enumeration, covariates and distal outcomes | [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md) | [`liang_ark_lpa`](https://pdvalencia.github.io/mixtureEM/articles/liang_ark_lpa.html) |
+| Latent profile analysis (continuous items), class enumeration, covariates and distal outcomes | [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md) | [`liang_park_lpa`](https://pdvalencia.github.io/mixtureEM/articles/liang_park_lpa.html) |
 | Multiple-group LCA: do the classes mean the same thing in every group before comparing their prevalences? | `fit_mixture(group = )` | [`mglca_yrbs`](https://pdvalencia.github.io/mixtureEM/articles/mglca_yrbs.html) |
 | Choosing the number of classes (ICs, BLRT, fit diagnostics) | [`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md), [`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md) | [`class_enumeration`](https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.html) |
 | Predictors of class membership (3-step ML) | [`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md) | [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html) |
-| Distal outcomes (BCH / ML) | [`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md) | [`liang_ark_lpa`](https://pdvalencia.github.io/mixtureEM/articles/liang_ark_lpa.html) |
+| Distal outcomes (BCH / ML) | [`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md) | [`liang_park_lpa`](https://pdvalencia.github.io/mixtureEM/articles/liang_park_lpa.html) |
 | Repeated-measures LCA: trajectory classes over time, e.g. “Stable Low”, “Escalating”, “Persistent” | [`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md) | [`rmlca`](https://pdvalencia.github.io/mixtureEM/articles/rmlca.html) |
 | Latent transition analysis, mover-stayer models: if someone is Depressed at Wave 1, what is the probability they are Not Depressed at Wave 2? | [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md) | [`lta`](https://pdvalencia.github.io/mixtureEM/articles/lta.html) |
 | Latent class growth analysis, growth mixture models | [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md), [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md) | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |
@@ -295,8 +295,8 @@ improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
   : Constructor for Gaussian models
 - [`lcga_model()`](https://pdvalencia.github.io/mixtureEM/reference/lcga_model.md)
   : Constructor for latent class growth models
-- [`liang_ark_sim`](https://pdvalencia.github.io/mixtureEM/reference/liang_ark_sim.md)
-  : Simulated bystander intervention data (Liang & Ark, Study 2
+- [`liang_park_sim`](https://pdvalencia.github.io/mixtureEM/reference/liang_park_sim.md)
+  : Simulated bystander intervention data (Liang & Park, Study 2
   analogue)
 - [`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
   : Likelihood-Ratio Test for Two Nested Models (deprecated name)
@@ -362,7 +362,7 @@ improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
 - [Infidelity Behavior Patterns: LCA with
   Covariates](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.md):
 - [Latent Profile Analysis: Bystander Responses to Sexual
-  Harassment](https://pdvalencia.github.io/mixtureEM/articles/liang_ark_lpa.md):
+  Harassment](https://pdvalencia.github.io/mixtureEM/articles/liang_park_lpa.md):
 - [Choosing the Number of
   Classes](https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.md):
 - [Repeated-Measures LCA: Patterns of Change Over

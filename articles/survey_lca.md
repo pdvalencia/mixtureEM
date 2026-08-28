@@ -135,7 +135,7 @@ linearized (sandwich) estimates that respect the strata and clusters.
 
 ``` r
 
-fit_cov <- add_covariates(fit, yrbs2005[, c("grade", "sex")])
+fit_cov <- add_covariates(fit, yrbs2005[, "sex", drop = FALSE])
 #> Using 'ML' bias correction (set `correction` to override).
 results <- summary(fit_cov)
 #> =========================================================
@@ -149,38 +149,25 @@ results <- summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.181  [    0.147,     0.222]    < .001
-#>   grade.10                 0.742  [    0.622,     0.884]    < .001
-#>   grade.11                 0.569  [    0.444,     0.731]    < .001
-#>   grade.12                 0.466  [    0.351,     0.618]    < .001
-#>   sex.Male                 1.768  [    1.487,     2.103]    < .001
+#>   Intercept                0.126  [    0.103,     0.155]    < .001
+#>   sex.Male                 1.876  [    1.561,     2.255]    < .001
 #> 
 #> Class 3 ON
-#>   Intercept                0.006  [    0.001,     0.066]    < .001
-#>   grade.10                10.626  [    1.014,   111.354]     0.049
-#>   grade.11                25.418  [    2.465,   262.061]     0.007
-#>   grade.12                42.946  [    3.930,   469.258]     0.002
-#>   sex.Male                 1.323  [    1.072,     1.632]     0.009
+#>   Intercept                0.106  [    0.081,     0.140]    < .001
+#>   sex.Male                 1.217  [    0.986,     1.502]     0.068
 #> 
 #> Class 4 ON
-#>   Intercept                0.041  [    0.026,     0.067]    < .001
-#>   grade.10                 1.687  [    0.875,     3.253]     0.119
-#>   grade.11                 2.934  [    1.891,     4.551]    < .001
-#>   grade.12                 2.750  [    1.754,     4.310]    < .001
-#>   sex.Male                 0.706  [    0.558,     0.892]     0.004
+#>   Intercept                0.082  [    0.065,     0.104]    < .001
+#>   sex.Male                 0.685  [    0.545,     0.861]     0.001
 #> 
 #> Class 5 ON
-#>   Intercept                0.041  [    0.030,     0.057]    < .001
-#>   grade.10                 0.919  [    0.630,     1.341]     0.660
-#>   grade.11                 0.758  [    0.509,     1.131]     0.175
-#>   grade.12                 0.899  [    0.641,     1.260]     0.535
-#>   sex.Male                 2.093  [    1.605,     2.730]    < .001
+#>   Intercept                0.037  [    0.029,     0.047]    < .001
+#>   sex.Male                 2.124  [    1.641,     2.748]    < .001
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   grade                    338.281   12    < .001
-#>   sex                       65.398    4    < .001
+#>   sex                       75.168    4    < .001
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================

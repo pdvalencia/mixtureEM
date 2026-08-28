@@ -27,7 +27,7 @@ by the classes."></head><body>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates</a></li>
-    <li><a class="dropdown-item" href="../articles/liang_ark_lpa.html">Latent Profile Analysis: Bystander Responses to Sexual Harassment</a></li>
+    <li><a class="dropdown-item" href="../articles/liang_park_lpa.html">Latent Profile Analysis: Bystander Responses to Sexual Harassment</a></li>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
@@ -78,6 +78,7 @@ by the classes.</p>
 <span>  group_invariant_items <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  group_invariant_params <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  group_prevalence_equal <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  start_from <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  variances_equal <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_steps <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  correction <span class="op">=</span> <span class="st">"none"</span>,</span>
@@ -312,7 +313,31 @@ prevalence, not to one shared across every group, so there is no
 coefficient value that expresses this constraint. Standard errors for the
 frozen prevalences are not produced in this first pass; compare nested
 models with <code><a href="lr_test.html">lr_test()</a></code> instead. An out-of-range class index is an
-error, never silently ignored.</p></dd>
+error, never silently ignored.
+Naming a strict subset of the classes also needs <code>start_from</code>; see
+there for why a search cannot answer the per-class question on its own.</p></dd>
+
+
+<dt id="arg-start-from">start_from<a class="anchor" aria-label="anchor" href="#arg-start-from"></a></dt>
+<dd><p>A fitted model to start from, in place of the random
+restarts. Available only alongside <code>group_prevalence_equal</code>: pass the
+unrestricted multiple-group fit that the restricted one is going to be
+tested against, and the restricted fit starts from its item parameters and
+its per-group class probabilities and runs no other start. <code>n_init</code> is
+not accepted at the same time, because there are no random restarts left
+for it to size.</p>
+<p>The reason it is needed: "class <em>k</em> has the same prevalence in every
+group" is a restriction on a <em>named</em> class, and a mixture's classes are
+named only by their own parameters, so permuting the labels moves the
+restriction to a different class at exactly the same likelihood. The
+restricted model's global maximum is therefore the same number whichever
+class is named — the cheapest one to freeze — and a search finds it every
+time. What the question asks for is the maximum near the unrestricted
+solution, and that is what an anchored fit returns. Everywhere else in this
+package an informed starting value competes with the random restarts rather
+than replacing them; this is the exception, and it has to be asked for by
+name. Standard errors are not produced for the restricted prevalences
+either way; compare the two fits with <code><a href="lr_test.html">lr_test()</a></code>.</p></dd>
 
 
 <dt id="arg-variances-equal">variances_equal<a class="anchor" aria-label="anchor" href="#arg-variances-equal"></a></dt>

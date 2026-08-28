@@ -34,7 +34,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/ventura_leon.html">Infidelity Behavior Patterns: LCA with Covariates</a></li>
-    <li><a class="dropdown-item" href="../articles/liang_ark_lpa.html">Latent Profile Analysis: Bystander Responses to Sexual Harassment</a></li>
+    <li><a class="dropdown-item" href="../articles/liang_park_lpa.html">Latent Profile Analysis: Bystander Responses to Sexual Harassment</a></li>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
@@ -123,10 +123,23 @@ waves;</li>
 </h2>
 <p><code><a href="../reference/compare_longitudinal.html">compare_longitudinal()</a></code> fits a range of class counts (an
 RMLCA is fitted via <code><a href="../reference/fit_rmlca.html">fit_rmlca()</a></code>, which needs to know how
-the columns map to occasions — here four waves of one item):</p>
+the columns map to occasions — here four waves of one item) and prints
+the information criteria side by side:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">selection</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compare_longitudinal.html">compare_longitudinal</a></span><span class="op">(</span><span class="va">drink</span>, k_range <span class="op">=</span> <span class="fl">2</span><span class="op">:</span><span class="fl">4</span>, model <span class="op">=</span> <span class="st">"rmlca"</span>,</span>
-<span>                                  times <span class="op">=</span> <span class="fl">4</span>, n_init <span class="op">=</span> <span class="fl">10</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+<span>                                  times <span class="op">=</span> <span class="fl">4</span>, n_init <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Comparing RMLCA models across K = 2 to 4 ...</span></span>
+<span><span class="co">#&gt;   Fitting 2-class model...</span></span>
+<span><span class="co">#&gt;   Fitting 3-class model...</span></span>
+<span><span class="co">#&gt;   Fitting 4-class model...</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; === Model Selection Summary ===</span></span>
+<span><span class="co">#&gt;   Classes    LL Params  AIC  BIC SABIC Entropy Unreplicated</span></span>
+<span><span class="co">#&gt; 1       2 -2001      9 4021 4064  4035  0.7261        FALSE</span></span>
+<span><span class="co">#&gt; 2       3 -1981     14 3991 4058  4013  0.6456        FALSE</span></span>
+<span><span class="co">#&gt; 3       4 -1980     19 3998 4089  4028  0.5864        FALSE</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; -&gt; Best model according to BIC: 3</span></span></code></pre></div>
 <p>BIC correctly picks the three classes we generated.</p>
 </div>
 <div class="section level2">

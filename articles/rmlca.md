@@ -51,12 +51,24 @@ head(drink)
 fits a range of class counts (an RMLCA is fitted via
 [`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md),
 which needs to know how the columns map to occasions — here four waves
-of one item):
+of one item) and prints the information criteria side by side:
 
 ``` r
 
 selection <- compare_longitudinal(drink, k_range = 2:4, model = "rmlca",
-                                  times = 4, n_init = 10, verbose = FALSE)
+                                  times = 4, n_init = 10)
+#> Comparing RMLCA models across K = 2 to 4 ...
+#>   Fitting 2-class model...
+#>   Fitting 3-class model...
+#>   Fitting 4-class model...
+#> 
+#> === Model Selection Summary ===
+#>   Classes    LL Params  AIC  BIC SABIC Entropy Unreplicated
+#> 1       2 -2001      9 4021 4064  4035  0.7261        FALSE
+#> 2       3 -1981     14 3991 4058  4013  0.6456        FALSE
+#> 3       4 -1980     19 3998 4089  4028  0.5864        FALSE
+#> 
+#> -> Best model according to BIC: 3
 ```
 
 BIC correctly picks the three classes we generated.
