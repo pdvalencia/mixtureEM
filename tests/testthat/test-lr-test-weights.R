@@ -97,7 +97,7 @@ test_that("the scaled statistic is invariant to the weight scale", {
   expect_lt(abs(t1$statistic - t2$statistic), 1e-4 * abs(t1$statistic))
 })
 
-test_that("a weighted structural-model pair refuses rather than guesses", {
+test_that("a weighted structural-model pair at n_steps = 1 returns the scaled statistic", {
   d <- .lrw_sim(n = 600)
   grp <- sample(c("A", "B"), d$n, TRUE)
   w   <- runif(d$n, 0.3, 3)
@@ -111,8 +111,52 @@ test_that("a weighted structural-model pair refuses rather than guesses", {
     group_effects = "both", n_steps = 1, n_init = 5, random_state = 1,
     weights = w)))
 
-  expect_error(lr_test(fit_prev, fit_both),
-              "structural model|wald_omnibus_test")
+  # The packed step-one log-likelihood must reproduce metrics$ll exactly: that
+  # is the check that the structural block, not just the measurement one, made
+  # it into the packed vector.
+  par <- .joint_pack(fit_prev)
+  expect_equal(sum(fit_prev$sample_weights *
+                     .joint_ll_case(fit_prev, fit_prev$data, par)),
+              fit_prev$metrics$ll)
+
+  t <- lr_test(fit_prev, fit_both)
+  expect_true(isTRUE(t$scaled))
+  expect_false(is.na(t$scaling_factor))
+  expect_equal(t$statistic, t$statistic_raw / t$scaling_factor)
+
+  # The unweighted sanity check, same as the plain-LCA case above.
+  fit_prev0 <- suppressMessages(suppressWarnings(fit_mixture(
+    d$X, n_classes = 2, measurement = "binary", group = grp,
+    group_effects = "prevalence", n_steps = 1, n_init = 5, random_state = 1)))
+  pieces0 <- .scaling_pieces(.nested_fit_info(fit_prev0))
+  expect_lt(abs(pieces0$c - 1), 0.2)
+})
+
+test_that("an unsupported structural family (group_prevalence) still refuses to pack", {
+  # .step1_pack_sm()/.joint_pack() cover the "covariate" family (predictors,
+  # group_effects = "prevalence"/"both") and nothing else: group_prevalence
+  # (R/group_prevalence.R) parameterises a constrained simplex per group
+  # rather than an unconstrained beta, so it has no representation here and
+  # must fall back to NULL (Option A) rather than silently mis-packing.
+  ms <- list(n_steps = 1, Y = matrix(1L, 4, 1),
+            mm = list(), sm = group_prevalence_model(2, 2))
+  expect_null(.step1_pack_sm(ms$sm))
+  expect_null(.joint_pack(ms))
+})
+
+test_that("a weighted structural-model pair at the default (3-step) n_steps refuses", {
+  d <- .lrw_sim(n = 600)
+  grp <- sample(c("A", "B"), d$n, TRUE)
+  w   <- runif(d$n, 0.3, 3)
+
+  fit_prev <- suppressMessages(suppressWarnings(fit_mixture(
+    d$X, n_classes = 2, measurement = "binary", group = grp,
+    group_effects = "prevalence", n_init = 5, random_state = 1, weights = w)))
+  fit_both <- suppressMessages(suppressWarnings(fit_mixture(
+    d$X, n_classes = 2, measurement = "binary", group = grp,
+    group_effects = "both", n_init = 5, random_state = 1, weights = w)))
+
+  expect_error(lr_test(fit_prev, fit_both), "step-3")
 })
 
 test_that("an unweighted structural-model pair is unaffected", {

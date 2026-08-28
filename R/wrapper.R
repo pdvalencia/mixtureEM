@@ -2130,6 +2130,12 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
     # Retain the indicator matrix so plot() can scale continuous indicators
     # against their observed range (copy-on-write keeps this cheap).
     data                  = X,
+    # Retain the structural model's own data (NULL wherever there is no
+    # structural model) row-aligned with `data`, the same way and for the same
+    # reason: `log_likelihood(sm, Y)` needs it to be re-evaluated after
+    # fitting, which is what the joint step-one packing in R/step3_variance.R
+    # (`.joint_pack()`/`.joint_ll_case()`) and R/vlmr.R do.
+    Y                     = Y,
     # Store the original descriptor so bootstrap.R can re-fit replicates
     # using the same measurement specification. Missing-data resolution is
     # re-applied per replicate, so the stored value is the user's spec, not the

@@ -243,6 +243,23 @@ lta_g2 <- function(object) {
   stop("Unsupported model object.", call. = FALSE)
 }
 
+# A `mixture_model` fit whose class-membership regression makes `metrics$ll`
+# a step-3 (BCH/ML-corrected) pseudo-likelihood of the *regression*, not the
+# joint model's own log-likelihood: `fit_mixture()` already warns about this
+# at fit time (its "Using 3-step estimation" message), but until now
+# `lr_test()` differenced it anyway. Measured: a weighted `"prevalence"` vs
+# `"both"` pair at the default (3-step) settings returned a statistic of
+# -26.29 on df = 12, negative because the two models' *step-3* likelihoods
+# do not nest the way the underlying mixtures do. A 1-step fit with the same
+# `sm` -- every call in `mglca_yrbs.Rmd` -- is unaffected: there `ll` is the
+# joint EM's own log-likelihood, exactly what the test needs, which is also
+# what `.joint_pack()` (R/step3_variance.R) requires before it will touch the
+# structural block at all.
+.is_step3_conditional <- function(fit) {
+  inherits(fit, "mixture_model") && isTRUE(fit$n_steps == 3) &&
+    .supplies_class_probs(fit$sm)
+}
+
 # ------------------------------------------------------------------------------
 # Choosing the number of classes / statuses
 # ------------------------------------------------------------------------------
@@ -479,6 +496,15 @@ lr_test <- function(restricted, full) {
     stop("The two models were fitted to different numbers of cases.",
          call. = FALSE)
 
+  if (.is_step3_conditional(restricted) || .is_step3_conditional(full))
+    stop(paste(
+      "At least one model's log-likelihood is a step-3 (BCH/ML-corrected)",
+      "pseudo-likelihood of the class-membership regression, not the joint",
+      "model's own log-likelihood, so a plain likelihood-ratio difference is",
+      "not a test of anything -- the two step-3 likelihoods do not nest the",
+      "way the underlying mixtures do. Refit both with `n_steps = 1` to",
+      "compare the joint models instead."), call. = FALSE)
+
   # A collapsed class variance in either fit invalidates the test in both
   # directions, so it is checked before the sign of the statistic is even looked
   # at. A degenerate fit's log-likelihood is not on the same scale as an
@@ -522,9 +548,13 @@ lr_test <- function(restricted, full) {
   # above are pseudo-likelihoods, and their difference is not asymptotically
   # chi-square on `df` -- it needs the Satorra-Bentler/Asparouhov scaling
   # correction (see R/vlmr.R). Computed where the packed step-one parameter
-  # vector reaches (plain LCA/LPA, weighted and/or under a design); refused
-  # where it does not (a structural model, or a measurement family with no
-  # unconstrained packing), since a wrong number silently returned is worse
+  # vector reaches: plain LCA/LPA, weighted and/or under a design, and now
+  # also a `group`/covariate structural model whose class-membership
+  # regression was fit jointly with the measurement model (`n_steps = 1`;
+  # the `.is_step3_conditional()` check above already refused a 3-step
+  # fit). Refused where it does not reach -- `group_prevalence_equal`'s
+  # constrained parameterisation, or a measurement family with no
+  # unconstrained packing -- since a wrong number silently returned is worse
   # than none.
   scaled <- FALSE
   stat   <- stat_raw
@@ -540,9 +570,10 @@ lr_test <- function(restricted, full) {
         "Satorra-Bentler/Asparouhov scaling correction this needs could not ",
         "be computed for this pair -- ",
         if (is.null(pa) || is.null(pb))
-          paste("one of the two carries a structural model (a covariate or",
-                "group regression on class membership) or a measurement",
-                "family this correction does not yet cover.")
+          paste("one of the two carries a structural model this correction",
+                "does not cover (group_prevalence_equal's constrained",
+                "parameterisation) or a measurement family with no",
+                "unconstrained packing.")
         else
           paste("the two models pack to the same number of step-one",
                 "parameters, so the correction is undefined."),
