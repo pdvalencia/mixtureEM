@@ -440,6 +440,20 @@ Schoot et al., 2017) ask for the one-class solution, the criteria at
 every class count, the class sizes and the classification diagnostics;
 <code><a href="../reference/compare_longitudinal.html">compare_longitudinal()</a></code>, <code><a href="../reference/class_sizes.html">class_sizes()</a></code> and
 <code><a href="../reference/classification_diagnostics.html">classification_diagnostics()</a></code> supply them.</li>
+<li>
+<strong>Enumerate before you restrict the within-class model, not
+after.</strong> Liu
+<ol start="2011" style="list-style-type: decimal">
+<li>recommends fitting the least restrictive trajectory model first — an
+LCGA or GMM with <code>random_effects = "intercept_slope"</code> and
+<code>residual = "occasion"</code> rather than a single shared residual
+— and imposing a simpler covariance structure only once the class count
+is settled, because “within-class model misspecification might lead to
+spurious latent classes”. Deciding K on the most restrictive model in
+the sequence risks a class count that is compensating for structure the
+model was not given, rather than describing a real subgroup.</li>
+</ol>
+</li>
 </ul>
 </div>
 <div class="section level2">
@@ -455,6 +469,9 @@ estimation of growth mixture models. <em>Psychological Methods</em>,
 <p>Jung, T., &amp; Wickrama, K. A. S. (2008). An introduction to latent
 class growth analysis and growth mixture modeling. <em>Social and
 Personality Psychology Compass</em>, <em>2</em>(1), 302–317. <a href="https://doi.org/10.1111/j.1751-9004.2007.00054.x" class="external-link uri">https://doi.org/10.1111/j.1751-9004.2007.00054.x</a></p>
+<p>Liu, M. (2011). <em>Class enumeration and parameter estimation for
+the growth mixture model and the growth mixture item response theory
+model</em> (Doctoral dissertation). University of Maryland.</p>
 <p>Lee, T. K., Wickrama, K. A. S., &amp; O’Neal, C. W. (2023). An
 introduction to growth mixture models (GMM). In <em>International
 Encyclopedia of Education</em> (4th ed., Vol. 14, pp. 646–655).

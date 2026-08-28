@@ -153,14 +153,30 @@ even for minimal differences between two models”, and “since they also
 control for sample size, BIC and CAIC are preferred fit statistics in
 situations when sample size is large.” Here the test rejects invariance
 decisively, which on its own would be unsurprising at this sample size.
-But the two information criteria disagree about which model is
-preferable: AIC favours the fully group-varying model (it is smaller for
-`m_both`), while BIC — which penalises the 180 extra parameters more
-heavily — favours the invariant `m_free`. That split is itself
-informative: the departures from invariance are real enough for the
-likelihood-ratio test to see them at this N, but not so large that a
-criterion penalising complexity thinks they are worth the extra
-parameters.
+The two information criteria disagree about which model is preferable:
+AIC favours the fully group-varying model (it is smaller for `m_both`),
+while BIC favours the invariant `m_free`. That split is not, on its own,
+evidence that the departure from invariance is small. Finch (2015)
+simulates designs comparable to this one in class count and group count
+and finds that information criteria have very low power to detect
+measurement noninvariance in multiple-group latent class models — a
+criterion preferring the invariant model is therefore weak evidence for
+invariance, not evidence that the true departure is minor. The reason to
+carry `m_free` forward is the one already given above: at this N the
+likelihood-ratio test has power against departures too small to matter
+for interpretation, not that BIC’s preference confirms them small.
+
+The four grades are also not equal in size, and Finch’s simulations show
+that unequal groups both reduce power to detect real noninvariance and
+inflate the false-positive rate for a prevalence comparison made
+afterward — a caution worth carrying into Step 2 below. Collins and
+Lanza’s own sequencing rule, which Finch’s design follows, is not to
+test prevalence once measurement invariance has been rejected; this
+vignette tests it anyway, on the view that the rejection here reflects
+the sample size rather than a difference large enough to make the
+prevalence comparison uninterpretable. Step 2’s result should be read
+with that qualification attached, not as a comparison the literature
+treats as routine once Step 1 has failed.
 
 `m_free` is therefore the model the rest of this vignette carries
 forward. A researcher would want to look at *which* items differ by
@@ -360,6 +376,10 @@ analysis in several groups. *Sociological Methodology*, *15*, 81-110.
 Collins, L. M., & Lanza, S. T. (2010). *Latent class and latent
 transition analysis: With applications in the social, behavioral, and
 health sciences*. Wiley.
+
+Finch, W. H. (2015). A comparison of methods for assessing measurement
+invariance in multiple group latent class analysis. *Frontiers in
+Psychology*, *6*, 1400.
 
 Kankaraš, M., Moors, G., & Vermunt, J. K. (2011). Testing for
 measurement invariance with latent class analysis. In E. Davidov, P.

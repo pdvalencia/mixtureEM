@@ -103,6 +103,22 @@ well as the step-3 sampling variability. `se = "robust"` reports only
 the latter; use it when reproducing an analysis whose standard errors
 were computed that way.
 
+**Why a three-step function at all, when the measurement model could
+just be refit with `predictors` supplied to
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+directly.** Jiang, Elliott, Sammel and Wang (2016) name the failure mode
+of that one-step alternative: when a covariate participates in forming
+the classes, the joint model "tends to have a high chance of
+artificially creating spurious mixture components to enhance predictive
+accuracy for the sample that is used to derive the model," and the
+apparent gain does not survive an independent validation sample. Their
+simulation also found the deviance-based criteria (AIC, BIC) more
+reliable for choosing the number of classes than predictive ones, which
+over-selected components in pursuit of fit. `add_covariates()`'s
+two-stage design – fit the measurement model first, decide on classes,
+only then look at what predicts them – keeps that choice from being made
+by a covariate that happens to correlate with the outcome.
+
 ## References
 
 Vermunt, J. K. (2010). Latent class modeling with covariates: Two
@@ -124,6 +140,11 @@ association between latent class membership and external variables using
 bias-adjusted three-step approaches. *Sociological Methodology*,
 *43*(1), 272–311.
 [doi:10.1177/0081175012470644](https://doi.org/10.1177/0081175012470644)
+
+Jiang, Y., Elliott, M. R., Sammel, M. D., & Wang, N. (2016). Joint
+modeling of cross-sectional health outcomes and longitudinal predictors
+via mixtures of latent classes. *Statistics and Its Interface*, *9*,
+183–201.
 
 ## See also
 

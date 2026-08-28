@@ -2,6 +2,61 @@
 
 ## mixtureEM (development version)
 
+### Documentation: four citations on class enumeration and the three-step design
+
+[`?compare_mixtures`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+and
+[`vignette("class_enumeration")`](https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.md)
+now cite evidence against dropping a small class on a rule of thumb (Kim
+et al., 2026), and
+[`vignette("class_enumeration")`](https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.md)
+and
+[`vignette("growth_mixture")`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.md)
+now recommend enumerating with the least restrictive within-class or
+within-trajectory model available before imposing structure (Liu, 2011;
+Stafford, 2019; Peugh & Fan, 2013).
+[`?add_covariates`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md)
+cites the failure mode of the one-step alternative this package’s
+three-step design avoids (Jiang, Elliott, Sammel & Wang, 2016). No
+fitted number or default changes.
+
+### Documentation: `mglca_yrbs.Rmd`’s invariance argument no longer reads BIC as an effect-size judgement
+
+The vignette rejected measurement invariance by likelihood-ratio test,
+then carried the invariant model forward and cited BIC’s preference for
+it as evidence the departure was small. Finch (2015) measures
+information criteria’s power against measurement noninvariance in
+multiple-group latent class models directly and finds it near zero at
+designs like this vignette’s; a BIC preference is weak evidence for
+invariance, not evidence of a small effect. The vignette now states the
+actual reason (the likelihood-ratio test has power against departures
+too small to matter at this N), notes that the four grades are unequal
+in size, and flags that testing prevalence after rejecting invariance
+departs from the usual sequencing rule. The conclusion carried forward,
+and every fitted number, are unchanged.
+
+### Fixed: `fit_ml()` wrote step-3 ML-corrected posteriors in the wrong orientation
+
+The classification-error matrix was applied transposed when `fit_ml()`
+wrote back `log_resp`/`lower_bound` after its EM loop. The fitted
+structural-model coefficients were unaffected – they come out of the EM
+loop itself, which used the matrix correctly – but the posterior class
+probabilities returned alongside them were not, under both modal and
+proportional assignment. Posteriors from `fit_ml()` change; coefficients
+do not.
+
+### Changed: `blrt()` now refuses a weighted or design-based comparison
+
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)’s
+bootstrap null distribution is drawn i.i.d. – no weights, no clustering
+– while a fit made under `weights`, `strata`, or `cluster` carries them
+in its observed statistic. The two were never comparable, and nothing
+said so.
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md) now
+stops rather than returning a p-value from the wrong null; there is no
+correction for this yet. Refit without the design arguments, or treat
+the result as a diagnostic rather than a calibrated test.
+
 ### Fixed: `lr_test()` had no scaling correction under sampling weights or a survey design
 
 Under sampling weights, or a complex survey design (`strata`/`cluster`),

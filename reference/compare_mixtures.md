@@ -145,6 +145,17 @@ likelihood and the information matrix is singular (Jeffries, 2003). The
 test is therefore best read as a descriptive comparison rather than a
 calibrated p-value.
 
+**A small class in `fit_table` is not evidence to refit with one
+fewer.** Kim et al. (2026), reviewing 56 applied growth mixture papers,
+found that 16 of 27 with a class under 10% of the sample excluded it on
+a rule of thumb, and their simulation shows this is not safe: dropping
+one class can redefine the composition of the classes that remain rather
+than simply merging the small one into a larger one, so that "the
+retained classes could be all spurious." `compare_mixtures()` applies no
+minimum class size anywhere in this table for the same reason it applies
+no entropy threshold: the decision needs the substantive context this
+function does not have.
+
 ## References
 
 Nylund, K. L., Asparouhov, T., & Muthen, B. O. (2007). Deciding on the
@@ -187,6 +198,11 @@ normal mixture". *Biometrika*, *90*(4), 991-994.
 
 Imhof, J. P. (1961). Computing the distribution of quadratic forms in
 normal variables. *Biometrika*, *48*(3/4), 419-426.
+
+Kim, S., Kirby, J., Evudottir, S., Wang, Y., Tong, X., Goretzko, D.,
+Ferron, J., & Jing, S. (2026). A small latent class in growth mixture
+modeling: A simulation study. *Structural Equation Modeling*, *33*(4),
+542-554.
 
 ## Examples
 
