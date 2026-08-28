@@ -2,6 +2,41 @@
 
 ## mixtureEM (development version)
 
+### Fixed: `lr_test()` had no scaling correction under sampling weights or a survey design
+
+Under sampling weights, or a complex survey design (`strata`/`cluster`),
+the log-likelihoods
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+differences are pseudo-likelihoods, not likelihoods, so the plain
+`-2 x diff` it computed is not asymptotically chi-square on `df`. It is
+now corrected automatically: whichever of the two models carries weights
+or a design gets the Satorra-Bentler/Asparouhov scaling factor applied,
+with the raw and scaled statistics both reported. Frequency weights are
+unaffected, since a frequency of 10 is ten identical cases and its
+likelihood is a true likelihood rather than a pseudo one.
+
+The correction is computed for plain measurement models – the ordinary
+case of comparing two weighted or design-based fits with no covariate or
+group regression on class membership. A fit that does carry one of those
+now refuses with an explanation naming
+[`wald_omnibus_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_omnibus_test.md)
+and
+[`analytical_wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/analytical_wald_test.md)
+as the tests that remain valid under the design, rather than silently
+returning an uncorrected number.
+[`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
+inherits the same behavior, since it only delegates to
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md).
+
+No previously-shipped call is affected: every
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+call in the package’s own vignettes fits without weights, so their
+printed statistics are unchanged. References: Asparouhov, T. (2005).
+Sampling weights in latent variable modeling. *Structural Equation
+Modeling*, 12(3), 411-434. Satorra, A., & Bentler, P. M. (1988). Scaling
+corrections for chi-square statistics in covariance structure analysis.
+*1988 Proceedings of the American Statistical Association*, 308-313.
+
 ### Faster: the class-membership regression no longer re-fits on every row of every EM iteration
 
 `.fit_mnl()`, the multinomial logistic regression behind a covariate or
