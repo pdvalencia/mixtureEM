@@ -91,12 +91,13 @@ m_free
 #>   Best solution  : found by 6 of 20 starts
 #>   (Comparing with software that counts the grouping variable's own proportions? Use metrics$ll_knownclass = -67215.74 and metrics$n_params_knownclass = 79.)
 #> ---------------------------------------------------------
-#> Class Weights (Sizes):
+#> Class Weights (Sizes, pooled across groups):
 #>   Class 1: 66.06%
 #>   Class 2: 13.17%
 #>   Class 3: 10.13%
 #>   Class 4: 5.91%
 #>   Class 5: 4.73%
+#>   (Prevalence varies by group; see class_sizes(model) for the by-group breakdown.)
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 ```
@@ -216,7 +217,7 @@ everything” class in this solution. In size order, the five classes are
 class_labels <- c("Low Risk", "Binge Drinkers", "Early Experimenters",
                   "High Risk", "Sexual Risk-Takers")
 plot(m_free, class_labels = class_labels,
-     main = "Health-risk behavior classes by grade (YRBS 2005, unweighted)")
+     main = "Health-risk behavior classes by grade\n(YRBS 2005, unweighted)")
 ```
 
 ![](mglca_yrbs_files/figure-html/plot-1.png)

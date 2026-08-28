@@ -178,12 +178,13 @@ grade have its own class sizes:</p>
 <span><span class="co">#&gt;   Best solution  : found by 6 of 20 starts</span></span>
 <span><span class="co">#&gt;   (Comparing with software that counts the grouping variable's own proportions? Use metrics$ll_knownclass = -67215.74 and metrics$n_params_knownclass = 79.)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt; Class Weights (Sizes):</span></span>
+<span><span class="co">#&gt; Class Weights (Sizes, pooled across groups):</span></span>
 <span><span class="co">#&gt;   Class 1: 66.06%</span></span>
 <span><span class="co">#&gt;   Class 2: 13.17%</span></span>
 <span><span class="co">#&gt;   Class 3: 10.13%</span></span>
 <span><span class="co">#&gt;   Class 4: 5.91%</span></span>
 <span><span class="co">#&gt;   Class 5: 4.73%</span></span>
+<span><span class="co">#&gt;   (Prevalence varies by group; see class_sizes(model) for the by-group breakdown.)</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span></code></pre></div>
 <p>A four-group, five-class fit on this many cases is materially more
@@ -291,7 +292,7 @@ Risk-Takers</strong>:</p>
 <code class="sourceCode R"><span><span class="va">class_labels</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Low Risk"</span>, <span class="st">"Binge Drinkers"</span>, <span class="st">"Early Experimenters"</span>,</span>
 <span>                  <span class="st">"High Risk"</span>, <span class="st">"Sexual Risk-Takers"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">m_free</span>, class_labels <span class="op">=</span> <span class="va">class_labels</span>,</span>
-<span>     main <span class="op">=</span> <span class="st">"Health-risk behavior classes by grade (YRBS 2005, unweighted)"</span><span class="op">)</span></span></code></pre></div>
+<span>     main <span class="op">=</span> <span class="st">"Health-risk behavior classes by grade\n(YRBS 2005, unweighted)"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="mglca_yrbs_files/figure-html/plot-1.png" class="r-plt" alt="" width="672"></p>
 <p>Class 2 (Binge Drinkers) stands out on <code>drove_drinking</code>
 and <code>binge_drink_30d</code> specifically; class 3 (Early
