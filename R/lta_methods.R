@@ -224,6 +224,10 @@ lta_g2 <- function(object) {
                 weights = object$weights_vec, ll_case = object$ll_case,
                 conditional = !is.null(object$Z_delta) ||
                               !is.null(object$Z_tau),
+                weight_type = object$weight_type %||% "sampling",
+                strata = object$strata, cluster = object$cluster,
+                has_survey_design = isTRUE(object$has_survey_design),
+                fit = object,
                 label = "LTA"))
   if (inherits(object, "mixture_model"))
     return(list(ll = object$metrics$ll, n_params = object$metrics$n_params,
@@ -231,6 +235,10 @@ lta_g2 <- function(object) {
                 weights = object$sample_weights,
                 ll_case = object$lower_bound,
                 conditional = .supplies_class_probs(object$sm),
+                weight_type = object$weight_type %||% "sampling",
+                strata = object$strata, cluster = object$cluster,
+                has_survey_design = isTRUE(object$has_survey_design),
+                fit = object,
                 label = if (inherits(object, "rmlca")) "RMLCA" else "Mixture"))
   stop("Unsupported model object.", call. = FALSE)
 }
@@ -507,13 +515,51 @@ lr_test <- function(restricted, full) {
             "the fitted variances of both models for a class variance close ",
             "to zero.", call. = FALSE)
 
-  stat <- -2 * (a$ll - b$ll)
-  df   <- b$n_params - a$n_params
+  stat_raw <- -2 * (a$ll - b$ll)
+  df       <- b$n_params - a$n_params
+
+  # Under sampling weights or a complex survey design the log-likelihoods
+  # above are pseudo-likelihoods, and their difference is not asymptotically
+  # chi-square on `df` -- it needs the Satorra-Bentler/Asparouhov scaling
+  # correction (see R/vlmr.R). Computed where the packed step-one parameter
+  # vector reaches (plain LCA/LPA, weighted and/or under a design); refused
+  # where it does not (a structural model, or a measurement family with no
+  # unconstrained packing), since a wrong number silently returned is worse
+  # than none.
+  scaled <- FALSE
+  stat   <- stat_raw
+  cd     <- NA_real_
+  if (.needs_scaling_correction(a) || .needs_scaling_correction(b)) {
+    pa <- .scaling_pieces(a)
+    pb <- .scaling_pieces(b)
+    if (is.null(pa) || is.null(pb) || pa$p == pb$p)
+      stop(paste0(
+        "At least one of the two models was fit under sampling weights or a ",
+        "complex survey design, so the log-likelihoods above are pseudo-",
+        "likelihoods and a plain -2 x diff is not chi-square on `df`. The ",
+        "Satorra-Bentler/Asparouhov scaling correction this needs could not ",
+        "be computed for this pair -- ",
+        if (is.null(pa) || is.null(pb))
+          paste("one of the two carries a structural model (a covariate or",
+                "group regression on class membership) or a measurement",
+                "family this correction does not yet cover.")
+        else
+          paste("the two models pack to the same number of step-one",
+                "parameters, so the correction is undefined."),
+        " wald_omnibus_test() / analytical_wald_test() are valid under the ",
+        "design, since both already run off a robust sandwich, and do not ",
+        "need this correction."), call. = FALSE)
+    cd     <- (pa$p * pa$c - pb$p * pb$c) / (pa$p - pb$p)
+    stat   <- stat_raw / cd
+    scaled <- TRUE
+  }
+
   out <- list(
     statistic = stat, df = df,
     p_value = if (df > 0) stats::pchisq(stat, df, lower.tail = FALSE) else NA_real_,
     ll_restricted = a$ll, ll_full = b$ll,
-    params_restricted = a$n_params, params_full = b$n_params
+    params_restricted = a$n_params, params_full = b$n_params,
+    scaled = scaled, statistic_raw = stat_raw, scaling_factor = cd
   )
   class(out) <- "lr_test"
   out
@@ -544,9 +590,15 @@ print.lr_test <- function(x, ...) {
               x$ll_restricted, x$params_restricted))
   cat(sprintf("  Full       : LL = %12.4f   parameters = %d\n",
               x$ll_full, x$params_full))
-  cat(sprintf("  -2 x diff  : %.4f   df = %d   p = %s\n",
-              x$statistic, x$df,
-              format.pval(x$p_value, digits = 4, eps = 1e-16)))
+  if (isTRUE(x$scaled))
+    cat(sprintf(
+      "  -2 x diff  : %.4f (raw %.4f, scaling factor %.4f)   df = %d   p = %s\n",
+      x$statistic, x$statistic_raw, x$scaling_factor, x$df,
+      format.pval(x$p_value, digits = 4, eps = 1e-16)))
+  else
+    cat(sprintf("  -2 x diff  : %.4f   df = %d   p = %s\n",
+                x$statistic, x$df,
+                format.pval(x$p_value, digits = 4, eps = 1e-16)))
   if (!is.na(x$p_value) && x$p_value < 0.05)
     cat("  The restriction is rejected: the full model fits significantly better.\n")
   else if (!is.na(x$p_value))

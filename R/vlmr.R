@@ -176,6 +176,51 @@
 }
 
 # ------------------------------------------------------------------------------
+# 2b. The Satorra-Bentler / Asparouhov scaling factor for a nested comparison
+#     under sampling weights or a complex survey design.
+#
+# c_m = tr(A_m^-1 B_m) / p_m (Satorra & Bentler, 1988; Asparouhov, 2005,
+# "Sampling Weights in Latent Variable Modeling", Structural Equation
+# Modeling 12(3), 411-434), built from the same step-one score/Hessian pieces
+# the VLMR test above uses. `A` is the information matrix (the negated
+# Hessian of the packed step-one log-likelihood); `B` is the crossproduct
+# meat under simple weighting, or the PSU-aggregated survey meat when a
+# design is declared.
+#
+# Returns NULL -- the caller's cue to refuse rather than compute -- when the
+# fit carries a structural model (`.step1_pack()` covers the measurement
+# model only, not a covariate or group regression on class membership: using
+# it anyway would silently drop the structural model from the packed
+# log-likelihood) or when the measurement model has no unconstrained packing
+# at all (`.step1_pack_mm()` returns NULL for growth and other structured
+# families). Restricted to `mixture_model` fits for the same reason
+# `.vlmr_pair()` is: an `lta_model`'s state does not share `.step1_pack()`'s
+# field names (`n_components`, `weights`), so calling it in would go straight
+# to malformed output at .step1_pack(), never a clean NULL.
+.scaling_pieces <- function(info) {
+  if (!inherits(info$fit, "mixture_model")) return(NULL)
+  if (.supplies_class_probs(info$fit$sm)) return(NULL)
+  pieces <- .vlmr_pieces(info$fit)
+  if (is.null(pieces)) return(NULL)
+  A <- -pieces$A
+  B <- if (isTRUE(info$has_survey_design))
+    compute_survey_B(pieces$s, info$strata, info$cluster)
+  else
+    crossprod(pieces$s)
+  list(c = sum(diag(pinv(A) %*% B)) / pieces$p, p = pieces$p)
+}
+
+# Whether a fit's log-likelihood is a pseudo-likelihood that a plain
+# likelihood-ratio-difference test is not asymptotically chi-square on: either
+# a complex survey design was declared, or `weights` carries genuine sampling
+# weights (not all 1, and not declared as frequencies -- a frequency of 10 is
+# ten identical cases and its likelihood is a true likelihood).
+.needs_scaling_correction <- function(info) {
+  isTRUE(info$has_survey_design) ||
+    (identical(info$weight_type, "sampling") && !all(info$weights == 1))
+}
+
+# ------------------------------------------------------------------------------
 # 3. One K against K+1
 # ------------------------------------------------------------------------------
 
