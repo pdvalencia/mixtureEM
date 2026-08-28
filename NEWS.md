@@ -1,5 +1,21 @@
 # mixtureEM (development version)
 
+## Fix `lr_test()`'s and `vlmr_test()`'s scaled statistic for a one-step covariate model
+
+`.step1_pack_sm()` packed a covariate structural model's coefficients on the
+assumption that the reference class was always the last one internally.
+`sort_model_classes()` does not guarantee that, so on a fit where the
+reference class landed elsewhere, packing kept the wrong row of coefficients
+and discarded a real one before computing the scaled test's information
+matrix. This only affected `lr_test()`/`vlmr_test()` comparisons involving a
+`fit_mixture(..., group_effects = "prevalence"/"both", n_steps = 1)` fit
+under sampling weights or a survey design; unweighted comparisons and
+three-step (default) fits used a different, unaffected code path. Fixed by
+recentring the coefficients on the reference row before packing, which is
+mathematically a no-op for the fitted model. On a 3-class, 2-group weighted
+comparison checked against external reference output, the scaled statistic
+moved from 207.5 to 225.17, against a target of 224.4-225.0.
+
 ## Documentation: four citations on class enumeration and the three-step design
 
 `?compare_mixtures` and `vignette("class_enumeration")` now cite evidence

@@ -214,7 +214,27 @@
     compute_survey_B(pieces$s, info$strata, info$cluster)
   else
     crossprod(pieces$s)
-  list(c = sum(diag(pinv(A) %*% B)) / pieces$p, p = pieces$p)
+  list(c = sum(diag(.psd_pinv(A) %*% B)) / pieces$p, p = pieces$p)
+}
+
+# A pseudo-inverse for a matrix that is theoretically Fisher information and
+# so should be positive semi-definite, even though the finite-difference
+# Hessian feeding it is not guaranteed to be: mixture-model observed
+# information is singular by construction wherever a class empties or
+# duplicates (Jeffries, 2003, cited above), and short of that, a weakly
+# identified direction can still return a small negative curvature. `pinv()`
+# inverts such a direction rather than dropping it -- its SVD-based tolerance
+# screens out only what is numerically zero, and a small but genuinely
+# negative eigenvalue is not that. Information cannot be negative, so a
+# non-positive eigenvalue here is treated as carrying none, rather than as a
+# large one of the wrong sign: on a real 76-parameter weighted fit, one such
+# direction inverted to a contribution to tr(A^-1 B) fifteen times any other
+# and negative, which is what collapsed and flipped the sign of `c`.
+.psd_pinv <- function(A, tol = sqrt(.Machine$double.eps)) {
+  eg <- eigen((A + t(A)) / 2, symmetric = TRUE)
+  d <- eg$values
+  d_inv <- ifelse(d > tol * max(d), 1 / d, 0)
+  eg$vectors %*% diag(d_inv, nrow = length(d)) %*% t(eg$vectors)
 }
 
 # Whether a fit's log-likelihood is a pseudo-likelihood that a plain

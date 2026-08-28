@@ -447,6 +447,11 @@ NULL
   beta <- sm$parameters$beta
   K <- nrow(beta)
   if (K < 2L) return(numeric(0))
+  # The softmax is invariant to adding a constant vector to every row of
+  # beta, so recentring on row K first makes it exactly zero -- the
+  # convention .step1_unpack_sm() assumes -- regardless of which row
+  # sort_model_classes() actually left as the all-zero anchor.
+  beta <- sweep(beta, 2, beta[K, ], "-")
   as.vector(t(beta[seq_len(K - 1L), , drop = FALSE]))
 }
 
