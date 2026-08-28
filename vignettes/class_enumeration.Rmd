@@ -37,7 +37,13 @@ together (Nylund et al., 2007):
    able to defend on substantive grounds, however much it improves the
    BIC (Lee et al., 2023). That is a reporting convention, not a rule;
    mixtureEM applies no minimum and will happily estimate a class of
-   three people.
+   three people. Do not read a small class as license to drop it and
+   refit with one fewer: Kim et al. (2026), reviewing 56 applied growth
+   mixture papers, found that 16 of 27 with a class under 10% excluded it
+   on a rule of thumb, and their simulation shows why that is risky —
+   "estimating one fewer class could completely redefine the class
+   composition... the retained classes could be all spurious." A small
+   class is a finding to defend, not noise to trim.
 
 This vignette walks through all five on a classic dataset:
 `poLCA::carcinoma`, in which seven pathologists each rated the same 118
@@ -101,6 +107,21 @@ blrt_34
 The 2-vs-3 test rejects (a third class is needed); the 3-vs-4 test does
 not, agreeing with BIC.
 
+### Enumerate with the loosest within-class model you can afford
+
+A rigid within-class model does not just fit worse when it is wrong — it can
+buy the difference with extra classes, reporting a class count that is really
+correcting for unmodelled structure inside a class rather than a real
+subgroup. Liu (2011) recommends fitting the least restrictive model available
+first and imposing structure only after the class count is settled; Stafford
+(2019) and Peugh and Fan (2013) report the same pattern for the cross-sectional
+case. In this package that means comparing `measurement = "gaussian"` against
+`"gaussian_diag"` before trusting either one's enumeration, since the diagonal
+model is the more restrictive of the two. It does not mean the comparison is
+complete: the fully flexible within-class model for cross-sectional data is a
+factor mixture, which mixtureEM does not yet fit, so an enumeration run this
+way is a partial check rather than a guarantee.
+
 ## Classification quality and fit of the chosen model
 
 ```{r chosen, eval = has_polca}
@@ -154,16 +175,32 @@ plot(fit, class_labels = c("Negative", "Positive", "Ambiguous"),
 
 Agresti, A. (2002). *Categorical data analysis* (2nd ed.). Wiley.
 
+Kim, S., Kirby, J., Evudottir, S., Wang, Y., Tong, X., Goretzko, D., Ferron,
+J., & Jing, S. (2026). A small latent class in growth mixture modeling: A
+simulation study. *Structural Equation Modeling*, *33*(4), 542–554.
+
 Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction
 to growth mixture models (GMM). In *International Encyclopedia of
 Education* (4th ed., Vol. 14, pp. 646–655). Elsevier.
 <https://doi.org/10.1016/B978-0-12-818630-5.10076-4>
 
+Liu, M. (2011). *Class enumeration and parameter estimation for the growth
+mixture model and the growth mixture item response theory model* (Doctoral
+dissertation). University of Maryland.
+
 McLachlan, G., & Peel, D. (2000). *Finite mixture models*. Wiley.
+
+Peugh, J., & Fan, X. (2013). Modeling unobserved heterogeneity using latent
+profile analysis: A Monte Carlo simulation. *Structural Equation Modeling*,
+*20*(4), 616–639.
 
 Sclove, S. L. (1987). Application of model-selection criteria to some
 problems in multivariate analysis. *Psychometrika*, *52*(3), 333–343.
 <https://doi.org/10.1007/BF02294360>
+
+Stafford, J. (2019). *Comparing the accuracy of enumeration indices among
+latent profile and factor mixture models* (Doctoral dissertation). University
+of Texas at Austin.
 
 Nylund, K. L., Asparouhov, T., & Muthén, B. O. (2007). Deciding on the
 number of classes in latent class analysis and growth mixture modeling: A

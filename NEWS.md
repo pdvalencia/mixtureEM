@@ -1,5 +1,30 @@
 # mixtureEM (development version)
 
+## Documentation: four citations on class enumeration and the three-step design
+
+`?compare_mixtures` and `vignette("class_enumeration")` now cite evidence
+against dropping a small class on a rule of thumb (Kim et al., 2026), and
+`vignette("class_enumeration")` and `vignette("growth_mixture")` now recommend
+enumerating with the least restrictive within-class or within-trajectory model
+available before imposing structure (Liu, 2011; Stafford, 2019; Peugh & Fan,
+2013). `?add_covariates` cites the failure mode of the one-step alternative
+this package's three-step design avoids (Jiang, Elliott, Sammel & Wang, 2016).
+No fitted number or default changes.
+
+## Documentation: `mglca_yrbs.Rmd`'s invariance argument no longer reads BIC as an effect-size judgement
+
+The vignette rejected measurement invariance by likelihood-ratio test, then
+carried the invariant model forward and cited BIC's preference for it as
+evidence the departure was small. Finch (2015) measures information criteria's
+power against measurement noninvariance in multiple-group latent class models
+directly and finds it near zero at designs like this vignette's; a BIC
+preference is weak evidence for invariance, not evidence of a small effect.
+The vignette now states the actual reason (the likelihood-ratio test has power
+against departures too small to matter at this N), notes that the four grades
+are unequal in size, and flags that testing prevalence after rejecting
+invariance departs from the usual sequencing rule. The conclusion carried
+forward, and every fitted number, are unchanged.
+
 ## Fixed: `fit_ml()` wrote step-3 ML-corrected posteriors in the wrong orientation
 
 The classification-error matrix was applied transposed when `fit_ml()` wrote

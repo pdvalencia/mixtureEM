@@ -74,6 +74,21 @@ coefficients with a published set.
 estimator, which propagates the uncertainty in the step-1 estimates as well as
 the step-3 sampling variability. \code{se = "robust"} reports only the latter; use
 it when reproducing an analysis whose standard errors were computed that way.
+
+\strong{Why a three-step function at all, when the measurement model could just be
+refit with \code{predictors} supplied to \code{fit_mixture()} directly.} Jiang,
+Elliott, Sammel and Wang (2016) name the failure mode of that one-step
+alternative: when a covariate participates in forming the classes, the
+joint model "tend\link{s} to have a high chance of artificially creating
+spurious mixture components to enhance \link{predictive accuracy} for the sample
+that is used to derive the model," and the apparent gain does not survive
+an independent validation sample. Their simulation also found the
+deviance-based criteria (AIC, BIC) more reliable for choosing the number of
+classes than predictive ones, which over-selected components in pursuit of
+fit. \code{add_covariates()}'s two-stage design -- fit the measurement model
+first, decide on classes, only then look at what predicts them -- keeps
+that choice from being made by a covariate that happens to correlate with
+the outcome.
 }
 \examples{
 set.seed(1)
@@ -105,6 +120,10 @@ Bakk, Z., Tekle, F. B., & Vermunt, J. K. (2013). Estimating the association
 between latent class membership and external variables using bias-adjusted
 three-step approaches. \emph{Sociological Methodology}, \emph{43}(1),
 272–311. \doi{10.1177/0081175012470644}
+
+Jiang, Y., Elliott, M. R., Sammel, M. D., & Wang, N. (2016). Joint modeling
+of cross-sectional health outcomes and longitudinal predictors via mixtures
+of latent classes. \emph{Statistics and Its Interface}, \emph{9}, 183–201.
 }
 \seealso{
 \code{\link[=add_outcome]{add_outcome()}} for distal outcomes; \code{\link[=fit_mixture]{fit_mixture()}} to fit the
