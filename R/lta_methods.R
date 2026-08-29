@@ -234,7 +234,11 @@ status_prevalences <- function(object, type = c("model", "posterior"),
 #'   different thing from a cross-tabulation of the per-occasion modal
 #'   statuses, which can put mass on a pattern the model itself gives zero
 #'   probability; see `class_assignments()`'s own documentation of the
-#'   distinction.
+#'   distinction. The classification table another program prints for a
+#'   latent transition model is typically the per-occasion one, not this
+#'   joint decode -- reproduce it with
+#'   `table(class_assignments(object, "modal"))` rather than `type =
+#'   "modal"` if that is the number being matched against.
 #' @param class Optional latent class, for a model fitted with `n_classes` > 1.
 #'   Applies only to `type = "model"`; ignored otherwise.
 #' @return A data frame with one integer column per occasion, named from the

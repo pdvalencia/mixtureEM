@@ -234,6 +234,20 @@ classes-by-statuses matrix, \code{tau} a list of per-class lists, and
 its \code{"by_class"} attribute; \code{\link[=status_prevalences]{status_prevalences()}} and
 \code{\link[=transition_matrix]{transition_matrix()}} take a \code{class} argument to reach them. Standard
 errors are not available for a mixture over chains and \code{se} is \code{NULL}.
+
+\code{metrics$entropy} (the headline number, printed by \code{print()}) is the
+relative entropy of the joint latent-status path across all occasions at
+once. This matches the single LTA entropy figure reported by one widely
+used program. The other reports an entropy per latent variable instead;
+the occasion-weighted average of that quantity, on this package's
+normalising convention, is \code{metrics$entropy_by_occasion} (printed by
+\code{summary()}). The two programs' own entropy figures use different
+normalising conventions for the per-latent-variable quantity, so to
+compare \code{entropy_by_occasion} against the other program's figures,
+convert with \code{1 - (1 - r2) * log(K) / H(pi_hat)}, where \code{r2} is the
+package's value, \code{K} is \code{n_statuses}, and \code{H(pi_hat)} is the entropy of
+that occasion's estimated status proportions (from
+\code{\link[=status_prevalences]{status_prevalences()}}).
 }
 \description{
 Fits a latent transition model: each person occupies a latent \emph{status} at each

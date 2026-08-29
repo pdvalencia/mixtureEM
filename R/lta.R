@@ -198,17 +198,19 @@
 #'   [`transition_matrix()`] take a `class` argument to reach them. Standard
 #'   errors are not available for a mixture over chains and `se` is `NULL`.
 #'
-#'   `metrics$entropy` (the headline number, printed by `print()`) is relative
-#'   entropy normalised over every occasion's classification at once. It is not
-#'   the number either widely used commercial LTA program reports, and the two
-#'   programs do not even agree with each other: one reports an entropy per
-#'   latent variable (occasion-weighted average of which is
-#'   `metrics$entropy_by_occasion`, printed by `summary()`); the other reports
-#'   entropy of the classification over the full joint pattern across
-#'   occasions, a quantity this package does not compute because it is
-#'   exponential in the number of occasions. `entropy_by_occasion` is the one
-#'   that is comparable across programs; do not compare the headline number to
-#'   either program's single entropy figure.
+#'   `metrics$entropy` (the headline number, printed by `print()`) is the
+#'   relative entropy of the joint latent-status path across all occasions at
+#'   once. This matches the single LTA entropy figure reported by one widely
+#'   used program. The other reports an entropy per latent variable instead;
+#'   the occasion-weighted average of that quantity, on this package's
+#'   normalising convention, is `metrics$entropy_by_occasion` (printed by
+#'   `summary()`). The two programs' own entropy figures use different
+#'   normalising conventions for the per-latent-variable quantity, so to
+#'   compare `entropy_by_occasion` against the other program's figures,
+#'   convert with `1 - (1 - r2) * log(K) / H(pi_hat)`, where `r2` is the
+#'   package's value, `K` is `n_statuses`, and `H(pi_hat)` is the entropy of
+#'   that occasion's estimated status proportions (from
+#'   [`status_prevalences()`]).
 #'
 #' @references
 #' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
@@ -874,12 +876,18 @@ fit_lta <- function(indicators,
   abs_ent_by_occasion <- vapply(state$gamma, function(g)
     sum(state$weights_vec * (-g * log(g + 1e-15))), numeric(1))
   abs_ent <- sum(abs_ent_by_occasion)
-  ent <- relative_entropy(abs_ent, n * Tn, state$n_statuses)
+  # Relative entropy of the joint status path: one assignment per case over
+  # the K^T possible paths, so the normalising constant is n * log(K^T) =
+  # n * T * log K. The numerator is the path entropy accumulated in
+  # .lta_em(), not the sum of the per-occasion marginal entropies -- the
+  # latter is always larger and matches no reference program.
+  ent <- relative_entropy(state$abs_ent_path %||% abs_ent, n * Tn,
+                          state$n_statuses)
   # Per-occasion relative entropy, normalised by n rather than n * T. This is
-  # the occasion-weighted average of another program's per-latent-variable
-  # entropy R-squared, and the quantity comparable across programs -- neither
-  # reference program's single LTA entropy uses the same convention as the
-  # headline `entropy` above. See `?fit_lta`.
+  # the same quantity another program reports per latent variable, but on
+  # this package's normaliser (log K) rather than that program's (the
+  # entropy of the estimated class proportions); `?fit_lta` gives the
+  # conversion.
   entropy_by_occasion <- vapply(abs_ent_by_occasion, relative_entropy,
                                 numeric(1), n_samples = n,
                                 n_classes = state$n_statuses)

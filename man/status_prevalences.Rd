@@ -26,3 +26,7 @@ With more than one latent class the whole-sample prevalences are returned by
 default - the mixture's own marginal, which is what should be compared with
 the observed proportions - and \code{class} picks out a single class's chain.
 }
+\seealso{
+\code{\link[=transition_patterns]{transition_patterns()}} for the joint distribution across every
+occasion at once, rather than one occasion's marginal at a time.
+}

@@ -1,5 +1,14 @@
 # mixtureEM (development version)
 
+## Changed: `fit_lta()`'s headline entropy is now the joint status-path entropy
+
+`fit_lta()`'s `metrics$entropy` is now the relative entropy of the joint
+latent-status path, rather than the sum of the per-occasion classification
+entropies. The normalising constant is unchanged. The new figure is the one
+another program reports for a latent transition model; the previous figure
+was always slightly higher and matched no published convention. Values move
+by roughly 0.005 on a two-occasion model.
+
 ## Fixed: `fit_ml()`'s written-back posteriors were still wrong after the orientation fix
 
 The orientation fix below removed a stray transpose, but the block that wrote

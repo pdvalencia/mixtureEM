@@ -46,7 +46,12 @@ An object of class \code{mixture_comparison}: a named list with three
 elements, which can be indexed exactly as a plain list.
 \itemize{
 \item \code{fit_table} Data frame with one row per K and columns \code{Classes}, \code{LL},
-\code{Params}, \code{AIC}, \code{BIC}, \code{SABIC}, \code{Entropy} and \code{Unreplicated}. With
+\code{Params}, \code{AIC}, \code{BIC}, \code{CAIC}, \code{AIC3}, \code{ICL}, \code{SABIC}, \code{Entropy} and
+\code{Unreplicated}. \code{CAIC} and \code{AIC3} apply a heavier parameter penalty than
+\code{BIC}; \code{ICL} is \code{BIC} penalised further by classification entropy
+(Baudry). The \verb{-> Best model} line and \code{best_k} below are always chosen
+by \code{BIC} alone; the other indices are printed for comparison, not used
+to pick a model. With
 \code{vlmr} set it also carries \code{VLMR_LR} and one p-value column per
 requested form (\code{VLMR_p}, \code{VLMR_p_robust}); each row tests its own K
 against the next one in the table, so the last row is \code{NA}.

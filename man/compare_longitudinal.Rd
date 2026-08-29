@@ -47,8 +47,9 @@ models that allow for different types of between-class differences".}
 }
 \value{
 An object of class \code{mixture_comparison}, a list with \code{fit_table}
-(columns \code{Classes}, \code{LL}, \code{Params}, \code{AIC}, \code{BIC}, \code{SABIC}, \code{Entropy} and
-\code{Unreplicated}), the fitted \code{models} (named \code{"K2"}, \code{"K3"}, ...) and
+(columns \code{Classes}, \code{LL}, \code{Params}, \code{AIC}, \code{BIC}, \code{CAIC}, \code{AIC3}, \code{ICL},
+\code{SABIC}, \code{Entropy} and \code{Unreplicated}), the fitted \code{models} (named
+\code{"K2"}, \code{"K3"}, ...) and
 \code{best_k}, the class count with the lowest BIC. It indexes exactly as a
 plain list; \code{\link[=plot.mixture_comparison]{plot()}} draws the criteria
 against K.

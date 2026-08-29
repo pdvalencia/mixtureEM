@@ -32,3 +32,7 @@ with \code{tau_homogeneous = TRUE}, in which case a single matrix is shared.
 In a mixture latent Markov model each latent class has its own transitions,
 so the result gains an outer level indexed by class; \code{class} picks one out.
 }
+\seealso{
+\code{\link[=transition_patterns]{transition_patterns()}} for the joint distribution across every
+occasion at once, rather than one pair at a time.
+}

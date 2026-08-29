@@ -316,12 +316,12 @@
 
   # One E-step across all classes: the per-class posteriors, the class
   # posterior, and the case log-likelihood of the mixture.
-  e_step <- function(state) {
+  e_step <- function(state, keep = keep_pair) {
     logB <- .lta_emission_loglik(state$mm, X)
     es <- lapply(seq_len(C), function(c) {
       sub <- .lta_class_state(state, c)
       .lta_forward_backward(logB, .lta_log_delta(sub), .lta_log_tau(sub), w,
-                            keep_pairwise = keep_pair)
+                            keep_pairwise = keep)
     })
     if (C == 1L)
       return(list(es = es, post = matrix(1, n, 1L), ll = es[[1]]$ll))
@@ -420,7 +420,29 @@
   }
 
   # Final E-step so the stored posteriors match the returned parameters.
-  E <- e_step(state)
+  E <- e_step(state, keep = TRUE)
+
+  # Absolute entropy of the joint status-path posterior, the numerator of
+  # metrics$entropy. The smoothed path posterior of a hidden Markov chain is
+  # itself Markov, so this is a sum of one marginal and T-1 conditional
+  # entropies over quantities the E-step has already formed -- O(n T K^2), not
+  # K^T. With several classes it is the class-posterior-weighted average of
+  # the per-class path entropies; the separate class entropy stays in
+  # metrics$class_entropy and is deliberately not folded in.
+  state$abs_ent_path <- local({
+    total <- 0
+    for (c in seq_len(C)) {
+      wc  <- if (C == 1L) w else w * E$post[, c]
+      g   <- E$es[[c]]$gamma
+      h_i <- rowSums(-g[[1]] * log(g[[1]] + 1e-15))
+      if (Tn > 1L) for (t in seq_len(Tn - 1L)) for (k in seq_len(K)) {
+        Pk <- E$es[[c]]$pairwise[[t]][[k]]
+        h_i <- h_i + rowSums(-Pk * log((Pk + 1e-15) / (g[[t]][, k] + 1e-15)))
+      }
+      total <- total + sum(wc * h_i)
+    }
+    total
+  })
 
   state$ll_case   <- E$ll
   state$loglik    <- sum(w * E$ll)
