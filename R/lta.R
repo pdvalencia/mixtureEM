@@ -198,6 +198,18 @@
 #'   [`transition_matrix()`] take a `class` argument to reach them. Standard
 #'   errors are not available for a mixture over chains and `se` is `NULL`.
 #'
+#'   `metrics$entropy` (the headline number, printed by `print()`) is relative
+#'   entropy normalised over every occasion's classification at once. It is not
+#'   the number either widely used commercial LTA program reports, and the two
+#'   programs do not even agree with each other: one reports an entropy per
+#'   latent variable (occasion-weighted average of which is
+#'   `metrics$entropy_by_occasion`, printed by `summary()`); the other reports
+#'   entropy of the classification over the full joint pattern across
+#'   occasions, a quantity this package does not compute because it is
+#'   exponential in the number of occasions. `entropy_by_occasion` is the one
+#'   that is comparable across programs; do not compare the headline number to
+#'   either program's single entropy figure.
+#'
 #' @references
 #' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
 #' Transition Analysis: With Applications in the Social, Behavioral, and Health
@@ -859,9 +871,18 @@ fit_lta <- function(indicators,
   # Relative entropy over all occasions: a status assignment is made at every
   # occasion, so the normalising constant counts n * T classifications.
   Tn  <- state$n_times
-  abs_ent <- sum(vapply(state$gamma, function(g)
-    sum(state$weights_vec * (-g * log(g + 1e-15))), numeric(1)))
+  abs_ent_by_occasion <- vapply(state$gamma, function(g)
+    sum(state$weights_vec * (-g * log(g + 1e-15))), numeric(1))
+  abs_ent <- sum(abs_ent_by_occasion)
   ent <- relative_entropy(abs_ent, n * Tn, state$n_statuses)
+  # Per-occasion relative entropy, normalised by n rather than n * T. This is
+  # the occasion-weighted average of another program's per-latent-variable
+  # entropy R-squared, and the quantity comparable across programs -- neither
+  # reference program's single LTA entropy uses the same convention as the
+  # headline `entropy` above. See `?fit_lta`.
+  entropy_by_occasion <- vapply(abs_ent_by_occasion, relative_entropy,
+                                numeric(1), n_samples = n,
+                                n_classes = state$n_statuses)
 
   # With classes above the chain there are two latent variables and two
   # separations to report: one
@@ -875,11 +896,16 @@ fit_lta <- function(indicators,
       n, state$n_classes)
   }
 
+  bic <- -2 * ll + log(n) * p
   list(ll = ll, n_params = p,
        aic   = -2 * ll + 2 * p,
-       bic   = -2 * ll + log(n) * p,
+       bic   = bic,
+       caic  = -2 * ll + (log(n) + 1) * p,
+       aic3  = -2 * ll + 3 * p,
+       icl   = bic + 2 * abs_ent,
        sabic = -2 * ll + log((n + 2) / 24) * p,
        entropy = ent,
+       entropy_by_occasion = entropy_by_occasion,
        class_entropy = class_ent,
        n_eff = n)
 }

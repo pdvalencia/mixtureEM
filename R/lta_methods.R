@@ -28,6 +28,8 @@
 #' @return A matrix, or a named list of matrices when `occasion` is omitted and
 #'   the transitions are time-heterogeneous, nested inside a list over classes
 #'   when the model has more than one.
+#' @seealso [`transition_patterns()`] for the joint distribution across every
+#'   occasion at once, rather than one pair at a time.
 #' @export
 transition_matrix <- function(object, occasion = NULL, class = NULL) {
   if (!inherits(object, "lta_model"))
@@ -168,6 +170,8 @@ class_assignments.lta_model <- function(object,
 #' @param class Optional latent class, for a model fitted with `n_classes` > 1
 #'   or `mover_stayer = TRUE`.
 #' @return An occasions-by-statuses matrix.
+#' @seealso [`transition_patterns()`] for the joint distribution across every
+#'   occasion at once, rather than one occasion's marginal at a time.
 #' @export
 status_prevalences <- function(object, type = c("model", "posterior"),
                                class = NULL) {
@@ -194,6 +198,113 @@ status_prevalences <- function(object, type = c("model", "posterior"),
                 numeric(object$n_statuses)))
   dimnames(P) <- dimnames(.lta_bare_prevalences(object$prevalences))
   P
+}
+
+# Every possible sequence of statuses, one row per pattern, sorted by occasion
+# 1, then occasion 2, and so on (the order both `transition_matrix()` and the
+# reference programs use).
+.transition_pattern_grid <- function(K, Tn, labs) {
+  grid <- expand.grid(rep(list(seq_len(K)), Tn))[, Tn:1, drop = FALSE]
+  colnames(grid) <- labs
+  grid <- grid[do.call(order, as.list(grid)), , drop = FALSE]
+  rownames(grid) <- NULL
+  grid
+}
+
+#' Joint Latent-Status Pattern Table
+#'
+#' @description
+#' The joint distribution of latent status across every occasion at once: one
+#' row per possible sequence of statuses, with the count and proportion of
+#' cases following it. This is one of the standard LTA reports and is not
+#' derivable from [`transition_matrix()`] or [`status_prevalences()`], which
+#' each describe only one or two occasions at a time.
+#'
+#' @param object An object returned by [`fit_lta()`].
+#' @param type `"model"` (default) propagates \eqn{\delta} through the
+#'   transition matrices, cheap at any number of occasions. With `n_classes` >
+#'   1 the classes are summed, weighted by `class_weights`, unless `class`
+#'   selects one. `"posterior"` sums each case's actual posterior probability
+#'   over every possible path; it is exact but there is no shortcut for it --
+#'   the path posterior does not factorise, so every path is enumerated
+#'   directly -- and it is refused above a cell cap (\eqn{K^T > 10000}) and
+#'   for a model with more than one latent class, where `"modal"` is the
+#'   alternative that scales. `"modal"` cross-tabulates the joint-MAP
+#'   (Viterbi) path from `class_assignments(object, "viterbi")`. That is a
+#'   different thing from a cross-tabulation of the per-occasion modal
+#'   statuses, which can put mass on a pattern the model itself gives zero
+#'   probability; see `class_assignments()`'s own documentation of the
+#'   distinction.
+#' @param class Optional latent class, for a model fitted with `n_classes` > 1.
+#'   Applies only to `type = "model"`; ignored otherwise.
+#' @return A data frame with one integer column per occasion, named from the
+#'   model's time labels, then `count` and `proportion`.
+#' @seealso [`transition_matrix()`], [`status_prevalences()`].
+#' @export
+transition_patterns <- function(object, type = c("model", "posterior", "modal"),
+                                 class = NULL) {
+  if (!inherits(object, "lta_model"))
+    stop("`object` must be a fitted latent transition model.", call. = FALSE)
+  type <- match.arg(type)
+  labs <- object$longitudinal$time_labels
+  K    <- object$n_statuses
+  Tn   <- object$longitudinal$n_times
+  C    <- object$n_classes %||% 1L
+  grid <- .transition_pattern_grid(K, Tn, labs)
+
+  if (type == "modal") {
+    path <- as.data.frame(class_assignments(object, "viterbi"))
+    obs_key  <- do.call(paste, c(path, sep = "_"))
+    grid_key <- do.call(paste, c(as.list(grid), sep = "_"))
+    n_obs <- as.numeric(table(factor(obs_key, levels = grid_key)))
+  } else if (type == "model") {
+    one_class_probs <- function(delta, tau) apply(grid, 1, function(p) {
+      prob <- delta[p[1]]
+      if (Tn > 1L) for (t in 2:Tn) prob <- prob * tau[[t - 1L]][p[t - 1L], p[t]]
+      prob
+    })
+    if (C == 1L || !is.null(class)) {
+      cc <- class %||% 1L
+      probs <- one_class_probs(object$delta_c[[cc]], object$tau_c[[cc]])
+    } else {
+      probs <- Reduce(`+`, Map(function(cc, w) w * one_class_probs(
+        object$delta_c[[cc]], object$tau_c[[cc]]),
+        seq_len(C), object$class_weights))
+    }
+    n_obs <- probs * sum(object$weights_vec)
+  } else {
+    if (C > 1L)
+      stop("`type = \"posterior\"` is not available for a mixture over ",
+           "chains (n_classes > 1); the path posterior would need the class ",
+           "posterior folded in as well. Use `type = \"modal\"`, which ",
+           "decodes the class and the path jointly, or `type = \"model\"` ",
+           "with `class` set.", call. = FALSE)
+    if (K^Tn > 10000)
+      stop(sprintf(
+        "`type = \"posterior\"` would enumerate %d paths (K^T = %d^%d), ",
+        K^Tn, K, Tn), "which is refused above 10000. Use `type = \"modal\"` ",
+        "instead, which scales to any number of occasions.", call. = FALSE)
+    logB      <- .lta_emission_loglik(object$mm, object$data)
+    log_delta <- .lta_log_delta(object)
+    log_tau   <- .lta_log_tau(object)
+    n         <- nrow(logB[[1]])
+    n_obs <- apply(grid, 1, function(p) {
+      logp <- (if (is.matrix(log_delta)) log_delta[, p[1]] else
+        rep(log_delta[p[1]], n)) + logB[[1]][, p[1]]
+      if (Tn > 1L) for (t in 2:Tn) {
+        LT   <- log_tau[[t - 1L]]
+        step <- if (is.list(LT)) LT[[p[t - 1L]]][, p[t]] else
+          rep(LT[p[t - 1L], p[t]], n)
+        logp <- logp + step + logB[[t]][, p[t]]
+      }
+      sum(object$weights_vec * exp(logp - object$ll_case))
+    })
+  }
+
+  out <- grid
+  out$count      <- n_obs
+  out$proportion <- n_obs / sum(n_obs)
+  out
 }
 
 # ------------------------------------------------------------------------------
@@ -365,8 +476,9 @@ lta_g2 <- function(object) {
 #'   models that allow for different types of between-class differences".
 #'
 #' @return An object of class `mixture_comparison`, a list with `fit_table`
-#'   (columns `Classes`, `LL`, `Params`, `AIC`, `BIC`, `SABIC`, `Entropy` and
-#'   `Unreplicated`), the fitted `models` (named `"K2"`, `"K3"`, ...) and
+#'   (columns `Classes`, `LL`, `Params`, `AIC`, `BIC`, `CAIC`, `AIC3`, `ICL`,
+#'   `SABIC`, `Entropy` and `Unreplicated`), the fitted `models` (named
+#'   `"K2"`, `"K3"`, ...) and
 #'   `best_k`, the class count with the lowest BIC. It indexes exactly as a
 #'   plain list; [`plot()`][plot.mixture_comparison] draws the criteria
 #'   against K.
@@ -434,7 +546,8 @@ compare_longitudinal <- function(indicators, k_range = NULL,
     # is NA rather than a 1 that would read as perfect separation.
     rows[[length(rows) + 1L]] <- data.frame(
       Classes = k, LL = m$ll, Params = m$n_params,
-      AIC = m$aic, BIC = m$bic, SABIC = m$sabic,
+      AIC = m$aic, BIC = m$bic,
+      CAIC = m$caic, AIC3 = m$aic3, ICL = m$icl, SABIC = m$sabic,
       Entropy = if (k == 1L) NA_real_ else m$entropy %||% NA_real_,
       Unreplicated = .is_unreplicated(m))
   }
@@ -847,6 +960,15 @@ summary.lta_model <- function(object, digits = 3, ...) {
                   if (is.null(b$class)) "" else sprintf("class %d, ", b$class[i]),
                   b$occasion[i], b$from[i], b$to[i]))
     cat("  These cells still consume a degree of freedom in the parameter count.\n")
+  }
+
+  eo <- object$metrics$entropy_by_occasion
+  if (!is.null(eo)) {
+    cat("\nRELATIVE ENTROPY BY OCCASION\n")
+    labs <- object$longitudinal$time_labels %||% paste0("T", seq_along(eo))
+    print(data.frame(Occasion = labs, Entropy = round(eo, digits)),
+          row.names = FALSE)
+    cat("See ?fit_lta for how this differs from print(model)'s headline entropy.\n")
   }
 
   cat("\n=========================================================\n")

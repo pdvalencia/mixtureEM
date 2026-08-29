@@ -3634,7 +3634,12 @@ print.mixture_model <- function(x, ...) {
 #' @return An object of class `mixture_comparison`: a named list with three
 #'   elements, which can be indexed exactly as a plain list.
 #'   * `fit_table` Data frame with one row per K and columns `Classes`, `LL`,
-#'     `Params`, `AIC`, `BIC`, `SABIC`, `Entropy` and `Unreplicated`. With
+#'     `Params`, `AIC`, `BIC`, `CAIC`, `AIC3`, `ICL`, `SABIC`, `Entropy` and
+#'     `Unreplicated`. `CAIC` and `AIC3` apply a heavier parameter penalty than
+#'     `BIC`; `ICL` is `BIC` penalised further by classification entropy
+#'     (Baudry). The `-> Best model` line and `best_k` below are always chosen
+#'     by `BIC` alone; the other indices are printed for comparison, not used
+#'     to pick a model. With
 #'     `vlmr` set it also carries `VLMR_LR` and one p-value column per
 #'     requested form (`VLMR_p`, `VLMR_p_robust`); each row tests its own K
 #'     against the next one in the table, so the last row is `NA`.
@@ -3749,6 +3754,7 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
     results[[k]] <- data.frame(
       Classes = k, LL = fit$metrics$ll, Params = fit$metrics$n_params,
       AIC = fit$metrics$aic, BIC = fit$metrics$bic,
+      CAIC = fit$metrics$caic, AIC3 = fit$metrics$aic3, ICL = fit$metrics$icl,
       SABIC = fit$metrics$sabic, Entropy = fit$metrics$entropy,
       # No warning is raised anywhere in this loop: it calls the engine
       # directly, and the warning lives in fit_mixture(). The column is how a

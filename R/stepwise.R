@@ -23,6 +23,7 @@
                                    sum(model_state$sample_weights),
                                    model_state$n_components)
   n_eff <- model_state$n_eff
+  bic_s1 <- -2 * ll_s1 + log(n_eff) * n_params_s1
 
   # The sample-size-adjusted BIC uses Sclove's (1987) effective sample size,
   # (n + 2)/24, in place of n.
@@ -30,7 +31,12 @@
     ll       = ll_s1,
     n_params = n_params_s1,
     aic      = -2 * ll_s1 + 2 * n_params_s1,
-    bic      = -2 * ll_s1 + log(n_eff) * n_params_s1,
+    bic      = bic_s1,
+    caic     = -2 * ll_s1 + (log(n_eff) + 1) * n_params_s1,
+    aic3     = -2 * ll_s1 + 3 * n_params_s1,
+    # ICL: BIC penalised by twice the absolute classification entropy
+    # (Baudry).
+    icl      = bic_s1 + 2 * abs_ent_s1,
     sabic    = -2 * ll_s1 + log((n_eff + 2) / 24) * n_params_s1,
     entropy  = rel_ent_s1
   )
@@ -182,12 +188,16 @@
                                sum(model_state$sample_weights),
                                model_state$n_components)
   n_eff    <- model_state$n_eff
+  bic      <- -2 * ll + log(n_eff) * n_params
 
   model_state$metrics <- list(
     ll       = ll,
     n_params = n_params,
     aic      = -2 * ll + 2 * n_params,
-    bic      = -2 * ll + log(n_eff) * n_params,
+    bic      = bic,
+    caic     = -2 * ll + (log(n_eff) + 1) * n_params,
+    aic3     = -2 * ll + 3 * n_params,
+    icl      = bic + 2 * abs_ent,
     sabic    = -2 * ll + log((n_eff + 2) / 24) * n_params,
     entropy  = ent,
     # How many restarts found this solution, out of how many were run. Carried
@@ -207,10 +217,12 @@
 # The block of fit indices under the header, shared by print.mixture_model()
 # and print.lta_model() so the two cannot show different sets.
 #
-# The six are exactly the columns of compare_mixtures()'s fit_table. That is the
-# point of the choice: a user who prints one model and a user who compares a
-# range must never see two different sets of numbers for the same fit. Nothing
-# else belongs here.
+# These six were once exactly the columns of compare_mixtures()'s fit_table;
+# that table has since grown CAIC, AIC3 and ICL (roadmap 4.1) without this
+# block following it. That is deliberate, not a gap: the "best model" line and
+# this terse per-fit summary are meant to stay a single confident answer
+# rather than a side-by-side of every index's choice. The extra indices are
+# reachable in fit_table and in $metrics for anyone who wants them.
 #
 # `suffix` labels which set of metrics `m` is (a three-step fit has two).
 # `flag_bic` marks the BIC of a fit whose variances collapsed, where the number
