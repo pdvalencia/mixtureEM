@@ -211,6 +211,69 @@ status_prevalences <- function(object, type = c("model", "posterior"),
   grid
 }
 
+# Model-implied probability of each status pattern in `grid`: delta propagated
+# through the transition matrices along the path. With more than one latent
+# class the classes are summed, weighted by `class_weights`, unless `class`
+# picks one out.
+#
+# Shared by `transition_patterns(type = "model")` and by the flat-mixture
+# rebuild `.absolute_fit_mar()` uses, so the two cannot drift apart.
+.lta_pattern_probs <- function(object, grid, class = NULL) {
+  Tn <- ncol(grid)
+  C  <- object$n_classes %||% 1L
+  one <- function(delta, tau) apply(grid, 1, function(p) {
+    prob <- delta[p[1]]
+    if (Tn > 1L) for (t in 2:Tn) prob <- prob * tau[[t - 1L]][p[t - 1L], p[t]]
+    prob
+  })
+  if (C == 1L || !is.null(class)) {
+    cc <- class %||% 1L
+    return(one(object$delta_c[[cc]], object$tau_c[[cc]]))
+  }
+  Reduce(`+`, Map(function(cc, wt) wt * one(object$delta_c[[cc]],
+                                           object$tau_c[[cc]]),
+                  seq_len(C), object$class_weights))
+}
+
+# An LTA rewritten as the flat mixture it exactly is.
+#
+# A T-occasion, K-status latent transition model is a K^T-class latent class
+# model whose components are the status *paths*: component m has weight
+# P(S_1 = m_1, ..., S_T = m_T) -- delta propagated through the transitions --
+# and, because each indicator loads on its own occasion's status only, item j
+# of occasion t takes the row of its ordinary K x R probability matrix that
+# path m assigns to occasion t. Conditional independence across items given
+# the whole path is exactly the LTA's own assumption, so this is a rewrite,
+# not an approximation.
+#
+# The rewrite is what lets `.absolute_fit_mar()` serve an `lta_model` without
+# a second implementation of anything: that code only ever asks for a vector
+# of mixture weights and one probability matrix per item, and knows nothing
+# about where they came from. Handing it the *unexpanded* K-row matrices and
+# a K-vector instead would silently fit a different model -- one latent
+# variable behind all T occasions, i.e. every case forced onto a constant
+# status path -- which is why this expansion exists rather than a guard lift.
+#
+# The measurement model is shared across latent classes in a mixture over
+# chains (`.lta_class_state()` swaps only delta, tau and tau_allowed), so a
+# multi-class fit needs no more than the class-weighted `gamma` that
+# `.lta_pattern_probs()` already returns.
+.lta_flat_mixture <- function(object, items) {
+  K    <- object$n_statuses
+  Tn   <- object$n_times
+  labs <- object$longitudinal$time_labels %||% paste0("T", seq_len(Tn))
+  grid <- .transition_pattern_grid(K, Tn, labs)
+
+  n_items <- length(items) %/% Tn
+  flat <- lapply(seq_along(items), function(j) {
+    t  <- ((j - 1L) %/% n_items) + 1L      # .time_block_cols()'s layout
+    it <- items[[j]]
+    it$probs <- it$probs[grid[[t]], , drop = FALSE]
+    it
+  })
+  list(items = flat, gamma = .lta_pattern_probs(object, grid))
+}
+
 #' Joint Latent-Status Pattern Table
 #'
 #' @description
@@ -222,14 +285,14 @@ status_prevalences <- function(object, type = c("model", "posterior"),
 #'
 #' @param object An object returned by [`fit_lta()`].
 #' @param type `"model"` (default) propagates \eqn{\delta} through the
-#'   transition matrices, cheap at any number of occasions. With `n_classes` >
+#'   transition matrices. With `n_classes` >
 #'   1 the classes are summed, weighted by `class_weights`, unless `class`
 #'   selects one. `"posterior"` sums each case's actual posterior probability
 #'   over every possible path; it is exact but there is no shortcut for it --
 #'   the path posterior does not factorise, so every path is enumerated
-#'   directly -- and it is refused above a cell cap (\eqn{K^T > 10000}) and
+#'   directly -- and it is additionally refused
 #'   for a model with more than one latent class, where `"modal"` is the
-#'   alternative that scales. `"modal"` cross-tabulates the joint-MAP
+#'   alternative. `"modal"` cross-tabulates the joint-MAP
 #'   (Viterbi) path from `class_assignments(object, "viterbi")`. That is a
 #'   different thing from a cross-tabulation of the per-occasion modal
 #'   statuses, which can put mass on a pattern the model itself gives zero
@@ -241,6 +304,18 @@ status_prevalences <- function(object, type = c("model", "posterior"),
 #'   "modal"` if that is the number being matched against.
 #' @param class Optional latent class, for a model fitted with `n_classes` > 1.
 #'   Applies only to `type = "model"`; ignored otherwise.
+#'
+#' @details
+#' The table has one row per possible status sequence, so it has \eqn{K^T}
+#' rows whatever `type` is asked for, and every `type` is refused above
+#' \eqn{K^T > 10000}. No `type` escapes that: the enumeration is the shape of
+#' the answer, not a way of computing it. To describe a model with more
+#' occasions than that allows, use [`transition_matrix()`] or
+#' [`status_prevalences()`], which look at one or two occasions at a time, or
+#' decode each case's own path with `class_assignments(object, "viterbi")`,
+#' which returns one row per *case* and so is bounded by the sample rather
+#' than by \eqn{K^T}.
+#'
 #' @return A data frame with one integer column per occasion, named from the
 #'   model's time labels, then `count` and `proportion`.
 #' @seealso [`transition_matrix()`], [`status_prevalences()`].
@@ -254,6 +329,23 @@ transition_patterns <- function(object, type = c("model", "posterior", "modal"),
   K    <- object$n_statuses
   Tn   <- object$longitudinal$n_times
   C    <- object$n_classes %||% 1L
+
+  # Every type returns one row per possible pattern, so the K^T grid is the
+  # size of the *result*, not an implementation detail one type can avoid --
+  # this cap therefore has to be checked before the grid is built, and applies
+  # to all three types. (It was once checked inside the `"posterior"` branch
+  # only, which put it after the grid it exists to prevent: the enumeration
+  # had already been materialised by the time it was consulted, and a model
+  # large enough to need it died allocating instead.)
+  if (K^Tn > 10000)
+    stop(sprintf(paste0(
+      "`transition_patterns()` would enumerate %.0f patterns (K^T = %d^%d), ",
+      "one row of the returned table each, which is refused above 10000. ",
+      "Summarise a model this size one or two occasions at a time with ",
+      "`transition_matrix()` or `status_prevalences()`, or decode each ",
+      "case's own path with `class_assignments(object, \"viterbi\")`."),
+      K^Tn, K, Tn), call. = FALSE)
+
   grid <- .transition_pattern_grid(K, Tn, labs)
 
   if (type == "modal") {
@@ -262,20 +354,7 @@ transition_patterns <- function(object, type = c("model", "posterior", "modal"),
     grid_key <- do.call(paste, c(as.list(grid), sep = "_"))
     n_obs <- as.numeric(table(factor(obs_key, levels = grid_key)))
   } else if (type == "model") {
-    one_class_probs <- function(delta, tau) apply(grid, 1, function(p) {
-      prob <- delta[p[1]]
-      if (Tn > 1L) for (t in 2:Tn) prob <- prob * tau[[t - 1L]][p[t - 1L], p[t]]
-      prob
-    })
-    if (C == 1L || !is.null(class)) {
-      cc <- class %||% 1L
-      probs <- one_class_probs(object$delta_c[[cc]], object$tau_c[[cc]])
-    } else {
-      probs <- Reduce(`+`, Map(function(cc, w) w * one_class_probs(
-        object$delta_c[[cc]], object$tau_c[[cc]]),
-        seq_len(C), object$class_weights))
-    }
-    n_obs <- probs * sum(object$weights_vec)
+    n_obs <- .lta_pattern_probs(object, grid, class) * sum(object$weights_vec)
   } else {
     if (C > 1L)
       stop("`type = \"posterior\"` is not available for a mixture over ",
@@ -283,11 +362,6 @@ transition_patterns <- function(object, type = c("model", "posterior", "modal"),
            "posterior folded in as well. Use `type = \"modal\"`, which ",
            "decodes the class and the path jointly, or `type = \"model\"` ",
            "with `class` set.", call. = FALSE)
-    if (K^Tn > 10000)
-      stop(sprintf(
-        "`type = \"posterior\"` would enumerate %d paths (K^T = %d^%d), ",
-        K^Tn, K, Tn), "which is refused above 10000. Use `type = \"modal\"` ",
-        "instead, which scales to any number of occasions.", call. = FALSE)
     logB      <- .lta_emission_loglik(object$mm, object$data)
     log_delta <- .lta_log_delta(object)
     log_tau   <- .lta_log_tau(object)

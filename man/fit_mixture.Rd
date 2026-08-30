@@ -20,6 +20,7 @@ fit_mixture(
   group_invariant_params = NULL,
   group_prevalence_equal = NULL,
   start_from = NULL,
+  refine_from = NULL,
   variances_equal = NULL,
   n_steps = 1,
   correction = "none",
@@ -252,6 +253,18 @@ package an informed starting value competes with the random restarts rather
 than replacing them; this is the exception, and it has to be asked for by
 name. Standard errors are not produced for the restricted prevalences
 either way; compare the two fits with \code{lr_test()}.}
+
+\item{refine_from}{A fitted model of the same shape whose solution this fit
+continues from. One EM run is seeded from that model's own converged
+parameters and carried on under this call's \code{max_iter}; no random
+restarts are run, because the search that produced the donor already ran
+and this only continues its winner. \code{n_init} is not accepted at the
+same time.
+
+It is not \code{start_from}, and the two cannot be combined. \code{start_from}
+\emph{replaces} a search that has not happened, which is safe only under the
+relabelling argument set out there; \code{refine_from} sits downstream of a
+search that has, so it skips nothing.}
 
 \item{variances_equal}{Logical, for continuous indicators only: hold each
 item's variance equal across the classes, so the classes differ in location

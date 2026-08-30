@@ -1,5 +1,124 @@
 # mixtureEM (development version)
 
+## `fit_lta()` now refines its solutions the way the other models do
+
+Every start that runs to convergence is followed by an L-BFGS climb on the same
+penalised objective the EM steps maximise, and the starts are then ranked on
+the refined log-likelihoods rather than on EM's own. `fit_mixture()` has
+refined its fits this way since the mixture engine was written; the latent
+transition models are fitted by a separate driver, because they need the
+forward-backward recursion, and that driver had no equivalent. `fit_lta()` was
+the one estimation path in the package where EM's last mile was walked rather
+than jumped.
+
+It matters most where it is hardest to see. EM converges to a fixed point of
+its own surrogate function, which on a near-flat stretch of the likelihood can
+sit measurably short of the maximum, and no number of extra restarts and no
+change of seed will move it - the fit reports convergence and is simply not at
+the top. Tightening `tol` gets there eventually, at the cost of thousands of
+further iterations. The climb steps across in one move instead.
+
+Log-likelihoods from `fit_lta()` may therefore differ slightly from previous
+versions. They will not be lower: the climb never returns a fit worse than the
+one it was handed, and the reported parameter count is unchanged. Turn it off
+with `refine = FALSE`. It is a no-op, and the fit is unchanged, for models
+whose free parameters it cannot differentiate - covariate models, mixtures over
+chains, and measurement families other than binary and continuous.
+
+The gradient it climbs is the one `.lta_standard_errors()` already computed for
+its own purposes, so the two now share a single implementation of the score
+matrix and cannot drift apart.
+
+## New: `refine_from`, for continuing a fit you have already run
+
+`fit_lta()` and `fit_mixture()` gain a `refine_from` argument. Pass a fitted
+model of the same shape and the fit seeds one EM run from that model's own
+converged parameters and carries it on under this call's `tol` and `max_iter`,
+running no random restarts. It is the answer to a common and expensive
+situation: a search over many starts has already found the right hill, and all
+that is wanted now is to climb the last of it under a tighter stopping rule.
+Refitting from scratch pays the tight rule on every restart when it is needed
+on one. `fit_gmm()` and `fit_rmlca()` inherit it through the arguments they
+pass to `fit_mixture()`.
+
+This is not `fit_mixture(start_from = )` and the two cannot be combined.
+`start_from` *replaces* a search that has not happened, which is why it is
+available only alongside `group_prevalence_equal`, where every solution the
+search could find is the same one relabelled. `refine_from` sits downstream of
+a search that has already run and only continues its winner, so nothing is
+skipped and no such argument is needed. Passing `n_init` alongside
+`refine_from` is an error rather than a silent override, and a refined fit
+reports one requested start, so the replication warning cannot advise raising a
+restart budget on a fit that never ran a pool.
+
+## `absolute_fit()` and `lta_g2()` now work on an LTA with missing data
+
+`absolute_fit()` refused any `fit_lta()` model whose indicators had missing
+values, and `lta_g2()`, which is a thin wrapper over it, therefore returned
+`NULL` for that whole class of model with only a message to say why. Since an
+LTA is very often fitted to data where a case is observed at one occasion and
+not another, this was most of the realistic uses of both functions. The
+missing-data (MAR) branch now serves an `lta_model` as well as a
+`fit_mixture()` one.
+
+Nothing new had to be derived to do it. A `T`-occasion, `K`-status latent
+transition model *is* a `K^T`-class latent class model whose components are
+the status paths, with each indicator loading on its own occasion's status,
+so the existing machinery runs unchanged once the model is handed to it in
+that form. Note this is a rewrite rather than a re-parameterisation: the
+per-case log-likelihood of the flattened model reproduces the LTA's own to
+machine precision.
+
+The statistics follow the same conventions as before -- `df = W - 1 - P` on
+the full crossing of indicator categories, with the model-plus-MCAR block
+reported underneath -- so an LTA's absolute fit is directly comparable with a
+`fit_mixture()` model's. `absolute_fit()` refuses, with a message naming both
+quantities, when the `W`-cell table crossed against the `K^T` paths is too
+large to score.
+
+## Fixed: `transition_patterns()`'s size guard could not fire
+
+`transition_patterns()` refuses a model with more than 10,000 status patterns,
+but the check sat inside the `type = "posterior"` branch and ran *after* the
+`K^T` grid had been built -- so it was consulted only once the enumeration it
+exists to prevent had already been allocated, and a model genuinely large
+enough to need it exhausted memory before reaching it. The check now runs
+before the grid, and applies to every `type`, which is the honest scope: the
+table has one row per pattern whatever `type` is asked for, so no `type`
+escapes `K^T`. The documentation claimed `"model"` was "cheap at any number of
+occasions" and `"modal"` "scales to any number of occasions"; neither was
+true, and both now say so, pointing at `transition_matrix()`,
+`status_prevalences()` and `class_assignments(object, "viterbi")` as the
+summaries that are actually bounded by something other than `K^T`.
+
+## `transition_patterns()`, and CAIC / AIC3 / ICL in the comparison tables
+
+*(These shipped alongside the entropy work below and were left out of this
+file at the time.)*
+
+`transition_patterns()` is a new exported function giving the joint
+distribution of latent status across every occasion at once, which neither
+`transition_matrix()` nor `status_prevalences()` can produce since each looks
+at only one or two occasions at a time. It offers a model-implied table, an
+exact posterior table, and a modal table from the Viterbi decoding. The
+classification table another program prints for a latent transition model is
+typically the per-occasion cross-tab rather than this joint decode; the
+documentation says so, and says how to reproduce it.
+
+`compare_mixtures()` and `compare_longitudinal()` gain `CAIC`, `AIC3` and
+`ICL` columns in `fit_table`, alongside the AIC/BIC/SABIC already there. CAIC
+and AIC3 apply a heavier per-parameter penalty than BIC; ICL is BIC penalised
+further by classification entropy. The `-> Best model` line and `best_k` are
+unchanged and still choose by BIC alone -- the new columns are for
+comparison, not selection. `print()` for a single fit is deliberately
+unchanged, so a printed model and a compared range do not show two different
+sets of numbers for the ordinary case; the fuller set stays reachable through
+`fit_table` and `$metrics`.
+
+`fit_lta()` also gains `metrics$entropy_by_occasion`, one relative-entropy
+number per occasion rather than the single number pooled across all of them,
+printed by `summary()` and documented in `?fit_lta`.
+
 ## Changed: `fit_lta()`'s headline entropy is now the joint status-path entropy
 
 `fit_lta()`'s `metrics$entropy` is now the relative entropy of the joint

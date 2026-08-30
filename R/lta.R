@@ -97,6 +97,23 @@
 #'   count is 1; the answer there is `n_init = 100`, and a maximum that still
 #'   does not replicate at 100 starts points at the specification rather than at
 #'   the search. See `vignette("estimation")`.
+#' @param refine Logical. If `TRUE` (default), each start that runs to
+#'   convergence is followed by an L-BFGS climb on the same penalised objective
+#'   the EM steps maximise, and the starts are then ranked on the refined
+#'   log-likelihoods. EM converges to a fixed point of its own surrogate, which
+#'   on a near-flat likelihood ridge can sit measurably short of the maximum;
+#'   the climb steps past it, and never returns a fit worse than the one it was
+#'   given. This is the same refinement [`fit_mixture()`] has always applied.
+#'   It is a no-op - silently, and the fit is unchanged - for models whose free
+#'   parameters it cannot differentiate: covariate models, mixtures over chains
+#'   (`n_classes` > 1), and measurement families other than binary and
+#'   continuous.
+#' @param refine_from A model fitted by [`fit_lta()`] on the same data and with
+#'   the same shape, whose solution this fit continues from. No random starts
+#'   are run and `n_init` is ignored, because the search that produced the donor
+#'   already ran and this only carries its winner further - typically to a
+#'   tighter `tol` or a larger `max_iter`. Passing `n_init` alongside is an
+#'   error rather than a silent override.
 #' @param n_cores Positive integer. Number of processes to spread the random
 #'   starts over. Default `1` (sequential). These are the slowest fits in the
 #'   package and `n_init` is high by necessity, so this is where the argument
@@ -252,6 +269,8 @@ fit_lta <- function(indicators,
                     strata = NULL,
                     cluster = NULL,
                     n_init = 20,
+                    refine = TRUE,
+                    refine_from = NULL,
                     max_iter = 1000,
                     n_cores = 1L,
                     tol = 1e-8,
@@ -266,6 +285,10 @@ fit_lta <- function(indicators,
                     group_effects = c("both", "initial", "transitions", "none"),
                     bayes_constants = NULL,
                     ...) {
+
+  # Read before anything can touch `n_init`: `refine_from` refuses to be given
+  # a restart budget, and "the user did not ask for one" is only knowable here.
+  n_init_default <- missing(n_init)
 
   measurement_invariance <- match.arg(measurement_invariance)
   transition_invariance  <- match.arg(transition_invariance)
@@ -468,11 +491,44 @@ fit_lta <- function(indicators,
   # restarts, and only the survivors are run on to convergence, resuming from
   # where they stopped. Three survivors rather than one because a short first
   # pass is a noisy ranking: the winning basin can be the slow one.
+  # `refine_from` continues a fit that has already searched: it seeds one run
+  # from that model's own converged parameters and runs on under this call's
+  # stopping rule. It is not `fit_mixture(start_from = )`, which *replaces* a
+  # search that has not happened; here the pool ran already and this is its
+  # winner, so nothing is being skipped. See the argument's documentation.
+  if (!is.null(refine_from)) {
+    if (!inherits(refine_from, "lta_model"))
+      stop("`refine_from` must be a model fitted by fit_lta().", call. = FALSE)
+    if (!identical(as.integer(refine_from$n_statuses), as.integer(K)))
+      stop(sprintf(paste0(
+        "`refine_from` has %d statuses and this fit asks for %d. The donor ",
+        "must be the same model."), refine_from$n_statuses, K), call. = FALSE)
+    if (!identical(as.integer(refine_from$n_times), as.integer(Tn)))
+      stop(sprintf(paste0(
+        "`refine_from` has %d occasions and this fit asks for %d. The donor ",
+        "must be the same model."), refine_from$n_times, Tn), call. = FALSE)
+    if (!identical(as.integer(refine_from$n_classes), as.integer(C)))
+      stop(sprintf(paste0(
+        "`refine_from` has %d latent classes and this fit asks for %d. The ",
+        "donor must be the same model."), refine_from$n_classes, C),
+        call. = FALSE)
+    if (!n_init_default)
+      stop("`refine_from` continues that solution alone and runs no random ",
+           "restarts, so `n_init` has nothing to size. Drop it.",
+           call. = FALSE)
+  }
+
   staged <- C > 1L
   if (staged) {
     if (missing(tol))      tol      <- 1e-11
     if (missing(max_iter)) max_iter <- 5000
   }
+  # Staging ranks a pool of restarts against each other. There is no pool to
+  # rank when the start is handed over, so a refine goes straight to the full
+  # stopping rule. The tightened `tol`/`max_iter` defaults just above still
+  # apply: they are about how slowly a chain mixture converges, not about how
+  # the search is organised.
+  if (!is.null(refine_from)) staged <- FALSE
   n_survivors <- if (staged) min(3L, max(1L, n_init)) else 0L
 
   best <- NULL
@@ -487,16 +543,29 @@ fit_lta <- function(indicators,
   # nothing -- so this takes the same numbers the sequential loop took and makes
   # each restart a deterministic function of the start it is given. The fits can
   # then run on workers without moving a value, at any `n_cores`.
-  starts <- lapply(seq_len(max(1L, n_init)), function(i) {
-    if (!is.null(random_state)) set.seed(random_state + i)
-    .lta_random_start(state, X)
-  })
-  cands <- .par_lapply(starts, function(s)
-    try(.lta_em(s, X,
-                max_iter = if (staged) min(250L, max_iter) else max_iter,
-                tol = if (staged) 1e-7 else tol, alpha = alpha),
-        silent = TRUE),
-    n_cores = n_cores)
+  starts <- if (!is.null(refine_from)) {
+    list(.lta_refine_start(state, X, refine_from))
+  } else {
+    lapply(seq_len(max(1L, n_init)), function(i) {
+      if (!is.null(random_state)) set.seed(random_state + i)
+      .lta_random_start(state, X)
+    })
+  }
+  # The polish belongs after a run that was allowed to converge, never after
+  # the staged ranking pass: that pass stops at 250 iterations and its
+  # log-likelihoods are, as the comment above says, not the maxima of anything.
+  polish <- function(cand) {
+    if (!isTRUE(refine) || inherits(cand, "try-error")) return(cand)
+    out <- try(.lta_refine_lbfgs(cand, X, alpha = alpha), silent = TRUE)
+    if (inherits(out, "try-error")) cand else out
+  }
+  cands <- .par_lapply(starts, function(s) {
+    cand <- try(.lta_em(s, X,
+                        max_iter = if (staged) min(250L, max_iter) else max_iter,
+                        tol = if (staged) 1e-7 else tol, alpha = alpha),
+                silent = TRUE)
+    if (staged) cand else polish(cand)
+  }, n_cores = n_cores)
 
   for (cand in cands) {
     if (inherits(cand, "try-error")) next
@@ -512,7 +581,7 @@ fit_lta <- function(indicators,
     survivors <- .par_lapply(utils::head(ord, n_survivors), function(i) {
       cand <- try(.lta_em(stage1[[i]], X, max_iter = max_iter, tol = tol,
                           alpha = alpha), silent = TRUE)
-      if (inherits(cand, "try-error")) stage1[[i]] else cand
+      if (inherits(cand, "try-error")) stage1[[i]] else polish(cand)
     }, n_cores = n_cores)
     for (cand in survivors) {
       final_lls <- c(final_lls, cand$loglik)
@@ -568,7 +637,13 @@ fit_lta <- function(indicators,
     best$metrics$n_starts     <- length(final_lls)
     best$metrics$n_replicated <- sum(abs(final_lls - max(final_lls)) <= 1e-2)
   }
-  best$metrics$n_requested <- max(1L, n_init)
+  # One start, and it was not a random one. Recorded rather than left at
+  # `n_init` so .check_replication() cannot advise raising a restart budget on
+  # a fit that never ran a pool; at n_requested = 1 its own rule (>= 10) already
+  # declines to warn, and the flag says on the object where the solution came
+  # from for anyone reading the fit later.
+  best$metrics$n_requested <- if (is.null(refine_from)) max(1L, n_init) else 1L
+  best$refined_from <- !is.null(refine_from)
   if (isTRUE(standard_errors)) best$se <- .lta_standard_errors(best, X)
 
   # Recorded on the object as well as warned about: a warning is transient, and
@@ -986,114 +1061,11 @@ fit_lta <- function(indicators,
 # the normal approximation behaves; standard errors for the probabilities
 # themselves follow by the delta method.
 .lta_standard_errors <- function(state, X) {
-  K  <- state$n_statuses
-  Tn <- state$n_times
-  w  <- state$weights_vec
-  n  <- nrow(X)
-  if (K < 2L || Tn < 2L) return(NULL)
-  if (!is.null(state$delta_beta) || !is.null(state$tau_beta)) return(NULL)
-  # A mixture over chains adds a class-membership block and makes every other
-  # score class-conditional; the Fisher identity still applies but the blocks
-  # below are not the right ones. Declined rather than reported wrongly, as for
-  # the covariate models on the line above.
-  if ((state$n_classes %||% 1L) > 1L) return(NULL)
+  sc <- .lta_score_matrix(state, X)
+  if (is.null(sc)) return(NULL)
+  S <- sc$S; blocks <- sc$blocks; conditional <- sc$conditional
+  w <- state$weights_vec
 
-  logB <- .lta_emission_loglik(state$mm, X)
-  fb <- .lta_forward_backward(logB, log(pmax(state$delta, 1e-300)),
-                              lapply(state$tau, function(m)
-                                log(pmax(m, 1e-300))), w,
-                              keep_pairwise = TRUE)
-
-  scores <- list(); blocks <- list(); pos <- 0L
-  add_block <- function(s, probs, ref, name) {
-    scores[[length(scores) + 1L]] <<- s
-    blocks[[length(blocks) + 1L]] <<- list(
-      cols = pos + seq_len(ncol(s)), probs = probs, ref = ref, name = name)
-    pos <<- pos + ncol(s)
-  }
-
-  # delta: the score of the multinomial logit is gamma_1[i, k] - delta_k, with
-  # the last status anchored.
-  add_block(sweep(state$gamma[[1]][, seq_len(K - 1L), drop = FALSE], 2,
-                  state$delta[seq_len(K - 1L)], "-"),
-            state$delta, seq_len(K - 1L), "delta")
-
-  # tau: xi_i[t, k, l] - gamma_t[i, k] * tau_t[k, l], anchored on the last
-  # admissible destination in the row.
-  idx <- if (isTRUE(state$tau_homogeneous)) 1L else seq_len(Tn - 1L)
-  for (i_mat in idx) {
-    ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else i_mat
-    for (k in seq_len(K)) {
-      allowed <- which(state$tau_allowed[[i_mat]][k, ])
-      if (length(allowed) < 2L) next
-      free <- allowed[-length(allowed)]
-      s <- matrix(0, n, length(free))
-      for (tt in ts) {
-        pk <- fb$pairwise[[tt]][[k]]          # n x K: P(S_t = k, S_{t+1} = .)
-        s <- s + pk[, free, drop = FALSE] -
-          outer(state$gamma[[tt]][, k], state$tau[[i_mat]][k, free])
-      }
-      add_block(s, state$tau[[i_mat]][k, ], free,
-                sprintf("tau%s[from %d]",
-                        if (isTRUE(state$tau_homogeneous)) "" else
-                          paste0("(", i_mat, ")"), k))
-    }
-  }
-
-  # Measurement parameters. Including them is what makes these standard errors
-  # unconditional; when the emission family is not one of the two handled here
-  # the measurement model is treated as known, which understates uncertainty,
-  # and the flag below says so.
-  J <- state$n_items
-  conditional <- TRUE
-  fam <- class(state$mm$models[[1]])[1]
-  if (fam %in% c("bernoulli", "bernoulli_nan")) {
-    conditional <- FALSE
-    inv <- state$longitudinal$invariant_items
-    for (j in seq_len(J)) {
-      ts_groups <- if (j %in% inv) list(seq_len(Tn)) else
-        lapply(seq_len(Tn), identity)
-      for (grp in ts_groups) {
-        s <- matrix(0, n, K)
-        for (tt in grp) {
-          xj  <- X[, .time_block_cols(tt, J)[j]]
-          rho <- state$mm$models[[tt]]$parameters$pis[, j]
-          obs <- !is.na(xj); xj[!obs] <- 0
-          s <- s + state$gamma[[tt]] * (xj - matrix(rho, n, K, byrow = TRUE)) *
-            obs
-        }
-        add_block(s, NULL, NULL, sprintf("rho[item %d]", j))
-      }
-    }
-  } else if (fam %in% c("gaussian_diag", "gaussian_diag_nan",
-                        "gaussian_unit", "gaussian_unit_nan")) {
-    # Class means enter the information matrix; the residual variances of
-    # gaussian_diag do not, which is harmless for the blocks reported here
-    # because means and variances are orthogonal in a normal model.
-    conditional <- fam %in% c("gaussian_diag", "gaussian_diag_nan")
-    inv <- state$longitudinal$invariant_items
-    for (j in seq_len(J)) {
-      ts_groups <- if (j %in% inv) list(seq_len(Tn)) else
-        lapply(seq_len(Tn), identity)
-      for (grp in ts_groups) {
-        s <- matrix(0, n, K)
-        for (tt in grp) {
-          xj  <- X[, .time_block_cols(tt, J)[j]]
-          sub <- state$mm$models[[tt]]
-          mu  <- sub$parameters$means[, j]
-          v   <- if (!is.null(sub$parameters$covariances))
-            sub$parameters$covariances[, j] else rep(1, K)
-          obs <- !is.na(xj); xj[!obs] <- 0
-          s <- s + state$gamma[[tt]] *
-            sweep(matrix(xj, n, K) - matrix(mu, n, K, byrow = TRUE), 2, v, "/") *
-            obs
-        }
-        add_block(s, NULL, NULL, sprintf("mu[item %d]", j))
-      }
-    }
-  }
-
-  S    <- do.call(cbind, scores)
   info <- t(S) %*% sweep(S, 1, w, "*")
   V    <- tryCatch(pinv(info), error = function(e) NULL)
   if (is.null(V)) return(NULL)
@@ -1131,4 +1103,161 @@ fit_lta <- function(indicators,
 
   list(vcov = V, blocks = blocks, prob_se = prob_se,
        conditional = conditional, design_based = design_based)
+}
+
+# Where the score blocks below are the right ones. Both `.lta_standard_errors()`
+# and the L-BFGS refinement in R/lta_core.R read this, so the parameterisation
+# one of them trusts cannot drift away from the parameterisation the other
+# trusts.
+#
+# A mixture over chains adds a class-membership block and makes every other
+# score class-conditional; the Fisher identity still applies but the blocks
+# below are not the right ones. Covariate models replace delta and tau with
+# case-level regressions, so the multinomial-logit blocks do not describe their
+# free parameters at all. Both are declined rather than answered wrongly.
+# Which items are held equal across occasions. Read off the measurement model,
+# which carries the constraint from the moment fit_lta() builds it, NOT off
+# `state$longitudinal`, which fit_lta() attaches only once the search is over.
+# The refinement runs *during* the search, and reading the empty slot there
+# made it treat every item as free: it then bought log-likelihood by breaking
+# the invariance restriction the model is defined by, and the next EM step
+# re-imposed the restriction and took it straight back.
+.lta_invariant_items <- function(state) {
+  state$mm$invariant_items %||% state$longitudinal$invariant_items %||%
+    integer(0)
+}
+
+.lta_scores_supported <- function(state) {
+  if (state$n_statuses < 2L || state$n_times < 2L) return(FALSE)
+  if (!is.null(state$delta_beta) || !is.null(state$tau_beta)) return(FALSE)
+  (state$n_classes %||% 1L) == 1L
+}
+
+# The measurement families whose parameters the score blocks actually cover.
+# `.lta_standard_errors()` does not need this: where the family is not one of
+# these it reports delta and tau with the measurement model treated as known
+# and says so through `conditional`. The refinement does need it, because a
+# parameter it cannot differentiate is a parameter it must not move.
+.lta_scores_full <- function(state) {
+  .lta_scores_supported(state) &&
+    class(state$mm$models[[1]])[1] %in%
+      c("bernoulli", "bernoulli_nan", "gaussian_diag", "gaussian_diag_nan",
+        "gaussian_unit", "gaussian_unit_nan")
+}
+
+# The n x p matrix of case-level scores, one column per free parameter, on the
+# multinomial-logit scale with the last category anchored. Column order is the
+# packing order: delta, then the transition rows, then the measurement blocks.
+# `.lta_refine_lbfgs()` sums these rows under the case weights to get the
+# gradient of the log-likelihood; `.lta_standard_errors()` takes their outer
+# product to get the empirical information. Same matrix, two uses.
+#
+# The forward-backward pass is run here rather than read off `state`, so the
+# scores describe the parameters currently in `state` even when no E-step has
+# been taken at them. At a converged fit the two agree by construction.
+.lta_score_matrix <- function(state, X) {
+  K  <- state$n_statuses
+  Tn <- state$n_times
+  w  <- state$weights_vec
+  n  <- nrow(X)
+  if (!.lta_scores_supported(state)) return(NULL)
+
+  logB <- .lta_emission_loglik(state$mm, X)
+  fb <- .lta_forward_backward(logB, log(pmax(state$delta, 1e-300)),
+                              lapply(state$tau, function(m)
+                                log(pmax(m, 1e-300))), w,
+                              keep_pairwise = TRUE)
+  gam <- fb$gamma
+
+  scores <- list(); blocks <- list(); pos <- 0L
+  add_block <- function(s, probs, ref, name) {
+    scores[[length(scores) + 1L]] <<- s
+    blocks[[length(blocks) + 1L]] <<- list(
+      cols = pos + seq_len(ncol(s)), probs = probs, ref = ref, name = name)
+    pos <<- pos + ncol(s)
+  }
+
+  # delta: the score of the multinomial logit is gamma_1[i, k] - delta_k, with
+  # the last status anchored.
+  add_block(sweep(gam[[1]][, seq_len(K - 1L), drop = FALSE], 2,
+                  state$delta[seq_len(K - 1L)], "-"),
+            state$delta, seq_len(K - 1L), "delta")
+
+  # tau: xi_i[t, k, l] - gamma_t[i, k] * tau_t[k, l], anchored on the last
+  # admissible destination in the row.
+  idx <- if (isTRUE(state$tau_homogeneous)) 1L else seq_len(Tn - 1L)
+  for (i_mat in idx) {
+    ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else i_mat
+    for (k in seq_len(K)) {
+      allowed <- which(state$tau_allowed[[i_mat]][k, ])
+      if (length(allowed) < 2L) next
+      free <- allowed[-length(allowed)]
+      s <- matrix(0, n, length(free))
+      for (tt in ts) {
+        pk <- fb$pairwise[[tt]][[k]]          # n x K: P(S_t = k, S_{t+1} = .)
+        s <- s + pk[, free, drop = FALSE] -
+          outer(gam[[tt]][, k], state$tau[[i_mat]][k, free])
+      }
+      add_block(s, state$tau[[i_mat]][k, ], free,
+                sprintf("tau%s[from %d]",
+                        if (isTRUE(state$tau_homogeneous)) "" else
+                          paste0("(", i_mat, ")"), k))
+    }
+  }
+
+  # Measurement parameters. Including them is what makes these standard errors
+  # unconditional; when the emission family is not one of the two handled here
+  # the measurement model is treated as known, which understates uncertainty,
+  # and the flag below says so.
+  J <- state$n_items
+  conditional <- TRUE
+  fam <- class(state$mm$models[[1]])[1]
+  if (fam %in% c("bernoulli", "bernoulli_nan")) {
+    conditional <- FALSE
+    inv <- .lta_invariant_items(state)
+    for (j in seq_len(J)) {
+      ts_groups <- if (j %in% inv) list(seq_len(Tn)) else
+        lapply(seq_len(Tn), identity)
+      for (grp in ts_groups) {
+        s <- matrix(0, n, K)
+        for (tt in grp) {
+          xj  <- X[, .time_block_cols(tt, J)[j]]
+          rho <- state$mm$models[[tt]]$parameters$pis[, j]
+          obs <- !is.na(xj); xj[!obs] <- 0
+          s <- s + gam[[tt]] * (xj - matrix(rho, n, K, byrow = TRUE)) *
+            obs
+        }
+        add_block(s, NULL, NULL, sprintf("rho[item %d]", j))
+      }
+    }
+  } else if (fam %in% c("gaussian_diag", "gaussian_diag_nan",
+                        "gaussian_unit", "gaussian_unit_nan")) {
+    # Class means enter the information matrix; the residual variances of
+    # gaussian_diag do not, which is harmless for the blocks reported here
+    # because means and variances are orthogonal in a normal model.
+    conditional <- fam %in% c("gaussian_diag", "gaussian_diag_nan")
+    inv <- .lta_invariant_items(state)
+    for (j in seq_len(J)) {
+      ts_groups <- if (j %in% inv) list(seq_len(Tn)) else
+        lapply(seq_len(Tn), identity)
+      for (grp in ts_groups) {
+        s <- matrix(0, n, K)
+        for (tt in grp) {
+          xj  <- X[, .time_block_cols(tt, J)[j]]
+          sub <- state$mm$models[[tt]]
+          mu  <- sub$parameters$means[, j]
+          v   <- if (!is.null(sub$parameters$covariances))
+            sub$parameters$covariances[, j] else rep(1, K)
+          obs <- !is.na(xj); xj[!obs] <- 0
+          s <- s + gam[[tt]] *
+            sweep(matrix(xj, n, K) - matrix(mu, n, K, byrow = TRUE), 2, v, "/") *
+            obs
+        }
+        add_block(s, NULL, NULL, sprintf("mu[item %d]", j))
+      }
+    }
+  }
+
+  list(S = do.call(cbind, scores), blocks = blocks,
+       conditional = conditional, ll = fb$ll, gamma = gam)
 }

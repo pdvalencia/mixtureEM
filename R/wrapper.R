@@ -2757,6 +2757,17 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   than replacing them; this is the exception, and it has to be asked for by
 #'   name. Standard errors are not produced for the restricted prevalences
 #'   either way; compare the two fits with \code{lr_test()}.
+#' @param refine_from A fitted model of the same shape whose solution this fit
+#'   continues from. One EM run is seeded from that model's own converged
+#'   parameters and carried on under this call's \code{max_iter}; no random
+#'   restarts are run, because the search that produced the donor already ran
+#'   and this only continues its winner. \code{n_init} is not accepted at the
+#'   same time.
+#'
+#'   It is not \code{start_from}, and the two cannot be combined. \code{start_from}
+#'   \emph{replaces} a search that has not happened, which is safe only under the
+#'   relabelling argument set out there; \code{refine_from} sits downstream of a
+#'   search that has, so it skips nothing.
 #' @param variances_equal Logical, for continuous indicators only: hold each
 #'   item's variance equal across the classes, so the classes differ in location
 #'   only. This is the homoscedastic latent profile model and the default
@@ -3051,6 +3062,7 @@ fit_mixture <- function(indicators = NULL,
                         group_invariant_params = NULL,
                         group_prevalence_equal = NULL,
                         start_from = NULL,
+                        refine_from = NULL,
                         variances_equal = NULL,
                         n_steps = 1,
                         correction = "none",
@@ -3400,6 +3412,31 @@ fit_mixture <- function(indicators = NULL,
                     correction))
   }
 
+  # `refine_from` continues a fit that has already searched, so it runs one
+  # start and no pool. It is deliberately not routed through the
+  # `group_prevalence_equal` gate above: that gate belongs to `start_from`,
+  # which replaces a search, and the two arguments answer different questions.
+  if (!is.null(refine_from)) {
+    if (!is.null(start_from))
+      stop("`start_from` replaces a search that has not happened and ",
+           "`refine_from` continues one that has, so they cannot be combined.",
+           call. = FALSE)
+    if (!inherits(refine_from, "mixture_model"))
+      stop("`refine_from` must be a model fitted by fit_mixture().",
+           call. = FALSE)
+    if (!identical(as.integer(refine_from$n_components), as.integer(n_classes)))
+      stop(sprintf(paste0(
+        "`refine_from` has %d classes and this fit asks for %d. The donor ",
+        "must be the same model."), refine_from$n_components, n_classes),
+        call. = FALSE)
+    if (n_init_set)
+      stop("`refine_from` continues that solution alone and runs no random ",
+           "restarts, so `n_init` has nothing to size. Drop it.",
+           call. = FALSE)
+    group_warm_start <- .mixture_refine_warm_start(refine_from)
+    n_init <- 0L
+  }
+
   dots <- c(list(...), list(variances_equal = isTRUE(variances_equal),
                             moderated = structural_moderated))
   if (length(group_extra_args)) dots <- utils::modifyList(dots, group_extra_args)
@@ -3416,6 +3453,14 @@ fit_mixture <- function(indicators = NULL,
     bayes_constants = bayes_constants, warm_start = group_warm_start,
     n_cores = n_cores,
     se = se), dots))
+
+  # One start, and it was not a random one: `n_init` was set to zero above, and
+  # a fit reporting "0 requested" would read as a fit that was never asked for
+  # anything. The flag records on the object where the solution came from.
+  if (!is.null(refine_from)) {
+    fit$metrics$n_requested <- 1L
+    fit$refined_from <- TRUE
+  }
 
   if (length(mm$recode)) fit$binary_recode <- mm$recode
 

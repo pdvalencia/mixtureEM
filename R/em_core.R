@@ -785,6 +785,37 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
 # restriction of the model is in the aligned basin by construction. It competes
 # on log-likelihood like any other restart, so a warm start that turns out to be
 # a poor one costs a restart and changes nothing else.
+# The `warm_start` function behind `refine_from`: seed one run from a fitted
+# model's own converged parameters. Unlike .group_prevalence_warm_start(), which
+# anchors a *restricted* fit to an unrestricted donor, this is the same model
+# resumed, so every block is copied verbatim and the first E-step begins exactly
+# where the donor's last one ended.
+.mixture_refine_warm_start <- function(donor) {
+  force(donor)
+  function(model_state, X, Y) {
+    mm <- .copy_emission_parameters(init_params(model_state$mm, X, NULL),
+                                    donor$mm)
+    if (is.null(mm))
+      stop("`refine_from` has a measurement model of a different shape from ",
+           "the one this fit asks for, so its solution cannot be continued.",
+           call. = FALSE)
+    model_state$mm <- mm
+    if (!is.null(donor$weights) &&
+        length(donor$weights) == model_state$n_components)
+      model_state$weights <- donor$weights
+    # The structural model is copied only when it is the same shape. When it is
+    # not -- a fit that adds covariates the donor did not have, say -- the fresh
+    # one stands and the first M-step fits it to the donor's own posteriors,
+    # which is the closest thing to "resume" that still exists.
+    if (!is.null(model_state$sm) && !is.null(donor$sm)) {
+      sm <- .copy_emission_parameters(init_params(model_state$sm, Y, NULL),
+                                      donor$sm)
+      if (!is.null(sm)) model_state$sm <- sm
+    }
+    model_state
+  }
+}
+
 fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
                    random_state = NULL, refine = TRUE, warm_start = NULL,
                    n_cores = 1L) {

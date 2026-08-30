@@ -152,8 +152,9 @@
 #' that reference distribution.
 #'
 #' @section Missing data:
-#' With one or more missing values (categorical, plain `fit_mixture()` models
-#' only), the statistics are computed under the missing-at-random (MAR)
+#' With one or more missing values (categorical `fit_mixture()` or
+#' [`fit_lta()`] models), the statistics are computed under the
+#' missing-at-random (MAR)
 #' assumption instead: the model is compared not to the raw response table,
 #' which no longer exists once cases have different items observed, but to a
 #' saturated model fit to the same partition of the data by which items each
@@ -166,18 +167,29 @@
 #' crossed together grows large -- the same \eqn{W} that already makes the
 #' complete-data table sparse.
 #'
+#' **Comparing against other software.** Two different statistics get called
+#' "the" \eqn{L^2} for a model fitted to incomplete data, and they can differ
+#' by a factor of two on the very same fit. `$g2` is the test of the model
+#' alone under MAR; `$g2_mcar` is the model tested *jointly* with MCAR, which
+#' is what some programs print by default and others print only on request.
+#' Match like with like before concluding anything: a program reporting a much
+#' larger figure than `$g2` is usually reporting `$g2_mcar`'s quantity, not
+#' disagreeing. Compare `$df` rather than `$df_mcar`, since the latter is
+#' capped at the sample size by at least one other implementation and this one
+#' reports it uncapped. Note also that the \eqn{X^2} and Cressie-Read columns
+#' are far less trustworthy than \eqn{L^2} on a sparse table: all three test
+#' the same hypothesis and they can return p-values hundreds of orders of
+#' magnitude apart.
+#'
 #' @section Multiple-group fits:
 #' For a \code{group_effects = "measurement"} fit, the model is
 #' \eqn{P(y \mid \mathrm{group})}, so the saturated comparison is one \eqn{W}
 #' -cell table \emph{per group}, not one \eqn{W}-cell table for the pooled
 #' data: \eqn{df = Q(W - 1) - P} for \eqn{Q} groups, and the statistics are
 #' the sum of each group's own. The per-group breakdown is returned in
-#' `$by_group`. As with the missing-data statistics, this is a
-#' within-package diagnostic: do not compare its level to another program's
-#' single-model goodness of fit, which under missing data can disagree with
-#' this one by more than a factor of two on the very same fit even though
-#' the two agree on everything that can be compared -- the log-likelihood
-#' and every likelihood-ratio test built from it.
+#' `$by_group`. Treat its level as a within-package diagnostic rather than a
+#' figure to line up against another program's, which need not use the same
+#' convention.
 #' \code{group_effects = "both"} instead attaches a covariate structural
 #' model for the prevalence effect and is refused as any conditional model
 #' is; refit with \code{group_effects = "measurement"} to check the
@@ -411,20 +423,45 @@ absolute_fit <- function(object) {
 }
 
 # absolute_fit()'s branch for incomplete data. `object` is needed (rather than
-# just `info`) because the marginal class weights are read off it directly,
-# the same accessor bivariate_residuals() uses.
+# just `info`) because the mixture weights are read off it directly -- via
+# `.marginal_class_weights()` for a `mixture_model`, the same accessor
+# bivariate_residuals() uses, and via `.lta_flat_mixture()` for an
+# `lta_model`, whose weights are one per status *path* rather than per class.
 .absolute_fit_mar <- function(object, info, X, levels_per_col) {
-  if (!inherits(object, "mixture_model")) {
+  if (!inherits(object, c("mixture_model", "lta_model"))) {
     message("Absolute fit with missing data is available for a plain ",
-            "fit_mixture() model only.")
+            "fit_mixture() or fit_lta() model only.")
     return(NULL)
   }
-  gamma <- .marginal_class_weights(object)
 
   items <- .fit_item_probs(info$mm, ncol(X), colnames(X))
   w     <- info$weights
   p     <- info$n_params
   W     <- prod(levels_per_col)
+
+  if (inherits(object, "lta_model")) {
+    # An LTA is rewritten as the K^T-class mixture over status paths that it
+    # exactly is; see `.lta_flat_mixture()`. Everything below is then the
+    # ordinary machinery, unchanged. Note this is NOT `object$weights`, which
+    # on an `lta_model` is the per-case sampling weight vector rather than a
+    # vector of class proportions -- reading it the way the mixture branch
+    # does would hand `.model_cell_prob()` an n-vector where it wants mixture
+    # weights.
+    K <- object$n_statuses; Tn <- object$n_times
+    if (W * K^Tn > 2e7) {
+      message("Absolute fit with missing data needs the ", W, "-cell table ",
+              "scored against all ", format(K^Tn, scientific = FALSE),
+              " status paths (K^T = ", K, "^", Tn, "), which is too large ",
+              "here. Compare models with BIC or a likelihood-ratio test ",
+              "instead.")
+      return(NULL)
+    }
+    flat  <- .lta_flat_mixture(object, items)
+    items <- flat$items
+    gamma <- flat$gamma
+  } else {
+    gamma <- .marginal_class_weights(object)
+  }
 
   sat <- .saturated_mar(X, lapply(items, `[[`, "categories"), w)
   if (is.null(sat)) {

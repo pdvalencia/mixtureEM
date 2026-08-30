@@ -14,14 +14,14 @@ transition_patterns(
 \item{object}{An object returned by \code{\link[=fit_lta]{fit_lta()}}.}
 
 \item{type}{\code{"model"} (default) propagates \eqn{\delta} through the
-transition matrices, cheap at any number of occasions. With \code{n_classes} >
+transition matrices. With \code{n_classes} >
 1 the classes are summed, weighted by \code{class_weights}, unless \code{class}
 selects one. \code{"posterior"} sums each case's actual posterior probability
 over every possible path; it is exact but there is no shortcut for it --
 the path posterior does not factorise, so every path is enumerated
-directly -- and it is refused above a cell cap (\eqn{K^T > 10000}) and
+directly -- and it is additionally refused
 for a model with more than one latent class, where \code{"modal"} is the
-alternative that scales. \code{"modal"} cross-tabulates the joint-MAP
+alternative. \code{"modal"} cross-tabulates the joint-MAP
 (Viterbi) path from \code{class_assignments(object, "viterbi")}. That is a
 different thing from a cross-tabulation of the per-occasion modal
 statuses, which can put mass on a pattern the model itself gives zero
@@ -44,6 +44,17 @@ row per possible sequence of statuses, with the count and proportion of
 cases following it. This is one of the standard LTA reports and is not
 derivable from \code{\link[=transition_matrix]{transition_matrix()}} or \code{\link[=status_prevalences]{status_prevalences()}}, which
 each describe only one or two occasions at a time.
+}
+\details{
+The table has one row per possible status sequence, so it has \eqn{K^T}
+rows whatever \code{type} is asked for, and every \code{type} is refused above
+\eqn{K^T > 10000}. No \code{type} escapes that: the enumeration is the shape of
+the answer, not a way of computing it. To describe a model with more
+occasions than that allows, use \code{\link[=transition_matrix]{transition_matrix()}} or
+\code{\link[=status_prevalences]{status_prevalences()}}, which look at one or two occasions at a time, or
+decode each case's own path with \code{class_assignments(object, "viterbi")},
+which returns one row per \emph{case} and so is bounded by the sample rather
+than by \eqn{K^T}.
 }
 \seealso{
 \code{\link[=transition_matrix]{transition_matrix()}}, \code{\link[=status_prevalences]{status_prevalences()}}.

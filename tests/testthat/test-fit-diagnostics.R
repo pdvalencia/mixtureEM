@@ -653,3 +653,102 @@ test_that("bivariate_residuals() on a group-varying fit is J x J, in item names,
   expect_equal(bvr[2, 1], (a + b) / (2 * df_pair))
 })
 
+
+# ------------------------------------------------------------------------------
+# Absolute fit for an LTA with missing data
+# ------------------------------------------------------------------------------
+#
+# `absolute_fit()` serves an `lta_model` by rewriting it as the K^T-class
+# mixture over status paths that it exactly is (`.lta_flat_mixture()`). These
+# tests check that rewrite two ways that do not depend on any reference
+# program: it must reproduce the LTA's own per-case log-likelihood, and -- run
+# on complete data, where the saturated baseline converges to the empirical
+# table and its contribution vanishes -- it must reproduce the complete-data
+# statistics the ordinary branch computes.
+
+.absfit_lta_sim <- function(n = 400, Tn = 2, seed = 9) {
+  set.seed(seed)
+  S <- matrix(0L, n, Tn); S[, 1] <- sample(1:2, n, TRUE)
+  for (t in 2:Tn)
+    S[, t] <- ifelse(stats::runif(n) < 0.8, S[, t - 1], 3L - S[, t - 1])
+  X <- matrix(0, n, Tn * 3)
+  for (t in seq_len(Tn)) for (j in 1:3)
+    X[, (t - 1) * 3 + j] <- stats::rbinom(n, 1, c(.12, .88)[S[, t]])
+  X
+}
+
+.absfit_lta <- function(X, Tn = 2)
+  fit_lta(X, n_statuses = 2, times = Tn, measurement = "binary",
+          n_init = 5, random_state = 9, standard_errors = FALSE)
+
+
+test_that("the flat status-path mixture reproduces the LTA's own likelihood", {
+  X <- .absfit_lta_sim(Tn = 3)
+  X[1:60, 4:6] <- NA                       # a whole occasion missing
+  X[61:80, 9]  <- NA                       # one item missing
+  fit <- .absfit_lta(X, Tn = 3)
+
+  items <- .fit_item_probs(fit$mm, ncol(fit$data), colnames(fit$data))
+  flat  <- mixtureEM:::.lta_flat_mixture(fit, items)
+
+  expect_length(flat$gamma, fit$n_statuses^fit$n_times)
+  expect_equal(sum(flat$gamma), 1)
+
+  # Case by case, over the observed items only: conditional independence given
+  # the whole path is the LTA's own assumption, so this is an identity.
+  ll <- vapply(seq_len(nrow(fit$data)), function(i) {
+    pk <- rep(1, length(flat$gamma))
+    for (j in which(!is.na(fit$data[i, ]))) {
+      ix <- match(fit$data[i, j], flat$items[[j]]$categories)
+      pk <- pk * flat$items[[j]]$probs[, ix]
+    }
+    log(sum(pk * flat$gamma))
+  }, numeric(1))
+  expect_equal(ll, fit$ll_case)
+})
+
+test_that("the MAR branch reproduces the complete-data statistics on complete data", {
+  fit  <- .absfit_lta(.absfit_lta_sim())
+  info <- mixtureEM:::.nested_fit_info(fit)
+  lv   <- mixtureEM:::.longitudinal_col_levels(info$mm, ncol(fit$data))
+
+  complete <- absolute_fit(fit)
+  forced   <- mixtureEM:::.absolute_fit_mar(fit, info, fit$data, lv)
+
+  expect_equal(forced$g2, complete$g2)
+  expect_equal(forced$x2, complete$x2)
+  expect_equal(forced$cressie_read, complete$cressie_read)
+  expect_equal(forced$dissimilarity, complete$dissimilarity)
+  expect_equal(forced$df, complete$df)
+})
+
+test_that("absolute_fit() and lta_g2() now answer for an LTA with missing data", {
+  X <- .absfit_lta_sim()
+  X[1:70, 4:6] <- NA
+  fit <- .absfit_lta(X)
+
+  af <- absolute_fit(fit)
+  expect_s3_class(af, "absolute_fit")
+  expect_true(isTRUE(af$mar))
+  # df = W - 1 - P on the full crossing, the same convention as everywhere else.
+  expect_equal(af$df, 2^6 - 1L - fit$n_params)
+  expect_gt(af$g2, 0)
+  expect_true(af$p_value >= 0 && af$p_value <= 1)
+
+  g2 <- lta_g2(fit)
+  expect_false(is.null(g2))
+  expect_equal(g2$g2, af$g2)
+  expect_equal(g2$df, af$df)
+})
+
+test_that("a K^T too large to score against the table is refused, not attempted", {
+  X <- .absfit_lta_sim(n = 200, Tn = 2)
+  X[1:40, 4:6] <- NA
+  fit <- .absfit_lta(X)
+  # Pretend the fit has far more occasions than it does: the guard reads
+  # n_statuses and n_times, so this reaches it without building a real model
+  # of that size.
+  fit$n_times <- 40L
+  expect_message(res <- absolute_fit(fit), "too large")
+  expect_null(res)
+})

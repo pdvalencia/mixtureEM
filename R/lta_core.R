@@ -499,6 +499,277 @@
   g / sum(g)
 }
 
+# ------------------------------------------------------------------------------
+# Post-EM refinement: L-BFGS on the penalised log-posterior
+# ------------------------------------------------------------------------------
+#
+# EM converges to a Q-function fixed point, which need not be the optimum of the
+# objective itself. R/em_core.R has said so, and taken an L-BFGS step past it,
+# since the mixture engine was written; the LTA driver is separate -- it needs
+# the forward-backward recursion the mixture engine has no place for -- and had
+# no equivalent, so it was the one estimation path in the package where EM's
+# last mile was walked rather than jumped. On a near-flat ridge that mile is
+# long: on the LTA-FAQ benchmark plain EM stops ~0.005 log-likelihood units
+# short at the default tolerance and needs ~1,480 iterations at tol = 1e-13 to
+# close the gap.
+#
+# The objective is the SAME penalised log-posterior the M-step maximises, not
+# the plain log-likelihood. If the two stages disagreed about what is being
+# maximised the polish would pull every fit off the estimator the package
+# documents -- the failure R/em_core.R guards against by having its M-step and
+# its refinement read one stored constant. Here the three penalties are:
+#
+#   delta      (alpha / K)          * sum_k log delta_k
+#   tau row k  (alpha / |allowed_k|)* sum_{l allowed} log tau[k, l]
+#   rho        (alpha_cat / K)      * sum_kj [ m_j log rho_kj
+#                                              + (1 - m_j) log(1 - rho_kj) ]
+#
+# matching .lta_normalise() and m_step.bernoulli() term for term, with m_j the
+# weighted observed marginal of item j over exactly the occasions that item's
+# M-step pools (all of them for an invariant item, one for a free one -- see
+# m_step.blocks()). Gaussian means carry no prior, and the variances are not in
+# the vector at all. With `smoothing = 0` and `bayes_constants$categorical = 0`
+# every term vanishes and the objective is the plain log-likelihood.
+#
+# Two properties are asserted in the tests rather than argued here: the
+# analytic gradient agrees with central finite differences, and at an EM fixed
+# point the gradient of this objective is ~0 -- which is the proof that the
+# objective is EM's own and not a near neighbour of it.
+
+# Column layout of the unconstrained vector, in .lta_score_matrix()'s block
+# order. Each entry says how to read a slice of the vector back into `state`.
+.lta_par_layout <- function(state) {
+  K  <- state$n_statuses
+  Tn <- state$n_times
+  out <- list(list(kind = "delta", len = K - 1L))
+
+  idx <- if (isTRUE(state$tau_homogeneous)) 1L else seq_len(Tn - 1L)
+  for (i_mat in idx) for (k in seq_len(K)) {
+    allowed <- which(state$tau_allowed[[i_mat]][k, ])
+    if (length(allowed) < 2L) next
+    out[[length(out) + 1L]] <- list(kind = "tau", i_mat = i_mat, k = k,
+                                    allowed = allowed, len = length(allowed) - 1L)
+  }
+
+  J   <- state$n_items
+  fam <- class(state$mm$models[[1]])[1]
+  kind <- if (fam %in% c("bernoulli", "bernoulli_nan")) "rho" else "mu"
+  inv <- .lta_invariant_items(state)
+  for (j in seq_len(J)) {
+    grps <- if (j %in% inv) list(seq_len(Tn)) else lapply(seq_len(Tn), identity)
+    for (grp in grps)
+      out[[length(out) + 1L]] <- list(kind = kind, j = j, grp = grp, len = K)
+  }
+  out
+}
+
+# state -> vector. Multinomial logits anchored on the last (admissible)
+# category, logit for rho, identity for Gaussian means.
+.lta_par_pack <- function(state, layout) {
+  K <- state$n_statuses
+  unlist(lapply(layout, function(b) {
+    switch(b$kind,
+      delta = {
+        p <- pmax(state$delta, 1e-12)
+        log(p[seq_len(K - 1L)]) - log(p[K])
+      },
+      tau = {
+        p <- pmax(state$tau[[b$i_mat]][b$k, b$allowed], 1e-12)
+        log(p[-length(p)]) - log(p[length(p)])
+      },
+      rho = {
+        p <- state$mm$models[[b$grp[1]]]$parameters$pis[, b$j]
+        stats::qlogis(pmin(pmax(p, 1e-12), 1 - 1e-12))
+      },
+      mu = state$mm$models[[b$grp[1]]]$parameters$means[, b$j])
+  }), use.names = FALSE)
+}
+
+# vector -> state. The inverse of .lta_par_pack(), writing an invariant item's
+# one parameter block to every occasion that shares it.
+.lta_par_unpack <- function(par, state, layout) {
+  K  <- state$n_statuses
+  Tn <- state$n_times
+  pos <- 0L
+  for (b in layout) {
+    v <- par[pos + seq_len(b$len)]
+    pos <- pos + b$len
+    if (b$kind == "delta") {
+      p <- exp(c(v, 0) - max(c(v, 0)))
+      state$delta_c[[1]] <- p / sum(p)
+    } else if (b$kind == "tau") {
+      p <- exp(c(v, 0) - max(c(v, 0)))
+      p <- p / sum(p)
+      row <- numeric(K)
+      row[b$allowed] <- p
+      state$tau_c[[1]][[b$i_mat]][b$k, ] <- row
+    } else if (b$kind == "rho") {
+      for (tt in b$grp)
+        state$mm$models[[tt]]$parameters$pis[, b$j] <- stats::plogis(v)
+    } else {
+      for (tt in b$grp)
+        state$mm$models[[tt]]$parameters$means[, b$j] <- v
+    }
+  }
+  # A homogeneous transition matrix is stored once per interval, so the single
+  # free matrix has to be broadcast back over them.
+  if (isTRUE(state$tau_homogeneous) && Tn > 2L)
+    state$tau_c[[1]] <- rep(state$tau_c[[1]][1], Tn - 1L)
+  .lta_pack(state)
+}
+
+# The weighted observed marginal of item j over the occasions its M-step pools,
+# which is the centre of m_step.bernoulli()'s prior for that block.
+.lta_rho_prior_marginal <- function(state, X, b) {
+  J <- state$n_items
+  w <- state$weights_vec
+  num <- 0; den <- 0
+  for (tt in b$grp) {
+    xj  <- X[, .time_block_cols(tt, J)[b$j]]
+    obs <- !is.na(xj)
+    num <- num + sum(w[obs] * xj[obs])
+    den <- den + sum(w[obs])
+  }
+  if (den == 0) 0.5 else num / den
+}
+
+# The penalty and its gradient, as a function of the current `state`, returned
+# together so the two can never be written from different formulae.
+.lta_penalty <- function(state, X, layout, alpha) {
+  K <- state$n_statuses
+  # Read the way m_step.bernoulli() reads it -- off the sub-model, through
+  # .bayes_alpha()'s own defaulting -- so the penalty here and the prior in the
+  # M-step cannot be two different numbers.
+  a_cat <- .bayes_alpha(state$mm$models[[1]], "categorical")
+  val <- 0
+  grad <- numeric(0)
+  for (b in layout) {
+    g <- numeric(b$len)
+    if (b$kind == "delta" && alpha > 0) {
+      p <- pmax(state$delta, 1e-300)
+      val <- val + (alpha / K) * sum(log(p))
+      # d/d eta_m of (a/K) sum_k log p_k, with p a softmax: a/K * (1 - K p_m).
+      g <- (alpha / K) * (1 - K * p[seq_len(K - 1L)])
+    } else if (b$kind == "tau" && alpha > 0) {
+      p  <- pmax(state$tau[[b$i_mat]][b$k, b$allowed], 1e-300)
+      m  <- length(p)
+      val <- val + (alpha / m) * sum(log(p))
+      g <- (alpha / m) * (1 - m * p[-m])
+    } else if (b$kind == "rho" && a_cat > 0) {
+      p  <- pmin(pmax(state$mm$models[[b$grp[1]]]$parameters$pis[, b$j],
+                      1e-300), 1 - 1e-300)
+      mj <- .lta_rho_prior_marginal(state, X, b)
+      val <- val + (a_cat / K) * sum(mj * log(p) + (1 - mj) * log1p(-p))
+      # On the logit scale the derivative collapses to (a/K) * (m_j - rho).
+      g <- (a_cat / K) * (mj - p)
+    }
+    grad <- c(grad, g)
+  }
+  list(value = val, gradient = grad)
+}
+
+# One L-BFGS climb from wherever EM stopped. Returns `state` unchanged -- never
+# a worse fit, and never a fit whose stored posteriors describe other
+# parameters -- if the climb does not improve the objective or the model is
+# outside the score blocks' scope.
+.lta_refine_lbfgs <- function(state, X, alpha = 1.0, max_iter = 200L) {
+  if (!.lta_scores_full(state)) return(state)
+  w <- state$weights_vec
+
+  layout <- .lta_par_layout(state)
+  par0   <- .lta_par_pack(state, layout)
+
+  objective <- function(par) {
+    st <- .lta_par_unpack(par, state, layout)
+    sc <- .lta_score_matrix(st, X)
+    if (is.null(sc)) return(NULL)
+    pen <- .lta_penalty(st, X, layout, alpha)
+    list(state = st,
+         value = sum(w * sc$ll) + pen$value,
+         gradient = colSums(sweep(sc$S, 1, w, "*")) + pen$gradient)
+  }
+
+  # `optim()` asks for value and gradient separately and asks for both at the
+  # same point far more often than not; the forward-backward pass behind them
+  # is the expensive part, so it is computed once and reused.
+  cache <- NULL
+  at <- function(par) {
+    if (is.null(cache) || !identical(cache$par, par))
+      cache <<- c(list(par = par), objective(par))
+    cache
+  }
+
+  # Box the logit-scale blocks. Under pure maximum likelihood -- no measurement
+  # prior -- the optimum of a sparse LTA can sit ON the boundary, and L-BFGS
+  # goes there directly where EM only creeps towards it. That is a real
+  # optimum and not a failure, but a rho of exactly 0 or 1 is a degenerate
+  # starting point for any later E-step: `refine_from` handed such a donor
+  # collapsed by three log-likelihood units, because the responsibilities it
+  # implies are themselves degenerate. +/-25 on the logit scale is a
+  # probability of 1.4e-11, near enough to the boundary to lose nothing that
+  # can be measured and far enough from it to stay a usable fit. Gaussian
+  # means are unbounded; they have no boundary to reach.
+  bounded <- unlist(lapply(layout, function(b)
+    rep(b$kind != "mu", b$len)), use.names = FALSE)
+  lo <- ifelse(bounded, -25, -Inf)
+  hi <- ifelse(bounded,  25,  Inf)
+  # EM can itself arrive at a boundary, which would put the starting vector
+  # outside that box; pull it in before optim() is asked to respect it.
+  par0 <- pmin(pmax(par0, lo), hi)
+
+  base <- at(par0)
+  if (is.null(base$value) || !is.finite(base$value)) return(state)
+
+  opt <- tryCatch(
+    stats::optim(par0,
+                 fn = function(p) { v <- at(p)$value
+                                    if (is.finite(v)) -v else .Machine$double.xmax },
+                 gr = function(p) -at(p)$gradient,
+                 method = "L-BFGS-B", lower = lo, upper = hi,
+                 control = list(maxit = max_iter)),
+    error = function(e) NULL)
+  if (is.null(opt)) return(state)
+
+  final <- at(opt$par)
+  if (!is.finite(final$value) || final$value <= base$value) return(state)
+
+  # The polished parameters need their own E-step before they are returned:
+  # gamma, xi and the path entropy all describe the parameters they were
+  # computed at, and handing back new parameters with the old posteriors
+  # attached is the write-back error d5e1a06 fixed elsewhere in this package.
+  # `max_iter = 0` runs no EM iteration at all: .lta_em() falls straight
+  # through to its own closing E-step, which is exactly the write-back wanted
+  # here -- the polished parameters kept, every posterior recomputed at them.
+  out <- .lta_em(final$state, X, max_iter = 0L, alpha = alpha)
+  out$refined_lbfgs <- TRUE
+  if (out$loglik < state$loglik) return(state)
+  out$converged <- state$converged
+  out
+}
+
+# Seed one EM run from a fitted model's own converged parameters. The state is
+# built exactly as a random start would build it -- that is what fixes the
+# scaffolding the driver expects, the allowed-transition masks and the emission
+# skeleton included -- and then every free quantity is overwritten from the
+# donor. What is not copied is the regression coefficients: .lta_random_start()
+# clears them and the first M-step refits them to the probabilities it is given,
+# which are the donor's, so the covariate model resumes at the same point.
+.lta_refine_start <- function(state, X, donor) {
+  state <- .lta_random_start(state, X)
+
+  state$delta_c <- donor$delta_c
+  state$tau_c   <- donor$tau_c
+  if (state$n_classes > 1L) state$class_weights <- donor$class_weights
+
+  mm <- .copy_emission_parameters(state$mm, donor$mm)
+  if (is.null(mm))
+    stop("`refine_from` has a measurement model of a different shape from the ",
+         "one this fit asks for, so its solution cannot be continued.",
+         call. = FALSE)
+  state$mm <- mm
+  state
+}
+
 .lta_random_start <- function(state, X) {
   K  <- state$n_statuses
   Tn <- state$n_times

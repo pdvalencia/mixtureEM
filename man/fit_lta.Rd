@@ -26,6 +26,8 @@ fit_lta(
   strata = NULL,
   cluster = NULL,
   n_init = 20,
+  refine = TRUE,
+  refine_from = NULL,
   max_iter = 1000,
   n_cores = 1L,
   tol = 1e-08,
@@ -120,6 +122,25 @@ reports how many starts reached the solution it kept, and warns when that
 count is 1; the answer there is \code{n_init = 100}, and a maximum that still
 does not replicate at 100 starts points at the specification rather than at
 the search. See \code{vignette("estimation")}.}
+
+\item{refine}{Logical. If \code{TRUE} (default), each start that runs to
+convergence is followed by an L-BFGS climb on the same penalised objective
+the EM steps maximise, and the starts are then ranked on the refined
+log-likelihoods. EM converges to a fixed point of its own surrogate, which
+on a near-flat likelihood ridge can sit measurably short of the maximum;
+the climb steps past it, and never returns a fit worse than the one it was
+given. This is the same refinement \code{\link[=fit_mixture]{fit_mixture()}} has always applied.
+It is a no-op - silently, and the fit is unchanged - for models whose free
+parameters it cannot differentiate: covariate models, mixtures over chains
+(\code{n_classes} > 1), and measurement families other than binary and
+continuous.}
+
+\item{refine_from}{A model fitted by \code{\link[=fit_lta]{fit_lta()}} on the same data and with
+the same shape, whose solution this fit continues from. No random starts
+are run and \code{n_init} is ignored, because the search that produced the donor
+already ran and this only carries its winner further - typically to a
+tighter \code{tol} or a larger \code{max_iter}. Passing \code{n_init} alongside is an
+error rather than a silent override.}
 
 \item{max_iter, tol}{EM iteration limit and relative convergence tolerance.
 A mixture over chains (\code{n_classes} > 1) converges much more slowly and
