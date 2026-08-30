@@ -217,6 +217,55 @@
   list(c = sum(diag(.psd_pinv(A) %*% B)) / pieces$p, p = pieces$p)
 }
 
+# The same c = tr(A^-1 B) / p that .scaling_pieces() computes, for an
+# `lta_model`. Kept separate rather than folded into .scaling_pieces(): an LTA's
+# state does not share .joint_pack()'s field names, so loosening that function's
+# guard would produce malformed output rather than a clean NULL.
+#
+# The meat is the analytic score matrix, not a finite-difference one.
+# .lta_score_matrix() (R/lta.R) is checked against central differences to 1e-5
+# relative in tests/testthat/test-lta-refine.R, so differencing the scores again
+# here would be slower and less accurate. Only `A` is numerical.
+#
+# Returns NULL wherever the packed vector is not the model's full free parameter
+# vector: a multi-class or covariate LTA (.lta_scores_full()), a family whose
+# measurement parameters are not all packed (`conditional`, which is
+# gaussian_diag's free residual variances), or any later family whose count
+# stops matching. A wrong number silently returned is worse than none.
+.lta_scaling_pieces <- function(info) {
+  fit <- info$fit
+  if (!inherits(fit, "lta_model")) return(NULL)
+  if (!.lta_scores_full(fit)) return(NULL)
+  X <- fit$data
+  if (is.null(X)) return(NULL)
+
+  sc <- .lta_score_matrix(fit, X)
+  if (is.null(sc) || isTRUE(sc$conditional)) return(NULL)
+
+  layout <- .lta_par_layout(fit)
+  par    <- .lta_par_pack(fit, layout)
+  p      <- length(par)
+  if (!p || p != fit$n_params || p != ncol(sc$S)) return(NULL)
+
+  w <- fit$weights_vec %||% rep(1, nrow(X))
+  s <- sweep(sc$S, 1, w, "*")
+  A <- -.step1_fd_hessian(
+    function(v) sum(w * .lta_ll_case(fit, X, v, layout)), par)
+  B <- if (isTRUE(info$has_survey_design))
+    compute_survey_B(s, info$strata, info$cluster)
+  else
+    crossprod(s)
+  list(c = sum(diag(.psd_pinv(A) %*% B)) / p, p = p)
+}
+
+# Which scaling-factor implementation a nested-model comparison needs.
+# `vlmr_test()` carries the identical dispatch gap and will want this seam;
+# leaving it here is the whole of the preparation for it.
+.pieces_for <- function(info) {
+  if (inherits(info$fit, "lta_model")) .lta_scaling_pieces(info)
+  else .scaling_pieces(info)
+}
+
 # A pseudo-inverse for a matrix that is theoretically Fisher information and
 # so should be positive semi-definite, even though the finite-difference
 # Hessian feeding it is not guaranteed to be: mixture-model observed

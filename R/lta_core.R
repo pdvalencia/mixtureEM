@@ -618,6 +618,24 @@
   .lta_pack(state)
 }
 
+# Case-level log-likelihood at an arbitrary point of the packed vector. The
+# plain likelihood, never the penalised objective: `smoothing` and
+# `bayes_constants` enter only through the M-step's priors, and nothing on this
+# path calls them. That is what the MLR scaling factor and the
+# observed-information sandwich are both defined on.
+#
+# Deliberately not routed through .lta_score_matrix(): that function runs the
+# forward-backward pass with `keep_pairwise = TRUE` and builds the whole score
+# matrix, and the finite-difference Hessian that calls this does so thousands of
+# times and wants neither.
+.lta_ll_case <- function(state, X, par, layout) {
+  st <- .lta_par_unpack(par, state, layout)
+  logB <- .lta_emission_loglik(st$mm, X)
+  .lta_forward_backward(logB, log(pmax(st$delta, 1e-300)),
+                        lapply(st$tau, function(m) log(pmax(m, 1e-300))),
+                        st$weights_vec)$ll
+}
+
 # The weighted observed marginal of item j over the occasions its M-step pools,
 # which is the centre of m_step.bernoulli()'s prior for that block.
 .lta_rho_prior_marginal <- function(state, X, b) {

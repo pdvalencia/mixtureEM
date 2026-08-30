@@ -173,7 +173,15 @@
 #'   the case when `forbidden_transitions` defines an ordering of stages or when
 #'   covariates index the statuses through their regression coefficients.
 #' @param standard_errors Compute standard errors for \eqn{\delta} and
-#'   \eqn{\tau}.
+#'   \eqn{\tau}. `TRUE` (the default) uses the outer product of the case-level
+#'   scores; `FALSE` skips them; `"robust"` returns the sandwich estimator, with
+#'   the observed information as its bread. `"robust"` costs a
+#'   finite-difference Hessian -- \eqn{2p(p + 1)} likelihood evaluations -- and
+#'   so takes minutes rather than seconds on a model of any size. Where the
+#'   model cannot be packed on an unconstrained scale (several latent classes,
+#'   covariates, or a measurement family whose parameters are not all free)
+#'   `"robust"` falls back silently to the default estimator, and `summary()`
+#'   then does not report robust errors.
 #' @param predictors_initial Optional covariates predicting the latent status at
 #'   the first occasion (Collins & Lanza, sec. 8.10.1).
 #' @param predictors_transition Optional covariates predicting the transitions
@@ -296,6 +304,9 @@ fit_lta <- function(indicators,
   transition_effects     <- match.arg(transition_effects)
   group_effects          <- match.arg(group_effects)
   weight_type            <- match.arg(weight_type)
+  if (!(isTRUE(standard_errors) || identical(standard_errors, FALSE) ||
+        identical(standard_errors, "robust")))
+    stop("`standard_errors` must be TRUE, FALSE or \"robust\".", call. = FALSE)
 
   # `latent` is the one bayes_constants name fit_lta() does not read: the
   # status and transition priors are `smoothing`'s job. Resolving it silently
@@ -644,7 +655,9 @@ fit_lta <- function(indicators,
   # from for anyone reading the fit later.
   best$metrics$n_requested <- if (is.null(refine_from)) max(1L, n_init) else 1L
   best$refined_from <- !is.null(refine_from)
-  if (isTRUE(standard_errors)) best$se <- .lta_standard_errors(best, X)
+  if (!identical(standard_errors, FALSE))
+    best$se <- .lta_standard_errors(
+      best, X, robust = identical(standard_errors, "robust"))
 
   # Recorded on the object as well as warned about: a warning is transient, and
   # someone reading a saved fit months later should still be able to see it.
@@ -1060,7 +1073,7 @@ fit_lta <- function(indicators,
 # taken on their multinomial-logit scale (last category anchored), which is where
 # the normal approximation behaves; standard errors for the probabilities
 # themselves follow by the delta method.
-.lta_standard_errors <- function(state, X) {
+.lta_standard_errors <- function(state, X, robust = FALSE) {
   sc <- .lta_score_matrix(state, X)
   if (is.null(sc)) return(NULL)
   S <- sc$S; blocks <- sc$blocks; conditional <- sc$conditional
@@ -1074,14 +1087,39 @@ fit_lta <- function(indicators,
   # linearization sandwich, aggregating the same case-level scores to the
   # primary sampling unit within stratum. This is the machinery already behind
   # the covariate model's design-based variance (compute_survey_B in utils.R).
+  meat <- info
   design_based <- FALSE
   if (isTRUE(state$has_survey_design)) {
-    meat <- tryCatch(
+    m <- tryCatch(
       compute_survey_B(sweep(S, 1, w, "*"), state$strata, state$cluster),
       error = function(e) NULL)
-    if (!is.null(meat)) {
-      V <- V %*% meat %*% V
+    if (!is.null(m)) {
+      meat <- m
+      V <- V %*% m %*% V
       design_based <- TRUE
+    }
+  }
+
+  # Opt-in sandwich with the observed-information bread, which is what the
+  # established programs report by default. The outer-product bread above is the
+  # cheaper estimator and stays the default here: the finite-difference Hessian
+  # this needs is 2p(p+1) forward-backward passes. The fallback is silent by
+  # design -- a model the packing cannot describe gets the existing estimator
+  # and `robust = FALSE` rather than an error -- which is why the flag is
+  # returned and reported.
+  robust_used <- FALSE
+  if (isTRUE(robust) && .lta_scores_full(state)) {
+    layout <- .lta_par_layout(state)
+    par    <- .lta_par_pack(state, layout)
+    if (length(par) == ncol(S)) {
+      A  <- -.step1_fd_hessian(
+        function(v) sum(w * .lta_ll_case(state, X, v, layout)), par)
+      Ai <- .psd_pinv(A)
+      Vr <- Ai %*% meat %*% Ai
+      if (all(is.finite(Vr))) {
+        V <- Vr
+        robust_used <- TRUE
+      }
     }
   }
 
@@ -1102,7 +1140,8 @@ fit_lta <- function(indicators,
   }
 
   list(vcov = V, blocks = blocks, prob_se = prob_se,
-       conditional = conditional, design_based = design_based)
+       conditional = conditional, design_based = design_based,
+       robust = robust_used)
 }
 
 # Where the score blocks below are the right ones. Both `.lta_standard_errors()`

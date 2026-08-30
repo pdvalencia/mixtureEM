@@ -698,13 +698,21 @@ compare_longitudinal <- function(indicators, k_range = NULL,
 #'
 #' @param restricted The more constrained model (fewer parameters).
 #' @param full The less constrained model.
+#' @param scaled Whether to apply the Satorra-Bentler/Asparouhov scaling
+#'   correction. `"auto"` (the default) applies it exactly where it is required
+#'   for validity — under sampling weights or a complex survey design — and is
+#'   the historical behaviour. `"yes"` applies it to an unweighted pair as well,
+#'   giving the robust (MLR-scaled) difference test; `"no"` suppresses it even
+#'   under weights. A negative scaled statistic means the correction has failed
+#'   for that pair, and `statistic_raw` should be reported instead.
 #' @return A list of class `"lr_test"`.
 #' @references
 #' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
 #' Transition Analysis: With Applications in the Social, Behavioral, and Health
 #' Sciences}. Wiley.
 #' @export
-lr_test <- function(restricted, full) {
+lr_test <- function(restricted, full, scaled = c("auto", "yes", "no")) {
+  scaled <- match.arg(scaled)
   a <- .nested_fit_info(restricted)
   b <- .nested_fit_info(full)
 
@@ -775,24 +783,39 @@ lr_test <- function(restricted, full) {
   # constrained parameterisation, or a measurement family with no
   # unconstrained packing -- since a wrong number silently returned is worse
   # than none.
+  # Computed before `scaled` is overwritten with the outcome flag below: the
+  # argument and the returned field share a name, and the argument is read
+  # exactly here.
+  want <- switch(scaled,
+                 auto = .needs_scaling_correction(a) || .needs_scaling_correction(b),
+                 yes  = TRUE,
+                 no   = FALSE)
   scaled <- FALSE
   stat   <- stat_raw
   cd     <- NA_real_
-  if (.needs_scaling_correction(a) || .needs_scaling_correction(b)) {
-    pa <- .scaling_pieces(a)
-    pb <- .scaling_pieces(b)
+  if (want) {
+    pa <- .pieces_for(a)
+    pb <- .pieces_for(b)
     if (is.null(pa) || is.null(pb) || pa$p == pb$p)
       stop(paste0(
-        "At least one of the two models was fit under sampling weights or a ",
-        "complex survey design, so the log-likelihoods above are pseudo-",
-        "likelihoods and a plain -2 x diff is not chi-square on `df`. The ",
+        if (.needs_scaling_correction(a) || .needs_scaling_correction(b))
+          paste0("At least one of the two models was fit under sampling ",
+                 "weights or a complex survey design, so the log-likelihoods ",
+                 "above are pseudo-likelihoods and a plain -2 x diff is not ",
+                 "chi-square on `df`. ")
+        else
+          "A scaling correction was requested with `scaled = \"yes\"`. ",
+        "The ",
         "Satorra-Bentler/Asparouhov scaling correction this needs could not ",
         "be computed for this pair -- ",
         if (is.null(pa) || is.null(pb))
           paste("one of the two carries a structural model this correction",
                 "does not cover (group_prevalence_equal's constrained",
-                "parameterisation) or a measurement family with no",
-                "unconstrained packing.")
+                "parameterisation), a measurement family with no",
+                "unconstrained packing, or -- for a latent transition model --",
+                "more than one latent class, covariates on the initial status",
+                "or the transitions, or a measurement family whose parameters",
+                "are not all on an unconstrained scale.")
         else
           paste("the two models pack to the same number of step-one",
                 "parameters, so the correction is undefined."),
@@ -1025,6 +1048,8 @@ summary.lta_model <- function(object, digits = 3, ...) {
       print(round(se_mat, digits))
       if (isTRUE(object$se$design_based))
         cat("  Design-based (linearization) standard errors.\n")
+      if (isTRUE(object$se$robust))
+        cat("  Robust (sandwich) standard errors.\n")
       if (isTRUE(object$se$conditional))
         cat("  Conditional on the measurement parameters.\n")
     }

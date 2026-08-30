@@ -3,22 +3,8 @@
 # claims, the objective is the one EM maximises, and the climb never hands back
 # a worse fit or a fit that has quietly dropped a constraint.
 
-.lta_refine_sim <- function(n = 250, K = 3, Tn = 3, J = 4, seed = 4) {
-  set.seed(seed)
-  rho <- matrix(stats::runif(K * J, 0.15, 0.85), K, J)
-  s <- sample(K, n, TRUE)
-  out <- list()
-  for (t in seq_len(Tn)) {
-    if (t > 1) s <- ifelse(stats::runif(n) < 0.7, s, sample(K, n, TRUE))
-    out[[t]] <- matrix(stats::rbinom(n * J, 1, rho[s, ]), n, J)
-  }
-  X <- do.call(cbind, out)
-  colnames(X) <- paste0("t", rep(seq_len(Tn), each = J), "_i",
-                        rep(seq_len(J), Tn))
-  X
-}
-
-.ml <- list(categorical = 0, latent = 0)
+# `.lta_refine_sim()` and `.ml` are in helper-lta-packing.R, which
+# test-lta-scaling.R shares.
 
 test_that("the analytic gradient matches central finite differences", {
   X <- .lta_refine_sim()

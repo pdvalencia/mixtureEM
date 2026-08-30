@@ -1,5 +1,43 @@
 # mixtureEM (development version)
 
+## A scaled difference test, and robust standard errors, for latent transition models
+
+`lr_test()` gains a `scaled` argument. Its default, `"auto"`, is exactly the
+behaviour of previous versions: the Satorra-Bentler/Asparouhov correction is
+applied where it is needed for validity, under sampling weights or a complex
+survey design, and nowhere else. No number any existing call returns has moved.
+`scaled = "yes"` asks for the correction on an unweighted pair as well, which
+is the robust (MLR-scaled) difference test; `scaled = "no"` suppresses it.
+
+The correction was previously available only for cross-sectional mixtures,
+because the scaling factor is computed from the model's parameters on an
+unconstrained scale and the latent transition models had no such packing when
+that code was written. They have one now, and `lr_test()` dispatches to it.
+A measurement-invariance test across time - the usual reason to compare two
+latent transition models - can therefore be reported in its scaled form
+directly. Neither of the two established programs does this for you: one prints
+the ingredients and leaves the arithmetic to the user, and the other has no
+scaled difference test at all.
+
+Two things the correction cannot do, and refuses rather than approximates. It
+needs both models packed on an unconstrained scale, so a latent transition model
+with covariates, with more than one latent class, or with a measurement family
+whose parameters are not all free returns an error under `scaled = "yes"` naming
+which of those applied. And the scaled statistic can come out negative, which is
+a known property of the correction rather than a fault in the fit; when it does,
+the unscaled statistic in `statistic_raw` is the one to report.
+
+`fit_lta()` gains `standard_errors = "robust"` in the same machinery. The
+default remains the outer product of the case-level scores; `"robust"` returns
+the sandwich estimator with the observed information as its bread, which is what
+the established programs report by default. It is opt-in because it costs a
+finite-difference Hessian - on the order of `2p(p + 1)` likelihood evaluations,
+minutes rather than seconds - and it falls back silently to the default
+estimator for the models it cannot pack, reporting through `summary()` which of
+the two was used. `standard_errors` previously accepted only `TRUE` and `FALSE`,
+and silently computed nothing at all when handed anything else; it now validates
+its argument.
+
 ## `fit_lta()` now refines its solutions the way the other models do
 
 Every start that runs to convergence is followed by an L-BFGS climb on the same

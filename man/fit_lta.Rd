@@ -202,7 +202,15 @@ the case when \code{forbidden_transitions} defines an ordering of stages or when
 covariates index the statuses through their regression coefficients.}
 
 \item{standard_errors}{Compute standard errors for \eqn{\delta} and
-\eqn{\tau}.}
+\eqn{\tau}. \code{TRUE} (the default) uses the outer product of the case-level
+scores; \code{FALSE} skips them; \code{"robust"} returns the sandwich estimator, with
+the observed information as its bread. \code{"robust"} costs a
+finite-difference Hessian -- \eqn{2p(p + 1)} likelihood evaluations -- and
+so takes minutes rather than seconds on a model of any size. Where the
+model cannot be packed on an unconstrained scale (several latent classes,
+covariates, or a measurement family whose parameters are not all free)
+\code{"robust"} falls back silently to the default estimator, and \code{summary()}
+then does not report robust errors.}
 
 \item{predictors_initial}{Optional covariates predicting the latent status at
 the first occasion (Collins & Lanza, sec. 8.10.1).}
