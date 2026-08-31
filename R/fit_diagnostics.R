@@ -864,7 +864,9 @@ print.mcar_test <- function(x, ...) {
 #'   refit without the final refinement step, since a replicate needs a
 #'   residual rather than polished estimates.
 #' @param n_cores Positive integer. Number of processes to spread the
-#'   bootstrap replicates over. Default \code{1} (sequential).
+#'   bootstrap replicates over. Default \code{1} (sequential), or the value
+#'   of \code{options(mixtureEM.n_cores = )} where that has been set; an
+#'   argument given here overrides the option.
 #' @param verbose Report bootstrap progress.
 #' @return For categorical indicators, an object of class
 #'   `bivariate_residuals`: a lower-triangular indicator-by-indicator matrix,
@@ -914,7 +916,8 @@ print.mcar_test <- function(x, ...) {
 #' and latent transition analysis. \emph{Structural Equation Modeling},
 #' \emph{22}(2), 169-177.
 #' @export
-bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10, n_cores = 1L,
+bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10,
+                                n_cores = .default_n_cores(),
                                 verbose = FALSE) {
   n_reps <- as.integer(n_reps)
   if (is.na(n_reps) || n_reps < 0L)
@@ -1126,7 +1129,10 @@ bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10, n_cores = 
     rep_fit <- try(fit_mixture_internal(
       X = X_gen, n_components = K,
       measurement = object$measurement_descriptor,
-      n_init = n_init_boot, refine = FALSE), silent = TRUE)
+      n_init = n_init_boot, refine = FALSE,
+      # Not the caller's `n_cores`: this body is what the workers run, so a
+      # fit that spread its own restarts would nest one cluster in another.
+      n_cores = 1L), silent = TRUE)
     if (inherits(rep_fit, "try-error")) return(NULL)
 
     items_r <- .fit_item_probs(rep_fit$mm, ncol(X_gen), colnames(X_gen))

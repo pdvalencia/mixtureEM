@@ -119,6 +119,8 @@
 #'   package and `n_init` is high by necessity, so this is where the argument
 #'   earns the most. Starting values are drawn in this session before any
 #'   fitting begins, so the fit is identical at every `n_cores`.
+#'   `options(mixtureEM.n_cores = )` sets the default for a whole session; an
+#'   argument given here overrides it.
 #' @param max_iter,tol EM iteration limit and relative convergence tolerance.
 #'   A mixture over chains (`n_classes` > 1) converges much more slowly and
 #'   defaults to a tighter `tol` of 1e-11 and 5000 iterations, since the shared
@@ -280,7 +282,7 @@ fit_lta <- function(indicators,
                     refine = TRUE,
                     refine_from = NULL,
                     max_iter = 1000,
-                    n_cores = 1L,
+                    n_cores = .default_n_cores(),
                     tol = 1e-8,
                     smoothing = 1.0,
                     random_state = NULL,

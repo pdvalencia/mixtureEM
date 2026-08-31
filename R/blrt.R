@@ -248,6 +248,9 @@ generate_synthetic_data <- function(mm, classes, N) {
 #'   the null distribution and the p-value are the same whatever \code{n_cores}
 #'   is set to. Progress messages are printed only when \code{n_cores = 1},
 #'   since a worker cannot report into this session.
+#'
+#'   \code{options(mixtureEM.n_cores = )} sets the default for a whole
+#'   session; an argument given here overrides it.
 #' @param verbose Logical; print progress while bootstrapping. Default
 #'   \code{TRUE}.
 #' @param ... Additional arguments passed to the fitting engine.
@@ -294,7 +297,8 @@ generate_synthetic_data <- function(mm, classes, N) {
 #'
 #' @export
 blrt <- function(indicators, k_small, k_large, measurement,
-                 n_reps = 100, n_init_base = 20, n_init_boot = 10, n_cores = 1L,
+                 n_reps = 100, n_init_base = 20, n_init_boot = 10,
+                 n_cores = .default_n_cores(),
                  verbose = TRUE, ..., from_fit = NULL, X = NULL) {
 
   supplied            <- !missing(indicators)
@@ -341,8 +345,10 @@ blrt <- function(indicators, k_small, k_large, measurement,
     message(sprintf("BLRT: comparing %d vs %d classes with %d bootstrap draws...",
                     k_small, k_large, n_reps))
 
-  null_model <- fit_engine(Xd, k_small, n_init = n_init_base)
-  alt_model  <- fit_engine(Xd, k_large, n_init = n_init_base)
+  # The two observed fits run before the replicate loop and are the only fits
+  # here with a restart budget worth spreading, so they get the caller's cores.
+  null_model <- fit_engine(Xd, k_small, n_init = n_init_base, n_cores = n_cores)
+  alt_model  <- fit_engine(Xd, k_large, n_init = n_init_base, n_cores = n_cores)
 
   # The bootstrap null below is drawn i.i.d. -- no weights, no clustering --
   # while a weighted or design-based observed fit's statistic already carries
@@ -385,10 +391,13 @@ blrt <- function(indicators, k_small, k_large, measurement,
 
     # refine = FALSE: replicates only need the likelihood ratio, not polished
     # estimates, which makes each draw far cheaper without affecting the p-value.
+    # `n_cores = 1L` is not the caller's value and must not be: this body is
+    # itself what the workers are running, so a fit that spread its restarts
+    # again would nest one cluster inside another.
     m_null_gen <- fit_engine(X_gen, k_small, n_init = n_init_boot,
-                             refine = FALSE)
+                             refine = FALSE, n_cores = 1L)
     m_alt_gen  <- fit_engine(X_gen, k_large, n_init = n_init_boot,
-                             refine = FALSE)
+                             refine = FALSE, n_cores = 1L)
 
     2 * (m_alt_gen$metrics$ll - m_null_gen$metrics$ll)
   }

@@ -1,5 +1,40 @@
 # mixtureEM (development version)
 
+## `n_cores` can be set once for a session, and the workers are now kept
+
+Every function that spreads work over processes -- `fit_mixture()`, `fit_lta()`,
+`compare_mixtures()`, `blrt()`, `bivariate_residuals()`,
+`bootstrap_covariates()` -- takes `n_cores`, and each of them defaulted it to
+one. `options(mixtureEM.n_cores = 4)` now supplies that default for a whole
+session. An argument passed to a particular call still wins over it, and with
+the option unset nothing has changed, so an installation that never sets it
+behaves exactly as before. The point is that the slowest things in the package
+are the ones a user is least likely to remember to pass an argument to.
+
+More importantly, the pool of worker processes is now built once and reused for
+the rest of the session instead of being started and shut down inside every
+parallel call. Starting one is not cheap: on a fourteen-core machine, spawning
+the workers and loading the package onto them took about eleven seconds. Paid
+once per call, that was longer than most single fits, so `n_cores` sped up only
+the very largest jobs and quietly slowed down everything else -- a
+`compare_mixtures()` sweep paid it once per K, and a validation run once per
+fit. Paid once per session it disappears: on a 3-class, 7-item binary fit with
+twenty restarts, the second and subsequent parallel fits ran in 1.3 seconds
+against 4.3 sequential.
+
+Nothing about reproducibility changes, and that is the property that makes this
+safe. Starting values are drawn in the calling session, in the order the
+sequential search would have drawn them, and workers never draw random numbers;
+a fit is therefore identical at every `n_cores`, down to the last bit. That
+equality is now asserted directly in the test suite, which it had never been.
+
+Two related corrections. The bootstrap loops in `blrt()`,
+`bivariate_residuals()` and `bootstrap_covariates()` now fit their replicates
+with `n_cores = 1` explicitly: a replicate is what the workers are already
+running, and without this a session-wide option would have had each of them try
+to spread its own restarts again. And a worker pool that has died between calls
+is detected and rebuilt rather than used.
+
 ## `print()` on a refined latent transition model reported zero iterations
 
 The L-BFGS refinement added in this development version re-runs the E-step to

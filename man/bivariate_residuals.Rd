@@ -8,7 +8,7 @@ bivariate_residuals(
   object,
   n_reps = 0,
   n_init_boot = 10,
-  n_cores = 1L,
+  n_cores = .default_n_cores(),
   verbose = FALSE
 )
 }
@@ -29,7 +29,9 @@ refit without the final refinement step, since a replicate needs a
 residual rather than polished estimates.}
 
 \item{n_cores}{Positive integer. Number of processes to spread the
-bootstrap replicates over. Default \code{1} (sequential).}
+bootstrap replicates over. Default \code{1} (sequential), or the value
+of \code{options(mixtureEM.n_cores = )} where that has been set; an
+argument given here overrides the option.}
 
 \item{verbose}{Report bootstrap progress.}
 }

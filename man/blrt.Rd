@@ -13,7 +13,7 @@ blrt(
   n_reps = 100,
   n_init_base = 20,
   n_init_boot = 10,
-  n_cores = 1L,
+  n_cores = .default_n_cores(),
   verbose = TRUE,
   ...,
   from_fit = NULL,
@@ -75,7 +75,10 @@ proportion to the cores given.
 Each replicate draws from its own seed, fixed before any fitting begins, so
 the null distribution and the p-value are the same whatever \code{n_cores}
 is set to. Progress messages are printed only when \code{n_cores = 1},
-since a worker cannot report into this session.}
+since a worker cannot report into this session.
+
+\code{options(mixtureEM.n_cores = )} sets the default for a whole
+session; an argument given here overrides it.}
 
 \item{verbose}{Logical; print progress while bootstrapping. Default
 \code{TRUE}.}

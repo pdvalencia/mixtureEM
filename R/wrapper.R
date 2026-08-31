@@ -1856,7 +1856,9 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   differences and when they matter. Ignored for other structural models and
 #'   for \code{n_steps = 1}.
 #' @param n_cores Positive integer. Number of processes to spread the random
-#'   starts over. Default \code{1} (sequential).
+#'   starts over. Default \code{1} (sequential), or the value of
+#'   \code{options(mixtureEM.n_cores = )} where that has been set; an argument
+#'   given here overrides the option.
 #' @param ... Additional arguments passed to the measurement or structural
 #'   model constructors (e.g., \code{max_val} for multinoulli models).
 #'
@@ -1910,7 +1912,7 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
                                  bayes_constants = NULL,
                                  warm_start = NULL,
                                  se = c("corrected", "robust", "hessian"),
-                                 n_cores = 1L, ...) {
+                                 n_cores = .default_n_cores(), ...) {
 
   weight_type <- match.arg(weight_type)
   se          <- match.arg(se)
@@ -2952,6 +2954,13 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   Each worker is a fresh R session that must load the package and receive a
 #'   copy of the data, which costs a second or two and some memory. For a fit
 #'   that already takes under a few seconds, leave this at \code{1}.
+#'
+#'   \code{options(mixtureEM.n_cores = 4)} sets it for a whole session, which
+#'   is usually what a long analysis wants: a value passed to one call is
+#'   forgotten by the next, and the slowest operations in the package --
+#'   \code{blrt()}, \code{compare_mixtures()}, \code{bivariate_residuals()}
+#'   -- are the ones it is easiest to forget. An argument given here overrides
+#'   the option.
 #' @param X,Y,n_components,structural Deprecated legacy arguments retained for
 #'   backward compatibility; prefer \code{indicators}, \code{n_classes},
 #'   \code{predictors}, and \code{outcome}.
@@ -3078,7 +3087,7 @@ fit_mixture <- function(indicators = NULL,
                         refine = TRUE,
                         bayes_constants = NULL,
                         se = c("corrected", "robust", "hessian"),
-                        n_cores = 1L,
+                        n_cores = .default_n_cores(),
                         X = NULL, Y = NULL, n_components = NULL, structural = NULL,
                         ...) {
 
@@ -3673,7 +3682,9 @@ print.mixture_model <- function(x, ...) {
 #'   matrix, \code{"robust"} for the variant that substitutes the sandwich
 #'   covariance, or \code{"both"}. See Details for why it is off by default.
 #' @param n_cores Positive integer. Number of processes to spread the random
-#'   starts over, within each K. Default \code{1} (sequential).
+#'   starts over, within each K. Default \code{1} (sequential), or the
+#'   value of \code{options(mixtureEM.n_cores = )} where that has been set; an
+#'   argument given here overrides the option.
 #' @param ... Additional arguments passed to \code{\link{fit_mixture}}.
 #'
 #' @return An object of class `mixture_comparison`: a named list with three
@@ -3756,7 +3767,7 @@ print.mixture_model <- function(x, ...) {
 compare_mixtures <- function(X, k_range = 1:5, measurement,
                              n_init = 10, n_steps = 1,
                              vlmr = c("none", "standard", "robust", "both"),
-                             n_cores = 1L,
+                             n_cores = .default_n_cores(),
                              ...) {
   if (missing(measurement)) .require_measurement(X)
   vlmr <- match.arg(vlmr)

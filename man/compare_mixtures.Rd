@@ -11,7 +11,7 @@ compare_mixtures(
   n_init = 10,
   n_steps = 1,
   vlmr = c("none", "standard", "robust", "both"),
-  n_cores = 1L,
+  n_cores = .default_n_cores(),
   ...
 )
 }
@@ -37,7 +37,9 @@ matrix, \code{"robust"} for the variant that substitutes the sandwich
 covariance, or \code{"both"}. See Details for why it is off by default.}
 
 \item{n_cores}{Positive integer. Number of processes to spread the random
-starts over, within each K. Default \code{1} (sequential).}
+starts over, within each K. Default \code{1} (sequential), or the
+value of \code{options(mixtureEM.n_cores = )} where that has been set; an
+argument given here overrides the option.}
 
 \item{...}{Additional arguments passed to \code{\link{fit_mixture}}.}
 }

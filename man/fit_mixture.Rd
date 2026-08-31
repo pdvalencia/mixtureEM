@@ -36,7 +36,7 @@ fit_mixture(
   refine = TRUE,
   bayes_constants = NULL,
   se = c("corrected", "robust", "hessian"),
-  n_cores = 1L,
+  n_cores = .default_n_cores(),
   X = NULL,
   Y = NULL,
   n_components = NULL,
@@ -458,7 +458,14 @@ here changes how long a fit takes and nothing it reports.
 
 Each worker is a fresh R session that must load the package and receive a
 copy of the data, which costs a second or two and some memory. For a fit
-that already takes under a few seconds, leave this at \code{1}.}
+that already takes under a few seconds, leave this at \code{1}.
+
+\code{options(mixtureEM.n_cores = 4)} sets it for a whole session, which
+is usually what a long analysis wants: a value passed to one call is
+forgotten by the next, and the slowest operations in the package --
+\code{blrt()}, \code{compare_mixtures()}, \code{bivariate_residuals()}
+-- are the ones it is easiest to forget. An argument given here overrides
+the option.}
 
 \item{X, Y, n_components, structural}{Deprecated legacy arguments retained for
 backward compatibility; prefer \code{indicators}, \code{n_classes},

@@ -109,7 +109,9 @@ align_classes <- function(orig_mat, boot_mat) {
 #' @param n_reps Positive integer. Number of bootstrap replications.
 #'   Default is \code{100}.
 #' @param n_cores Positive integer. Number of processes to spread the
-#'   bootstrap replicates over. Default \code{1} (sequential).
+#'   bootstrap replicates over. Default \code{1} (sequential), or the value
+#'   of \code{options(mixtureEM.n_cores = )} where that has been set; an
+#'   argument given here overrides the option.
 #' @param random_state Integer seed for reproducibility. Default is \code{123}.
 #' @param ref_class Integer. Reference class for centering bootstrap betas.
 #'   Should match the \code{ref_class} used in subsequent calls to
@@ -141,7 +143,8 @@ align_classes <- function(orig_mat, boot_mat) {
 #' }
 #'
 #' @export
-bootstrap_covariates <- function(model_state, X, Y, n_reps = 100, n_cores = 1L,
+bootstrap_covariates <- function(model_state, X, Y, n_reps = 100,
+                                 n_cores = .default_n_cores(),
                                  random_state = 123, ref_class = 1) {
   set.seed(random_state)
 
@@ -197,6 +200,9 @@ bootstrap_covariates <- function(model_state, X, Y, n_reps = 100, n_cores = 1L,
       n_steps      = 3,
       correction   = "ML",
       n_init       = 1,
+      # Not the caller's `n_cores`: this body is what the workers run, and
+      # one restart has nothing to spread in any case.
+      n_cores      = 1L,
       order_by_size = FALSE,
       se           = "hessian"
     )

@@ -29,7 +29,7 @@ fit_lta(
   refine = TRUE,
   refine_from = NULL,
   max_iter = 1000,
-  n_cores = 1L,
+  n_cores = .default_n_cores(),
   tol = 1e-08,
   smoothing = 1,
   random_state = NULL,
@@ -157,7 +157,9 @@ enough that the fixed rule would not do.)}
 starts over. Default \code{1} (sequential). These are the slowest fits in the
 package and \code{n_init} is high by necessity, so this is where the argument
 earns the most. Starting values are drawn in this session before any
-fitting begins, so the fit is identical at every \code{n_cores}.}
+fitting begins, so the fit is identical at every \code{n_cores}.
+\code{options(mixtureEM.n_cores = )} sets the default for a whole session; an
+argument given here overrides it.}
 
 \item{smoothing}{How much smoothing to apply to the status prevalences and to
 each row of the transition matrices, expressed as a number of pseudo-cases

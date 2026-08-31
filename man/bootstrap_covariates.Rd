@@ -9,7 +9,7 @@ bootstrap_covariates(
   X,
   Y,
   n_reps = 100,
-  n_cores = 1L,
+  n_cores = .default_n_cores(),
   random_state = 123,
   ref_class = 1
 )
@@ -28,7 +28,9 @@ structural model (fitted with \code{structural = "covariate"}).}
 Default is \code{100}.}
 
 \item{n_cores}{Positive integer. Number of processes to spread the
-bootstrap replicates over. Default \code{1} (sequential).}
+bootstrap replicates over. Default \code{1} (sequential), or the value
+of \code{options(mixtureEM.n_cores = )} where that has been set; an
+argument given here overrides the option.}
 
 \item{random_state}{Integer seed for reproducibility. Default is \code{123}.}
 

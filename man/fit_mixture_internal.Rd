@@ -25,7 +25,7 @@ fit_mixture_internal(
   bayes_constants = NULL,
   warm_start = NULL,
   se = c("corrected", "robust", "hessian"),
-  n_cores = 1L,
+  n_cores = .default_n_cores(),
   ...
 )
 }
@@ -126,7 +126,9 @@ differences and when they matter. Ignored for other structural models and
 for \code{n_steps = 1}.}
 
 \item{n_cores}{Positive integer. Number of processes to spread the random
-starts over. Default \code{1} (sequential).}
+starts over. Default \code{1} (sequential), or the value of
+\code{options(mixtureEM.n_cores = )} where that has been set; an argument
+given here overrides the option.}
 
 \item{...}{Additional arguments passed to the measurement or structural
 model constructors (e.g., \code{max_val} for multinoulli models).}
