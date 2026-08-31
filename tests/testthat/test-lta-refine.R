@@ -116,3 +116,27 @@ test_that("the refinement declines the models whose parameters it cannot pack", 
   expect_false(.lta_scores_full(mix_fit))
   expect_identical(.lta_refine_lbfgs(mix_fit, X), mix_fit)
 })
+
+test_that("a refined fit reports the iterations EM actually ran", {
+  # The refinement re-runs .lta_em() at max_iter = 0 to write its posteriors
+  # back at the polished parameters, and .lta_em() returns `converged` and
+  # `n_iter` re-initialised because no iteration ran. Restoring only the first
+  # of the two left print() reporting "Converged: TRUE (in 0 iterations)" for
+  # every fit the polish improved.
+  X <- .lta_refine_sim()
+  skeleton <- suppressMessages(suppressWarnings(
+    fit_lta(X, n_statuses = 3, times = 3, measurement = "binary",
+            smoothing = 0, bayes_constants = .ml, n_init = 1, max_iter = 1L,
+            refine = FALSE, standard_errors = FALSE, order_by_size = FALSE)))
+
+  # Stopped short on purpose, so the polish has somewhere to climb.
+  set.seed(99)
+  loose <- .lta_em(.lta_random_start(skeleton, X), X, max_iter = 8L,
+                   tol = 1e-8, alpha = 0)
+  polished <- .lta_refine_lbfgs(loose, X, alpha = 0)
+
+  expect_true(isTRUE(polished$refined_lbfgs))
+  expect_gt(polished$loglik, loose$loglik)
+  expect_identical(polished$n_iter, loose$n_iter)
+  expect_identical(polished$converged, loose$converged)
+})

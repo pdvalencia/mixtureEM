@@ -1,5 +1,13 @@
 # mixtureEM (development version)
 
+## `print()` on a refined latent transition model reported zero iterations
+
+The L-BFGS refinement added in this development version re-runs the E-step to
+write its posteriors back, and that reset the iteration counter, so any
+`fit_lta()` fit the refinement improved printed "Converged: TRUE (in 0
+iterations)". The count reported is now the one the EM search actually ran. No
+estimate, standard error or fit index was affected.
+
 ## A scaled difference test, and robust standard errors, for latent transition models
 
 `lr_test()` gains a `scaled` argument. Its default, `"auto"`, is exactly the

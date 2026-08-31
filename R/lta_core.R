@@ -761,7 +761,13 @@
   out <- .lta_em(final$state, X, max_iter = 0L, alpha = alpha)
   out$refined_lbfgs <- TRUE
   if (out$loglik < state$loglik) return(state)
+  # `max_iter = 0` above means .lta_em() ran no iteration, so both of these
+  # come back describing the E-step rather than the search: `converged`
+  # re-initialised to FALSE and `n_iter` to 0. They belong to the EM run this
+  # polish was handed, so they are carried over. Without the second line a
+  # polished fit printed "Converged: TRUE (in 0 iterations)".
   out$converged <- state$converged
+  out$n_iter    <- state$n_iter
   out
 }
 
