@@ -531,6 +531,15 @@ fit_lta <- function(indicators,
            call. = FALSE)
   }
 
+  # Every restart below runs on `X_fit`, which is the response-pattern table
+  # where the fit is eligible for one and `X` itself where it is not. The
+  # search state carries the matching weights; both are put back on the full
+  # sample once a winner has been chosen, before anything per-case is read off
+  # it. See .lta_collapse().
+  coll   <- .lta_collapse(state, X)
+  X_fit  <- if (is.null(coll)) X else coll$X
+  if (!is.null(coll)) state$weights_vec <- coll$w
+
   staged <- C > 1L
   if (staged) {
     if (missing(tol))      tol      <- 1e-11
@@ -557,11 +566,11 @@ fit_lta <- function(indicators,
   # each restart a deterministic function of the start it is given. The fits can
   # then run on workers without moving a value, at any `n_cores`.
   starts <- if (!is.null(refine_from)) {
-    list(.lta_refine_start(state, X, refine_from))
+    list(.lta_refine_start(state, X_fit, refine_from))
   } else {
     lapply(seq_len(max(1L, n_init)), function(i) {
       if (!is.null(random_state)) set.seed(random_state + i)
-      .lta_random_start(state, X)
+      .lta_random_start(state, X_fit)
     })
   }
   # The polish belongs after a run that was allowed to converge, never after
@@ -569,11 +578,11 @@ fit_lta <- function(indicators,
   # log-likelihoods are, as the comment above says, not the maxima of anything.
   polish <- function(cand) {
     if (!isTRUE(refine) || inherits(cand, "try-error")) return(cand)
-    out <- try(.lta_refine_lbfgs(cand, X, alpha = alpha), silent = TRUE)
+    out <- try(.lta_refine_lbfgs(cand, X_fit, alpha = alpha), silent = TRUE)
     if (inherits(out, "try-error")) cand else out
   }
   cands <- .par_lapply(starts, function(s) {
-    cand <- try(.lta_em(s, X,
+    cand <- try(.lta_em(s, X_fit,
                         max_iter = if (staged) min(250L, max_iter) else max_iter,
                         tol = if (staged) 1e-7 else tol, alpha = alpha),
                 silent = TRUE)
@@ -592,7 +601,7 @@ fit_lta <- function(indicators,
   if (staged && length(stage1)) {
     ord <- order(vapply(stage1, `[[`, numeric(1), "loglik"), decreasing = TRUE)
     survivors <- .par_lapply(utils::head(ord, n_survivors), function(i) {
-      cand <- try(.lta_em(stage1[[i]], X, max_iter = max_iter, tol = tol,
+      cand <- try(.lta_em(stage1[[i]], X_fit, max_iter = max_iter, tol = tol,
                           alpha = alpha), silent = TRUE)
       if (inherits(cand, "try-error")) stage1[[i]] else polish(cand)
     }, n_cores = n_cores)
@@ -605,6 +614,10 @@ fit_lta <- function(indicators,
     stop("Every random start failed; check the data and the model settings.",
          call. = FALSE)
 
+  # Back onto the full sample before anything per-case is read off the fit:
+  # every posterior, the path entropy, the standard errors and the metrics
+  # below all describe cases, and the search saw patterns.
+  best <- .lta_expand(best, coll, X, alpha)
   best$.tau_design_cache <- NULL      # working memory, not part of the fit
   best$n_params <- .lta_n_parameters(best)
   best$data     <- X
@@ -695,6 +708,85 @@ fit_lta <- function(indicators,
   .check_replication(best)
 
   best
+}
+
+# ------------------------------------------------------------------------------
+# The response-pattern table
+# ------------------------------------------------------------------------------
+
+# Can this fit run on one row per distinct response pattern instead of one row
+# per case?
+#
+# The forward-backward recursion costs O(n T K^2) an iteration, and a
+# categorical panel repeats itself heavily: the benchmark's 3,092 cases hold
+# 718 distinct answer patterns, so three quarters of every iteration is the
+# same arithmetic done over again. One row per pattern carrying a frequency
+# weight leaves the likelihood exactly as it was -- it is a weighted sum over
+# cases either way -- for a quarter of the work.
+#
+# This is the economy fit_mixture() has had since .collapse_patterns()
+# (R/em_core.R); the LTA runs its own driver and never got it. It is also
+# precisely what `weights = , weight_type = "frequency"` already lets a user do
+# by hand, so nothing new is being claimed about the estimator.
+#
+# NULL where it would not be the same fit:
+#   * covariates on the initial status or the transitions, or a grouping
+#     variable -- those designs are per case, and two people with the same
+#     answers but different covariates are not one row;
+#   * a survey design, where strata and cluster are per case for the same
+#     reason;
+#   * anything but a plain categorical measurement. Continuous data has no
+#     duplicate rows to find, and a Gaussian start samples data rows as its
+#     class means, so collapsing would move the search rather than shorten it;
+#   * fewer than half the rows duplicated, where the bookkeeping is not repaid.
+#
+# The starts do not move on the paths this does accept. .lta_random_start()
+# draws its initial and transition probabilities from Dirichlets that never see
+# the data, and finishes at init_params(), which for `bernoulli` reads only
+# ncol(X) and for `multinoulli` only ncol(X) and max(X) -- and every distinct
+# value survives collapsing. Asserted in test-lta-collapse.R rather than left
+# to this argument.
+.lta_collapse <- function(state, X) {
+  if (!is.null(state$Z_delta) || !is.null(state$Z_tau)) return(NULL)
+  if (!is.null(state$group_info))       return(NULL)
+  if (isTRUE(state$has_survey_design))  return(NULL)
+
+  sub <- state$mm$models[[1L]]
+  if (is.null(sub) || !class(sub)[1] %in%
+      c("bernoulli", "bernoulli_nan", "multinoulli", "multinoulli_nan"))
+    return(NULL)
+
+  n   <- nrow(X)
+  pat <- .pattern_index(X)
+  Xc  <- X[pat$rep_row, , drop = FALSE]
+  if (nrow(Xc) > 0.5 * n) return(NULL)
+
+  # rowsum() sorts its groups by label and the labels are 1..P, so the counts
+  # line up with the rows of Xc.
+  list(X = Xc, w = as.vector(rowsum(state$weights_vec, pat$idx)),
+       w_orig = state$weights_vec, n_patterns = nrow(Xc))
+}
+
+# Put the winning fit back on the full sample after the search ran on the
+# pattern table.
+#
+# Everything per case -- ll_case, gamma, the path entropy, the class posterior
+# -- describes the rows the recursion saw, and those were patterns. They are
+# rebuilt against the rows the user handed in. `max_iter = 0` is .lta_em()'s
+# own way of running nothing but its closing E-step, the idiom
+# .lta_refine_lbfgs() uses for the same reason. The weighted totals it also
+# recomputes -- loglik, xi -- are unchanged by construction, a sum over
+# patterns times their counts being the sum over cases.
+.lta_expand <- function(best, coll, X, alpha) {
+  if (is.null(coll)) return(best)
+  best$weights_vec <- coll$w_orig
+  out <- .lta_em(best, X, max_iter = 0L, alpha = alpha)
+  # No iteration ran, so .lta_em() hands these back re-initialised rather than
+  # as the search left them. See the same restoration in .lta_refine_lbfgs().
+  out$converged     <- best$converged
+  out$n_iter        <- best$n_iter
+  out$refined_lbfgs <- best$refined_lbfgs
+  out
 }
 
 # ------------------------------------------------------------------------------

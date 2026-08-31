@@ -35,6 +35,36 @@ running, and without this a session-wide option would have had each of them try
 to spread its own restarts again. And a worker pool that has died between calls
 is detected and rebuilt rather than used.
 
+## A latent transition model is fitted on its response-pattern table
+
+`fit_lta()` now collapses the data to one row per distinct response pattern for
+the duration of the search, carrying the number of cases behind each pattern as
+a frequency weight, and puts the fit back on the full sample before anything
+per-case is read off it. The likelihood is a weighted sum over cases either
+way, so this is arithmetic saved rather than a change of estimator: the fitted
+parameters, the log-likelihood, the information criteria, the entropy, the
+posteriors and the standard errors are all bit-for-bit what they were.
+
+Categorical panel data repeats itself heavily, which is what makes the saving
+worth having. A benchmark of five binary items measured at each of two
+occasions on 3,092 respondents holds 718 distinct answer patterns, so three
+quarters of every forward-backward pass was the same arithmetic done again.
+On that benchmark, a four-status invariant model with six restarts went from a
+median of 76.5 seconds to 22.1, a speed-up of 3.46x, with the log-likelihood,
+BIC and entropy identical to every digit they are stored to.
+
+`fit_mixture()` has fitted its categorical measurement models this way for some
+time. `fit_lta()` runs a separate driver, because it needs the forward-backward
+recursion, and the pattern table never reached it. It is also exactly what
+`weights = ` with `weight_type = "frequency"` already let a user do by hand.
+
+The collapse is skipped where it would not be the same fit: with covariates on
+the initial status or the transitions, with a grouping variable, or under a
+complex survey design, since all of those are defined per case and two people
+with the same answers but different covariates are not one row. It is also
+skipped for continuous indicators, which have no duplicate rows to find, and
+whenever fewer than half the rows are duplicates.
+
 ## `print()` on a refined latent transition model reported zero iterations
 
 The L-BFGS refinement added in this development version re-runs the E-step to

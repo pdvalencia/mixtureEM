@@ -68,15 +68,34 @@ e_step <- function(model_state, X, Y = NULL) {
   return(list(log_resp = log_resp, log_prob_norm = log_prob_norm))
 }
 
+# Which rows of a categorical `X` are copies of which, as
+# `rep_row` (the first appearance of each distinct pattern) and `idx` (the
+# pattern every row belongs to, indexing the rows `rep_row` selects, in
+# first-appearance order).
+#
+# Shared by the two engines so their notion of "the same response pattern"
+# cannot drift. The key is one string per row rather than the columns packed
+# into a number in radix max_val + 2: the numeric key is faster, but it
+# overflows 2^53 at about a dozen columns and a latent transition model lays
+# its data out as items x occasions, so eight items over five waves is forty
+# columns and no packing survives it. `paste()` renders NA as "NA", which no
+# observed code can produce, so a missing cell stays distinct from every
+# observed one -- which it must be, since two rows that differ only in where
+# they are missing are different patterns.
+.pattern_index <- function(X) {
+  key     <- do.call(paste, c(as.data.frame(X), sep = "\r"))
+  rep_row <- !duplicated(key)
+  list(rep_row = rep_row, idx = match(key, key[rep_row]))
+}
+
 # Collapse X to unique response patterns, summing the case weights within each
 # pattern, so the EM iterations run on the pattern table instead of the full
 # n rows. Returns NULL when the fit is not eligible for collapsing: a
 # structural model is active, the measurement model is not one of the plain
 # categorical families (continuous data has no duplicate rows, and collapsing
 # would change which seed rows the Gaussian restarts draw), a survey design is
-# attached (strata/cluster are per case), the response-pattern key would
-# overflow, or collapsing would not be worth it (fewer than half the rows are
-# duplicates).
+# attached (strata/cluster are per case), the table is too wide, or collapsing
+# would not be worth it (fewer than half the rows are duplicates).
 .collapse_patterns <- function(model_state, X, Y) {
   if (!is.null(Y)) return(NULL)
   if (!class(model_state$mm)[1] %in%
@@ -84,38 +103,33 @@ e_step <- function(model_state, X, Y = NULL) {
   if (isTRUE(model_state$has_survey_design)) return(NULL)
 
   n  <- nrow(X)
+  # The width limit below used to be a hard constraint: the key was the columns
+  # packed into one number in radix max_val + 2, and it overflowed 2^53. The key
+  # is now .pattern_index()'s string form and cannot overflow, so this is no
+  # longer a limit on what CAN be collapsed -- it is a limit on what IS, kept
+  # deliberately so this function collapses exactly the fits it collapsed
+  # before. Lifting it would newly collapse wide categorical fits, and while the
+  # likelihood is the same weighted sum either way, widening which fits take the
+  # collapsed path is a change that should carry its own measurement rather than
+  # ride in on a refactor.
+  #
   # model_state$mm$max_val is not yet populated at this point in the caller --
   # init_params.multinoulli() is what infers it from the data, and that runs
-  # later, inside fit_em(). Falling back to model_state$mm$max_val %||% 1 here
-  # would silently use a radix of 1 for every multinoulli fit, undercounting
-  # the true category range and merging genuinely different response patterns.
-  # Compute the same value init_params.multinoulli() would, directly from X.
+  # later, inside fit_em() -- so compute the same value it would, from X.
   mv <- model_state$mm$max_val %||% {
     ok <- !is.na(X)
     if (any(ok)) max(X[ok]) else 1
   }
   if ((mv + 2)^ncol(X) >= 2^53) return(NULL)
 
-  # Each column contributes a digit in {0, 1, ..., mv + 1}: 0 reserved for NA,
-  # 1..mv+1 for the observed code (X + 1). That is mv + 2 distinct digit
-  # values, so the positional radix must be mv + 2, not mv + 1 -- one short
-  # would let an observed-code digit collide with a carry from the column
-  # before it, silently merging genuinely different response patterns.
-  key <- numeric(n)
-  for (j in seq_len(ncol(X)))
-    key <- key * (mv + 2) + ifelse(is.na(X[, j]), 0, X[, j] + 1)
-
-  rep_row <- !duplicated(key)
-  Xc      <- X[rep_row, , drop = FALSE]
+  pat <- .pattern_index(X)
+  Xc  <- X[pat$rep_row, , drop = FALSE]
   if (nrow(Xc) > 0.5 * n) return(NULL)
 
-  # match(key, key[rep_row]) gives indices into Xc in first-appearance order,
-  # the same order X[rep_row, ] produces; rowsum() returns its groups sorted by
-  # label, and integer labels 1..P sort to 1..P, so the counts line up with the
-  # rows.
-  idx <- match(key, key[rep_row])
-  w   <- model_state$sample_weights
-  list(X = Xc, w = as.vector(rowsum(w, idx)), w_orig = w)
+  # rowsum() returns its groups sorted by label, and integer labels 1..P sort to
+  # 1..P, so the counts line up with the rows of Xc.
+  w <- model_state$sample_weights
+  list(X = Xc, w = as.vector(rowsum(w, pat$idx)), w_orig = w)
 }
 
 # Restore the full-sample weights and rebuild the per-case E-step fields
