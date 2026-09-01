@@ -28,3 +28,34 @@
 # identity these two files assert -- the gradient, the fixed point, the
 # case-level likelihood -- is stated on the unpenalised objective.
 .ml <- list(categorical = 0, latent = 0)
+
+# A covariate-driven LTA where the covariate actually predicts delta and tau,
+# with a moderate true effect. Unlike bolting an unrelated random covariate
+# onto .lta_refine_sim()'s covariate-free data, this keeps the MLE well away
+# from separation: delta_beta/tau_beta carry no prior of their own (by
+# design -- see .lta_penalty()/.lta_log_prior()), so an underidentified or
+# noise-only covariate drives the fitted coefficients to the +/-25 box the
+# L-BFGS refinement clips to, or past the point where a softmax underflows to
+# its 1e-300 floor -- both of which make a finite-difference gradient check
+# fail for reasons that are about the fixture, not the score formula.
+.lta_cov_refine_sim <- function(n = 300, K = 2, Tn = 3, J = 3, seed = 11) {
+  set.seed(seed)
+  z <- stats::rnorm(n)
+  delta1 <- stats::plogis(0.3 + 0.6 * z)
+  s <- rbinom(n, 1, delta1) + 1L
+  tau_stay <- function(k, z) stats::plogis(0.4 + (if (k == 1) 0.5 else -0.5) * z)
+  S <- matrix(0L, n, Tn); S[, 1] <- s
+  for (t in 2:Tn) {
+    p_stay <- ifelse(S[, t - 1] == 1, tau_stay(1, z), tau_stay(2, z))
+    u <- stats::runif(n)
+    S[, t] <- ifelse(u < p_stay, S[, t - 1], 3L - S[, t - 1])
+  }
+  rho <- matrix(stats::runif(K * J, 0.25, 0.75), K, J)
+  X <- array(0L, dim = c(n, Tn, J))
+  for (t in seq_len(Tn)) for (j in seq_len(J))
+    X[, t, j] <- stats::rbinom(n, 1, rho[S[, t], j])
+  Xwide <- do.call(cbind, lapply(seq_len(Tn), function(t) X[, t, ]))
+  colnames(Xwide) <- paste0("t", rep(seq_len(Tn), each = J), "_i",
+                            rep(seq_len(J), Tn))
+  list(X = Xwide, Z = data.frame(z = z))
+}

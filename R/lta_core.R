@@ -599,14 +599,41 @@
   out <- list()
   if (C > 1L) out[[1L]] <- list(kind = "class", len = C - 1L)
 
+  # Covariate models (`delta_beta`/`tau_beta`) replace the plain probability
+  # tables with case-level regressions; they are mutually exclusive with
+  # `C > 1` in fit_lta(), so `c` is always 1 wherever these fire.
   idx <- if (isTRUE(state$tau_homogeneous)) 1L else seq_len(Tn - 1L)
   for (c in seq_len(C)) {
-    out[[length(out) + 1L]] <- list(kind = "delta", c = c, len = K - 1L)
-    for (i_mat in idx) for (k in seq_len(K)) {
-      allowed <- which(state$tau_allowed_c[[c]][[i_mat]][k, ])
-      if (length(allowed) < 2L) next
-      out[[length(out) + 1L]] <- list(kind = "tau", c = c, i_mat = i_mat, k = k,
-                                      allowed = allowed, len = length(allowed) - 1L)
+    if (!is.null(state$delta_beta)) {
+      D <- ncol(state$Z_delta)
+      out[[length(out) + 1L]] <- list(kind = "delta_beta", c = c,
+                                      len = (K - 1L) * D)
+    } else {
+      out[[length(out) + 1L]] <- list(kind = "delta", c = c, len = K - 1L)
+    }
+
+    if (!is.null(state$tau_beta)) {
+      by_origin <- identical(state$transition_effects, "by_origin")
+      for (i_mat in idx) {
+        if (by_origin) {
+          D <- ncol(state$Z_tau)
+          for (k in seq_len(K))
+            out[[length(out) + 1L]] <- list(kind = "tau_beta", c = c,
+                                            i_mat = i_mat, k = k,
+                                            len = (K - 1L) * D)
+        } else {
+          D <- ncol(.lta_tau_design(state, 1L))
+          out[[length(out) + 1L]] <- list(kind = "tau_beta", c = c,
+                                          i_mat = i_mat, len = (K - 1L) * D)
+        }
+      }
+    } else {
+      for (i_mat in idx) for (k in seq_len(K)) {
+        allowed <- which(state$tau_allowed_c[[c]][[i_mat]][k, ])
+        if (length(allowed) < 2L) next
+        out[[length(out) + 1L]] <- list(kind = "tau", c = c, i_mat = i_mat, k = k,
+                                        allowed = allowed, len = length(allowed) - 1L)
+      }
     }
   }
 
@@ -639,9 +666,14 @@
         p <- pmax(state$delta_c[[b$c]], 1e-12)
         log(p[seq_len(K - 1L)]) - log(p[K])
       },
+      delta_beta = as.vector(t(state$delta_beta[seq_len(K - 1L), , drop = FALSE])),
       tau = {
         p <- pmax(state$tau_c[[b$c]][[b$i_mat]][b$k, b$allowed], 1e-12)
         log(p[-length(p)]) - log(p[length(p)])
+      },
+      tau_beta = {
+        B <- .lta_tau_beta(state, b$i_mat, b$k %||% 1L)
+        as.vector(t(B[seq_len(K - 1L), , drop = FALSE]))
       },
       rho = {
         p <- state$mm$models[[b$grp[1]]]$parameters$pis[, b$j]
@@ -673,6 +705,15 @@
       row <- numeric(K)
       row[b$allowed] <- p
       state$tau_c[[b$c]][[b$i_mat]][b$k, ] <- row
+    } else if (b$kind == "delta_beta") {
+      D <- ncol(state$Z_delta)
+      state$delta_beta <- rbind(matrix(v, K - 1L, D, byrow = TRUE), 0)
+    } else if (b$kind == "tau_beta") {
+      by_origin <- identical(state$transition_effects, "by_origin")
+      D <- if (by_origin) ncol(state$Z_tau) else ncol(.lta_tau_design(state, 1L))
+      B <- rbind(matrix(v, K - 1L, D, byrow = TRUE), 0)
+      if (by_origin) state$tau_beta[[b$i_mat]][[b$k]] <- B
+      else state$tau_beta[[b$i_mat]] <- B
     } else if (b$kind == "rho") {
       for (tt in b$grp)
         state$mm$models[[tt]]$parameters$pis[, b$j] <- stats::plogis(v)
@@ -680,6 +721,25 @@
       for (tt in b$grp)
         state$mm$models[[tt]]$parameters$means[, b$j] <- v
     }
+  }
+  # Covariate models don't write state$delta_c/tau_c above -- they replace
+  # those tables with regressions -- so the plain probability views everything
+  # downstream reads (transition_matrix(), prevalence output, and delta_c/
+  # tau_c themselves) are recomputed here as the case-weighted average
+  # implied by the just-unpacked coefficients, the same tail
+  # .lta_mstep_delta_cov()/.lta_mstep_tau_cov() run after every M-step
+  # (R/lta_covariates.R:110-118, :186-195).
+  if (!is.null(state$delta_beta)) {
+    w <- state$weights_vec
+    state$delta <- colSums(exp(.lta_log_delta(state)) * w) / sum(w)
+    state$delta_c[[1L]] <- state$delta
+  }
+  if (!is.null(state$tau_beta)) {
+    w  <- state$weights_vec
+    lt <- .lta_log_tau(state)
+    state$tau <- lapply(lt, function(per_k)
+      t(vapply(per_k, function(M) colSums(exp(M) * w) / sum(w), numeric(K))))
+    state$tau_c[[1L]] <- state$tau
   }
   # A homogeneous transition matrix is stored once per interval, so each
   # class's single free matrix has to be broadcast back over them.
@@ -704,8 +764,7 @@
   C  <- st$n_classes %||% 1L
   logB <- .lta_emission_loglik(st$mm, X)
   if (C == 1L)
-    return(.lta_forward_backward(logB, log(pmax(st$delta, 1e-300)),
-                                 lapply(st$tau, function(m) log(pmax(m, 1e-300))),
+    return(.lta_forward_backward(logB, .lta_log_delta(st), .lta_log_tau(st),
                                  st$weights_vec)$ll)
 
   # A mixture's per-case log-likelihood is log Σ_c π_c P(y_i | class c); each

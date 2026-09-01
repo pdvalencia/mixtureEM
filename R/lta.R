@@ -1199,7 +1199,13 @@ fit_lta <- function(indicators,
   S <- sc$S; blocks <- sc$blocks; conditional <- sc$conditional
   w <- state$weights_vec
 
-  info <- t(S) %*% sweep(S, 1, w, "*")
+  # The small-sample correction N / (N - 1) on the case-score outer product is
+  # the usual finite-population fix for a sample covariance matrix estimated
+  # from N contributions; applying it here (rather than leaving the raw outer
+  # product) keeps this estimator's scale consistent with the same correction
+  # applied to the sandwich meat below.
+  n_cases <- state$n_eff %||% length(w)
+  info <- (n_cases / max(n_cases - 1, 1)) * (t(S) %*% sweep(S, 1, w, "*"))
   V    <- tryCatch(pinv(info), error = function(e) NULL)
   if (is.null(V)) return(NULL)
 
@@ -1275,9 +1281,12 @@ fit_lta <- function(indicators,
 # the posterior-class-weighted sum of the gradients of its complete-data
 # (class-conditional) log-likelihoods, so every single-chain score is simply
 # scaled by the case's posterior probability of that class. Covariate models
-# replace delta and tau with case-level regressions, so the multinomial-logit
-# blocks below do not describe their free parameters at all, and are declined
-# rather than answered wrongly.
+# replace delta and tau with case-level regressions (`delta_beta`/`tau_beta`);
+# the score of that multinomial logit is the same (observed - predicted)
+# residual, now weighted by the covariate row instead of read off a fixed
+# probability vector, which is what the "_beta" blocks below compute. `C > 1`
+# and covariates are mutually exclusive in `fit_lta()`, so the two never have
+# to compose with each other.
 # Which items are held equal across occasions. Read off the measurement model,
 # which carries the constraint from the moment fit_lta() builds it, NOT off
 # `state$longitudinal`, which fit_lta() attaches only once the search is over.
@@ -1292,7 +1301,6 @@ fit_lta <- function(indicators,
 
 .lta_scores_supported <- function(state) {
   if (state$n_statuses < 2L || state$n_times < 2L) return(FALSE)
-  if (!is.null(state$delta_beta) || !is.null(state$tau_beta)) return(FALSE)
   TRUE
 }
 
@@ -1340,38 +1348,104 @@ fit_lta <- function(indicators,
   # posterior directly and `state$tau_allowed` is already the collapsed
   # (non-list) view .lta_pack() maintains for this case.
   if (C == 1L) {
-    fb <- .lta_forward_backward(logB, log(pmax(state$delta, 1e-300)),
-                                lapply(state$tau, function(m)
-                                  log(pmax(m, 1e-300))), w,
-                                keep_pairwise = TRUE)
+    # .lta_log_delta()/.lta_log_tau() (R/lta_covariates.R) already return the
+    # case-varying log-probabilities a covariate model implies, and fall back
+    # to the plain broadcast delta/tau otherwise -- the same functions the
+    # ordinary E-step calls, so the log-likelihood here needs no branch on
+    # whether covariates are present.
+    fb <- .lta_forward_backward(logB, .lta_log_delta(state), .lta_log_tau(state),
+                                w, keep_pairwise = TRUE)
     gam <- fb$gamma
     ll  <- fb$ll
 
-    # delta: the score of the multinomial logit is gamma_1[i, k] - delta_k,
-    # with the last status anchored.
-    add_block(sweep(gam[[1]][, seq_len(K - 1L), drop = FALSE], 2,
-                    state$delta[seq_len(K - 1L)], "-"),
-              state$delta, seq_len(K - 1L), "delta")
+    if (!is.null(state$delta_beta)) {
+      # Ordinary multinomial-logit score, covariate-weighted: the same
+      # (observed - predicted) residual as the plain "delta" block below,
+      # times the covariate row, which is exactly .fit_mnl()'s own gradient
+      # (R/covariate.R) kept at the case level instead of summed. Column
+      # order is status k (1..K-1) slow, covariate d fast, matching
+      # .lta_par_pack()'s `as.vector(t(B[1:(K-1), ]))`.
+      phat <- exp(.lta_log_delta(state))
+      s <- do.call(cbind, lapply(seq_len(K - 1L), function(k)
+        (gam[[1]][, k] - phat[, k]) * state$Z_delta))
+      add_block(s, NULL, NULL, "delta_beta")
+    } else {
+      # delta: the score of the multinomial logit is gamma_1[i, k] - delta_k,
+      # with the last status anchored.
+      add_block(sweep(gam[[1]][, seq_len(K - 1L), drop = FALSE], 2,
+                      state$delta[seq_len(K - 1L)], "-"),
+                state$delta, seq_len(K - 1L), "delta")
+    }
 
-    # tau: xi_i[t, k, l] - gamma_t[i, k] * tau_t[k, l], anchored on the last
-    # admissible destination in the row.
     idx <- if (isTRUE(state$tau_homogeneous)) 1L else seq_len(Tn - 1L)
-    for (i_mat in idx) {
-      ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else i_mat
-      for (k in seq_len(K)) {
-        allowed <- which(state$tau_allowed[[i_mat]][k, ])
-        if (length(allowed) < 2L) next
-        free <- allowed[-length(allowed)]
-        s <- matrix(0, n, length(free))
-        for (tt in ts) {
-          pk <- fb$pairwise[[tt]][[k]]        # n x K: P(S_t = k, S_{t+1} = .)
-          s <- s + pk[, free, drop = FALSE] -
-            outer(gam[[tt]][, k], state$tau[[i_mat]][k, free])
+    if (!is.null(state$tau_beta)) {
+      # tau_beta: same (observed - predicted) ⊗ covariate-row score as delta
+      # above, one block per origin status under "by_origin" (mirroring
+      # .lta_mstep_tau_cov()'s by-origin loop, R/lta_covariates.R:139-157) or
+      # one block per matrix under "common", summing every origin's
+      # contribution into the shared coefficient set (mirroring that
+      # function's "common" branch, R/lta_covariates.R:159-183, which stacks
+      # every (occasion, origin) row into one .fit_mnl() call for the same
+      # reason).
+      by_origin <- identical(state$transition_effects, "by_origin")
+      lt <- .lta_log_tau(state)
+      for (i_mat in idx) {
+        ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else i_mat
+        if (by_origin) {
+          for (k in seq_len(K)) {
+            Zk <- state$Z_tau
+            s  <- matrix(0, n, (K - 1L) * ncol(Zk))
+            for (tt in ts) {
+              phat_k <- exp(lt[[tt]][[k]])
+              pk     <- fb$pairwise[[tt]][[k]]
+              resid  <- pk[, seq_len(K - 1L), drop = FALSE] -
+                gam[[tt]][, k] * phat_k[, seq_len(K - 1L), drop = FALSE]
+              s <- s + do.call(cbind, lapply(seq_len(K - 1L), function(d)
+                resid[, d] * Zk))
+            }
+            add_block(s, NULL, NULL,
+                      sprintf("tau_beta%s[from %d]",
+                              if (isTRUE(state$tau_homogeneous)) "" else
+                                paste0("(", i_mat, ")"), k))
+          }
+        } else {
+          D <- ncol(.lta_tau_design(state, 1L))
+          s <- matrix(0, n, (K - 1L) * D)
+          for (tt in ts) for (k in seq_len(K)) {
+            Zk     <- .lta_tau_design(state, k)
+            phat_k <- exp(lt[[tt]][[k]])
+            pk     <- fb$pairwise[[tt]][[k]]
+            resid  <- pk[, seq_len(K - 1L), drop = FALSE] -
+              gam[[tt]][, k] * phat_k[, seq_len(K - 1L), drop = FALSE]
+            s <- s + do.call(cbind, lapply(seq_len(K - 1L), function(d)
+              resid[, d] * Zk))
+          }
+          add_block(s, NULL, NULL,
+                    sprintf("tau_beta%s",
+                            if (isTRUE(state$tau_homogeneous)) "" else
+                              paste0("(", i_mat, ")")))
         }
-        add_block(s, state$tau[[i_mat]][k, ], free,
-                  sprintf("tau%s[from %d]",
-                          if (isTRUE(state$tau_homogeneous)) "" else
-                            paste0("(", i_mat, ")"), k))
+      }
+    } else {
+      # tau: xi_i[t, k, l] - gamma_t[i, k] * tau_t[k, l], anchored on the last
+      # admissible destination in the row.
+      for (i_mat in idx) {
+        ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else i_mat
+        for (k in seq_len(K)) {
+          allowed <- which(state$tau_allowed[[i_mat]][k, ])
+          if (length(allowed) < 2L) next
+          free <- allowed[-length(allowed)]
+          s <- matrix(0, n, length(free))
+          for (tt in ts) {
+            pk <- fb$pairwise[[tt]][[k]]        # n x K: P(S_t = k, S_{t+1} = .)
+            s <- s + pk[, free, drop = FALSE] -
+              outer(gam[[tt]][, k], state$tau[[i_mat]][k, free])
+          }
+          add_block(s, state$tau[[i_mat]][k, ], free,
+                    sprintf("tau%s[from %d]",
+                            if (isTRUE(state$tau_homogeneous)) "" else
+                              paste0("(", i_mat, ")"), k))
+        }
       }
     }
   } else {

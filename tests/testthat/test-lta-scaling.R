@@ -37,15 +37,25 @@ test_that(".lta_scaling_pieces() returns a well-formed factor on a clean fit", {
   expect_lt(pieces$c, 2.0)
 })
 
-test_that(".lta_scaling_pieces() refuses a covariate model, which it cannot pack", {
-  X <- .lta_refine_sim()
-  Z <- data.frame(z = stats::rnorm(nrow(X)))
+test_that(".lta_scaling_pieces() returns a well-formed factor for a covariate model", {
+  # .lta_scores_full() no longer declines delta_beta/tau_beta (the case-level
+  # regression score blocks .lta_score_matrix() now builds), so this path --
+  # shared with the L-BFGS refinement and .lta_standard_errors() -- picks it
+  # up for free, the same way it already does for a mixture over chains below.
+  sim <- .lta_cov_refine_sim()
+  X <- sim$X; Z <- sim$Z
 
   cov_fit <- suppressMessages(suppressWarnings(
-    fit_lta(X, n_statuses = 3, times = 3, measurement = "binary",
-            predictors_initial = Z, n_init = 2, random_state = 1,
+    fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+            predictors_initial = Z, predictors_transition = Z,
+            smoothing = 0, bayes_constants = .ml, n_init = 2, random_state = 1,
             standard_errors = FALSE)))
-  expect_null(.lta_scaling_pieces(.nested_fit_info(cov_fit)))
+
+  pieces <- .lta_scaling_pieces(.nested_fit_info(cov_fit))
+  expect_false(is.null(pieces))
+  expect_equal(pieces$p, cov_fit$n_params)
+  expect_gt(pieces$c, 0.5)
+  expect_lt(pieces$c, 2.0)
 })
 
 test_that(".lta_scaling_pieces() returns a well-formed factor for a mixture over chains", {

@@ -96,17 +96,105 @@ test_that("the refinement respects measurement invariance", {
   expect_equal(.lta_invariant_items(fit), seq_len(4))
 })
 
-test_that("the refinement declines a covariate model, whose parameters it cannot pack", {
-  X <- .lta_refine_sim()
-  Z <- data.frame(z = stats::rnorm(nrow(X)))
+test_that("the refinement's gradient matches finite differences for covariate delta/tau", {
+  # delta_beta/tau_beta replace the simplex-valued delta/tau with case-level
+  # regressions; the score is the same (observed - predicted) residual as the
+  # plain blocks, now weighted by the covariate row instead of read off a
+  # fixed probability vector -- .lta_score_matrix()'s "delta_beta"/"tau_beta"
+  # branches. Exercised under the default `transition_effects = "by_origin"`.
+  #
+  # Uses .lta_cov_refine_sim(), not .lta_refine_sim() with a bolted-on random
+  # covariate: delta_beta/tau_beta carry no prior of their own (by design),
+  # so fitting an unbounded continuous covariate against data it does not
+  # actually predict drives the MLE towards separation -- large coefficients
+  # whose softmax saturates against the 1e-300 floor, which is genuinely not
+  # differentiable there and fails a finite-difference check for a reason
+  # that has nothing to do with whether the score formula is correct. A
+  # fixture where the covariate has a real, moderate effect stays identified.
+  sim <- .lta_cov_refine_sim()
+  X <- sim$X; Z <- sim$Z
+  fit <- suppressMessages(suppressWarnings(
+    fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+            predictors_initial = Z, predictors_transition = Z,
+            smoothing = 0, bayes_constants = .ml, n_init = 2,
+            random_state = 1, refine = FALSE, standard_errors = FALSE)))
+  expect_true(.lta_scores_full(fit))
 
-  # A covariate on the initial status: delta is a regression, not a simplex.
-  cov_fit <- suppressMessages(suppressWarnings(
-    fit_lta(X, n_statuses = 3, times = 3, measurement = "binary",
-            predictors_initial = Z, n_init = 2, random_state = 1,
-            standard_errors = FALSE)))
-  expect_false(.lta_scores_full(cov_fit))
-  expect_identical(.lta_refine_lbfgs(cov_fit, X), cov_fit)
+  layout <- .lta_par_layout(fit)
+  par0   <- .lta_par_pack(fit, layout)
+  w      <- fit$weights_vec
+
+  expect_equal(length(par0), ncol(.lta_score_matrix(fit, X)$S))
+  expect_equal(length(par0), fit$n_params)
+
+  rt <- .lta_par_unpack(par0, fit, layout)
+  expect_equal(rt$delta_beta, fit$delta_beta, tolerance = 1e-10)
+  expect_equal(rt$tau_beta, fit$tau_beta, tolerance = 1e-10)
+
+  obj <- function(p) {
+    st <- .lta_par_unpack(p, fit, layout)
+    sum(w * .lta_score_matrix(st, X)$ll) +
+      .lta_penalty(st, X, layout, 0)$value
+  }
+  ana <- colSums(sweep(.lta_score_matrix(fit, X)$S, 1, w, "*")) +
+    .lta_penalty(fit, X, layout, 0)$gradient
+  eps <- 1e-5
+  fd <- vapply(seq_along(par0), function(i) {
+    e <- numeric(length(par0)); e[i] <- eps
+    (obj(par0 + e) - obj(par0 - e)) / (2 * eps)
+  }, numeric(1))
+
+  expect_lt(max(abs(ana - fd)) / max(1, max(abs(fd))), 1e-5)
+})
+
+test_that("the same gradient check holds under transition_effects = \"common\"", {
+  # A structurally different code path: one tau_beta block per matrix, shared
+  # across origin statuses via the origin-dummy design (.lta_tau_design()),
+  # rather than one block per origin.
+  sim <- .lta_cov_refine_sim()
+  X <- sim$X; Z <- sim$Z
+  fit <- suppressMessages(suppressWarnings(
+    fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+            predictors_transition = Z, transition_effects = "common",
+            smoothing = 0, bayes_constants = .ml, n_init = 2,
+            random_state = 1, refine = FALSE, standard_errors = FALSE)))
+  expect_true(.lta_scores_full(fit))
+
+  layout <- .lta_par_layout(fit)
+  par0   <- .lta_par_pack(fit, layout)
+  w      <- fit$weights_vec
+  expect_equal(length(par0), fit$n_params)
+
+  obj <- function(p) {
+    st <- .lta_par_unpack(p, fit, layout)
+    sum(w * .lta_score_matrix(st, X)$ll)
+  }
+  ana <- colSums(sweep(.lta_score_matrix(fit, X)$S, 1, w, "*"))
+  eps <- 1e-5
+  fd <- vapply(seq_along(par0), function(i) {
+    e <- numeric(length(par0)); e[i] <- eps
+    (obj(par0 + e) - obj(par0 - e)) / (2 * eps)
+  }, numeric(1))
+
+  expect_lt(max(abs(ana - fd)) / max(1, max(abs(fd))), 1e-5)
+})
+
+test_that("the refinement never lowers the log-likelihood for a covariate model", {
+  sim <- .lta_cov_refine_sim()
+  X <- sim$X; Z <- sim$Z
+  a <- suppressMessages(suppressWarnings(
+    fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+            predictors_initial = Z, predictors_transition = Z,
+            smoothing = 0, bayes_constants = .ml, n_init = 2,
+            random_state = 1, refine = FALSE, standard_errors = FALSE)))
+  b <- suppressMessages(suppressWarnings(
+    fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+            predictors_initial = Z, predictors_transition = Z,
+            smoothing = 0, bayes_constants = .ml, n_init = 2,
+            random_state = 1, refine = TRUE, standard_errors = FALSE)))
+  expect_true(isTRUE(b$refined_lbfgs))
+  expect_gte(b$loglik, a$loglik - 1e-8)
+  expect_equal(b$n_params, a$n_params)
 })
 
 test_that("the refinement's gradient matches finite differences for a mixture over chains", {
