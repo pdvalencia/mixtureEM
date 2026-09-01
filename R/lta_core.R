@@ -584,17 +584,30 @@
 
 # Column layout of the unconstrained vector, in .lta_score_matrix()'s block
 # order. Each entry says how to read a slice of the vector back into `state`.
+#
+# With several classes above the chain, a class-mixing block comes first and
+# every delta/tau block gains a `c` field naming which class's own slot it
+# reads (`state$delta_c[[c]]`, `state$tau_c[[c]][[i_mat]]`) -- these per-class
+# lists are what `.lta_pack()` always maintains, collapsed to `state$delta`/
+# `state$tau` only as a C == 1 convenience, so reading them directly here
+# needs no branch on C at all: at C == 1 there is one class and `b$c` is
+# always 1.
 .lta_par_layout <- function(state) {
   K  <- state$n_statuses
   Tn <- state$n_times
-  out <- list(list(kind = "delta", len = K - 1L))
+  C  <- state$n_classes %||% 1L
+  out <- list()
+  if (C > 1L) out[[1L]] <- list(kind = "class", len = C - 1L)
 
   idx <- if (isTRUE(state$tau_homogeneous)) 1L else seq_len(Tn - 1L)
-  for (i_mat in idx) for (k in seq_len(K)) {
-    allowed <- which(state$tau_allowed[[i_mat]][k, ])
-    if (length(allowed) < 2L) next
-    out[[length(out) + 1L]] <- list(kind = "tau", i_mat = i_mat, k = k,
-                                    allowed = allowed, len = length(allowed) - 1L)
+  for (c in seq_len(C)) {
+    out[[length(out) + 1L]] <- list(kind = "delta", c = c, len = K - 1L)
+    for (i_mat in idx) for (k in seq_len(K)) {
+      allowed <- which(state$tau_allowed_c[[c]][[i_mat]][k, ])
+      if (length(allowed) < 2L) next
+      out[[length(out) + 1L]] <- list(kind = "tau", c = c, i_mat = i_mat, k = k,
+                                      allowed = allowed, len = length(allowed) - 1L)
+    }
   }
 
   J   <- state$n_items
@@ -610,17 +623,24 @@
 }
 
 # state -> vector. Multinomial logits anchored on the last (admissible)
-# category, logit for rho, identity for Gaussian means.
+# category, logit for rho, identity for Gaussian means. The class-mixing
+# block, where present, is anchored on the last class the same way delta is
+# anchored on the last status.
 .lta_par_pack <- function(state, layout) {
   K <- state$n_statuses
+  C <- state$n_classes %||% 1L
   unlist(lapply(layout, function(b) {
     switch(b$kind,
+      class = {
+        p <- pmax(state$class_weights, 1e-12)
+        log(p[seq_len(C - 1L)]) - log(p[C])
+      },
       delta = {
-        p <- pmax(state$delta, 1e-12)
+        p <- pmax(state$delta_c[[b$c]], 1e-12)
         log(p[seq_len(K - 1L)]) - log(p[K])
       },
       tau = {
-        p <- pmax(state$tau[[b$i_mat]][b$k, b$allowed], 1e-12)
+        p <- pmax(state$tau_c[[b$c]][[b$i_mat]][b$k, b$allowed], 1e-12)
         log(p[-length(p)]) - log(p[length(p)])
       },
       rho = {
@@ -636,19 +656,23 @@
 .lta_par_unpack <- function(par, state, layout) {
   K  <- state$n_statuses
   Tn <- state$n_times
+  C  <- state$n_classes %||% 1L
   pos <- 0L
   for (b in layout) {
     v <- par[pos + seq_len(b$len)]
     pos <- pos + b$len
-    if (b$kind == "delta") {
+    if (b$kind == "class") {
       p <- exp(c(v, 0) - max(c(v, 0)))
-      state$delta_c[[1]] <- p / sum(p)
+      state$class_weights <- p / sum(p)
+    } else if (b$kind == "delta") {
+      p <- exp(c(v, 0) - max(c(v, 0)))
+      state$delta_c[[b$c]] <- p / sum(p)
     } else if (b$kind == "tau") {
       p <- exp(c(v, 0) - max(c(v, 0)))
       p <- p / sum(p)
       row <- numeric(K)
       row[b$allowed] <- p
-      state$tau_c[[1]][[b$i_mat]][b$k, ] <- row
+      state$tau_c[[b$c]][[b$i_mat]][b$k, ] <- row
     } else if (b$kind == "rho") {
       for (tt in b$grp)
         state$mm$models[[tt]]$parameters$pis[, b$j] <- stats::plogis(v)
@@ -657,10 +681,11 @@
         state$mm$models[[tt]]$parameters$means[, b$j] <- v
     }
   }
-  # A homogeneous transition matrix is stored once per interval, so the single
-  # free matrix has to be broadcast back over them.
+  # A homogeneous transition matrix is stored once per interval, so each
+  # class's single free matrix has to be broadcast back over them.
   if (isTRUE(state$tau_homogeneous) && Tn > 2L)
-    state$tau_c[[1]] <- rep(state$tau_c[[1]][1], Tn - 1L)
+    for (c in seq_len(C))
+      state$tau_c[[c]] <- rep(state$tau_c[[c]][1], Tn - 1L)
   .lta_pack(state)
 }
 
@@ -676,10 +701,23 @@
 # times and wants neither.
 .lta_ll_case <- function(state, X, par, layout) {
   st <- .lta_par_unpack(par, state, layout)
+  C  <- st$n_classes %||% 1L
   logB <- .lta_emission_loglik(st$mm, X)
-  .lta_forward_backward(logB, log(pmax(st$delta, 1e-300)),
-                        lapply(st$tau, function(m) log(pmax(m, 1e-300))),
-                        st$weights_vec)$ll
+  if (C == 1L)
+    return(.lta_forward_backward(logB, log(pmax(st$delta, 1e-300)),
+                                 lapply(st$tau, function(m) log(pmax(m, 1e-300))),
+                                 st$weights_vec)$ll)
+
+  # A mixture's per-case log-likelihood is log Σ_c π_c P(y_i | class c); each
+  # class runs its own chain over the shared emissions.
+  lls <- vapply(seq_len(C), function(c) {
+    sub <- .lta_class_state(st, c)
+    .lta_forward_backward(logB, log(pmax(sub$delta, 1e-300)),
+                          lapply(sub$tau, function(m) log(pmax(m, 1e-300))),
+                          st$weights_vec)$ll
+  }, numeric(nrow(X)))
+  logsumexp(sweep(lls, 2, log(pmax(st$class_weights, 1e-300)), "+"),
+            MARGIN = 1)
 }
 
 # The weighted observed marginal of item j over the occasions its M-step pools,
@@ -797,6 +835,7 @@
 # together so the two can never be written from different formulae.
 .lta_penalty <- function(state, X, layout, alpha) {
   K <- state$n_statuses
+  C <- state$n_classes %||% 1L
   # Read the way m_step.bernoulli() reads it -- off the sub-model, through
   # .bayes_alpha()'s own defaulting -- so the penalty here and the prior in the
   # M-step cannot be two different numbers.
@@ -805,21 +844,30 @@
   grad <- numeric(0)
   for (b in layout) {
     g <- numeric(b$len)
-    if (b$kind == "delta" && alpha > 0) {
-      p <- pmax(state$delta, 1e-300)
-      val <- val + (alpha / K) * sum(log(p))
-      # d/d eta_m of (a/K) sum_k log p_k, with p a softmax: a/K * (1 - K p_m).
-      g <- (alpha / K) * (1 - K * p[seq_len(K - 1L)])
+    if (b$kind == "class" && alpha > 0) {
+      # The class weights are themselves a conditional table -- C patterns,
+      # one observation apiece -- so they carry the same (alpha / C) form as
+      # delta and tau below; see .lta_log_prior(), which this mirrors exactly.
+      p <- pmax(state$class_weights, 1e-300)
+      val <- val + (alpha / C) * sum(log(p))
+      g <- (alpha / C) * (1 - C * p[seq_len(C - 1L)])
+    } else if (b$kind == "delta" && alpha > 0) {
+      p <- pmax(state$delta_c[[b$c]], 1e-300)
+      # With C classes the initial-status distribution is estimated once per
+      # class, so its (alpha / K) mass is shared C ways, matching
+      # .lta_normalise(patterns = C) in the M-step and .lta_log_prior()'s
+      # (alpha / (C * K)) term. At C == 1 this is (alpha / K), unchanged.
+      val <- val + (alpha / (C * K)) * sum(log(p))
+      # d/d eta_m of (a/(C*K)) sum_k log p_k, with p a softmax:
+      # a/(C*K) * (1 - K p_m).
+      g <- (alpha / (C * K)) * (1 - K * p[seq_len(K - 1L)])
     } else if (b$kind == "tau" && alpha > 0) {
-      p  <- pmax(state$tau[[b$i_mat]][b$k, b$allowed], 1e-300)
+      p  <- pmax(state$tau_c[[b$c]][[b$i_mat]][b$k, b$allowed], 1e-300)
       m  <- length(p)
       # `alpha` is the whole transition table's mass, spread over its K origin
       # patterns -- times C, when a latent class conditions the table too --
-      # matching .lta_normalise(patterns = K * C) in the M-step. The score
-      # blocks decline C > 1 today (.lta_scores_supported()), so this reduces to
-      # K; it is written out so that widening that scope cannot silently leave
-      # the polish climbing a different objective from EM.
-      a_tau <- alpha / (K * (state$n_classes %||% 1L) * m)
+      # matching .lta_normalise(patterns = K * C) in the M-step.
+      a_tau <- alpha / (K * C * m)
       val <- val + a_tau * sum(log(p))
       g <- a_tau * (1 - m * p[-m])
     } else if (b$kind == "rho" && a_cat > 0) {

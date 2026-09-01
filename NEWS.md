@@ -1,5 +1,44 @@
 # mixtureEM (development version)
 
+## `fit_lta()` polishes and reports standard errors for a mixture over chains
+
+A latent transition model fitted with `n_classes` greater than 1 -- a mixture
+of several possible transition "storylines," each with its own initial
+status prevalences and transition matrices -- previously declined both the
+post-EM L-BFGS refinement and standard errors: `refine = TRUE` was a silent
+no-op, and `summary()` printed a note that no standard errors were available.
+Both were declined because the internal score matrix, the object both
+consumers are built on, did not have a term for the class-mixing weights or
+for the fact that every other parameter becomes class-conditional once more
+than one chain is in the mixture.
+
+It now does. The class-mixing proportions get their own multinomial-logit
+score block, anchored on the last class the same way the initial status is
+anchored on the last status; every existing block -- the initial status and
+the transitions -- is scaled by the case's posterior probability of
+belonging to that class, licensed by the same identity that already lets EM
+train a mixture at all (Louis, 1982): the gradient of a mixture's
+observed-data log-likelihood is the posterior-weighted sum of the gradients
+of its complete-data, class-conditional log-likelihoods. The shared
+measurement model's score is unaffected in form -- it already read the
+class-mixed status posterior, because the M-step's own update does -- and is
+simply computed alongside the rest instead of being unreachable.
+
+This is the same score matrix the post-EM refinement, the standard errors,
+and the scaled log-likelihood-difference test for nested models all read
+from one place, so all three become available for a mixture over chains at
+once, for the measurement families they were already available for
+(binary and continuous indicators). A covariate-driven initial status or
+transition model is unaffected and still declines both, since its free
+parameters are case-level regression coefficients the same score blocks
+cannot describe.
+
+No previously-reported number moves: every model this affects previously
+returned `NULL` standard errors and an unrefined fit, so there is nothing on
+record to compare against. The analytic gradient this adds is checked against
+central finite differences on a synthetic two-class fixture, the same way the
+single-chain refinement already was.
+
 ## The transition prior is one pseudo-case per matrix, not per row
 
 `fit_lta(smoothing = )` is documented as a number of pseudo-cases, and it was

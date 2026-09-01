@@ -96,7 +96,7 @@ test_that("the refinement respects measurement invariance", {
   expect_equal(.lta_invariant_items(fit), seq_len(4))
 })
 
-test_that("the refinement declines the models whose parameters it cannot pack", {
+test_that("the refinement declines a covariate model, whose parameters it cannot pack", {
   X <- .lta_refine_sim()
   Z <- data.frame(z = stats::rnorm(nrow(X)))
 
@@ -107,14 +107,75 @@ test_that("the refinement declines the models whose parameters it cannot pack", 
             standard_errors = FALSE)))
   expect_false(.lta_scores_full(cov_fit))
   expect_identical(.lta_refine_lbfgs(cov_fit, X), cov_fit)
+})
 
-  # A mixture over chains: every score becomes class-conditional.
-  mix_fit <- suppressMessages(suppressWarnings(
+test_that("the refinement's gradient matches finite differences for a mixture over chains", {
+  # Every score is class-conditional here (a class-membership block, plus
+  # delta and tau blocks per class), scaled by the posterior class membership
+  # per the Fisher identity -- .lta_score_matrix()'s C > 1 branch. This is the
+  # same check test one above runs for a single chain, on a model where the
+  # class-mixing block and the per-class delta/tau blocks are all exercised
+  # together.
+  X <- .lta_refine_sim()
+  fit <- suppressMessages(suppressWarnings(
     fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
-            n_classes = 2, n_init = 2, random_state = 1,
-            standard_errors = FALSE)))
-  expect_false(.lta_scores_full(mix_fit))
-  expect_identical(.lta_refine_lbfgs(mix_fit, X), mix_fit)
+            n_classes = 2, smoothing = 0, bayes_constants = .ml, n_init = 2,
+            random_state = 1, refine = FALSE, standard_errors = FALSE)))
+  expect_true(.lta_scores_full(fit))
+
+  layout <- .lta_par_layout(fit)
+  par0   <- .lta_par_pack(fit, layout)
+  w      <- fit$weights_vec
+
+  expect_equal(length(par0), ncol(.lta_score_matrix(fit, X)$S))
+  expect_equal(length(par0), fit$n_params)
+
+  rt <- .lta_par_unpack(par0, fit, layout)
+  expect_equal(rt$delta_c, fit$delta_c, tolerance = 1e-10)
+  expect_equal(rt$tau_c, fit$tau_c, tolerance = 1e-10)
+  expect_equal(rt$class_weights, fit$class_weights, tolerance = 1e-10)
+
+  obj <- function(p) {
+    st <- .lta_par_unpack(p, fit, layout)
+    sum(w * .lta_score_matrix(st, X)$ll) +
+      .lta_penalty(st, X, layout, 0)$value
+  }
+  ana <- colSums(sweep(.lta_score_matrix(fit, X)$S, 1, w, "*")) +
+    .lta_penalty(fit, X, layout, 0)$gradient
+  eps <- 1e-5
+  fd <- vapply(seq_along(par0), function(i) {
+    e <- numeric(length(par0)); e[i] <- eps
+    (obj(par0 + e) - obj(par0 - e)) / (2 * eps)
+  }, numeric(1))
+
+  expect_lt(max(abs(ana - fd)) / max(1, max(abs(fd))), 1e-5)
+})
+
+test_that("the refinement improves a mixture-over-chains fit and matches EM at a stationary point", {
+  X <- .lta_refine_sim()
+  for (seed in 1:3) {
+    a <- suppressMessages(suppressWarnings(
+      fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+              n_classes = 2, smoothing = 0, bayes_constants = .ml,
+              n_init = 3, random_state = seed, refine = FALSE,
+              standard_errors = FALSE)))
+    b <- suppressMessages(suppressWarnings(
+      fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+              n_classes = 2, smoothing = 0, bayes_constants = .ml,
+              n_init = 3, random_state = seed, refine = TRUE,
+              standard_errors = FALSE)))
+    expect_gte(b$loglik, a$loglik - 1e-8)
+    expect_equal(b$n_params, a$n_params)
+  }
+
+  fit <- suppressMessages(suppressWarnings(
+    fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+            n_classes = 2, n_init = 2, random_state = 1, tol = 1e-14,
+            max_iter = 20000, refine = FALSE, standard_errors = FALSE)))
+  layout <- .lta_par_layout(fit)
+  g <- colSums(sweep(.lta_score_matrix(fit, X)$S, 1, fit$weights_vec, "*")) +
+    .lta_penalty(fit, X, layout, 1)$gradient
+  expect_lt(max(abs(g)), 1e-2)
 })
 
 test_that("a refined fit reports the iterations EM actually ran", {

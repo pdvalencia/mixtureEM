@@ -131,9 +131,9 @@ on a near-flat likelihood ridge can sit measurably short of the maximum;
 the climb steps past it, and never returns a fit worse than the one it was
 given. This is the same refinement \code{\link[=fit_mixture]{fit_mixture()}} has always applied.
 It is a no-op - silently, and the fit is unchanged - for models whose free
-parameters it cannot differentiate: covariate models, mixtures over chains
-(\code{n_classes} > 1), and measurement families other than binary and
-continuous.}
+parameters it cannot differentiate: covariate models and measurement
+families other than binary and continuous. Mixtures over chains
+(\code{n_classes} > 1) are refined like any other supported model.}
 
 \item{refine_from}{A model fitted by \code{\link[=fit_lta]{fit_lta()}} on the same data and with
 the same shape, whose solution this fit continues from. No random starts

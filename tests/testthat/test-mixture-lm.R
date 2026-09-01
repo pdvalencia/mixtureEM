@@ -70,17 +70,23 @@ test_that("covariates are refused rather than silently ignored", {
     "not yet available")
 })
 
-test_that("standard errors are declined, not reported wrongly", {
+test_that("a mover-stayer fit reports standard errors, not a declined note", {
+  # A mover-stayer model is a mixture over chains with one class's transitions
+  # restricted to the identity; .lta_score_matrix()'s C > 1 branch covers it
+  # like any other multi-class fit, so this is no longer declined. Same
+  # non-convergence noise as above, and equally beside the point: this test
+  # only checks that se is reported at all, not what it converges to.
   set.seed(23)
   X <- matrix(rbinom(300 * 9, 1, 0.5), ncol = 9)
-  # Same non-convergence noise as above, and equally beside the point: this
-  # test only checks that se is declined outright, not what it converges to.
   fit <- suppressWarnings(fit_lta(
     X, n_statuses = 2, times = 3, measurement = "binary",
     mover_stayer = TRUE, n_init = 3, random_state = 8,
     max_iter = 300, tol = 1e-8))
-  expect_null(fit$se)
-  expect_output(print(fit), "standard errors are not available")
+  expect_false(is.null(fit$se))
+  expect_false(is.null(fit$se$prob_se$class))
+  expect_output(print(fit), "LATENT TRANSITION ANALYSIS")
+  expect_false(grepl("standard errors are not available",
+                     paste(capture.output(print(fit)), collapse = "\n")))
 })
 
 test_that("the extractors and plots take a class", {

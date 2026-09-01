@@ -999,9 +999,11 @@ summary.lta_model <- function(object, digits = 3, ...) {
 
   if (C > 1L) {
     cat("LATENT CLASS SIZES (pi)\n")
-    print(data.frame(Class = .lta_class_labels(object),
-                     Size = round(object$class_weights, digits)),
-          row.names = FALSE)
+    d <- data.frame(Class = .lta_class_labels(object),
+                    Size = round(object$class_weights, digits))
+    if (!is.null(object$se$prob_se$class))
+      d$SE <- round(object$se$prob_se$class, digits)
+    print(d, row.names = FALSE)
     cat("\n")
   }
 
@@ -1010,6 +1012,15 @@ summary.lta_model <- function(object, digits = 3, ...) {
     d <- as.data.frame(round(object$delta, digits))
     rownames(d) <- .lta_class_labels(object)
     print(d)
+    if (!is.null(object$se$prob_se)) {
+      delta_se <- object$se$prob_se[sprintf("delta[class %d]", seq_len(C))]
+      if (!any(vapply(delta_se, is.null, logical(1)))) {
+        cat("\n  Standard errors\n")
+        se_mat <- do.call(rbind, delta_se)
+        dimnames(se_mat) <- list(.lta_class_labels(object), st)
+        print(round(se_mat, digits))
+      }
+    }
   } else {
     d <- data.frame(Status = st, Prevalence = round(object$delta, digits))
     if (!is.null(object$se$prob_se$delta))

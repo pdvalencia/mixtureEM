@@ -105,9 +105,9 @@
 #'   the climb steps past it, and never returns a fit worse than the one it was
 #'   given. This is the same refinement [`fit_mixture()`] has always applied.
 #'   It is a no-op - silently, and the fit is unchanged - for models whose free
-#'   parameters it cannot differentiate: covariate models, mixtures over chains
-#'   (`n_classes` > 1), and measurement families other than binary and
-#'   continuous.
+#'   parameters it cannot differentiate: covariate models and measurement
+#'   families other than binary and continuous. Mixtures over chains
+#'   (`n_classes` > 1) are refined like any other supported model.
 #' @param refine_from A model fitted by [`fit_lta()`] on the same data and with
 #'   the same shape, whose solution this fit continues from. No random starts
 #'   are run and `n_init` is ignored, because the search that produced the donor
@@ -1270,10 +1270,14 @@ fit_lta <- function(indicators,
 # trusts.
 #
 # A mixture over chains adds a class-membership block and makes every other
-# score class-conditional; the Fisher identity still applies but the blocks
-# below are not the right ones. Covariate models replace delta and tau with
-# case-level regressions, so the multinomial-logit blocks do not describe their
-# free parameters at all. Both are declined rather than answered wrongly.
+# score class-conditional; both are below, licensed by the Fisher identity
+# (Louis, 1982): the gradient of a mixture's observed-data log-likelihood is
+# the posterior-class-weighted sum of the gradients of its complete-data
+# (class-conditional) log-likelihoods, so every single-chain score is simply
+# scaled by the case's posterior probability of that class. Covariate models
+# replace delta and tau with case-level regressions, so the multinomial-logit
+# blocks below do not describe their free parameters at all, and are declined
+# rather than answered wrongly.
 # Which items are held equal across occasions. Read off the measurement model,
 # which carries the constraint from the moment fit_lta() builds it, NOT off
 # `state$longitudinal`, which fit_lta() attaches only once the search is over.
@@ -1289,7 +1293,7 @@ fit_lta <- function(indicators,
 .lta_scores_supported <- function(state) {
   if (state$n_statuses < 2L || state$n_times < 2L) return(FALSE)
   if (!is.null(state$delta_beta) || !is.null(state$tau_beta)) return(FALSE)
-  (state$n_classes %||% 1L) == 1L
+  TRUE
 }
 
 # The measurement families whose parameters the score blocks actually cover.
@@ -1317,16 +1321,12 @@ fit_lta <- function(indicators,
 .lta_score_matrix <- function(state, X) {
   K  <- state$n_statuses
   Tn <- state$n_times
+  C  <- state$n_classes %||% 1L
   w  <- state$weights_vec
   n  <- nrow(X)
   if (!.lta_scores_supported(state)) return(NULL)
 
   logB <- .lta_emission_loglik(state$mm, X)
-  fb <- .lta_forward_backward(logB, log(pmax(state$delta, 1e-300)),
-                              lapply(state$tau, function(m)
-                                log(pmax(m, 1e-300))), w,
-                              keep_pairwise = TRUE)
-  gam <- fb$gamma
 
   scores <- list(); blocks <- list(); pos <- 0L
   add_block <- function(s, probs, ref, name) {
@@ -1336,31 +1336,99 @@ fit_lta <- function(indicators,
     pos <<- pos + ncol(s)
   }
 
-  # delta: the score of the multinomial logit is gamma_1[i, k] - delta_k, with
-  # the last status anchored.
-  add_block(sweep(gam[[1]][, seq_len(K - 1L), drop = FALSE], 2,
-                  state$delta[seq_len(K - 1L)], "-"),
-            state$delta, seq_len(K - 1L), "delta")
+  # One class runs the single chain unchanged: `fb$gamma` is the status
+  # posterior directly and `state$tau_allowed` is already the collapsed
+  # (non-list) view .lta_pack() maintains for this case.
+  if (C == 1L) {
+    fb <- .lta_forward_backward(logB, log(pmax(state$delta, 1e-300)),
+                                lapply(state$tau, function(m)
+                                  log(pmax(m, 1e-300))), w,
+                                keep_pairwise = TRUE)
+    gam <- fb$gamma
+    ll  <- fb$ll
 
-  # tau: xi_i[t, k, l] - gamma_t[i, k] * tau_t[k, l], anchored on the last
-  # admissible destination in the row.
-  idx <- if (isTRUE(state$tau_homogeneous)) 1L else seq_len(Tn - 1L)
-  for (i_mat in idx) {
-    ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else i_mat
-    for (k in seq_len(K)) {
-      allowed <- which(state$tau_allowed[[i_mat]][k, ])
-      if (length(allowed) < 2L) next
-      free <- allowed[-length(allowed)]
-      s <- matrix(0, n, length(free))
-      for (tt in ts) {
-        pk <- fb$pairwise[[tt]][[k]]          # n x K: P(S_t = k, S_{t+1} = .)
-        s <- s + pk[, free, drop = FALSE] -
-          outer(gam[[tt]][, k], state$tau[[i_mat]][k, free])
+    # delta: the score of the multinomial logit is gamma_1[i, k] - delta_k,
+    # with the last status anchored.
+    add_block(sweep(gam[[1]][, seq_len(K - 1L), drop = FALSE], 2,
+                    state$delta[seq_len(K - 1L)], "-"),
+              state$delta, seq_len(K - 1L), "delta")
+
+    # tau: xi_i[t, k, l] - gamma_t[i, k] * tau_t[k, l], anchored on the last
+    # admissible destination in the row.
+    idx <- if (isTRUE(state$tau_homogeneous)) 1L else seq_len(Tn - 1L)
+    for (i_mat in idx) {
+      ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else i_mat
+      for (k in seq_len(K)) {
+        allowed <- which(state$tau_allowed[[i_mat]][k, ])
+        if (length(allowed) < 2L) next
+        free <- allowed[-length(allowed)]
+        s <- matrix(0, n, length(free))
+        for (tt in ts) {
+          pk <- fb$pairwise[[tt]][[k]]        # n x K: P(S_t = k, S_{t+1} = .)
+          s <- s + pk[, free, drop = FALSE] -
+            outer(gam[[tt]][, k], state$tau[[i_mat]][k, free])
+        }
+        add_block(s, state$tau[[i_mat]][k, ], free,
+                  sprintf("tau%s[from %d]",
+                          if (isTRUE(state$tau_homogeneous)) "" else
+                            paste0("(", i_mat, ")"), k))
       }
-      add_block(s, state$tau[[i_mat]][k, ], free,
-                sprintf("tau%s[from %d]",
-                        if (isTRUE(state$tau_homogeneous)) "" else
-                          paste0("(", i_mat, ")"), k))
+    }
+  } else {
+    # Several classes: run the single-chain recursion once per class -- the
+    # same shape .lta_em()'s e_step() uses -- combine into the mixture
+    # log-likelihood and the posterior class membership, then scale every
+    # single-chain score by that posterior. `.lta_mixed_gamma()` (R/lta_core.R)
+    # is the same class-mixed status posterior the M-step's measurement update
+    # already uses, reused here for exactly the reason it exists there: the
+    # measurement model is shared across classes, so its score reads the
+    # mixed posterior rather than any one class's own.
+    es <- lapply(seq_len(C), function(c) {
+      sub <- .lta_class_state(state, c)
+      .lta_forward_backward(logB, log(pmax(sub$delta, 1e-300)),
+                            lapply(sub$tau, function(m) log(pmax(m, 1e-300))),
+                            w, keep_pairwise = TRUE)
+    })
+    lp   <- vapply(seq_len(C), function(c) es[[c]]$ll, numeric(n))
+    lp   <- sweep(lp, 2, log(pmax(state$class_weights, 1e-300)), "+")
+    ll   <- logsumexp(lp, MARGIN = 1)
+    post <- exp(lp - ll)
+    gam  <- .lta_mixed_gamma(list(es = es, post = post), Tn, C)
+
+    # class weights: the score of the mixing-proportion logit is
+    # P(class = c | y_i) - pi_c, with the last class anchored -- the same
+    # multinomial-logit form as delta below, one level up.
+    add_block(sweep(post[, seq_len(C - 1L), drop = FALSE], 2,
+                    state$class_weights[seq_len(C - 1L)], "-"),
+              state$class_weights, seq_len(C - 1L), "class")
+
+    idx <- if (isTRUE(state$tau_homogeneous)) 1L else seq_len(Tn - 1L)
+    for (c in seq_len(C)) {
+      gam_c   <- es[[c]]$gamma
+      delta_c <- state$delta_c[[c]]
+
+      add_block(post[, c] * sweep(gam_c[[1]][, seq_len(K - 1L), drop = FALSE],
+                                  2, delta_c[seq_len(K - 1L)], "-"),
+                delta_c, seq_len(K - 1L), sprintf("delta[class %d]", c))
+
+      for (i_mat in idx) {
+        ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else i_mat
+        for (k in seq_len(K)) {
+          allowed <- which(state$tau_allowed_c[[c]][[i_mat]][k, ])
+          if (length(allowed) < 2L) next
+          free <- allowed[-length(allowed)]
+          s <- matrix(0, n, length(free))
+          for (tt in ts) {
+            pk <- es[[c]]$pairwise[[tt]][[k]]
+            s <- s + pk[, free, drop = FALSE] -
+              outer(gam_c[[tt]][, k], state$tau_c[[c]][[i_mat]][k, free])
+          }
+          add_block(post[, c] * s, state$tau_c[[c]][[i_mat]][k, ], free,
+                    sprintf("tau%s[from %d, class %d]",
+                            if (isTRUE(state$tau_homogeneous)) "" else
+                              paste0("(", i_mat, ")"), k, c))
+        }
+      }
     }
   }
 
@@ -1418,5 +1486,5 @@ fit_lta <- function(indicators,
   }
 
   list(S = do.call(cbind, scores), blocks = blocks,
-       conditional = conditional, ll = fb$ll, gamma = gam)
+       conditional = conditional, ll = ll, gamma = gam)
 }

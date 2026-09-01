@@ -228,10 +228,11 @@
 # here would be slower and less accurate. Only `A` is numerical.
 #
 # Returns NULL wherever the packed vector is not the model's full free parameter
-# vector: a multi-class or covariate LTA (.lta_scores_full()), a family whose
-# measurement parameters are not all packed (`conditional`, which is
-# gaussian_diag's free residual variances), or any later family whose count
-# stops matching. A wrong number silently returned is worse than none.
+# vector: a covariate LTA (.lta_scores_full()) -- a mixture over chains is
+# supported, since .lta_score_matrix() covers it -- a family whose measurement
+# parameters are not all packed (`conditional`, which is gaussian_diag's free
+# residual variances), or any later family whose count stops matching. A wrong
+# number silently returned is worse than none.
 .lta_scaling_pieces <- function(info) {
   fit <- info$fit
   if (!inherits(fit, "lta_model")) return(NULL)

@@ -37,7 +37,7 @@ test_that(".lta_scaling_pieces() returns a well-formed factor on a clean fit", {
   expect_lt(pieces$c, 2.0)
 })
 
-test_that(".lta_scaling_pieces() refuses what it cannot pack", {
+test_that(".lta_scaling_pieces() refuses a covariate model, which it cannot pack", {
   X <- .lta_refine_sim()
   Z <- data.frame(z = stats::rnorm(nrow(X)))
 
@@ -46,12 +46,24 @@ test_that(".lta_scaling_pieces() refuses what it cannot pack", {
             predictors_initial = Z, n_init = 2, random_state = 1,
             standard_errors = FALSE)))
   expect_null(.lta_scaling_pieces(.nested_fit_info(cov_fit)))
+})
 
-  mix_fit <- suppressMessages(suppressWarnings(
+test_that(".lta_scaling_pieces() returns a well-formed factor for a mixture over chains", {
+  # .lta_scores_full() no longer declines C > 1 (the class-membership and
+  # per-class delta/tau blocks .lta_score_matrix() now builds), so this path
+  # -- shared with the L-BFGS refinement and .lta_standard_errors() -- picks
+  # it up for free.
+  X <- .lta_refine_sim()
+  fit <- suppressMessages(suppressWarnings(
     fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
-            n_classes = 2, n_init = 2, random_state = 1,
-            standard_errors = FALSE)))
-  expect_null(.lta_scaling_pieces(.nested_fit_info(mix_fit)))
+            n_classes = 2, smoothing = 0, bayes_constants = .ml, n_init = 3,
+            random_state = 1, standard_errors = FALSE)))
+
+  pieces <- .lta_scaling_pieces(.nested_fit_info(fit))
+  expect_false(is.null(pieces))
+  expect_equal(pieces$p, fit$n_params)
+  expect_gt(pieces$c, 0.5)
+  expect_lt(pieces$c, 2.0)
 })
 
 test_that(".pieces_for() dispatches on the model class", {
