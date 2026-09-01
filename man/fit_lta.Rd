@@ -162,8 +162,8 @@ fitting begins, so the fit is identical at every \code{n_cores}.
 argument given here overrides it.}
 
 \item{smoothing}{How much smoothing to apply to the status prevalences and to
-each row of the transition matrices, expressed as a number of pseudo-cases
-spread evenly over the possible destinations. Sparse transition tables
+the transition matrices, expressed as a number of pseudo-cases spread
+evenly over each conditional table. Sparse transition tables
 otherwise collapse onto probabilities of exactly zero, which are awkward to
 interpret and to test. The default of \code{1} is negligible at any realistic
 sample size; set it to \code{0} for unsmoothed maximum likelihood. It governs
@@ -178,23 +178,24 @@ multinomial logit rather than a smoothed table of counts, and \code{smoothing}
 has no effect on it. The initial status prevalences behave the same way
 under \code{predictors_initial}.
 
-The mass is one pseudo-case per \emph{origin row}, which is the prior Chung,
-Lanza and Loken (2008) use for this model, and it is spread evenly rather
-than in proportion to how often each destination is occupied: a rare origin
-row shrunk toward the destination marginal would be asserting that everyone
-moves to the prevalent status, which is a confident claim to make about a
-row the sample says little about, whereas an even spread is uninformative.
+The mass is one pseudo-case per \emph{conditional table}, so with \code{K} statuses
+an origin row of a transition matrix carries a \code{K}th of it. It is spread
+evenly rather than in proportion to how often each destination is
+occupied: a rare origin row shrunk toward the destination marginal would
+be asserting that everyone moves to the prevalent status, which is a
+confident claim to make about a row the sample says little about, whereas
+an even spread is uninformative.
 
 The cost falls on exactly those rows. On a row with few expected cases the
 prior carries a visible share of the estimate - at most
-\eqn{[\alpha / (m + \alpha)](1 - 1/K_a)} of it, for a row with \eqn{m}
-expected cases and \eqn{K_a} reachable destinations - and the fit says so
-when that share exceeds five percentage points, naming the worst row. The
-remedy worth reaching for first is \code{transition_invariance = "full"}, which
-puts every occasion's cases behind one pseudo-case; \code{smoothing = 0.5}
-simply halves the pull. \code{smoothing = 0} is not a good answer, since it
-removes the protection against transition probabilities of exactly zero
-that the prior is there to give.}
+\eqn{[a / (m + a)](1 - 1/K_a)} of it, where \eqn{a} is that row's share of
+the mass, \eqn{m} the cases expected in it and \eqn{K_a} the reachable
+destinations - and the fit says so when that share exceeds five percentage
+points, naming the worst row. The remedy worth reaching for first is
+\code{transition_invariance = "full"}, which puts every occasion's cases behind
+one pseudo-case; \code{smoothing = 0.5} simply halves the pull. \code{smoothing = 0}
+is not a good answer, since it removes the protection against transition
+probabilities of exactly zero that the prior is there to give.}
 
 \item{random_state}{Optional seed for reproducible starts.}
 

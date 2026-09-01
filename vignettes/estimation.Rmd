@@ -312,22 +312,25 @@ estimated at exactly zero says the move never happens, which is rarely what a
 handful of cases in an origin row can support, and it carries the same broken
 standard errors as any other boundary estimate.
 
-What is added is **one pseudo-case per origin row**, spread evenly over that
-row's reachable destinations. Both halves of that are choices. The mass is per
-row rather than per cell, which is the prior Chung, Lanza and Loken (2008) use
-for exactly this model — they describe it as adding one observation to each
-class at the first occasion — and the boundary solutions maximum likelihood
-produces at *n* = 100 disappear under it. The spread is even rather than
-proportional to how often each destination is occupied: shrinking a rare origin
-row toward the destination marginal would assert that everyone in it moves to
-the prevalent status, which is a confident claim about a row the data say little
-about, where an even spread claims nothing (Fienberg & Holland, 1973, sec. 6).
+What is added is **one pseudo-case per conditional table**, spread evenly over
+its cells. A transition matrix is one such table, so with $K$ statuses an
+origin row of it carries $\alpha / K$ of the mass. Both halves of that are
+choices. The mass is per table rather than per cell, in the spirit of the prior
+Chung, Lanza and Loken (2008) use for exactly this model - they describe it as
+adding one observation to each class at the first occasion - and the boundary
+solutions maximum likelihood produces at *n* = 100 disappear under it. The
+spread is even rather than proportional to how often each destination is
+occupied: shrinking a rare origin row toward the destination marginal would
+assert that everyone in it moves to the prevalent status, which is a confident
+claim about a row the data say little about, where an even spread claims
+nothing (Fienberg & Holland, 1973, sec. 6).
 
-The cost falls on precisely those rows, and it has an exact form. For a row with
-$m$ expected cases and $K_a$ reachable destinations, the prior can move any
-probability in it by at most
+The cost falls on precisely those rows, and it has an exact form. Writing $a$
+for the share of the mass a row carries, then for a row with $m$ expected cases
+and $K_a$ reachable destinations the prior can move any probability in it by at
+most
 
-$$\text{pull} = \frac{\alpha}{m + \alpha}\left(1 - \frac{1}{K_a}\right)$$
+$$\text{pull} = \frac{a}{m + a}\left(1 - \frac{1}{K_a}\right)$$
 
 A fit reports this per row and tells you when it exceeds five percentage points
 on any of them, naming the worst. That is a reading caution, not a verdict on

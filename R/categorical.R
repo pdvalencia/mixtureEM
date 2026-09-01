@@ -40,7 +40,8 @@ init_params.bernoulli <- function(model_state, X, resp, random_state = NULL, ...
 }
 
 #' @exportS3Method
-m_step.bernoulli <- function(model_state, X, resp, weights = NULL, alpha = NULL, ...) {
+m_step.bernoulli <- function(model_state, X, resp, weights = NULL, alpha = NULL,
+                             prior_scale = 1, ...) {
   alpha <- alpha %||% .bayes_alpha(model_state, "categorical")
   if (!is.null(weights)) {
     resp <- sweep(resp, 1, weights, "*")
@@ -50,7 +51,11 @@ m_step.bernoulli <- function(model_state, X, resp, weights = NULL, alpha = NULL,
   }
 
   K <- model_state$n_components
-  prior_obs <- alpha / K
+  # `prior_scale` is the number of equations this one update stands in for. It
+  # is 1 everywhere except the stacked update m_step.blocks() runs for an item
+  # held invariant across time blocks, which sees that many occasions' data at
+  # once and must carry that many occasions' prior with it.
+  prior_obs <- prior_scale * alpha / K
 
   pis <- t(resp) %*% X
 
@@ -87,14 +92,15 @@ init_params.bernoulli_nan <- init_params.bernoulli
 n_parameters.bernoulli_nan <- n_parameters.bernoulli
 
 #' @exportS3Method
-m_step.bernoulli_nan <- function(model_state, X, resp, weights = NULL, alpha = NULL, ...) {
+m_step.bernoulli_nan <- function(model_state, X, resp, weights = NULL, alpha = NULL,
+                                 prior_scale = 1, ...) {
   alpha <- alpha %||% .bayes_alpha(model_state, "categorical")
   if (!is.null(weights)) {
     resp <- sweep(resp, 1, weights, "*")
   }
 
   K <- model_state$n_components
-  prior_obs <- alpha / K
+  prior_obs <- prior_scale * alpha / K
   pis <- matrix(0, nrow = K, ncol = ncol(X),
                 dimnames = list(NULL, colnames(X)))
 
@@ -198,7 +204,8 @@ init_params.multinoulli <- function(model_state, X, resp, random_state = NULL, .
 }
 
 #' @exportS3Method
-m_step.multinoulli <- function(model_state, X, resp, weights = NULL, alpha = NULL, ...) {
+m_step.multinoulli <- function(model_state, X, resp, weights = NULL, alpha = NULL,
+                               prior_scale = 1, ...) {
   alpha <- alpha %||% .bayes_alpha(model_state, "categorical")
   if (!is.null(weights)) {
     resp <- sweep(resp, 1, weights, "*")
@@ -209,7 +216,7 @@ m_step.multinoulli <- function(model_state, X, resp, weights = NULL, alpha = NUL
 
   X_oh <- one_hot(X, model_state$max_val)
   K <- model_state$n_components
-  prior_obs <- alpha / K
+  prior_obs <- prior_scale * alpha / K
 
   # Calculate marginal probabilities ignoring NAs
   marginal_prob <- numeric(ncol(X_oh))

@@ -201,9 +201,11 @@ test_that("the reported pull is the Fienberg-Holland weight of the row", {
   inf <- fit$smoothing_influence
   expect_equal(nrow(inf), 2L)                       # one row per origin status
   expect_null(inf$class)                            # dropped for a single chain
-  # pull = [alpha / (m + alpha)] * (1 - 1/Ka), exactly, with alpha = 1 and both
-  # destinations admissible.
-  expect_equal(inf$pull, (1 / (inf$n_expected + 1)) * 0.5, tolerance = 1e-12)
+  # pull = [a / (m + a)] * (1 - 1/Ka), exactly, where a = alpha / (K * C) is the
+  # share of the table's prior mass that one origin row carries. Here alpha = 1,
+  # K = 2 and C = 1, so a = 0.5, and both destinations are admissible.
+  a <- 1 / 2
+  expect_equal(inf$pull, (a / (inf$n_expected + a)) * 0.5, tolerance = 1e-12)
   # The expected counts are the rows of the transition table the M-step formed.
   expect_equal(sum(inf$n_expected), sum(fit$xi[[1]]), tolerance = 1e-8)
 
@@ -214,11 +216,15 @@ test_that("the reported pull is the Fienberg-Holland weight of the row", {
 })
 
 test_that("a sparse origin row is reported, and pooling the occasions relieves it", {
-  set.seed(43)
-  n  <- 90
+  # A transition row carries alpha / K of the table's prior mass, not all of it,
+  # so a row has to be genuinely thin before the prior is 5% of it: at K = 3 the
+  # threshold is crossed below about four expected cases. The rarest status here
+  # is fitted at roughly 2.4. The threshold itself is unchanged.
+  set.seed(17)
+  n  <- 60
   p  <- rbind(c(.9, .9, .9, .9), c(.5, .1, .9, .5), c(.1, .1, .1, .1))
   mk <- function(s) matrix(rbinom(n * 4, 1, p[s, ]), n, 4)
-  s  <- lapply(1:3, function(i) sample(1:3, n, TRUE, c(.6, .35, .05)))
+  s  <- lapply(1:3, function(i) sample(1:3, n, TRUE, c(.60, .38, .02)))
   X  <- do.call(cbind, lapply(s, mk))
   go <- function(...) fit_lta(X, n_statuses = 3, times = 3, n_init = 5,
                               random_state = 3, standard_errors = FALSE, ...)
@@ -249,11 +255,11 @@ test_that("nothing is reported when the prior does not reach the transitions", {
   # reported on a model whose transition matrices `smoothing` never touches.
   # With covariates they are the fitted values of a multinomial logit
   # (.lta_mstep_tau_cov), which does not call .lta_normalise().
-  set.seed(43)
-  n  <- 90
+  set.seed(17)
+  n  <- 60
   p  <- rbind(c(.9, .9, .9, .9), c(.5, .1, .9, .5), c(.1, .1, .1, .1))
   mk <- function(s) matrix(rbinom(n * 4, 1, p[s, ]), n, 4)
-  s  <- lapply(1:3, function(i) sample(1:3, n, TRUE, c(.6, .35, .05)))
+  s  <- lapply(1:3, function(i) sample(1:3, n, TRUE, c(.60, .38, .02)))
   X  <- do.call(cbind, lapply(s, mk))
   go <- function(...) fit_lta(X, n_statuses = 3, times = 3, n_init = 5,
                               random_state = 3, standard_errors = FALSE, ...)

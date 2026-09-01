@@ -1,5 +1,73 @@
 # mixtureEM (development version)
 
+## The transition prior is one pseudo-case per matrix, not per row
+
+`fit_lta(smoothing = )` is documented as a number of pseudo-cases, and it was
+adding that many to *every origin row* of every transition matrix. A K-status
+model therefore carried K times the mass the number implies, and K times the
+mass the program this package is calibrated against puts on the same table:
+that program spreads the constant over the whole conditional table, because a
+chained latent transition model makes the previous status a predictor of the
+next and its prior divides by the number of predictor patterns. The initial
+status prevalences were already right, and so was every model with one
+occasion; only the transitions were affected.
+
+The measurement prior ran the other way. Under measurement invariance the
+occasions are pooled into one update, and `bayes_constants$categorical` was
+applied once to the pooled counts. The other program writes one measurement
+equation per occasion and puts the constant on each of them, so an item held
+invariant across T occasions carries T times what it carried here. Both
+constants now match.
+
+Numbers move only where a prior is actually switched on. Every fit with
+`smoothing = 0` and `bayes_constants` zeroed -- which is how the package is
+validated against the reference programs, because those fits use no priors --
+is unchanged to the last bit, on all four benchmarks checked.
+
+Where the priors are on, the two corrections pull in opposite directions and
+which one dominates depends on the model. A model with many statuses and few
+occasions loses more transition prior than it gains measurement prior and ends
+up closer to unpenalised maximum likelihood: on a four-status three-occasion
+fit the log-likelihood rises by 0.30, and on a five-occasion two-status model
+the gap to the reference log-likelihood halves, from 0.73 to 0.35. A model with
+many occasions and few statuses goes the other way, because the measurement
+prior it gains is the larger of the two: a five-occasion two-status fit with an
+invariant single indicator drops by 0.02, and the two-occasion four-status
+benchmark by 0.15. Both directions are the reference program's own constants
+being applied; neither is a regression.
+
+`$smoothing_influence` is recalibrated to match, so the reported pull is a
+row's real share rather than K times it, and the five-percent warning now
+fires on rows that genuinely are that thin.
+
+## `fit_lta()` stops and ranks restarts on the objective it is climbing
+
+The M-step and the L-BFGS refinement maximise the penalised objective -- the
+log-likelihood plus the priors above -- while the EM convergence test and the
+choice of the best random start compared the plain log-likelihood. The plain
+log-likelihood is not monotone under a penalised M-step, so the stopping rule
+could fire early, late or on noise, and the winning restart could be a point
+the search had not converged to: a restart's penalised value and its plain
+log-likelihood are not monotonically related, so the two rankings disagree.
+Both now use the penalised objective.
+
+`loglik` still reports the plain log-likelihood. Every information criterion,
+`lr_test()`, `lta_g2()` and every published comparison is defined on it, and
+none of them changes meaning. Where the exact penalised objective cannot be
+written down -- Gaussian, count and polytomous indicators, whose measurement
+priors are not the marginal-preserving Beta one -- the old rule is kept rather
+than an approximate objective used, since an incomplete penalty would not be
+monotone either.
+
+The practical gain is in how often the search agrees with itself. On a
+five-occasion model the number of random starts reaching the reported solution
+went from 2 of 40 to 40 of 40, and on a four-status two-occasion benchmark from
+1 of 20 to 20 of 20; a four-status three-occasion fit converged in 349 EM
+iterations against 546. And with both changes together, a benchmark the
+reference program fits to a log-posterior of -5062.595 moves from -5065.089 to
+-5062.425: from 2.49 behind it to 0.17 ahead.
+
+
 ## `n_cores` can be set once for a session, and the workers are now kept
 
 Every function that spreads work over processes -- `fit_mixture()`, `fit_lta()`,

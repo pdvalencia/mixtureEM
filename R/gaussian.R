@@ -196,7 +196,8 @@ init_params.gaussian_diag <- function(model_state, X, resp, random_state = NULL,
 }
 
 #' @exportS3Method
-m_step.gaussian_diag <- function(model_state, X, resp, weights = NULL, ...) {
+m_step.gaussian_diag <- function(model_state, X, resp, weights = NULL,
+                                 prior_scale = 1, ...) {
   if (!is.null(weights)) resp <- sweep(resp, 1, weights, "*")
 
   # 1. Update Means
@@ -230,7 +231,7 @@ m_step.gaussian_diag <- function(model_state, X, resp, weights = NULL, ...) {
   # `bayes_constants = list(variances = 0)` a usable escape hatch rather than an
   # approximate one.
   alpha     <- .bayes_alpha(model_state, "variances")
-  prior_obs <- alpha / model_state$n_components
+  prior_obs <- prior_scale * alpha / model_state$n_components
   s2        <- .marginal_var(X, weights)
 
   rx <- t(resp) %*% X                       # this is what `means` was built from
@@ -280,7 +281,8 @@ init_params.gaussian_diag_nan <- function(model_state, X, resp, random_state = N
 n_parameters.gaussian_diag_nan <- n_parameters.gaussian_diag
 
 #' @exportS3Method
-m_step.gaussian_diag_nan <- function(model_state, X, resp, weights = NULL, ...) {
+m_step.gaussian_diag_nan <- function(model_state, X, resp, weights = NULL,
+                                     prior_scale = 1, ...) {
   if (!is.null(weights)) resp <- sweep(resp, 1, weights, "*")
 
   # Same prior as the complete-data M-step above; see the comment there for the
@@ -289,7 +291,7 @@ m_step.gaussian_diag_nan <- function(model_state, X, resp, weights = NULL, ...) 
   # column's observed cells, so an item observed on a tenth of the sample gets a
   # prior calibrated to the tenth that saw it rather than to the whole.
   alpha     <- .bayes_alpha(model_state, "variances")
-  prior_obs <- alpha / model_state$n_components
+  prior_obs <- prior_scale * alpha / model_state$n_components
   s2        <- .marginal_var(X, weights)
 
   K <- model_state$n_components

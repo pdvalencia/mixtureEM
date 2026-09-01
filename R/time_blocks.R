@@ -224,12 +224,24 @@ m_step.blocks <- function(model_state, X, resp, weights = NULL, ...) {
   }
 
   # Invariant items: one update on the stacked blocks, copied everywhere.
+  #
+  # The prior travels with the number of equations, not with the pooling. Time
+  # blocks are Bn genuinely distinct response variables (t1_i1, t2_i1, ...), and
+  # the other program writes one measurement equation per occasion and puts
+  # alpha/K on each; constraining them equal ties the parameters but leaves Bn
+  # prior terms, so the stacked update -- which sees Bn times the data -- must
+  # carry Bn times the mass. Group blocks are the same response variable
+  # observed once per case, one equation whose prior that program spreads over
+  # the G group patterns, so the mass stays as it is. Getting this wrong
+  # weakens the measurement prior by a factor of Bn on every invariant LTA;
+  # see `### 41.1 re-opened` in internal/ROADMAP.md.
   if (length(inv)) {
     X_pool    <- .strip_block_prefix(.stack_blocks(X, J, Bn))
     resp_pool <- do.call(rbind, lapply(seq_len(Bn), resp_at))
     w_pool    <- if (is.null(weights)) NULL else rep(weights, Bn)
+    scale     <- if (inherits(model_state, "time_blocks")) Bn else 1L
     pooled    <- m_step(model_state$models[[1]], X_pool, resp_pool,
-                        weights = w_pool, ...)
+                        weights = w_pool, prior_scale = scale, ...)
     for (b in seq_len(Bn))
       model_state$models[[b]] <-
         if (all_invariant) pooled

@@ -127,14 +127,18 @@
 #
 # Two choices here are deliberate and both are sourced.
 #
-# The mass is one pseudo-case per row, not per cell. That is Chung, Lanza &
-# Loken's (2008) prior for LTA exactly - a Dirichlet with constant
-# hyper-parameter 1/L on the joint class-membership probabilities, which they
-# describe as "adding just one observation to each class at time 1" - and under
-# it the boundary solutions ML produces at n = 100 disappear with lower RMSE.
-# The add-one-per-cell family (Jeffreys, Laplace, Goodman's add-2) is markedly
-# worse on sparse transition structures, which is Fienberg & Holland's (1973)
-# own finding about adding 2 to every cell of a large sparse table.
+# The mass is one pseudo-case per conditional table, not per cell and not per
+# row. Chung, Lanza & Loken (2008) put a Dirichlet with constant
+# hyper-parameter 1/L on the joint class-membership probabilities - "adding just
+# one observation to each class at time 1" - and under a prior of that shape the
+# boundary solutions ML produces at n = 100 disappear with lower RMSE. The
+# add-one-per-cell family (Jeffreys, Laplace, Goodman's add-2) is markedly worse
+# on sparse transition structures, which is Fienberg & Holland's (1973) own
+# finding about adding 2 to every cell of a large sparse table. Until 2026-08-31
+# the mass here was one pseudo-case per *row*, which is K times what the program
+# this package calibrates against puts on a transition matrix; `patterns` below
+# is what fixes that, and `### 41.1 re-opened` in internal/ROADMAP.md records
+# the reconciliation that measured it.
 #
 # The spread is even, not proportional to the destinations' marginal. That is
 # the opposite of the measurement model's prior (m_step.bernoulli(), which
@@ -149,11 +153,24 @@
 # that makes the marginal form right for the item-response probabilities does
 # not apply either - a transition row has K cells however many items, occasions
 # or cases the model has.
-.lta_normalise <- function(counts, alpha, allowed = NULL) {
+#
+# `patterns` is the number of distinct predictor patterns the conditional
+# distribution being normalised is estimated for -- 1 for a marginal
+# distribution, K for a transition matrix's rows, K * C when a latent class sits
+# above the chain as well. `alpha` is the mass for the WHOLE conditional table,
+# so a row of it receives `alpha / patterns` and a cell of that row
+# `alpha / (patterns * sum(allowed))`. This is the other program's constant: its
+# prior on a latent variable is `alpha / (K * U0)` per cell, with U0 the count of
+# unique covariate and predictor patterns, and in a chained LTA the previous
+# status is a predictor. Until 2026-08-31 `patterns` was effectively 1 here, so a
+# transition matrix received K times the mass it should have -- see
+# `### 41.1 re-opened` in internal/ROADMAP.md, which pins the constant by
+# evaluating the kernel at that program's own converged solution.
+.lta_normalise <- function(counts, alpha, allowed = NULL, patterns = 1L) {
   if (is.null(allowed)) allowed <- rep(TRUE, length(counts))
   if (!any(allowed)) return(rep(1 / length(counts), length(counts)))
   out <- numeric(length(counts))
-  prior <- alpha / sum(allowed)
+  prior <- alpha / (patterns * sum(allowed))
   num <- counts[allowed] + prior
   out[allowed] <- num / sum(num)
   out
@@ -303,7 +320,7 @@
   C  <- state$n_classes
   n  <- nrow(X)
 
-  prev_ll <- -Inf
+  prev_obj <- -Inf
   converged <- FALSE
   n_iter <- 0L
 
@@ -332,21 +349,39 @@
     list(es = es, post = exp(lp - ll), ll = ll)
   }
 
+  # EM is stopped on the objective it climbs -- the plain log-likelihood plus
+  # the M-step's own prior -- not on the log-likelihood alone. Where that
+  # objective cannot be written down exactly (.lta_log_prior() says so by
+  # returning NA) the rule falls back to the plain log-likelihood. The item
+  # marginals behind the measurement term are formed once here; support cannot
+  # change during the loop, so it is settled once too.
+  prior_marg <- if (alpha > 0 || .bayes_alpha(state$mm$models[[1]],
+                                              "categorical") > 0)
+    tryCatch(.lta_prior_marginals(state, X), error = function(e) NULL) else NULL
+  obj_of <- function(st, ll) {
+    lp <- .lta_log_prior(st, X, alpha, prior_marg)
+    if (is.na(lp)) ll else ll + lp
+  }
+  use_pen <- !is.na(.lta_log_prior(state, X, alpha, prior_marg))
+
   for (iter in seq_len(max_iter)) {
     E <- e_step(state)
     cur_ll <- sum(w * E$ll)
+    # `state` here is still the point that produced `E`, so the prior and the
+    # log-likelihood are read at the same parameters.
+    cur_obj <- if (use_pen) obj_of(state, cur_ll) else cur_ll
 
     if (iter > 1L) {
-      change <- cur_ll - prev_ll
+      change <- cur_obj - prev_obj
       if (!is.na(change) &&
           (abs(change) < tol ||
-           abs(change / max(abs(prev_ll), 1e-9)) < tol)) {
+           abs(change / max(abs(prev_obj), 1e-9)) < tol)) {
         converged <- TRUE
         n_iter <- iter
         break
       }
     }
-    prev_ll <- cur_ll
+    prev_obj <- cur_obj
     n_iter  <- iter
 
     # --- class weights --------------------------------------------------------
@@ -370,7 +405,12 @@
         state <- .lta_mstep_delta_cov(state, es$gamma[[1]])
         state$delta_c[[c]] <- state$delta
       } else {
-        state$delta_c[[c]] <- .lta_normalise(colSums(es$gamma[[1]] * wc), alpha)
+        # With a latent class above the chain the initial-status distribution is
+        # itself conditional on that class, so the prior mass is shared over the
+        # C patterns. With one class this is the marginal case and `patterns` is
+        # 1, which is what it has always been.
+        state$delta_c[[c]] <- .lta_normalise(colSums(es$gamma[[1]] * wc), alpha,
+                                             patterns = C)
       }
 
       # --- transition matrices ------------------------------------------------
@@ -380,17 +420,23 @@
       } else if (Tn > 1L) {
         Xi <- .lta_pair_counts(es, wc, K, Tn, C)
         allowed <- state$tau_allowed_c[[c]]
+        # A transition matrix is one conditional table over K origin patterns
+        # (times C, when a latent class conditions it too), so `alpha` is its
+        # mass in total rather than each row's. See .lta_normalise().
+        n_pat <- K * C
         if (isTRUE(state$tau_homogeneous)) {
           pooled <- Reduce(`+`, Xi)
           tau1 <- matrix(0, K, K)
           for (k in seq_len(K))
-            tau1[k, ] <- .lta_normalise(pooled[k, ], alpha, allowed[[1]][k, ])
+            tau1[k, ] <- .lta_normalise(pooled[k, ], alpha, allowed[[1]][k, ],
+                                        patterns = n_pat)
           state$tau_c[[c]] <- rep(list(tau1), Tn - 1L)
         } else {
           for (t in seq_len(Tn - 1L)) {
             m <- matrix(0, K, K)
             for (k in seq_len(K))
-              m[k, ] <- .lta_normalise(Xi[[t]][k, ], alpha, allowed[[t]][k, ])
+              m[k, ] <- .lta_normalise(Xi[[t]][k, ], alpha, allowed[[t]][k, ],
+                                       patterns = n_pat)
             state$tau_c[[c]][[t]] <- m
           }
         }
@@ -651,6 +697,102 @@
   if (den == 0) 0.5 else num / den
 }
 
+# The observed item marginals every measurement prior is centred on, one per
+# (occasion, item), with an invariant item's pooled value repeated down its
+# column. Identical to what .lta_rho_prior_marginal() returns block by block,
+# but formed once: it depends only on `X` and the case weights, neither of which
+# moves during EM.
+.lta_prior_marginals <- function(state, X) {
+  J <- state$n_items; Tn <- state$n_times; w <- state$weights_vec
+  inv <- .lta_invariant_items(state)
+  M <- matrix(NA_real_, Tn, J)
+  for (j in seq_len(J)) {
+    grps <- if (j %in% inv) list(seq_len(Tn)) else lapply(seq_len(Tn), identity)
+    for (g in grps) {
+      num <- 0; den <- 0
+      for (tt in g) {
+        xj  <- X[, .time_block_cols(tt, J)[j]]
+        obs <- !is.na(xj)
+        num <- num + sum(w[obs] * xj[obs])
+        den <- den + sum(w[obs])
+      }
+      M[g, j] <- if (den == 0) 0.5 else num / den
+    }
+  }
+  M
+}
+
+# The log-prior the M-step actually adds: the quantity whose sum with the plain
+# log-likelihood EM is guaranteed not to decrease. The EM stopping rule and the
+# best-restart ranking both compare that sum, because a rule that stops or ranks
+# on a quantity the iteration is not climbing can fire early, late or on noise
+# -- the plain log-likelihood is not monotone under a penalised M-step. See
+# `### 41.1 re-opened` in internal/ROADMAP.md for the measurement, including why
+# the reverse (ranking on the plain log-likelihood) looked better under a
+# scoring rule that was itself the plain log-likelihood.
+#
+# Returns NA_real_ where the exact quantity cannot be written down, and the
+# caller then falls back to the plain log-likelihood -- the rule the package
+# used everywhere before 2026-08-31. An INCOMPLETE penalty would be worse than
+# no penalty, because the sum would not be monotone either. The gap is the
+# measurement families whose prior is not the marginal-preserving Beta one:
+# Gaussian variances, Poisson rates and the polytomous Dirichlet. `smoothing`
+# is inert wherever a covariate M-step replaces a normalised count, so those
+# blocks are skipped on exactly the condition the M-step branches on.
+.lta_log_prior <- function(state, X, alpha, marginals = NULL) {
+  fam <- class(state$mm$models[[1]])[1]
+  known <- c("bernoulli", "bernoulli_nan",     # marginal-preserving Beta prior
+             "gaussian_unit", "gaussian_unit_nan")  # no measurement prior at all
+  if (!fam %in% known) return(NA_real_)
+
+  K  <- state$n_statuses
+  C  <- state$n_classes %||% 1L
+  Tn <- state$n_times
+  val <- 0
+
+  if (alpha > 0) {
+    if (C > 1L)
+      val <- val + (alpha / C) * sum(log(pmax(state$class_weights, 1e-300)))
+    if (is.null(state$Z_delta))
+      for (c in seq_len(C))
+        val <- val + (alpha / (C * K)) *
+          sum(log(pmax(state$delta_c[[c]], 1e-300)))
+    if (Tn > 1L && is.null(state$Z_tau)) {
+      n_pat <- K * C
+      for (c in seq_len(C)) {
+        mats <- state$tau_c[[c]]
+        # Under `transition_invariance = "full"` one matrix is estimated and
+        # then broadcast, so its prior is carried once, not Tn - 1 times.
+        idx  <- if (isTRUE(state$tau_homogeneous)) 1L else seq_along(mats)
+        allowed <- state$tau_allowed_c[[c]]
+        for (i in idx) for (k in seq_len(K)) {
+          ok <- allowed[[i]][k, ]
+          if (!any(ok)) next
+          val <- val + (alpha / (n_pat * sum(ok))) *
+            sum(log(pmax(mats[[i]][k, ok], 1e-300)))
+        }
+      }
+    }
+  }
+
+  a_cat <- .bayes_alpha(state$mm$models[[1]], "categorical")
+  if (a_cat > 0 && fam %in% c("bernoulli", "bernoulli_nan")) {
+    if (is.null(marginals)) marginals <- .lta_prior_marginals(state, X)
+    inv <- .lta_invariant_items(state)
+    for (j in seq_len(state$n_items)) {
+      grps <- if (j %in% inv) list(seq_len(Tn)) else lapply(seq_len(Tn), identity)
+      for (g in grps) {
+        p  <- pmin(pmax(state$mm$models[[g[1]]]$parameters$pis[, j], 1e-300),
+                   1 - 1e-300)
+        mj <- marginals[g[1], j]
+        val <- val + length(g) * (a_cat / K) *
+          sum(mj * log(p) + (1 - mj) * log1p(-p))
+      }
+    }
+  }
+  val
+}
+
 # The penalty and its gradient, as a function of the current `state`, returned
 # together so the two can never be written from different formulae.
 .lta_penalty <- function(state, X, layout, alpha) {
@@ -671,15 +813,27 @@
     } else if (b$kind == "tau" && alpha > 0) {
       p  <- pmax(state$tau[[b$i_mat]][b$k, b$allowed], 1e-300)
       m  <- length(p)
-      val <- val + (alpha / m) * sum(log(p))
-      g <- (alpha / m) * (1 - m * p[-m])
+      # `alpha` is the whole transition table's mass, spread over its K origin
+      # patterns -- times C, when a latent class conditions the table too --
+      # matching .lta_normalise(patterns = K * C) in the M-step. The score
+      # blocks decline C > 1 today (.lta_scores_supported()), so this reduces to
+      # K; it is written out so that widening that scope cannot silently leave
+      # the polish climbing a different objective from EM.
+      a_tau <- alpha / (K * (state$n_classes %||% 1L) * m)
+      val <- val + a_tau * sum(log(p))
+      g <- a_tau * (1 - m * p[-m])
     } else if (b$kind == "rho" && a_cat > 0) {
       p  <- pmin(pmax(state$mm$models[[b$grp[1]]]$parameters$pis[, b$j],
                       1e-300), 1 - 1e-300)
       mj <- .lta_rho_prior_marginal(state, X, b)
-      val <- val + (a_cat / K) * sum(mj * log(p) + (1 - mj) * log1p(-p))
-      # On the logit scale the derivative collapses to (a/K) * (m_j - rho).
-      g <- (a_cat / K) * (mj - p)
+      # The other program writes one measurement equation per occasion and puts
+      # a_cat/K on each, so an item held invariant over the occasions in `grp`
+      # carries that mass once per occasion, not once in total. m_step.blocks()
+      # applies the same multiplier when it pools the occasions.
+      a_rho <- length(b$grp) * a_cat / K
+      val <- val + a_rho * sum(mj * log(p) + (1 - mj) * log1p(-p))
+      # On the logit scale the derivative collapses to a_rho * (m_j - rho).
+      g <- a_rho * (mj - p)
     }
     grad <- c(grad, g)
   }

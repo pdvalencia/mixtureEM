@@ -132,8 +132,8 @@
 #'   real, respected argument, because a chain mixture converges slowly
 #'   enough that the fixed rule would not do.)
 #' @param smoothing How much smoothing to apply to the status prevalences and to
-#'   each row of the transition matrices, expressed as a number of pseudo-cases
-#'   spread evenly over the possible destinations. Sparse transition tables
+#'   the transition matrices, expressed as a number of pseudo-cases spread
+#'   evenly over each conditional table. Sparse transition tables
 #'   otherwise collapse onto probabilities of exactly zero, which are awkward to
 #'   interpret and to test. The default of `1` is negligible at any realistic
 #'   sample size; set it to `0` for unsmoothed maximum likelihood. It governs
@@ -148,23 +148,24 @@
 #'   has no effect on it. The initial status prevalences behave the same way
 #'   under `predictors_initial`.
 #'
-#'   The mass is one pseudo-case per *origin row*, which is the prior Chung,
-#'   Lanza and Loken (2008) use for this model, and it is spread evenly rather
-#'   than in proportion to how often each destination is occupied: a rare origin
-#'   row shrunk toward the destination marginal would be asserting that everyone
-#'   moves to the prevalent status, which is a confident claim to make about a
-#'   row the sample says little about, whereas an even spread is uninformative.
+#'   The mass is one pseudo-case per *conditional table*, so with `K` statuses
+#'   an origin row of a transition matrix carries a `K`th of it. It is spread
+#'   evenly rather than in proportion to how often each destination is
+#'   occupied: a rare origin row shrunk toward the destination marginal would
+#'   be asserting that everyone moves to the prevalent status, which is a
+#'   confident claim to make about a row the sample says little about, whereas
+#'   an even spread is uninformative.
 #'
 #'   The cost falls on exactly those rows. On a row with few expected cases the
 #'   prior carries a visible share of the estimate - at most
-#'   \eqn{[\alpha / (m + \alpha)](1 - 1/K_a)} of it, for a row with \eqn{m}
-#'   expected cases and \eqn{K_a} reachable destinations - and the fit says so
-#'   when that share exceeds five percentage points, naming the worst row. The
-#'   remedy worth reaching for first is `transition_invariance = "full"`, which
-#'   puts every occasion's cases behind one pseudo-case; `smoothing = 0.5`
-#'   simply halves the pull. `smoothing = 0` is not a good answer, since it
-#'   removes the protection against transition probabilities of exactly zero
-#'   that the prior is there to give.
+#'   \eqn{[a / (m + a)](1 - 1/K_a)} of it, where \eqn{a} is that row's share of
+#'   the mass, \eqn{m} the cases expected in it and \eqn{K_a} the reachable
+#'   destinations - and the fit says so when that share exceeds five percentage
+#'   points, naming the worst row. The remedy worth reaching for first is
+#'   `transition_invariance = "full"`, which puts every occasion's cases behind
+#'   one pseudo-case; `smoothing = 0.5` simply halves the pull. `smoothing = 0`
+#'   is not a good answer, since it removes the protection against transition
+#'   probabilities of exactly zero that the prior is there to give.
 #' @param bayes_constants Optional named list of prior strengths for the
 #'   *measurement* model (`categorical`, `poisson`, `variances`); see
 #'   [`fit_mixture()`]. The status and transition probabilities are governed by
@@ -560,6 +561,19 @@ fit_lta <- function(indicators,
   # loop: the first is a ranking pass stopped at 250 iterations, and its
   # log-likelihoods are not the maxima of anything.
   final_lls <- numeric(0)
+  # Restarts are ranked on the objective EM climbed, not on the plain
+  # log-likelihood it reports. Two candidates' penalised values and their plain
+  # log-likelihoods are not monotonically related, so ranking on the latter can
+  # return a point the search did not converge to as the winner. `loglik` still
+  # reports the plain log-likelihood -- every information criterion, lr_test(),
+  # lta_g2() and every validation target is defined on it. See
+  # `### 41.1 re-opened` in internal/ROADMAP.md.
+  rank_marg <- tryCatch(.lta_prior_marginals(state, X_fit),
+                        error = function(e) NULL)
+  score_of <- function(cand) {
+    lp <- .lta_log_prior(cand, X_fit, alpha, rank_marg)
+    if (is.na(lp)) cand$loglik else cand$loglik + lp
+  }
   # The random starts are drawn here, in restart order, and fitted afterwards.
   # .lta_random_start() is the only RNG consumer on this path -- .lta_em() draws
   # nothing -- so this takes the same numbers the sequential loop took and makes
@@ -589,25 +603,28 @@ fit_lta <- function(indicators,
     if (staged) cand else polish(cand)
   }, n_cores = n_cores)
 
+  best_score <- -Inf
   for (cand in cands) {
     if (inherits(cand, "try-error")) next
     if (staged) stage1[[length(stage1) + 1L]] <- cand
     else {
-      final_lls <- c(final_lls, cand$loglik)
-      if (is.null(best) || cand$loglik > best$loglik) best <- cand
+      s <- score_of(cand)
+      final_lls <- c(final_lls, s)
+      if (is.null(best) || s > best_score) { best <- cand; best_score <- s }
     }
   }
 
   if (staged && length(stage1)) {
-    ord <- order(vapply(stage1, `[[`, numeric(1), "loglik"), decreasing = TRUE)
+    ord <- order(vapply(stage1, score_of, numeric(1)), decreasing = TRUE)
     survivors <- .par_lapply(utils::head(ord, n_survivors), function(i) {
       cand <- try(.lta_em(stage1[[i]], X_fit, max_iter = max_iter, tol = tol,
                           alpha = alpha), silent = TRUE)
       if (inherits(cand, "try-error")) stage1[[i]] else polish(cand)
     }, n_cores = n_cores)
     for (cand in survivors) {
-      final_lls <- c(final_lls, cand$loglik)
-      if (is.null(best) || cand$loglik > best$loglik) best <- cand
+      s <- score_of(cand)
+      final_lls <- c(final_lls, s)
+      if (is.null(best) || s > best_score) { best <- cand; best_score <- s }
     }
   }
   if (is.null(best))
@@ -656,9 +673,12 @@ fit_lta <- function(indicators,
   best$smoothing_influence <- .lta_smoothing_influence(best, alpha)
   best$metrics     <- .lta_metrics(best)
   # The multi-start report the mixture models already carry. Two restarts count
-  # as the same solution when their log-likelihoods are within 1e-2, the rule
-  # fit_em() uses (R/em_core.R): genuinely different optima in these models sit
-  # whole units apart, and a tighter rule splits one optimum into several.
+  # as the same solution when their scores are within 1e-2, the rule fit_em()
+  # uses (R/em_core.R): genuinely different optima in these models sit whole
+  # units apart, and a tighter rule splits one optimum into several. The score
+  # is the ranked quantity -- the penalised objective where it exists -- so
+  # "found the same solution" means the same thing here as "won the ranking".
+  # It is on the same scale as a log-likelihood, so the 1e-2 rule carries over.
   if (length(final_lls)) {
     best$metrics$n_starts     <- length(final_lls)
     best$metrics$n_replicated <- sum(abs(final_lls - max(final_lls)) <= 1e-2)
@@ -942,13 +962,14 @@ fit_lta <- function(indicators,
   out
 }
 
-# How much of each transition row is prior rather than data. With `alpha`
-# pseudo-cases spread over the Ka admissible destinations of a row whose
-# expected count is m, the posterior mean is the shrinkage of Fienberg &
-# Holland (1973, eq. 2.6) with weight alpha/(m + alpha), so the largest amount
-# the prior can move any cell of that row is
+# How much of each transition row is prior rather than data. `alpha` is the
+# mass on the whole transition table, so a row carries a = alpha / (K * C) of
+# it; spread over the Ka admissible destinations of a row whose expected count
+# is m, the posterior mean is the shrinkage of Fienberg & Holland (1973,
+# eq. 2.6) with weight a/(m + a), so the largest amount the prior can move any
+# cell of that row is
 #
-#     pull = [alpha / (m + alpha)] * (1 - 1/Ka)
+#     pull = [a / (m + a)] * (1 - 1/Ka),   a = alpha / (K * C)
 #
 # which is exact, not an approximation. It is reported per row and the worst row
 # is what the message names. Rows are the thing to look at rather than the
@@ -979,6 +1000,11 @@ fit_lta <- function(indicators,
   # counts in it. Pooling here too; per occasion the reported pull would be
   # several times the real one.
   pooled <- isTRUE(state$tau_homogeneous)
+  # `alpha` is the mass on the whole transition table, and a row carries
+  # `alpha / (K * C)` of it -- .lta_normalise(patterns = K * C). Reporting the
+  # pull as though the row carried all of `alpha` overstates it K-fold, which is
+  # what this diagnostic did before 2026-08-31.
+  a_row <- alpha / (K * C)
 
   rows <- list()
   for (c in seq_len(C)) {
@@ -997,7 +1023,7 @@ fit_lta <- function(indicators,
         m <- sum(counts[k, a])
         rows[[length(rows) + 1L]] <- data.frame(
           class = c, occasion = if (pooled) NA_integer_ else g[1], from = k,
-          n_expected = m, pull = (alpha / (m + alpha)) * (1 - 1 / Ka))
+          n_expected = m, pull = (a_row / (m + a_row)) * (1 - 1 / Ka))
       }
     }
   }
