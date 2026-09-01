@@ -27,7 +27,27 @@
 # Priors off, so the fitted objective is the plain log-likelihood. Every
 # identity these two files assert -- the gradient, the fixed point, the
 # case-level likelihood -- is stated on the unpenalised objective.
-.ml <- list(categorical = 0, latent = 0)
+.ml <- list(categorical = 0, latent = 0, variances = 0)
+
+# A three-status, two-occasion, three-item continuous LTA with well-separated
+# status means, so the Gaussian variance blocks stay well away from the
+# degenerate near-zero-variance region.
+.lta_gaussian_refine_sim <- function(n = 300, K = 3, Tn = 2, J = 3, seed = 21) {
+  set.seed(seed)
+  mu <- matrix(seq(-3, 3, length.out = K), K, J) +
+    matrix(stats::runif(K * J, -0.3, 0.3), K, J)
+  sd0 <- matrix(stats::runif(K * J, 0.6, 1.2), K, J)
+  s <- sample(K, n, TRUE)
+  out <- list()
+  for (t in seq_len(Tn)) {
+    if (t > 1) s <- ifelse(stats::runif(n) < 0.75, s, sample(K, n, TRUE))
+    out[[t]] <- matrix(stats::rnorm(n * J, mu[s, ], sd0[s, ]), n, J)
+  }
+  X <- do.call(cbind, out)
+  colnames(X) <- paste0("t", rep(seq_len(Tn), each = J), "_i",
+                        rep(seq_len(J), Tn))
+  X
+}
 
 # A covariate-driven LTA where the covariate actually predicts delta and tau,
 # with a moderate true effect. Unlike bolting an unrelated random covariate

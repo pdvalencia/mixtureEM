@@ -96,6 +96,73 @@ test_that("the refinement respects measurement invariance", {
   expect_equal(.lta_invariant_items(fit), seq_len(4))
 })
 
+test_that("the analytic gradient matches finite differences for Gaussian variances", {
+  # .lta_gaussian_refine_sim() is in helper-lta-packing.R. Priors on and off,
+  # the same two passes the binary fixture above uses, since the log_sd block
+  # is the first Gaussian block to carry a prior at all (means never have).
+  X <- .lta_gaussian_refine_sim()
+  for (priors in c(FALSE, TRUE)) {
+    extra <- if (priors) list() else list(smoothing = 0, bayes_constants = .ml)
+    fit <- suppressMessages(suppressWarnings(do.call(fit_lta, c(
+      list(X, n_statuses = 3, times = 2, measurement = "continuous",
+           n_init = 2, random_state = 1, refine = FALSE,
+           standard_errors = FALSE), extra))))
+
+    layout <- .lta_par_layout(fit)
+    par0   <- .lta_par_pack(fit, layout)
+    w      <- fit$weights_vec
+
+    expect_true(any(vapply(layout, function(b) b$kind == "log_sd", logical(1))))
+    expect_equal(length(par0), ncol(.lta_score_matrix(fit, X)$S))
+
+    rt <- .lta_par_unpack(par0, fit, layout)
+    expect_equal(rt$mm$models[[1]]$parameters$covariances,
+                fit$mm$models[[1]]$parameters$covariances, tolerance = 1e-10)
+
+    alpha <- if (priors) 1 else 0
+    obj <- function(p) {
+      st <- .lta_par_unpack(p, fit, layout)
+      sum(w * .lta_score_matrix(st, X)$ll) +
+        .lta_penalty(st, X, layout, alpha)$value
+    }
+    ana <- colSums(sweep(.lta_score_matrix(fit, X)$S, 1, w, "*")) +
+      .lta_penalty(fit, X, layout, alpha)$gradient
+    eps <- 1e-5
+    fd <- vapply(seq_along(par0), function(i) {
+      e <- numeric(length(par0)); e[i] <- eps
+      (obj(par0 + e) - obj(par0 - e)) / (2 * eps)
+    }, numeric(1))
+
+    expect_lt(max(abs(ana - fd)) / max(1, max(abs(fd))), 1e-5)
+  }
+})
+
+test_that("the refinement moves Gaussian variances and never lowers the log-likelihood", {
+  X <- .lta_gaussian_refine_sim()
+  a <- suppressMessages(suppressWarnings(
+    fit_lta(X, n_statuses = 3, times = 2, measurement = "continuous",
+            smoothing = 0, bayes_constants = .ml, n_init = 2, random_state = 1,
+            refine = FALSE, standard_errors = FALSE)))
+  b <- suppressMessages(suppressWarnings(
+    fit_lta(X, n_statuses = 3, times = 2, measurement = "continuous",
+            smoothing = 0, bayes_constants = .ml, n_init = 2, random_state = 1,
+            refine = TRUE, standard_errors = TRUE)))
+
+  expect_gte(b$loglik, a$loglik - 1e-8)
+  expect_equal(b$n_params, a$n_params)
+  # The polish is the only thing separating a and b, and it is the first thing
+  # in the package that can move a variance for an LTA fit at all.
+  expect_false(isTRUE(all.equal(b$mm$models[[1]]$parameters$covariances,
+                                a$mm$models[[1]]$parameters$covariances)))
+
+  expect_false(isTRUE(b$se$conditional))
+  var_blocks <- Filter(function(bl) grepl("^log_sd", bl$name), b$se$blocks)
+  expect_true(length(var_blocks) > 0)
+  var_se <- unlist(lapply(var_blocks, function(bl)
+    sqrt(diag(b$se$vcov[bl$cols, bl$cols, drop = FALSE]))))
+  expect_true(all(is.finite(var_se)))
+})
+
 test_that("the refinement's gradient matches finite differences for covariate delta/tau", {
   # delta_beta/tau_beta replace the simplex-valued delta/tau with case-level
   # regressions; the score is the same (observed - predicted) residual as the

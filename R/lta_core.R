@@ -569,12 +569,15 @@
 #   tau row k  (alpha / |allowed_k|)* sum_{l allowed} log tau[k, l]
 #   rho        (alpha_cat / K)      * sum_kj [ m_j log rho_kj
 #                                              + (1 - m_j) log(1 - rho_kj) ]
+#   log_sd     -(alpha_var / 2K)    * sum_k [ log sigma^2_kj + s^2_j / sigma^2_kj ]
 #
 # matching .lta_normalise() and m_step.bernoulli() term for term, with m_j the
 # weighted observed marginal of item j over exactly the occasions that item's
 # M-step pools (all of them for an invariant item, one for a free one -- see
-# m_step.blocks()). Gaussian means carry no prior, and the variances are not in
-# the vector at all. With `smoothing = 0` and `bayes_constants$categorical = 0`
+# m_step.blocks()); the log_sd term matches m_step.gaussian_diag()'s own
+# truncated inverse-Wishart prior the same way, with s^2_j the item's observed
+# marginal variance over those occasions. Gaussian means carry no prior. With
+# `smoothing = 0` and `bayes_constants$categorical = 0` (and `variances = 0`)
 # every term vanishes and the objective is the plain log-likelihood.
 #
 # Two properties are asserted in the tests rather than argued here: the
@@ -643,8 +646,12 @@
   inv <- .lta_invariant_items(state)
   for (j in seq_len(J)) {
     grps <- if (j %in% inv) list(seq_len(Tn)) else lapply(seq_len(Tn), identity)
-    for (grp in grps)
+    for (grp in grps) {
       out[[length(out) + 1L]] <- list(kind = kind, j = j, grp = grp, len = K)
+      if (kind == "mu" &&
+          !is.null(state$mm$models[[grp[1]]]$parameters$covariances))
+        out[[length(out) + 1L]] <- list(kind = "log_sd", j = j, grp = grp, len = K)
+    }
   }
   out
 }
@@ -679,7 +686,8 @@
         p <- state$mm$models[[b$grp[1]]]$parameters$pis[, b$j]
         stats::qlogis(pmin(pmax(p, 1e-12), 1 - 1e-12))
       },
-      mu = state$mm$models[[b$grp[1]]]$parameters$means[, b$j])
+      mu = state$mm$models[[b$grp[1]]]$parameters$means[, b$j],
+      log_sd = 0.5 * log(state$mm$models[[b$grp[1]]]$parameters$covariances[, b$j]))
   }), use.names = FALSE)
 }
 
@@ -717,6 +725,9 @@
     } else if (b$kind == "rho") {
       for (tt in b$grp)
         state$mm$models[[tt]]$parameters$pis[, b$j] <- stats::plogis(v)
+    } else if (b$kind == "log_sd") {
+      for (tt in b$grp)
+        state$mm$models[[tt]]$parameters$covariances[, b$j] <- exp(2 * v)
     } else {
       for (tt in b$grp)
         state$mm$models[[tt]]$parameters$means[, b$j] <- v
@@ -792,6 +803,23 @@
     den <- den + sum(w[obs])
   }
   if (den == 0) 0.5 else num / den
+}
+
+# The weighted observed marginal variance of item j over the occasions its
+# M-step pools, stacking those occasions into one column and reusing
+# .marginal_var() (R/gaussian.R) -- the exact quantity m_step.gaussian_diag()
+# centres its own variance prior on, so the polish's prior and the M-step's
+# prior are the same number by construction, not by coincidence.
+.lta_var_prior_marginal <- function(state, X, b) {
+  J <- state$n_items
+  w <- state$weights_vec
+  xs <- numeric(0); ws <- numeric(0)
+  for (tt in b$grp) {
+    xj <- X[, .time_block_cols(tt, J)[b$j]]
+    xs <- c(xs, xj)
+    ws <- c(ws, w)
+  }
+  .marginal_var(matrix(xs, ncol = 1), ws)
 }
 
 # The observed item marginals every measurement prior is centred on, one per
@@ -899,6 +927,7 @@
   # .bayes_alpha()'s own defaulting -- so the penalty here and the prior in the
   # M-step cannot be two different numbers.
   a_cat <- .bayes_alpha(state$mm$models[[1]], "categorical")
+  a_var <- .bayes_alpha(state$mm$models[[1]], "variances")
   val <- 0
   grad <- numeric(0)
   for (b in layout) {
@@ -941,6 +970,16 @@
       val <- val + a_rho * sum(mj * log(p) + (1 - mj) * log1p(-p))
       # On the logit scale the derivative collapses to a_rho * (m_j - rho).
       g <- a_rho * (mj - p)
+    } else if (b$kind == "log_sd" && a_var > 0) {
+      v  <- state$mm$models[[b$grp[1]]]$parameters$covariances[, b$j]
+      s2 <- .lta_var_prior_marginal(state, X, b)
+      # Truncated inverse-Wishart prior centred on the item's observed
+      # marginal variance, spread over `length(grp)` occasions the same way
+      # a_rho is above -- matching m_step.gaussian_diag()'s posterior mode
+      # sigma^2 = (SS + (alpha/K) s^2) / (n + alpha/K).
+      a_v <- length(b$grp) * a_var / K
+      val <- val - 0.5 * a_v * sum(log(v) + s2 / v)
+      g <- a_v * (s2 / v - 1)
     }
     grad <- c(grad, g)
   }

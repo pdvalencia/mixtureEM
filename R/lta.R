@@ -1533,28 +1533,36 @@ fit_lta <- function(indicators,
     }
   } else if (fam %in% c("gaussian_diag", "gaussian_diag_nan",
                         "gaussian_unit", "gaussian_unit_nan")) {
-    # Class means enter the information matrix; the residual variances of
-    # gaussian_diag do not, which is harmless for the blocks reported here
-    # because means and variances are orthogonal in a normal model.
-    conditional <- fam %in% c("gaussian_diag", "gaussian_diag_nan")
+    # Both means and (where free) variances are scored below, so this family
+    # is fully unconditional -- the same status the Bernoulli branch above
+    # already gets.
+    conditional <- FALSE
     inv <- .lta_invariant_items(state)
     for (j in seq_len(J)) {
       ts_groups <- if (j %in% inv) list(seq_len(Tn)) else
         lapply(seq_len(Tn), identity)
       for (grp in ts_groups) {
-        s <- matrix(0, n, K)
+        has_var <- !is.null(state$mm$models[[grp[1]]]$parameters$covariances)
+        s_mu <- matrix(0, n, K)
+        s_v  <- if (has_var) matrix(0, n, K) else NULL
         for (tt in grp) {
           xj  <- X[, .time_block_cols(tt, J)[j]]
           sub <- state$mm$models[[tt]]
           mu  <- sub$parameters$means[, j]
-          v   <- if (!is.null(sub$parameters$covariances))
-            sub$parameters$covariances[, j] else rep(1, K)
+          v   <- if (has_var) sub$parameters$covariances[, j] else rep(1, K)
           obs <- !is.na(xj); xj[!obs] <- 0
-          s <- s + gam[[tt]] *
-            sweep(matrix(xj, n, K) - matrix(mu, n, K, byrow = TRUE), 2, v, "/") *
-            obs
+          resid <- matrix(xj, n, K) - matrix(mu, n, K, byrow = TRUE)
+          s_mu <- s_mu + gam[[tt]] * sweep(resid, 2, v, "/") * obs
+          if (has_var)
+            s_v <- s_v + gam[[tt]] *
+              (sweep(resid^2, 2, v, "/") - 1) * obs
         }
-        add_block(s, NULL, NULL, sprintf("mu[item %d]", j))
+        add_block(s_mu, NULL, NULL, sprintf("mu[item %d]", j))
+        # Log-sd scale: d(loglik)/d(log sigma) = (x - mu)^2 / sigma^2 - 1,
+        # the same reparameterisation R/em_core.R's refine_lbfgs() uses for
+        # the plain mixture engine's Gaussian variances.
+        if (has_var)
+          add_block(s_v, NULL, NULL, sprintf("log_sd[item %d]", j))
       }
     }
   }
