@@ -15,6 +15,9 @@ fit_lta(
   forbidden_transitions = NULL,
   n_classes = 1,
   mover_stayer = FALSE,
+  random_intercept = c("none", "continuous", "binary"),
+  n_quadrature = 15,
+  n_ri = 2,
   layout = c("time_major", "item_major"),
   id = NULL,
   time = NULL,
@@ -99,6 +102,61 @@ unless more are asked for,
 in which case only the last class is a stayer. The restricted rows cost no
 parameters, so the model is nested in the unrestricted mixture and
 \code{\link[=lr_test]{lr_test()}} tests it.}
+
+\item{random_intercept}{Add a random intercept to the measurement model
+(Muthen & Asparouhov, 2022): a person-level "how likely to endorse items
+in general" trait that regular LTA has no way to represent, and that can
+otherwise be mistaken for status separation and for stability over time.
+\code{"none"} (the default) fits ordinary LTA. \code{"continuous"} integrates over a
+normally-distributed factor by Gauss-Hermite quadrature (\code{n_quadrature}
+nodes); \code{"binary"} instead estimates a small number of discrete intercept
+classes (\code{n_ri} of them, 2 by default, the model's own case). Both require
+\code{measurement_invariance = "full"} and binary indicators, and neither yet
+supports \code{n_classes} > 1, \code{mover_stayer}, or covariates on the initial
+status or the transitions.
+
+\strong{Do not test a random intercept against regular LTA with \code{\link[=lr_test]{lr_test()}}}:
+the continuous variant puts the null (loading = 0) on the boundary of the
+parameter space, and the binary variant adds a latent class variable, so
+the usual chi-squared reference distribution does not apply either way.
+Compare the two by BIC instead.
+
+Whether a random intercept is worth adding is a sample-size question more
+than a modelling one. Tseng (2024) puts the continuous variant's own power
+analysis at upwards of 2,000 cases for 80\% power and 90\% coverage at a
+loading of 0.75, with more items, occasions or class separation lowering
+that bar; the asymmetry that makes trying it worthwhile anyway is that
+omitting a random intercept when one belongs costs a lot (inflated
+apparent separation and stability), while including one when it does not
+belong costs almost nothing (a handful of parameters, and BIC will say
+so, as it does on this package's own benchmark replication of the
+article's example).
+
+Not built in this release: a random intercept crossed with several latent
+classes or \code{mover_stayer}, ordinal or continuous indicators, covariates on
+the random intercept itself, a random \emph{slope}, correlated residuals across
+time, or lag-2 dependence - the last of which the article itself reports
+as significant in both of its worked examples, so it is a real
+simplification and not a hypothetical one. Standard errors and the
+post-EM L-BFGS refinement are also not yet available for these models;
+\code{standard_errors} is silently unavailable (\code{fit$se} is \code{NULL}) rather than
+refused, the same treatment other unsupported measurement families
+already get.}
+
+\item{n_quadrature}{Number of Gauss-Hermite nodes for
+\code{random_intercept = "continuous"}. The default of 15 is a starting point
+to check, not a settled answer, the same way \code{n_init}'s default is a
+floor: raise it (the two reference implementations behind this package's
+own validation use 15-30 depending on the model) and confirm the
+log-likelihood moves by less than 0.01. \code{n_quadrature = 1} is a valid,
+deliberate special case - a single node at 0 with mass 1 - under which
+the model reduces exactly to regular LTA; it is not a model worth fitting
+on its own, but is how the package's own test suite proves the node
+machinery is wired correctly.}
+
+\item{n_ri}{Number of discrete intercept classes for
+\code{random_intercept = "binary"}. The default of 2 is Muthen & Asparouhov's
+own case.}
 
 \item{layout, id, time, items, item_names, time_labels}{Data-shape arguments,
 passed through as in \code{\link[=fit_rmlca]{fit_rmlca()}}.}
@@ -329,6 +387,13 @@ Fienberg, S. E., & Holland, P. W. (1973). Simultaneous estimation of
 multinomial cell probabilities. \emph{Journal of the American Statistical
 Association}, \emph{68}(343), 683-691.
 \doi{10.1080/01621459.1973.10481405}
+
+Muthen, B., & Asparouhov, T. (2022). Latent transition analysis with random
+intercepts (RI-LTA). \emph{Psychological Methods}, \emph{27}(1), 1-16.
+\doi{10.1037/met0000370}
+
+Tseng (2024). \emph{Structural Equation Modeling}, \emph{31}(4), 626-634 -
+the power and sample-size analysis behind the guidance above.
 }
 \seealso{
 \code{\link[=transition_matrix]{transition_matrix()}}, \code{\link[=status_prevalences]{status_prevalences()}},

@@ -79,3 +79,33 @@
                             rep(seq_len(J), Tn))
   list(X = Xwide, Z = data.frame(z = z))
 }
+
+# Generated from RI-LTA itself, at the published article's own Monte Carlo
+# settings (Muthen & Asparouhov 2022, Table 3/4 design): 5 binary items, a
+# continuous factor loading of 2 on every item, item logits +1/-1 by status,
+# delta = (.5, .5), tau row 1 = (.622, .378), row 2 = (.5, .5).
+.lta_ri_sim <- function(n = 2000, Tn = 3, J = 5, seed = 99) {
+  set.seed(seed)
+  K <- 2L
+  delta <- c(0.5, 0.5)
+  tau   <- matrix(c(0.622, 0.378, 0.500, 0.500), K, K, byrow = TRUE)
+  A <- matrix(c(1, -1), K, J)
+  L <- rep(2, J)
+  z <- stats::rnorm(n)
+
+  S <- matrix(0L, n, Tn)
+  S[, 1] <- sample.int(K, n, replace = TRUE, prob = delta)
+  for (t in 2:Tn)
+    for (k in seq_len(K)) {
+      i <- S[, t - 1] == k
+      if (any(i)) S[i, t] <- sample.int(K, sum(i), replace = TRUE, prob = tau[k, ])
+    }
+
+  X <- matrix(NA_real_, n, Tn * J)
+  for (t in seq_len(Tn)) for (j in seq_len(J)) {
+    eta <- A[S[, t], j] + L[j] * z
+    X[, (t - 1) * J + j] <- stats::rbinom(n, 1, stats::plogis(eta))
+  }
+  colnames(X) <- paste0("t", rep(seq_len(Tn), each = J), "_i", rep(seq_len(J), Tn))
+  list(X = X, z = z, S = S, delta = delta, tau = tau)
+}

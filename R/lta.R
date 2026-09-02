@@ -79,6 +79,58 @@
 #'   in which case only the last class is a stayer. The restricted rows cost no
 #'   parameters, so the model is nested in the unrestricted mixture and
 #'   [`lr_test()`] tests it.
+#' @param random_intercept Add a random intercept to the measurement model
+#'   (Muthen & Asparouhov, 2022): a person-level "how likely to endorse items
+#'   in general" trait that regular LTA has no way to represent, and that can
+#'   otherwise be mistaken for status separation and for stability over time.
+#'   `"none"` (the default) fits ordinary LTA. `"continuous"` integrates over a
+#'   normally-distributed factor by Gauss-Hermite quadrature (`n_quadrature`
+#'   nodes); `"binary"` instead estimates a small number of discrete intercept
+#'   classes (`n_ri` of them, 2 by default, the model's own case). Both require
+#'   `measurement_invariance = "full"` and binary indicators, and neither yet
+#'   supports `n_classes` > 1, `mover_stayer`, or covariates on the initial
+#'   status or the transitions.
+#'
+#'   **Do not test a random intercept against regular LTA with [`lr_test()`]**:
+#'   the continuous variant puts the null (loading = 0) on the boundary of the
+#'   parameter space, and the binary variant adds a latent class variable, so
+#'   the usual chi-squared reference distribution does not apply either way.
+#'   Compare the two by BIC instead.
+#'
+#'   Whether a random intercept is worth adding is a sample-size question more
+#'   than a modelling one. Tseng (2024) puts the continuous variant's own power
+#'   analysis at upwards of 2,000 cases for 80% power and 90% coverage at a
+#'   loading of 0.75, with more items, occasions or class separation lowering
+#'   that bar; the asymmetry that makes trying it worthwhile anyway is that
+#'   omitting a random intercept when one belongs costs a lot (inflated
+#'   apparent separation and stability), while including one when it does not
+#'   belong costs almost nothing (a handful of parameters, and BIC will say
+#'   so, as it does on this package's own benchmark replication of the
+#'   article's example).
+#'
+#'   Not built in this release: a random intercept crossed with several latent
+#'   classes or `mover_stayer`, ordinal or continuous indicators, covariates on
+#'   the random intercept itself, a random *slope*, correlated residuals across
+#'   time, or lag-2 dependence - the last of which the article itself reports
+#'   as significant in both of its worked examples, so it is a real
+#'   simplification and not a hypothetical one. Standard errors and the
+#'   post-EM L-BFGS refinement are also not yet available for these models;
+#'   `standard_errors` is silently unavailable (`fit$se` is `NULL`) rather than
+#'   refused, the same treatment other unsupported measurement families
+#'   already get.
+#' @param n_quadrature Number of Gauss-Hermite nodes for
+#'   `random_intercept = "continuous"`. The default of 15 is a starting point
+#'   to check, not a settled answer, the same way `n_init`'s default is a
+#'   floor: raise it (the two reference implementations behind this package's
+#'   own validation use 15-30 depending on the model) and confirm the
+#'   log-likelihood moves by less than 0.01. `n_quadrature = 1` is a valid,
+#'   deliberate special case - a single node at 0 with mass 1 - under which
+#'   the model reduces exactly to regular LTA; it is not a model worth fitting
+#'   on its own, but is how the package's own test suite proves the node
+#'   machinery is wired correctly.
+#' @param n_ri Number of discrete intercept classes for
+#'   `random_intercept = "binary"`. The default of 2 is Muthen & Asparouhov's
+#'   own case.
 #' @param layout,id,time,items,item_names,time_labels Data-shape arguments,
 #'   passed through as in [`fit_rmlca()`].
 #' @param weights Optional case weights.
@@ -259,6 +311,13 @@
 #' Association}, \emph{68}(343), 683-691.
 #' \doi{10.1080/01621459.1973.10481405}
 #'
+#' Muthen, B., & Asparouhov, T. (2022). Latent transition analysis with random
+#' intercepts (RI-LTA). \emph{Psychological Methods}, \emph{27}(1), 1-16.
+#' \doi{10.1037/met0000370}
+#'
+#' Tseng (2024). \emph{Structural Equation Modeling}, \emph{31}(4), 626-634 -
+#' the power and sample-size analysis behind the guidance above.
+#'
 #' @seealso [`transition_matrix()`], [`status_prevalences()`],
 #'   [`lr_test()`], [`lta_g2()`], [`fit_rmlca()`].
 #' @export
@@ -272,6 +331,9 @@ fit_lta <- function(indicators,
                     forbidden_transitions = NULL,
                     n_classes = 1,
                     mover_stayer = FALSE,
+                    random_intercept = c("none", "continuous", "binary"),
+                    n_quadrature = 15,
+                    n_ri = 2,
                     layout = c("time_major", "item_major"),
                     id = NULL, time = NULL, items = NULL,
                     item_names = NULL, time_labels = NULL,
@@ -303,6 +365,7 @@ fit_lta <- function(indicators,
 
   measurement_invariance <- match.arg(measurement_invariance)
   transition_invariance  <- match.arg(transition_invariance)
+  random_intercept       <- match.arg(random_intercept)
   layout                 <- match.arg(layout)
   transition_effects     <- match.arg(transition_effects)
   group_effects          <- match.arg(group_effects)
@@ -450,6 +513,37 @@ fit_lta <- function(indicators,
          "`mover_stayer = TRUE`). Fit the mixture without them, or use one ",
          "class.", call. = FALSE)
 
+  if (random_intercept != "none") {
+    if (measurement_invariance != "full")
+      stop("A random intercept needs `measurement_invariance = \"full\"`: a ",
+           "time-varying item intercept under a time-constant loading is not a ",
+           "random-intercept model (Muthen & Asparouhov 2022, sec. 3.1).",
+           call. = FALSE)
+    if (measurement != "binary")
+      stop("`random_intercept` currently supports binary indicators only.",
+           call. = FALSE)
+    if (C > 1L)
+      stop("`random_intercept` cannot yet be combined with `n_classes` > 1 or ",
+           "`mover_stayer = TRUE`.", call. = FALSE)
+    if (!is.null(Z_delta) || !is.null(Z_tau))
+      stop("`random_intercept` cannot yet be combined with covariates on the ",
+           "initial status or the transitions.", call. = FALSE)
+  }
+
+  if (random_intercept == "continuous") {
+    n_quadrature <- as.integer(n_quadrature)
+    # Q = 1 is not a corner case to reject: it is the node loop's own
+    # structural test (a single node at 0 with mass 1 must reduce RI-LTA
+    # exactly to regular LTA -- roadmap ### 14.10.3, ### 14.10.8 test 4).
+    if (length(n_quadrature) != 1L || is.na(n_quadrature) || n_quadrature < 1L)
+      stop("`n_quadrature` must be a single whole number of at least 1.",
+           call. = FALSE)
+  } else if (random_intercept == "binary") {
+    n_ri <- as.integer(n_ri)
+    if (length(n_ri) != 1L || is.na(n_ri) || n_ri < 2L)
+      stop("`n_ri` must be a single whole number of at least 2.", call. = FALSE)
+  }
+
   allowed <- .lta_tau_allowed(tau_zeros, K, Tn, C, mover_stayer)
 
   state <- list(
@@ -478,7 +572,8 @@ fit_lta <- function(indicators,
     mm              = time_blocks_model(K, prep$n_items, Tn,
                                         sub_model       = engine$sub_model,
                                         invariant_items = spec$invariant_items,
-                                        max_val         = engine$max_val)
+                                        max_val         = engine$max_val),
+    ri              = .lta_ri_init(random_intercept, n_quadrature, n_ri)
   )
 
   # The measurement M-steps read their prior strengths off the emission. LTA has
@@ -541,11 +636,20 @@ fit_lta <- function(indicators,
   X_fit  <- if (is.null(coll)) X else coll$X
   if (!is.null(coll)) state$weights_vec <- coll$w
 
-  staged <- C > 1L
+  # A random intercept mixes over `Q` nodes each iteration and converges as
+  # slowly as a mixture over chains does, so it takes the same tightened
+  # defaults - and, for the same reason, the same staging. It has one chain, so
+  # the `C > 1` test alone left it running every one of its (at least fifty)
+  # restarts to `tol = 1e-11`: the tightening without the staging that was
+  # written to pay for it. Nothing else about a single-chain fit changes here;
+  # plain LTA keeps the unstaged search every locked reference target was
+  # measured on.
+  staged <- C > 1L || !is.null(state$ri)
   if (staged) {
     if (missing(tol))      tol      <- 1e-11
     if (missing(max_iter)) max_iter <- 5000
   }
+  if (!is.null(state$ri) && n_init_default) n_init <- max(n_init, 50L)
   # Staging ranks a pool of restarts against each other. There is no pool to
   # rank when the start is handed over, so a refine goes straight to the full
   # stopping rule. The tightened `tol`/`max_iter` defaults just above still
@@ -553,6 +657,51 @@ fit_lta <- function(indicators,
   # the search is organised.
   if (!is.null(refine_from)) staged <- FALSE
   n_survivors <- if (staged) min(3L, max(1L, n_init)) else 0L
+
+  # The ranking pass integrates on a coarser grid than the fit reports on.
+  # .lta_ri_e_step() runs one whole forward-backward pass per node, so an
+  # iteration at `n_quadrature = 20` costs twenty times a plain LTA iteration -
+  # and the number of nodes is an accuracy setting for one integral, not part
+  # of the model. Ranking only has to identify the right basin, which five
+  # nodes do; the survivors are promoted back to the full grid below and run to
+  # `tol` there, so the reported fit integrates on exactly the grid the user
+  # asked for. Continuous only: the binary variant's nodes are estimated
+  # classes and `n_ri` IS part of the model.
+  #
+  # Drawing the starts from the coarse state takes the same random numbers the
+  # full grid would: .lta_random_start() sizes `L` by `ncol(Dnode)`, which is 1
+  # for a continuous random intercept at every `Q`.
+  # OFF by default. When it was first measured, ranking on five nodes halved
+  # the search but appeared to cost 0.62 of log-likelihood - and that
+  # measurement was taken while the search was landing in the wrong basin
+  # entirely, for reasons since fixed (.lta_ri_warm_start()), so the 0.62 is
+  # not a number to trade against. The mechanism is kept behind an option, off,
+  # until it is re-measured against a search that reaches the right optimum.
+  n_rank_nodes <- getOption("mixtureEM.ri_rank_nodes", Inf)
+  ri_ladder <- staged && !is.null(state$ri) &&
+    identical(state$ri$kind, "continuous") &&
+    length(state$ri$mass) > n_rank_nodes
+  state_rank <- state
+  if (ri_ladder) {
+    coarse <- .lta_ri_init("continuous", n_rank_nodes, NULL)
+    state_rank$ri$Dnode <- coarse$Dnode
+    state_rank$ri$mass  <- coarse$mass
+  }
+  # Put a ranked candidate back on the full grid, carrying the parameters it
+  # found. `A` is K x R and `L` is R x 1; neither is indexed by node, so both
+  # transfer unchanged and the promoted start is the same model evaluated with
+  # a more accurate integral.
+  #
+  # .lta_ri_sign_normalise() may have negated the ranked candidate's `Dnode`
+  # alongside its `L`; overwriting `Dnode` with the unflipped full grid is
+  # still the same model, because a Gauss-Hermite grid is symmetric in both its
+  # nodes and its weights, so negating it only permutes the terms of a sum.
+  promote <- function(cand) {
+    if (!ri_ladder || inherits(cand, "try-error")) return(cand)
+    cand$ri$Dnode <- state$ri$Dnode
+    cand$ri$mass  <- state$ri$mass
+    cand
+  }
 
   best <- NULL
   stage1 <- list()
@@ -580,11 +729,26 @@ fit_lta <- function(indicators,
   # each restart a deterministic function of the start it is given. The fits can
   # then run on workers without moving a value, at any `n_cores`.
   starts <- if (!is.null(refine_from)) {
+    # A refine is not settled by its donor alone. An RI fit takes its loadings
+    # from a random draw the donor has nothing to say about (.lta_refine_start()
+    # explains why they cannot start at zero), and on a multimodal surface that
+    # draw decides which optimum the run reaches. Seeded here so `random_state`
+    # means the same thing on this path as on the random-restart one. Nothing
+    # else the draw produces survives - the donor overwrites delta, tau and the
+    # measurement model - so no fit without a random intercept moves.
+    if (!is.null(random_state)) set.seed(random_state)
     list(.lta_refine_start(state, X_fit, refine_from))
   } else {
     lapply(seq_len(max(1L, n_init)), function(i) {
       if (!is.null(random_state)) set.seed(random_state + i)
-      .lta_random_start(state, X_fit)
+      s <- .lta_random_start(state_rank, X_fit)
+      # A continuous random intercept gets its statuses placed before its
+      # factor is switched on; see .lta_ri_warm_start() for the local maximum
+      # this is there to keep the search out of, and for why the binary variant
+      # is deliberately left alone. Nothing without a random intercept moves.
+      if (!is.null(s$ri) && identical(s$ri$kind, "continuous"))
+        s <- .lta_ri_warm_start(s, X_fit, alpha)
+      s
     })
   }
   # The polish belongs after a run that was allowed to converge, never after
@@ -617,9 +781,9 @@ fit_lta <- function(indicators,
   if (staged && length(stage1)) {
     ord <- order(vapply(stage1, score_of, numeric(1)), decreasing = TRUE)
     survivors <- .par_lapply(utils::head(ord, n_survivors), function(i) {
-      cand <- try(.lta_em(stage1[[i]], X_fit, max_iter = max_iter, tol = tol,
-                          alpha = alpha), silent = TRUE)
-      if (inherits(cand, "try-error")) stage1[[i]] else polish(cand)
+      cand <- try(.lta_em(promote(stage1[[i]]), X_fit, max_iter = max_iter,
+                          tol = tol, alpha = alpha), silent = TRUE)
+      if (inherits(cand, "try-error")) promote(stage1[[i]]) else polish(cand)
     }, n_cores = n_cores)
     for (cand in survivors) {
       s <- score_of(cand)
@@ -890,7 +1054,14 @@ fit_lta <- function(indicators,
     }
   }
 
-  (C - 1L) + n_delta + n_tau + n_parameters(state$mm)
+  # A random intercept's integrated `pis` occupy the same `K x R` slot
+  # `n_parameters(state$mm)` already counts; the loadings (and, for the binary
+  # variant, the node masses beyond the anchor) are the only new parameters.
+  n_ri <- if (is.null(state$ri)) 0L else
+    length(state$ri$L) + if (state$ri$kind == "binary")
+      length(state$ri$mass) - 1L else 0L
+
+  (C - 1L) + n_delta + n_tau + n_parameters(state$mm) + n_ri
 }
 
 # ------------------------------------------------------------------------------
@@ -1166,6 +1337,14 @@ fit_lta <- function(indicators,
   state$tau_allowed_c <- lapply(state$tau_allowed_c, perm_mats)
   state$gamma <- lapply(state$gamma, function(g) g[, ord, drop = FALSE])
   state$xi    <- perm_mats(state$xi)
+  # A random intercept's `A` IS the measurement model; the `pis` permuted below
+  # is only its integral over the nodes. Permuting `pis` and leaving `A` where
+  # it was leaves the fit carrying two different models at once, and every
+  # reader that recomputes from `A` disagrees with every reader that does not.
+  # `L` is indexed by item and `mass`/`Dnode` by node, so neither moves with a
+  # status.
+  if (!is.null(state$ri))
+    state$ri$A <- state$ri$A[ord, , drop = FALSE]
   if (C > 1L) {
     state$gamma_by_class <- lapply(state$gamma_by_class, function(gl)
       lapply(gl, function(g) g[, ord, drop = FALSE]))
@@ -1300,6 +1479,12 @@ fit_lta <- function(indicators,
 }
 
 .lta_scores_supported <- function(state) {
+  # A random intercept adds a parameter kind the score machinery has never
+  # seen, so standard errors are deferred to a later slice rather than guessed
+  # at here. The L-BFGS polish goes with them, and costs nothing on these fits:
+  # EM reaches the reference programs' optimum on the validation benchmark to
+  # 1e-4 without it (roadmap `### 14.11`).
+  if (!is.null(state$ri)) return(FALSE)
   if (state$n_statuses < 2L || state$n_times < 2L) return(FALSE)
   TRUE
 }

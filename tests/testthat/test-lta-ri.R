@@ -1,0 +1,230 @@
+# A random-intercept LTA (Muthen & Asparouhov 2022). `.gauss_hermite()` has
+# its own file, test-quadrature.R; the six tests here are 2-6 of
+# internal/ROADMAP.md ### 14.10.8 (item 1, the quadrature, is in that file).
+# `.lta_refine_sim()`, `.ml`, and `.lta_ri_sim()` are in helper-lta-packing.R.
+
+# --- 2. Parameter counts, from structure alone: no estimator needed --------
+
+test_that("RI parameter counts match the paper's Table 5 shapes (K=2,R=2,T=4)", {
+  # Stationary transitions, matching the roadmap's "stationary, structural = 3"
+  # shape these targets are computed against -- without it T = 4's default
+  # (a separate matrix per interval) adds parameters the target does not count.
+  X <- .lta_refine_sim(n = 30, K = 2, Tn = 4, J = 2, seed = 1)
+  fit_reg <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", transition_invariance = "full",
+    n_init = 1, max_iter = 1, random_state = 1, standard_errors = FALSE))
+  fit_bin <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", transition_invariance = "full",
+    n_init = 1, max_iter = 1, random_state = 1, standard_errors = FALSE,
+    random_intercept = "binary", n_ri = 2))
+  fit_con <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", transition_invariance = "full",
+    n_init = 1, max_iter = 1, random_state = 1, standard_errors = FALSE,
+    random_intercept = "continuous", n_quadrature = 5))
+  expect_equal(fit_reg$n_params, 7L)
+  expect_equal(fit_bin$n_params, 10L)
+  expect_equal(fit_con$n_params, 9L)
+})
+
+test_that("RI parameter counts match the LTA-FAQ shape (K=4,R=5,T=2)", {
+  X <- .lta_refine_sim(n = 30, K = 4, Tn = 2, J = 5, seed = 1)
+  fit_reg <- suppressWarnings(fit_lta(X, n_statuses = 4, times = 2,
+    measurement = "binary", n_init = 1, max_iter = 1, random_state = 1,
+    standard_errors = FALSE))
+  fit_con <- suppressWarnings(fit_lta(X, n_statuses = 4, times = 2,
+    measurement = "binary", n_init = 1, max_iter = 1, random_state = 1,
+    standard_errors = FALSE, random_intercept = "continuous",
+    n_quadrature = 20))
+  fit_bin <- suppressWarnings(fit_lta(X, n_statuses = 4, times = 2,
+    measurement = "binary", n_init = 1, max_iter = 1, random_state = 1,
+    standard_errors = FALSE, random_intercept = "binary", n_ri = 2))
+  expect_equal(fit_reg$n_params, 35L)
+  expect_equal(fit_con$n_params, 40L)
+  expect_equal(fit_bin$n_params, 41L)
+})
+
+# --- 3. The refusals --------------------------------------------------------
+
+test_that("`random_intercept` refuses partial/no invariance", {
+  X <- .lta_refine_sim(n = 30, K = 2, Tn = 3, J = 4, seed = 1)
+  expect_error(
+    fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+           measurement_invariance = "none", random_intercept = "continuous"),
+    "measurement_invariance")
+})
+
+test_that("`random_intercept` refuses non-binary measurement", {
+  X <- .lta_gaussian_refine_sim()
+  expect_error(
+    fit_lta(X, n_statuses = 3, times = 2, measurement = "continuous",
+           random_intercept = "continuous"),
+    "binary indicators only")
+})
+
+test_that("`random_intercept` refuses more than one class", {
+  X <- .lta_refine_sim(n = 30, K = 2, Tn = 3, J = 4, seed = 1)
+  expect_error(
+    fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+           n_classes = 2, random_intercept = "continuous"),
+    "n_classes")
+})
+
+test_that("`random_intercept` refuses covariates", {
+  sim <- .lta_cov_refine_sim()
+  expect_error(
+    fit_lta(sim$X, n_statuses = 2, times = 3, measurement = "binary",
+           predictors_initial = sim$Z, random_intercept = "binary"),
+    "covariates")
+})
+
+test_that("`n_quadrature`/`n_ri` are validated", {
+  X <- .lta_refine_sim(n = 30, K = 2, Tn = 3, J = 4, seed = 1)
+  expect_error(
+    fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+           random_intercept = "continuous", n_quadrature = 0),
+    "n_quadrature")
+  expect_error(
+    fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+           random_intercept = "binary", n_ri = 1),
+    "n_ri")
+})
+
+# --- 4. Q = 1 reduces exactly to regular LTA --------------------------------
+
+test_that("n_quadrature = 1 reproduces regular LTA exactly", {
+  # A single deterministic start is enough here: this is an algebraic
+  # identity (a zero node contributes nothing regardless of the loadings it
+  # is multiplied by), not a statistical recovery claim, so it holds at
+  # whatever point n_init = 1 happens to converge to, not only at the global
+  # optimum -- confirmed at n = 100 to ~1e-9, well inside the asserted bound.
+  X <- .lta_refine_sim(n = 100, K = 2, Tn = 3, J = 4, seed = 4)
+  fit_reg <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
+                     measurement = "binary",
+                     smoothing = 0, bayes_constants = .ml, n_init = 1,
+                     random_state = 3, tol = 1e-12, max_iter = 5000,
+                     standard_errors = FALSE))
+  fit_ri1 <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
+                     measurement = "binary",
+                     smoothing = 0, bayes_constants = .ml, n_init = 1,
+                     random_state = 3, tol = 1e-12, max_iter = 5000,
+                     standard_errors = FALSE,
+                     random_intercept = "continuous", n_quadrature = 1))
+  expect_lt(abs(fit_ri1$loglik - fit_reg$loglik), 1e-6)
+  expect_lt(max(abs(fit_ri1$tau[[1]] - fit_reg$tau[[1]])), 1e-5)
+})
+
+# --- 5. Nesting check: RI fitted to regular-LTA data must find loadings ~0 -
+#
+# A spurious loading always improves the fit somewhat on finite data -- an
+# extra free parameter fits sampling noise even where none of the true
+# structure calls for it -- so this needs enough cases that the noise the
+# loadings could chase is small next to the signal. Measured on this exact
+# fixture (seed 4, n_init = 5, refine_from the converged regular fit as the
+# RI search's own start -- 14.10.7's accelerator, not a relaxation of the
+# check): loadings max 0.018/0.10/0.18/0.16 and an LL gap of 0.60 at n = 3000,
+# against 0.65 max loading and a 2.5 LL gap at n = 250. That shrinkage with n
+# and not with a better start is what distinguishes finite-sample noise from
+# the bug this test exists to catch (14.10.10 failure mode 1: a wrong
+# posterior would not shrink with n at all).
+
+test_that("RI-LTA fitted to regular-LTA data recovers near-zero loadings", {
+  skip_on_cran()
+  X <- .lta_refine_sim(n = 3000, K = 2, Tn = 3, J = 4, seed = 4)
+  fit_reg <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
+                    measurement = "binary",
+                    smoothing = 0, bayes_constants = .ml, n_init = 5,
+                    random_state = 3, tol = 1e-11, max_iter = 3000,
+                    standard_errors = FALSE))
+  fit_ri <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
+                    measurement = "binary",
+                    smoothing = 0, bayes_constants = .ml,
+                    refine_from = fit_reg, tol = 1e-11, max_iter = 3000,
+                    standard_errors = FALSE,
+                    random_intercept = "continuous", n_quadrature = 15))
+  expect_lt(max(abs(fit_ri$ri$L)), 0.25)
+  expect_lt(abs(fit_ri$loglik - fit_reg$loglik), 1)
+})
+
+# --- 6. Recovery check: one replication of the paper's own MC design -------
+
+test_that("RI-LTA recovers loadings and transitions on its own generator", {
+  skip_on_cran()
+  sim <- .lta_ri_sim()
+  fit <- suppressWarnings(fit_lta(sim$X, n_statuses = 2, times = 3,
+                measurement = "binary",
+                smoothing = 0, bayes_constants = .ml,
+                random_intercept = "continuous", n_quadrature = 15,
+                n_init = 1, random_state = 1, standard_errors = FALSE))
+  expect_lt(mean(abs(fit$ri$L - 2)), 0.3)
+  trans11 <- max(fit$tau[[1]][1, 1], fit$tau[[1]][2, 2])
+  expect_lt(abs(trans11 - 0.622), 0.08)
+})
+
+# --- 7. The staged search and its coarse ranking grid ----------------------
+#
+# An RI fit stages its restarts (fit_lta(), `staged <- C > 1L || !is.null(ri)`)
+# and ranks them on five quadrature nodes before promoting the survivors to
+# `n_quadrature`. Both are search devices, so both are graded on recovery of
+# the generator's truth rather than on a log-likelihood one of them optimises.
+# Test 6 above already runs the ladder at `n_quadrature = 15`; what is left to
+# assert is that the promotion actually happens, and that ranking a real pool
+# of restarts on the coarse grid still lands in the right basin.
+
+test_that("the coarse ranking grid never reaches the reported fit", {
+  # The ladder is off by default (it cost 0.62 of log-likelihood on the
+  # benchmark), so this turns it on to test the mechanism it guards.
+  old <- getOption("mixtureEM.ri_rank_nodes")
+  on.exit(options(mixtureEM.ri_rank_nodes = old), add = TRUE)
+  options(mixtureEM.ri_rank_nodes = 5L)
+  X <- .lta_refine_sim(n = 200, K = 2, Tn = 3, J = 4, seed = 4)
+  fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
+                measurement = "binary", random_intercept = "continuous",
+                n_quadrature = 20, n_init = 2, max_iter = 30,
+                random_state = 1, standard_errors = FALSE))
+  # 5 here rather than 20 is the whole failure this guards: it would mean the
+  # survivors were run on, and the model reported, at the ranking accuracy.
+  expect_equal(length(fit$ri$mass), 20L)
+  expect_equal(nrow(fit$ri$Dnode), 20L)
+})
+
+test_that("a staged multi-start RI search recovers the generator's truth", {
+  skip_on_cran()
+  sim <- .lta_ri_sim()
+  fit <- suppressWarnings(fit_lta(sim$X, n_statuses = 2, times = 3,
+                measurement = "binary",
+                smoothing = 0, bayes_constants = .ml,
+                random_intercept = "continuous", n_quadrature = 15,
+                n_init = 6, random_state = 1, standard_errors = FALSE))
+  expect_lt(mean(abs(fit$ri$L - 2)), 0.3)
+  trans11 <- max(fit$tau[[1]][1, 1], fit$tau[[1]][2, 2])
+  expect_lt(abs(trans11 - 0.622), 0.08)
+})
+
+# --- 8. The status ordering has to carry the random intercept with it -------
+
+# `order_by_size` relabels the statuses at the very end of fit_lta(). For a
+# regular LTA the measurement model it has to carry is `pis`; for an RI fit
+# `pis` is only the integral of `A` over the nodes, and `A` is the thing being
+# estimated. Permuting one and not the other leaves the returned object
+# describing two different models, with the log-likelihood it reports (computed
+# before the relabelling) belonging to neither. That is invisible in every
+# summary the fit prints, so it is asserted here directly: score the fit's own
+# stored parameters and see whether the number comes back.
+test_that("order_by_size relabels the random intercept's intercepts too", {
+  X <- .lta_refine_sim(n = 150, K = 3, Tn = 2, J = 4, seed = 1)
+  unsorted <- suppressWarnings(fit_lta(X, n_statuses = 3, times = 2,
+                measurement = "binary", random_intercept = "continuous",
+                n_quadrature = 5, n_init = 1, max_iter = 25, random_state = 1,
+                standard_errors = FALSE, order_by_size = FALSE))
+  # This fixture's Time-1 prevalences are 0.23/0.15/0.62, so the relabelling
+  # below is a real permutation and not the identity.
+  expect_false(identical(order(unsorted$delta, decreasing = TRUE), 1:3))
+
+  sorted <- .sort_lta_statuses(unsorted)
+  expect_equal(.lta_em(sorted, X, max_iter = 0L, alpha = 1)$loglik,
+               unsorted$loglik, tolerance = 1e-10)
+  # `pis` is derived from `A`, so the two must still agree afterwards.
+  expect_equal(sorted$mm$models[[1]]$parameters$pis,
+               .lta_ri_integrated_pis(sorted$ri, 3L, 4L),
+               tolerance = 1e-12, ignore_attr = TRUE)
+})

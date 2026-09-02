@@ -334,6 +334,7 @@
   # One E-step across all classes: the per-class posteriors, the class
   # posterior, and the case log-likelihood of the mixture.
   e_step <- function(state, keep = keep_pair) {
+    if (!is.null(state$ri)) return(.lta_ri_e_step(state, X, w))
     logB <- .lta_emission_loglik(state$mm, X)
     es <- lapply(seq_len(C), function(c) {
       sub <- .lta_class_state(state, c)
@@ -461,12 +462,22 @@
     # not the one in force, and `smoothing = 0` also stripped the measurement
     # prior - reintroducing the boundary estimates on ρ that the prior is there
     # to prevent.
-    state$mm <- m_step(state$mm, X, .lta_mixed_gamma(E, Tn, C),
-                       weights = if (all(w == 1)) NULL else w)
+    if (!is.null(state$ri)) {
+      state <- .lta_ri_mstep(state, X, E, alpha)
+    } else {
+      state$mm <- m_step(state$mm, X, .lta_mixed_gamma(E, Tn, C),
+                         weights = if (all(w == 1)) NULL else w)
+    }
   }
+
+  # A random intercept is identified only up to a reflection/relabelling; fix
+  # it here, before the final E-step, so that step's `pq` is already computed
+  # under the normalised parameterisation and never needs its own permutation.
+  if (!is.null(state$ri)) state <- .lta_ri_sign_normalise(state)
 
   # Final E-step so the stored posteriors match the returned parameters.
   E <- e_step(state, keep = TRUE)
+  if (!is.null(state$ri)) state$ri$pq <- E$ri$pq
 
   # Absolute entropy of the joint status-path posterior, the numerator of
   # metrics$entropy. The smoothed path posterior of a hidden Markov chain is
@@ -864,42 +875,55 @@
 # Gaussian variances, Poisson rates and the polytomous Dirichlet. `smoothing`
 # is inert wherever a covariate M-step replaces a normalised count, so those
 # blocks are skipped on exactly the condition the M-step branches on.
+# The delta/tau (and, with several classes, class-mixing) terms of the prior,
+# unaffected by whether the measurement side is a plain table or a random
+# intercept: factored out so `.lta_log_prior()` and `.lta_ri_log_prior()`
+# (R/lta_ri.R) cannot drift into two different formulae for the same terms.
+.lta_log_prior_dt <- function(state, alpha) {
+  K  <- state$n_statuses
+  C  <- state$n_classes %||% 1L
+  Tn <- state$n_times
+  val <- 0
+  if (alpha <= 0) return(val)
+
+  if (C > 1L)
+    val <- val + (alpha / C) * sum(log(pmax(state$class_weights, 1e-300)))
+  if (is.null(state$Z_delta))
+    for (c in seq_len(C))
+      val <- val + (alpha / (C * K)) *
+        sum(log(pmax(state$delta_c[[c]], 1e-300)))
+  if (Tn > 1L && is.null(state$Z_tau)) {
+    n_pat <- K * C
+    for (c in seq_len(C)) {
+      mats <- state$tau_c[[c]]
+      # Under `transition_invariance = "full"` one matrix is estimated and
+      # then broadcast, so its prior is carried once, not Tn - 1 times.
+      idx  <- if (isTRUE(state$tau_homogeneous)) 1L else seq_along(mats)
+      allowed <- state$tau_allowed_c[[c]]
+      for (i in idx) for (k in seq_len(K)) {
+        ok <- allowed[[i]][k, ]
+        if (!any(ok)) next
+        val <- val + (alpha / (n_pat * sum(ok))) *
+          sum(log(pmax(mats[[i]][k, ok], 1e-300)))
+      }
+    }
+  }
+  val
+}
+
 .lta_log_prior <- function(state, X, alpha, marginals = NULL) {
+  if (!is.null(state$ri))
+    return(.lta_ri_log_prior(state, X, alpha, marginals))
+
   fam <- class(state$mm$models[[1]])[1]
   known <- c("bernoulli", "bernoulli_nan",     # marginal-preserving Beta prior
              "gaussian_unit", "gaussian_unit_nan")  # no measurement prior at all
   if (!fam %in% known) return(NA_real_)
 
-  K  <- state$n_statuses
-  C  <- state$n_classes %||% 1L
-  Tn <- state$n_times
-  val <- 0
+  val <- .lta_log_prior_dt(state, alpha)
 
-  if (alpha > 0) {
-    if (C > 1L)
-      val <- val + (alpha / C) * sum(log(pmax(state$class_weights, 1e-300)))
-    if (is.null(state$Z_delta))
-      for (c in seq_len(C))
-        val <- val + (alpha / (C * K)) *
-          sum(log(pmax(state$delta_c[[c]], 1e-300)))
-    if (Tn > 1L && is.null(state$Z_tau)) {
-      n_pat <- K * C
-      for (c in seq_len(C)) {
-        mats <- state$tau_c[[c]]
-        # Under `transition_invariance = "full"` one matrix is estimated and
-        # then broadcast, so its prior is carried once, not Tn - 1 times.
-        idx  <- if (isTRUE(state$tau_homogeneous)) 1L else seq_along(mats)
-        allowed <- state$tau_allowed_c[[c]]
-        for (i in idx) for (k in seq_len(K)) {
-          ok <- allowed[[i]][k, ]
-          if (!any(ok)) next
-          val <- val + (alpha / (n_pat * sum(ok))) *
-            sum(log(pmax(mats[[i]][k, ok], 1e-300)))
-        }
-      }
-    }
-  }
-
+  K   <- state$n_statuses
+  Tn  <- state$n_times
   a_cat <- .bayes_alpha(state$mm$models[[1]], "categorical")
   if (a_cat > 0 && fam %in% c("bernoulli", "bernoulli_nan")) {
     if (is.null(marginals)) marginals <- .lta_prior_marginals(state, X)
@@ -1085,6 +1109,16 @@
   state$tau_c   <- donor$tau_c
   if (state$n_classes > 1L) state$class_weights <- donor$class_weights
 
+  # An RI fit may take a regular-LTA donor: seed delta, tau and the RI
+  # intercepts A from its converged solution and leave the loadings L at their
+  # small random draw (roadmap ### 14.10.7). The donor's own `pis` is exactly
+  # the K x R intercept table an RI model with L == 0 would report.
+  if (!is.null(state$ri) && is.null(donor$ri)) {
+    state$ri$A <- qlogis(pmin(pmax(donor$mm$models[[1]]$parameters$pis,
+                                   0.05), 0.95))
+    return(state)
+  }
+
   mm <- .copy_emission_parameters(state$mm, donor$mm)
   if (is.null(mm))
     stop("`refine_from` has a measurement model of a different shape from the ",
@@ -1129,5 +1163,24 @@
   }
 
   state$mm <- init_params(state$mm, X, NULL)
+
+  if (!is.null(state$ri)) {
+    J <- state$n_items
+    R <- J
+    M <- ncol(state$ri$Dnode)
+    pis0 <- state$mm$models[[1]]$parameters$pis
+    state$ri$A <- qlogis(pmin(pmax(pis0, 0.05), 0.95))
+    # Never start a loading at exactly 0: 14.3 says zero is a stationary ridge
+    # a restart placed there cannot leave, and the failure it causes -- the fit
+    # equals regular LTA -- is indistinguishable from a real "no random
+    # intercept needed" result (roadmap ### 14.10.10, failure mode 4).
+    state$ri$L <- matrix(stats::runif(R * M, 0.2, 0.8), R, M)
+    if (state$ri$kind == "binary")
+      state$ri$mass <- rep(1 / length(state$ri$mass), length(state$ri$mass))
+    state$mm$models[[1]]$parameters$pis <-
+      .lta_ri_integrated_pis(state$ri, K, R)
+    for (t in seq_len(Tn))
+      state$mm$models[[t]]$parameters$pis <- state$mm$models[[1]]$parameters$pis
+  }
   state
 }
