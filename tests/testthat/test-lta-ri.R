@@ -171,8 +171,9 @@ test_that("RI-LTA recovers loadings and transitions on its own generator", {
 # of restarts on the coarse grid still lands in the right basin.
 
 test_that("the coarse ranking grid never reaches the reported fit", {
-  # The ladder is off by default (it cost 0.62 of log-likelihood on the
-  # benchmark), so this turns it on to test the mechanism it guards.
+  # The ladder is on by default at 5 nodes; set it explicitly anyway so this
+  # test's intent (exercising the mechanism it guards) does not silently stop
+  # doing so if the default ever changes again.
   old <- getOption("mixtureEM.ri_rank_nodes")
   on.exit(options(mixtureEM.ri_rank_nodes = old), add = TRUE)
   options(mixtureEM.ri_rank_nodes = 5L)
@@ -227,4 +228,47 @@ test_that("order_by_size relabels the random intercept's intercepts too", {
   expect_equal(sorted$mm$models[[1]]$parameters$pis,
                .lta_ri_integrated_pis(sorted$ri, 3L, 4L),
                tolerance = 1e-12, ignore_attr = TRUE)
+})
+
+# --- 9. Standard errors on the loadings -------------------------------------
+
+# The random intercept's loading is the headline estimate the source paper
+# reports with a standard error; W10 adds it. The L-BFGS polish and the robust
+# sandwich stay off for RI (`.lta_scores_full()`), so these only check the
+# default (empirical-information) estimator.
+test_that("standard_errors = TRUE returns finite loading SEs (continuous)", {
+  X <- .lta_refine_sim(n = 150, K = 2, Tn = 4, J = 3, seed = 1)
+  fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", random_intercept = "continuous",
+    n_quadrature = 10, n_init = 1, max_iter = 25, random_state = 1,
+    standard_errors = TRUE))
+  expect_true(.lta_scores_supported(fit))
+  expect_false(.lta_scores_full(fit))
+  expect_false(is.null(fit$se))
+  expect_equal(dim(fit$se$loading_se), c(3L, 1L))
+  expect_true(all(is.finite(fit$se$loading_se)))
+  expect_true(all(fit$se$loading_se > 0))
+  b <- fit$se$blocks[[which(vapply(fit$se$blocks, function(x) x$name, "") ==
+                             "alpha[item 1]")]]
+  alpha_se <- sqrt(diag(fit$se$vcov))[b$cols]
+  expect_true(all(is.finite(alpha_se)) && all(alpha_se > 0))
+})
+
+test_that("standard_errors = TRUE returns finite loading SEs (binary)", {
+  X <- .lta_refine_sim(n = 150, K = 2, Tn = 4, J = 3, seed = 1)
+  fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", random_intercept = "binary", n_ri = 2,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = TRUE))
+  expect_false(is.null(fit$se))
+  expect_equal(dim(fit$se$loading_se), c(3L, 1L))
+  expect_true(all(is.finite(fit$se$loading_se)) && all(fit$se$loading_se > 0))
+})
+
+test_that('standard_errors = "robust" falls back silently for RI fits', {
+  X <- .lta_refine_sim(n = 60, K = 2, Tn = 4, J = 2, seed = 1)
+  fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", random_intercept = "continuous", n_quadrature = 5,
+    n_init = 1, max_iter = 10, random_state = 1, standard_errors = "robust"))
+  expect_false(is.null(fit$se))
+  expect_false(fit$se$robust)
 })

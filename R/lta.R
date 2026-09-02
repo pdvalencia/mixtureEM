@@ -671,13 +671,18 @@ fit_lta <- function(indicators,
   # Drawing the starts from the coarse state takes the same random numbers the
   # full grid would: .lta_random_start() sizes `L` by `ncol(Dnode)`, which is 1
   # for a continuous random intercept at every `Q`.
-  # OFF by default. When it was first measured, ranking on five nodes halved
-  # the search but appeared to cost 0.62 of log-likelihood - and that
-  # measurement was taken while the search was landing in the wrong basin
-  # entirely, for reasons since fixed (.lta_ri_warm_start()), so the 0.62 is
-  # not a number to trade against. The mechanism is kept behind an option, off,
-  # until it is re-measured against a search that reaches the right optimum.
-  n_rank_nodes <- getOption("mixtureEM.ri_rank_nodes", Inf)
+  # ON by default at 5 nodes. When it was first measured, ranking on five
+  # nodes halved the search but appeared to cost 0.62 of log-likelihood - but
+  # that measurement was taken while the search was landing in the wrong
+  # basin entirely, for reasons since fixed (.lta_ri_warm_start()). Re-measured
+  # against the fixed search on the LTA-FAQ benchmark (continuous, n_init = 50,
+  # random_state = 7): ll -14442.0171 against the no-ladder -14442.0171 (gap
+  # -0.00001), 3/3 restarts replicating, in 391.8s against 510-590s - no
+  # measurable accuracy cost for 25-30% less wall time, so the option now
+  # defaults on. Still an option, not a hard-coded 5, so a user who hits a
+  # fixture where 5 nodes cannot resolve the right basin can set
+  # `options(mixtureEM.ri_rank_nodes = Inf)` to turn it off.
+  n_rank_nodes <- getOption("mixtureEM.ri_rank_nodes", 5L)
   ri_ladder <- staged && !is.null(state$ri) &&
     identical(state$ri$kind, "continuous") &&
     length(state$ri$mass) > n_rank_nodes
@@ -1428,6 +1433,22 @@ fit_lta <- function(indicators,
     }
   }
 
+  # The paper's headline estimate is the RI loading with its standard error
+  # (`### 14.5`); surface it as a plain R x M matrix keyed the same way
+  # `state$ri$L` already is, rather than making a caller parse block-name
+  # strings. Raw numbers only -- formatted reporting is a later slice's job.
+  loading_se <- NULL
+  if (!is.null(state$ri)) {
+    n_items    <- nrow(state$ri$L)
+    n_dim      <- ncol(state$ri$Dnode)
+    loading_se <- matrix(NA_real_, n_items, n_dim)
+    for (b in blocks) {
+      m <- regmatches(b$name, regexec("^lambda\\[item (\\d+)\\]$", b$name))[[1]]
+      if (length(m) == 2L)
+        loading_se[as.integer(m[2]), ] <- sqrt(pmax(diag(V)[b$cols], 0))
+    }
+  }
+
   # Delta method onto the probability scale. For a multinomial logit with the
   # reference category anchored, d p_l / d eta_m = p_l (1{l = m} - p_m), so the
   # covariance of the whole probability vector - reference category included -
@@ -1444,7 +1465,7 @@ fit_lta <- function(indicators,
     prob_se[[b$name]] <- sqrt(pmax(diag(G %*% Vb %*% t(G)), 0))
   }
 
-  list(vcov = V, blocks = blocks, prob_se = prob_se,
+  list(vcov = V, blocks = blocks, prob_se = prob_se, loading_se = loading_se,
        conditional = conditional, design_based = design_based,
        robust = robust_used)
 }
@@ -1479,12 +1500,6 @@ fit_lta <- function(indicators,
 }
 
 .lta_scores_supported <- function(state) {
-  # A random intercept adds a parameter kind the score machinery has never
-  # seen, so standard errors are deferred to a later slice rather than guessed
-  # at here. The L-BFGS polish goes with them, and costs nothing on these fits:
-  # EM reaches the reference programs' optimum on the validation benchmark to
-  # 1e-4 without it (roadmap `### 14.11`).
-  if (!is.null(state$ri)) return(FALSE)
   if (state$n_statuses < 2L || state$n_times < 2L) return(FALSE)
   TRUE
 }
@@ -1494,8 +1509,16 @@ fit_lta <- function(indicators,
 # these it reports delta and tau with the measurement model treated as known
 # and says so through `conditional`. The refinement does need it, because a
 # parameter it cannot differentiate is a parameter it must not move.
+#
+# A random intercept fit is excluded here even though its score blocks are now
+# built below: `.lta_par_layout()`/`.lta_par_pack()`/`.lta_par_unpack()` (the
+# packing L-BFGS refinement and the robust sandwich both need) have no
+# `alpha`/`lambda` case yet, so both stay off for RI fits until that slice.
+# EM already reaches the reference programs' optimum on the validation
+# benchmark to 1e-4 without the polish (roadmap `### 14.11`), so this is not a
+# gap for the plain (non-robust) standard errors this state now supports.
 .lta_scores_full <- function(state) {
-  .lta_scores_supported(state) &&
+  .lta_scores_supported(state) && is.null(state$ri) &&
     class(state$mm$models[[1]])[1] %in%
       c("bernoulli", "bernoulli_nan", "gaussian_diag", "gaussian_diag_nan",
         "gaussian_unit", "gaussian_unit_nan")
@@ -1532,16 +1555,32 @@ fit_lta <- function(indicators,
   # One class runs the single chain unchanged: `fb$gamma` is the status
   # posterior directly and `state$tau_allowed` is already the collapsed
   # (non-list) view .lta_pack() maintains for this case.
+  ri_G <- NULL
   if (C == 1L) {
-    # .lta_log_delta()/.lta_log_tau() (R/lta_covariates.R) already return the
-    # case-varying log-probabilities a covariate model implies, and fall back
-    # to the plain broadcast delta/tau otherwise -- the same functions the
-    # ordinary E-step calls, so the log-likelihood here needs no branch on
-    # whether covariates are present.
-    fb <- .lta_forward_backward(logB, .lta_log_delta(state), .lta_log_tau(state),
-                                w, keep_pairwise = TRUE)
-    gam <- fb$gamma
-    ll  <- fb$ll
+    if (!is.null(state$ri)) {
+      # A random intercept is shared across occasions and items within a
+      # case, so a single forward-backward pass on the node-marginalised
+      # emission (`logB` above) would drop that within-case correlation.
+      # .lta_ri_e_step() already runs the right thing -- one forward-backward
+      # per node, mixed by the node posterior -- and returns the same shape
+      # a single-class .lta_em() e_step() does, plus the joint
+      # node-and-status posterior `G` the measurement block below needs.
+      e   <- .lta_ri_e_step(state, X, w)
+      fb  <- e$es[[1L]]
+      gam <- fb$gamma
+      ll  <- e$ll
+      ri_G <- e$ri$G
+    } else {
+      # .lta_log_delta()/.lta_log_tau() (R/lta_covariates.R) already return
+      # the case-varying log-probabilities a covariate model implies, and
+      # fall back to the plain broadcast delta/tau otherwise -- the same
+      # functions the ordinary E-step calls, so the log-likelihood here needs
+      # no branch on whether covariates are present.
+      fb <- .lta_forward_backward(logB, .lta_log_delta(state), .lta_log_tau(state),
+                                  w, keep_pairwise = TRUE)
+      gam <- fb$gamma
+      ll  <- fb$ll
+    }
 
     if (!is.null(state$delta_beta)) {
       # Ordinary multinomial-logit score, covariate-weighted: the same
@@ -1697,6 +1736,38 @@ fit_lta <- function(indicators,
   # and the flag below says so.
   J <- state$n_items
   conditional <- TRUE
+  if (!is.null(state$ri)) {
+    # d/d alpha[k,j] = sum_t sum_q G[[q]][[t]][i,k] (y_ijt - pi(k,j,q))
+    # d/d lambda[j,]  = the same, times the node value Dnode[q, ], summed over
+    # k as well as q since a loading has no status subscript. Mirrors
+    # .lta_ri_mstep()'s own succ/tot aggregation (R/lta_ri.R) at the case
+    # level instead of aggregated -- same (item, node, occasion) loop, same
+    # missing-data mask, the M-step's score rather than a new derivation.
+    conditional <- FALSE
+    ri <- state$ri
+    Q  <- length(ri$mass)
+    M  <- ncol(ri$Dnode)
+    for (j in seq_len(J)) {
+      s_alpha  <- matrix(0, n, K)
+      s_lambda <- matrix(0, n, M)
+      for (q in seq_len(Q)) {
+        eta_q <- ri$A[, j] + as.vector(ri$Dnode[q, , drop = FALSE] %*% ri$L[j, ])
+        pi_q  <- plogis(eta_q)
+        resid <- matrix(0, n, K)
+        for (tt in seq_len(Tn)) {
+          xj  <- X[, .time_block_cols(tt, J)[j]]
+          obs <- !is.na(xj); xj[!obs] <- 0
+          resid <- resid + ri_G[[q]][[tt]] *
+            (matrix(xj, n, K) - matrix(pi_q, n, K, byrow = TRUE)) * obs
+        }
+        s_alpha  <- s_alpha + resid
+        s_lambda <- s_lambda + outer(rowSums(resid), ri$Dnode[q, ])
+      }
+      add_block(s_alpha, NULL, NULL, sprintf("alpha[item %d]", j))
+      add_block(s_lambda, NULL, NULL, sprintf("lambda[item %d]", j))
+    }
+    fam <- NULL
+  } else {
   fam <- class(state$mm$models[[1]])[1]
   if (fam %in% c("bernoulli", "bernoulli_nan")) {
     conditional <- FALSE
@@ -1750,6 +1821,7 @@ fit_lta <- function(indicators,
           add_block(s_v, NULL, NULL, sprintf("log_sd[item %d]", j))
       }
     }
+  }
   }
 
   list(S = do.call(cbind, scores), blocks = blocks,
