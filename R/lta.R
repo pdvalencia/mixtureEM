@@ -1498,6 +1498,15 @@ fit_lta <- function(indicators,
 
 .lta_scores_supported <- function(state) {
   if (state$n_statuses < 2L || state$n_times < 2L) return(FALSE)
+  # The multi-class branch of `.lta_score_matrix()` below runs a plain
+  # per-class forward-backward on the node-marginalised emission and never
+  # populates `ri_G` -- it predates the mover-stayer x RI crossing and has not
+  # been extended to run `.lta_ri_e_step()` once per class the way the E-step
+  # itself now does. Declining here (the same graceful NULL `.lta_standard_
+  # errors()` already returns for other unsupported states) is what keeps
+  # fitting such a model from crashing, rather than reporting scores for the
+  # wrong (RI-blind) likelihood.
+  if (!is.null(state$ri) && (state$n_classes %||% 1L) > 1L) return(FALSE)
   TRUE
 }
 
