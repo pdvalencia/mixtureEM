@@ -633,13 +633,20 @@
   # tables with case-level regressions; they are mutually exclusive with
   # `C > 1` in fit_lta(), so `c` is always 1 wherever these fire.
   idx <- if (isTRUE(state$tau_homogeneous)) 1L else seq_len(Tn - 1L)
+  # A tied initial-status distribution is one shared (K-1)-vector, not C of
+  # them, so it gets one block for the whole model rather than one per class.
+  # Covariate models replace delta with a regression and are mutually exclusive
+  # with C > 1 in fit_lta(), so they never reach this.
+  tied <- isTRUE(state$tie_initial_status) && C > 1L &&
+    is.null(state$delta_beta)
   for (c in seq_len(C)) {
     if (!is.null(state$delta_beta)) {
       D <- ncol(state$Z_delta)
       out[[length(out) + 1L]] <- list(kind = "delta_beta", c = c,
                                       len = (K - 1L) * D)
-    } else {
-      out[[length(out) + 1L]] <- list(kind = "delta", c = c, len = K - 1L)
+    } else if (!tied || c == 1L) {
+      out[[length(out) + 1L]] <- list(kind = "delta", c = c, len = K - 1L,
+                                      tied = tied)
     }
 
     if (!is.null(state$tau_beta)) {
@@ -733,7 +740,12 @@
       state$class_weights <- p / sum(p)
     } else if (b$kind == "delta") {
       p <- exp(c(v, 0) - max(c(v, 0)))
-      state$delta_c[[b$c]] <- p / sum(p)
+      p <- p / sum(p)
+      # Tied: one free vector, written to every class -- the vector->state
+      # inverse of the M-step's own "normalise once, broadcast back" (the
+      # `delta_tied` block in .lta_em(), R/lta_core.R).
+      if (isTRUE(b$tied)) for (cc in seq_len(C)) state$delta_c[[cc]] <- p
+      else state$delta_c[[b$c]] <- p
     } else if (b$kind == "tau") {
       p <- exp(c(v, 0) - max(c(v, 0)))
       p <- p / sum(p)
@@ -981,14 +993,17 @@
       g <- (alpha / C) * (1 - C * p[seq_len(C - 1L)])
     } else if (b$kind == "delta" && alpha > 0) {
       p <- pmax(state$delta_c[[b$c]], 1e-300)
-      # With C classes the initial-status distribution is estimated once per
-      # class, so its (alpha / K) mass is shared C ways, matching
-      # .lta_normalise(patterns = C) in the M-step and .lta_log_prior()'s
-      # (alpha / (C * K)) term. At C == 1 this is (alpha / K), unchanged.
-      val <- val + (alpha / (C * K)) * sum(log(p))
-      # d/d eta_m of (a/(C*K)) sum_k log p_k, with p a softmax:
-      # a/(C*K) * (1 - K p_m).
-      g <- (alpha / (C * K)) * (1 - K * p[seq_len(K - 1L)])
+      # Tied: one shared table, so it carries the whole alpha/K rather than a
+      # C-th of it -- matching .lta_normalise(patterns = 1L) in the tied M-step,
+      # and .lta_log_prior_dt(), which adds the C-th C times over identical
+      # vectors and lands on the same number. Untied: the initial-status
+      # distribution is estimated once per class, so its (alpha / K) mass is
+      # shared C ways, matching .lta_normalise(patterns = C) in the M-step and
+      # .lta_log_prior()'s (alpha / (C * K)) term. At C == 1 this is (alpha / K)
+      # either way.
+      a_d <- if (isTRUE(b$tied)) alpha / K else alpha / (C * K)
+      val <- val + a_d * sum(log(p))
+      g <- a_d * (1 - K * p[seq_len(K - 1L)])
     } else if (b$kind == "tau" && alpha > 0) {
       p  <- pmax(state$tau_c[[b$c]][[b$i_mat]][b$k, b$allowed], 1e-300)
       m  <- length(p)

@@ -115,6 +115,64 @@ test_that("tie_initial_status ties the initial distribution across classes", {
   # Tying collapses C free (K-1)-vectors into one shared one.
   expect_equal(fit_tied$n_params, fit0$n_params - 1L)
   expect_equal(fit_tied$delta_c[[1]], fit_tied$delta_c[[2]])
+  expect_true(.lta_scores_full(fit_tied))
+})
+
+test_that("the refinement's gradient matches finite differences for a tied mover-stayer fit", {
+  # A tied initial-status distribution collapses the C per-class delta blocks
+  # in .lta_score_matrix()'s C > 1 branch into one shared block (the roadmap's
+  # 14.13 derivation) -- this is the same check test-lta-refine.R runs for an
+  # untied mixture over chains, on a model where that collapse is exercised.
+  X <- .lta_refine_sim(n = 30, K = 2, Tn = 4, J = 3, seed = 1)
+  fit <- suppressMessages(suppressWarnings(
+    fit_lta(X, n_statuses = 2, times = 4, measurement = "binary",
+            mover_stayer = TRUE, tie_initial_status = TRUE,
+            smoothing = 0, bayes_constants = .ml, n_init = 2,
+            random_state = 1, refine = FALSE, standard_errors = FALSE)))
+  expect_true(.lta_scores_full(fit))
+
+  layout <- .lta_par_layout(fit)
+  par0   <- .lta_par_pack(fit, layout)
+  w      <- fit$weights_vec
+
+  expect_equal(length(par0), ncol(.lta_score_matrix(fit, X)$S))
+  expect_equal(length(par0), fit$n_params)
+
+  rt <- .lta_par_unpack(par0, fit, layout)
+  expect_equal(rt$delta_c[[1]], fit$delta_c[[1]], tolerance = 1e-10)
+  expect_equal(rt$delta_c[[2]], fit$delta_c[[2]], tolerance = 1e-10)
+  expect_equal(rt$delta_c[[1]], rt$delta_c[[2]], tolerance = 1e-10)
+  expect_equal(rt$tau_c, fit$tau_c, tolerance = 1e-10)
+  expect_equal(rt$class_weights, fit$class_weights, tolerance = 1e-10)
+
+  obj <- function(p) {
+    st <- .lta_par_unpack(p, fit, layout)
+    sum(w * .lta_score_matrix(st, X)$ll) +
+      .lta_penalty(st, X, layout, 0)$value
+  }
+  ana <- colSums(sweep(.lta_score_matrix(fit, X)$S, 1, w, "*")) +
+    .lta_penalty(fit, X, layout, 0)$gradient
+  eps <- 1e-5
+  fd <- vapply(seq_along(par0), function(i) {
+    e <- numeric(length(par0)); e[i] <- eps
+    (obj(par0 + e) - obj(par0 - e)) / (2 * eps)
+  }, numeric(1))
+
+  expect_lt(max(abs(ana - fd)) / max(1, max(abs(fd))), 1e-5)
+
+  # The penalty check: at a tightly converged fit with the default priors on,
+  # the penalised gradient (EM score + .lta_penalty()) should vanish. This is
+  # the one that catches a wrong tied prior constant in .lta_penalty() -- with
+  # alpha/(C*K) in place of alpha/K the delta component alone fails to vanish.
+  fit2 <- suppressMessages(suppressWarnings(
+    fit_lta(X, n_statuses = 2, times = 4, measurement = "binary",
+            mover_stayer = TRUE, tie_initial_status = TRUE,
+            n_init = 2, random_state = 1, tol = 1e-14, max_iter = 20000,
+            refine = FALSE, standard_errors = FALSE)))
+  layout2 <- .lta_par_layout(fit2)
+  g <- colSums(sweep(.lta_score_matrix(fit2, X)$S, 1, fit2$weights_vec, "*")) +
+    .lta_penalty(fit2, X, layout2, 1)$gradient
+  expect_lt(max(abs(g)), 1e-2)
 })
 
 test_that("`random_intercept` still refuses covariate-driven classes", {

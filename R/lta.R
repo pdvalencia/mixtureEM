@@ -1512,13 +1512,10 @@ fit_lta <- function(indicators,
   # fitting such a model from crashing, rather than reporting scores for the
   # wrong (RI-blind) likelihood.
   if (!is.null(state$ri) && (state$n_classes %||% 1L) > 1L) return(FALSE)
-  # A tied initial-status distribution collapses C free (K-1)-vectors down to
-  # one, but `.lta_par_layout()` still lays out one free `delta` block per
-  # class -- it has not been taught the tying, so its Jacobian would treat
-  # the shared numbers as C independent parameters. Declining is the same
-  # honest scope cut as the RI guard just above, not a numerical shortcut.
-  if (isTRUE(state$tie_initial_status) && (state$n_classes %||% 1L) > 1L)
-    return(FALSE)
+  # A tied initial-status distribution is handled by .lta_par_layout()/
+  # .lta_par_pack()/.lta_par_unpack() collapsing the C class-level delta
+  # blocks into one shared block, so the Jacobian below describes the model
+  # actually fitted rather than treating shared numbers as independent.
   TRUE
 }
 
@@ -1718,14 +1715,25 @@ fit_lta <- function(indicators,
                     state$class_weights[seq_len(C - 1L)], "-"),
               state$class_weights, seq_len(C - 1L), "class")
 
+    tied <- isTRUE(state$tie_initial_status)
+    if (tied) {
+      # Summing the per-class delta scores over c collapses to the single-chain
+      # score on the class-mixed posterior, because the classes share one delta
+      # and the class posteriors sum to 1. See the roadmap's 14.13 derivation.
+      add_block(sweep(gam[[1]][, seq_len(K - 1L), drop = FALSE], 2,
+                      state$delta_c[[1]][seq_len(K - 1L)], "-"),
+                state$delta_c[[1]], seq_len(K - 1L), "delta")
+    }
+
     idx <- if (isTRUE(state$tau_homogeneous)) 1L else seq_len(Tn - 1L)
     for (c in seq_len(C)) {
       gam_c   <- es[[c]]$gamma
       delta_c <- state$delta_c[[c]]
 
-      add_block(post[, c] * sweep(gam_c[[1]][, seq_len(K - 1L), drop = FALSE],
-                                  2, delta_c[seq_len(K - 1L)], "-"),
-                delta_c, seq_len(K - 1L), sprintf("delta[class %d]", c))
+      if (!tied)
+        add_block(post[, c] * sweep(gam_c[[1]][, seq_len(K - 1L), drop = FALSE],
+                                    2, delta_c[seq_len(K - 1L)], "-"),
+                  delta_c, seq_len(K - 1L), sprintf("delta[class %d]", c))
 
       for (i_mat in idx) {
         ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else i_mat

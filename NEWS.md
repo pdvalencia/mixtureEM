@@ -1,5 +1,25 @@
 # mixtureEM (development version)
 
+## `fit_lta()` reports standard errors for a tied mover-stayer fit
+
+A mover-stayer `fit_lta()` fitted with `tie_initial_status = TRUE` -- one
+shared starting-point distribution across the mover and stayer classes,
+instead of a separate one for each -- previously reported a log-likelihood
+but no standard errors at all. The internal parameter layout still described
+one free initial-status block per class regardless of tying, which would
+have silently misreported a tied fit's uncertainty as though the classes
+were independent, so it declined instead.
+
+It now collapses the tied classes into the one shared block the model
+actually has, in the parameter layout, the packing/unpacking round trip, the
+per-case score matrix and the Bayesian prior alike, and standard errors are
+reported like any other supported fit. This also switches on the post-EM
+L-BFGS refinement for tied non-RI fits, which had never run for them before
+-- the refinement never lowers the fitted objective, and it left every
+previously-validated tied-fit log-likelihood on the internal Mood benchmark
+unchanged to five decimals. Untied fits, and mover-stayer fits crossed with
+a random intercept, are unaffected.
+
 ## `fit_lta()` polishes and reports standard errors for a mixture over chains
 
 A latent transition model fitted with `n_classes` greater than 1 -- a mixture
