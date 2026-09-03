@@ -103,6 +103,20 @@ test_that("mover-stayer combines with a random intercept (binary)", {
   expect_equal(length(fit_ri$class_weights), 2L)
 })
 
+test_that("tie_initial_status ties the initial distribution across classes", {
+  X <- .lta_refine_sim(n = 30, K = 2, Tn = 4, J = 3, seed = 1)
+  fit0 <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", mover_stayer = TRUE,
+    n_init = 1, max_iter = 3, random_state = 1, standard_errors = FALSE))
+  fit_tied <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", mover_stayer = TRUE, tie_initial_status = TRUE,
+    n_init = 1, max_iter = 3, random_state = 1, standard_errors = FALSE))
+  expect_true(is.finite(fit_tied$loglik))
+  # Tying collapses C free (K-1)-vectors into one shared one.
+  expect_equal(fit_tied$n_params, fit0$n_params - 1L)
+  expect_equal(fit_tied$delta_c[[1]], fit_tied$delta_c[[2]])
+})
+
 test_that("`random_intercept` still refuses covariate-driven classes", {
   X <- .lta_refine_sim(n = 30, K = 2, Tn = 3, J = 4, seed = 1)
   expect_error(

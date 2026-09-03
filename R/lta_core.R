@@ -389,6 +389,20 @@
     if (C > 1L)
       state$class_weights <- .lta_normalise(colSums(E$post * w), alpha)
 
+    # A tied initial-status distribution pools the raw (pre-normalisation)
+    # occasion-1 responsibilities across every class into one shared table,
+    # the same "sum sufficient statistics, normalise once, broadcast back"
+    # trick `tau_homogeneous` below already does across occasions instead of
+    # across classes. Computed once here, ahead of the per-class loop, since
+    # it needs every class's `gamma[[1]]` before any of them can be assigned.
+    if (isTRUE(state$tie_initial_status) && C > 1L && !has_delta_cov) {
+      raw <- Reduce(`+`, lapply(seq_len(C), function(c) {
+        wc <- w * E$post[, c]
+        colSums(E$es[[c]]$gamma[[1]] * wc)
+      }))
+      delta_tied <- .lta_normalise(raw, alpha, patterns = 1L)
+    }
+
     for (c in seq_len(C)) {
       es <- E$es[[c]]
       # Everything this class learns is weighted by the posterior probability
@@ -405,6 +419,8 @@
       if (has_delta_cov) {
         state <- .lta_mstep_delta_cov(state, es$gamma[[1]])
         state$delta_c[[c]] <- state$delta
+      } else if (isTRUE(state$tie_initial_status) && C > 1L) {
+        state$delta_c[[c]] <- delta_tied
       } else {
         # With a latent class above the chain the initial-status distribution is
         # itself conditional on that class, so the prior mass is shared over the

@@ -331,6 +331,7 @@ fit_lta <- function(indicators,
                     forbidden_transitions = NULL,
                     n_classes = 1,
                     mover_stayer = FALSE,
+                    tie_initial_status = FALSE,
                     random_intercept = c("none", "continuous", "binary"),
                     n_quadrature = 15,
                     n_ri = 2,
@@ -554,6 +555,7 @@ fit_lta <- function(indicators,
     tau_c           = rep(list(rep(list(matrix(1 / K, K, K)), Tn - 1L)), C),
     tau_allowed_c   = allowed,
     tau_homogeneous = isTRUE(tau_homogeneous),
+    tie_initial_status = isTRUE(tie_initial_status),
     weights_vec     = w,
     weight_type       = weight_type,
     n_eff             = n_eff,
@@ -1042,7 +1044,10 @@ fit_lta <- function(indicators,
   C  <- state$n_classes %||% 1L
 
   n_delta <- if (!is.null(state$delta_beta))
-    (K - 1L) * ncol(state$delta_beta) else (K - 1L) * C
+    (K - 1L) * ncol(state$delta_beta)
+  else if (isTRUE(state$tie_initial_status))
+    (K - 1L)
+  else (K - 1L) * C
 
   n_tau <- 0L
   if (Tn > 1L) {
@@ -1507,6 +1512,13 @@ fit_lta <- function(indicators,
   # fitting such a model from crashing, rather than reporting scores for the
   # wrong (RI-blind) likelihood.
   if (!is.null(state$ri) && (state$n_classes %||% 1L) > 1L) return(FALSE)
+  # A tied initial-status distribution collapses C free (K-1)-vectors down to
+  # one, but `.lta_par_layout()` still lays out one free `delta` block per
+  # class -- it has not been taught the tying, so its Jacobian would treat
+  # the shared numbers as C independent parameters. Declining is the same
+  # honest scope cut as the RI guard just above, not a numerical shortcut.
+  if (isTRUE(state$tie_initial_status) && (state$n_classes %||% 1L) > 1L)
+    return(FALSE)
   TRUE
 }
 
