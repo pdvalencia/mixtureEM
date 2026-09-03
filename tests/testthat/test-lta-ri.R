@@ -387,3 +387,92 @@ test_that('standard_errors = "robust" falls back silently for RI fits', {
   expect_false(is.null(fit$se))
   expect_false(fit$se$robust)
 })
+
+# --- Mover-stayer x RI standard errors (roadmap ### 14.14) ------------------
+
+test_that("standard errors exist for a mover-stayer RI fit", {
+  X <- .lta_refine_sim(n = 60, K = 2, Tn = 4, J = 3, seed = 1)
+  fit_con <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", mover_stayer = TRUE,
+    random_intercept = "continuous", n_quadrature = 5,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = TRUE))
+  expect_true(.lta_scores_supported(fit_con))
+  expect_false(.lta_scores_full(fit_con))
+  expect_false(is.null(fit_con$se))
+  expect_true(all(is.finite(fit_con$se$loading_se)))
+  expect_true(all(fit_con$se$loading_se > 0))
+  expect_true(all(is.finite(fit_con$se$prob_se[["class"]])))
+  expect_equal(length(fit_con$se$prob_se[["class"]]), 2L)
+
+  fit_bin <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", mover_stayer = TRUE,
+    random_intercept = "binary", n_ri = 2,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = TRUE))
+  expect_false(is.null(fit_bin$se))
+  expect_true(all(is.finite(fit_bin$se$loading_se)))
+  expect_true(all(is.finite(fit_bin$se$prob_se[["ri_mass"]])))
+  expect_true(all(fit_bin$se$prob_se[["ri_mass"]] > 0))
+  expect_equal(length(fit_bin$se$prob_se[["ri_mass"]]), 2L)
+})
+
+test_that("ncol(S) == n_params for all four RI shapes", {
+  X <- .lta_refine_sim(n = 60, K = 2, Tn = 4, J = 3, seed = 1)
+  fit_con <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", random_intercept = "continuous", n_quadrature = 5,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE))
+  fit_bin <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", random_intercept = "binary", n_ri = 2,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE))
+  fit_con_ms <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", mover_stayer = TRUE,
+    random_intercept = "continuous", n_quadrature = 5,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE))
+  fit_bin_ms <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", mover_stayer = TRUE,
+    random_intercept = "binary", n_ri = 2,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE))
+  for (fit in list(fit_con, fit_bin, fit_con_ms, fit_bin_ms))
+    expect_equal(ncol(.lta_score_matrix(fit, X)$S), fit$n_params)
+})
+
+test_that("the RI score blocks match finite differences (single-class and mover-stayer)", {
+  check_ri_gradient <- function(fit, X) {
+    sc    <- .lta_score_matrix(fit, X)
+    S     <- sc$S
+    w     <- fit$weights_vec
+    cols  <- function(name)
+      Find(function(b) identical(b$name, name), sc$blocks)$cols
+    ll_at <- function(st) sum(st$weights_vec * .lta_score_matrix(st, X)$ll)
+    eps   <- 1e-5
+    fd    <- function(f) (ll_at(f(eps)) - ll_at(f(-eps))) / (2 * eps)
+    bump_A <- function(k) function(h) { st <- fit; st$ri$A[k, 1] <- st$ri$A[k, 1] + h; st }
+    bump_L <- function(m) function(h) { st <- fit; st$ri$L[1, m] <- st$ri$L[1, m] + h; st }
+    bump_m <- function(q) function(h) {
+      st <- fit; Q <- length(st$ri$mass)
+      v <- log(st$ri$mass[-Q]) - log(st$ri$mass[Q]); v[q] <- v[q] + h
+      p <- exp(c(v, 0) - max(c(v, 0))); st$ri$mass <- p / sum(p); st
+    }
+    for (k in seq_len(nrow(fit$ri$A)))
+      expect_lt(abs(sum(w * S[, cols("alpha[item 1]")[k]]) - fd(bump_A(k))) /
+                  max(1, abs(fd(bump_A(k)))), 1e-5)
+    for (m in seq_len(ncol(fit$ri$L)))
+      expect_lt(abs(sum(w * S[, cols("lambda[item 1]")[m]]) - fd(bump_L(m))) /
+                  max(1, abs(fd(bump_L(m)))), 1e-5)
+    if (identical(fit$ri$kind, "binary") && length(fit$ri$mass) > 1L)
+      for (q in seq_len(length(fit$ri$mass) - 1L))
+        expect_lt(abs(sum(w * S[, cols("ri_mass")[q]]) - fd(bump_m(q))) /
+                    max(1, abs(fd(bump_m(q)))), 1e-5)
+  }
+
+  X <- .lta_refine_sim(n = 60, K = 2, Tn = 4, J = 3, seed = 1)
+  fit_bin <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", random_intercept = "binary", n_ri = 2,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE))
+  check_ri_gradient(fit_bin, X)
+
+  fit_bin_ms <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", mover_stayer = TRUE,
+    random_intercept = "binary", n_ri = 2,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE))
+  check_ri_gradient(fit_bin_ms, X)
+})

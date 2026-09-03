@@ -1,5 +1,30 @@
 # mixtureEM (development version)
 
+## `fit_lta()` reports standard errors for a mover-stayer fit crossed with a random intercept
+
+A `fit_lta()` fit combining `mover_stayer = TRUE` with `random_intercept =
+"continuous"` or `"binary"` previously fitted and reported a log-likelihood
+but no standard errors at all: the multi-class branch of the internal score
+matrix ran a plain per-class forward-backward on the node-marginalised
+emission, which drops the within-case correlation a random intercept induces,
+so standard errors were declined rather than reported against the wrong
+likelihood.
+
+It now runs the same random-intercept E-step the model itself is fitted with,
+once per class, exactly as the single-class case already did, so these fits
+report standard errors like any other supported fit. Separately, a random
+intercept with a discrete ("binary") mixing distribution was missing a score
+block for its node masses, so every binary-random-intercept fit -- including
+single-class ones, which have reported standard errors since an earlier
+release -- silently treated the node masses as known instead of estimated.
+That block is now included, which is the one number this change moves for an
+already-supported fit: a single-class binary-random-intercept fit's other
+standard errors widen slightly, since they are no longer conditional on the
+node masses. No point estimate anywhere moves, and non-random-intercept fits
+are bit-identical. The robust sandwich, the MLR scaling factor, `vlmr_test()`
+and the post-EM L-BFGS refinement remain off for every random-intercept fit,
+unchanged.
+
 ## `fit_lta()` reports standard errors for a tied mover-stayer fit
 
 A mover-stayer `fit_lta()` fitted with `tie_initial_status = TRUE` -- one

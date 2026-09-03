@@ -1503,15 +1503,9 @@ fit_lta <- function(indicators,
 
 .lta_scores_supported <- function(state) {
   if (state$n_statuses < 2L || state$n_times < 2L) return(FALSE)
-  # The multi-class branch of `.lta_score_matrix()` below runs a plain
-  # per-class forward-backward on the node-marginalised emission and never
-  # populates `ri_G` -- it predates the mover-stayer x RI crossing and has not
-  # been extended to run `.lta_ri_e_step()` once per class the way the E-step
-  # itself now does. Declining here (the same graceful NULL `.lta_standard_
-  # errors()` already returns for other unsupported states) is what keeps
-  # fitting such a model from crashing, rather than reporting scores for the
-  # wrong (RI-blind) likelihood.
-  if (!is.null(state$ri) && (state$n_classes %||% 1L) > 1L) return(FALSE)
+  # The multi-class branch of `.lta_score_matrix()` now runs
+  # `.lta_ri_e_step()` per the RI arm above, populating `ri_G` / `ri_pq` for
+  # the measurement blocks, so a multi-class RI fit needs no guard here.
   # A tied initial-status distribution is handled by .lta_par_layout()/
   # .lta_par_pack()/.lta_par_unpack() collapsing the C class-level delta
   # blocks into one shared block, so the Jacobian below describes the model
@@ -1571,6 +1565,7 @@ fit_lta <- function(indicators,
   # posterior directly and `state$tau_allowed` is already the collapsed
   # (non-list) view .lta_pack() maintains for this case.
   ri_G <- NULL
+  ri_pq <- NULL
   if (C == 1L) {
     if (!is.null(state$ri)) {
       # A random intercept is shared across occasions and items within a
@@ -1585,6 +1580,7 @@ fit_lta <- function(indicators,
       gam <- fb$gamma
       ll  <- e$ll
       ri_G <- e$ri$G
+      ri_pq <- e$ri$pq
     } else {
       # .lta_log_delta()/.lta_log_tau() (R/lta_covariates.R) already return
       # the case-varying log-probabilities a covariate model implies, and
@@ -1696,16 +1692,33 @@ fit_lta <- function(indicators,
     # already uses, reused here for exactly the reason it exists there: the
     # measurement model is shared across classes, so its score reads the
     # mixed posterior rather than any one class's own.
-    es <- lapply(seq_len(C), function(c) {
-      sub <- .lta_class_state(state, c)
-      .lta_forward_backward(logB, log(pmax(sub$delta, 1e-300)),
-                            lapply(sub$tau, function(m) log(pmax(m, 1e-300))),
-                            w, keep_pairwise = TRUE)
-    })
-    lp   <- vapply(seq_len(C), function(c) es[[c]]$ll, numeric(n))
-    lp   <- sweep(lp, 2, log(pmax(state$class_weights, 1e-300)), "+")
-    ll   <- logsumexp(lp, MARGIN = 1)
-    post <- exp(lp - ll)
+    if (!is.null(state$ri)) {
+      # Same reason the C == 1 branch above calls this: the random intercept
+      # is shared across occasions and items within a case, so a
+      # forward-backward on the node-marginalised emission would drop that
+      # within-case correlation. .lta_ri_e_step() runs the per-class,
+      # per-node double loop the E-step itself now runs, and returns `es`,
+      # `post` and `ll` in exactly the shape the plain branch below builds by
+      # hand -- its `es[[c]]$gamma` and `$pairwise` are already mixed over
+      # nodes -- plus `ri$G` / `ri$pq`, which the measurement blocks need.
+      e     <- .lta_ri_e_step(state, X, w)
+      es    <- e$es
+      post  <- e$post
+      ll    <- e$ll
+      ri_G  <- e$ri$G
+      ri_pq <- e$ri$pq
+    } else {
+      es <- lapply(seq_len(C), function(c) {
+        sub <- .lta_class_state(state, c)
+        .lta_forward_backward(logB, log(pmax(sub$delta, 1e-300)),
+                              lapply(sub$tau, function(m) log(pmax(m, 1e-300))),
+                              w, keep_pairwise = TRUE)
+      })
+      lp   <- vapply(seq_len(C), function(c) es[[c]]$ll, numeric(n))
+      lp   <- sweep(lp, 2, log(pmax(state$class_weights, 1e-300)), "+")
+      ll   <- logsumexp(lp, MARGIN = 1)
+      post <- exp(lp - ll)
+    }
     gam  <- .lta_mixed_gamma(list(es = es, post = post), Tn, C)
 
     # class weights: the score of the mixing-proportion logit is
@@ -1791,6 +1804,20 @@ fit_lta <- function(indicators,
       }
       add_block(s_alpha, NULL, NULL, sprintf("alpha[item %d]", j))
       add_block(s_lambda, NULL, NULL, sprintf("lambda[item %d]", j))
+    }
+    if (identical(ri$kind, "binary") && Q > 1L) {
+      # The node masses are a mixing proportion at the case level, so their
+      # multinomial-logit score is the same (posterior - prior) residual as
+      # the class-weight block one level up: P(node = q | y_i) - mass_q,
+      # anchored on the last node. `pq` IS that posterior -- pooled over
+      # class with each case's own class posterior by .lta_ri_e_step() -- and
+      # is what .lta_ri_mstep() already sums under the case weights to update
+      # `mass`. The continuous variant's Gauss-Hermite weights are FIXED and
+      # must never get a block here, the same restriction .lta_ri_mstep()
+      # observes.
+      add_block(sweep(ri_pq[, seq_len(Q - 1L), drop = FALSE], 2,
+                      ri$mass[seq_len(Q - 1L)], "-"),
+                ri$mass, seq_len(Q - 1L), "ri_mass")
     }
     fam <- NULL
   } else {
