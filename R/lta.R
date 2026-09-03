@@ -522,9 +522,6 @@ fit_lta <- function(indicators,
     if (measurement != "binary")
       stop("`random_intercept` currently supports binary indicators only.",
            call. = FALSE)
-    if (C > 1L)
-      stop("`random_intercept` cannot yet be combined with `n_classes` > 1 or ",
-           "`mover_stayer = TRUE`.", call. = FALSE)
     if (!is.null(Z_delta) || !is.null(Z_tau))
       stop("`random_intercept` cannot yet be combined with covariates on the ",
            "initial status or the transitions.", call. = FALSE)

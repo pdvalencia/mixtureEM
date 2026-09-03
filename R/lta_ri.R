@@ -55,14 +55,20 @@
 }
 
 # ------------------------------------------------------------------------------
-# E-step: Q forward-backward passes, one per node, mixed by the node posterior
+# E-step: Q forward-backward passes per class, mixed by the node posterior,
+# then (with more than one class) by the class posterior
 # ------------------------------------------------------------------------------
 #
-# Returns the shape .lta_em()'s own e_step() returns for a single class, so
-# nothing downstream (the delta/tau M-steps, .lta_pair_counts(),
-# .lta_mixed_gamma(), state$abs_ent_path) needs to know a random intercept is
-# there at all. The one extra field, `ri = list(pq, G)`, is read only by
-# .lta_ri_mstep() and by the sign-normalisation step.
+# Returns the shape .lta_em()'s own e_step() returns, so nothing downstream
+# (the per-class delta/tau M-steps, .lta_pair_counts(), .lta_mixed_gamma(),
+# state$abs_ent_path) needs to know a random intercept is there at all. The
+# one extra field, `ri = list(pq, G)`, is read only by .lta_ri_mstep() and by
+# the sign-normalisation step, and carries no class dimension: the factor
+# (`A`, `L`, and the binary variant's `mass`) is shared across classes -- a
+# person's response tendency doesn't depend on which chain they follow -- so
+# its sufficient statistic is the (status, node) posterior pooled over class,
+# weighted by each case's own class posterior (14.7 Phase B: "a double outer
+# loop over class and node, and no new mathematics").
 .lta_ri_e_step <- function(state, X, w) {
   n  <- nrow(X)
   K  <- state$n_statuses
@@ -70,47 +76,95 @@
   R  <- state$n_items
   ri <- state$ri
   Q  <- length(ri$mass)
+  C  <- state$n_classes %||% 1L
 
-  sub <- .lta_class_state(state, 1L)
-  log_delta <- .lta_log_delta(sub)
-  log_tau   <- .lta_log_tau(sub)
-
-  fb <- vector("list", Q)
+  # The emission table at each node depends only on the shared factor, not on
+  # class, so it is built once per node and reused across every class's
+  # forward-backward pass below.
+  logB <- vector("list", Q)
   for (q in seq_len(Q)) {
     pis_q <- plogis(ri$A + matrix(ri$L %*% ri$Dnode[q, ], K, R, byrow = TRUE))
     mm_q  <- state$mm
     for (t in seq_len(Tn)) mm_q$models[[t]]$parameters$pis <- pis_q
-    logB_q <- .lta_emission_loglik(mm_q, X)
+    logB[[q]] <- .lta_emission_loglik(mm_q, X)
+  }
+
+  # Inner mix, per class: exactly the single-class node loop this function
+  # has always run, using that class's own delta/tau.
+  fb   <- vector("list", C)
+  ll_c <- matrix(0, n, C)
+  pq_c <- vector("list", C)
+  for (c in seq_len(C)) {
+    sub <- .lta_class_state(state, c)
+    log_delta <- .lta_log_delta(sub)
+    log_tau   <- .lta_log_tau(sub)
+
     # keep_pairwise = TRUE always: the pairwise blocks must be re-weighted by
     # the node posterior before the transition M-step sees them (14.10.10,
     # failure mode 5 if this is ever made conditional).
-    fb[[q]] <- .lta_forward_backward(logB_q, log_delta, log_tau, w,
-                                     keep_pairwise = TRUE)
+    fb[[c]] <- lapply(seq_len(Q), function(q)
+      .lta_forward_backward(logB[[q]], log_delta, log_tau, w,
+                            keep_pairwise = TRUE))
+
+    lq <- vapply(seq_len(Q), function(q)
+      log(pmax(ri$mass[q], 1e-300)) + fb[[c]][[q]]$ll, numeric(n))
+    ll_c[, c] <- logsumexp(lq, MARGIN = 1)
+    pq_c[[c]] <- exp(lq - ll_c[, c])
   }
 
-  lq <- vapply(seq_len(Q), function(q)
-    log(pmax(ri$mass[q], 1e-300)) + fb[[q]]$ll, numeric(n))
-  ll <- logsumexp(lq, MARGIN = 1)
-  pq <- exp(lq - ll)
+  # Outer mix, over class -- identical in shape to the plain (no-RI) e_step's
+  # own C > 1 branch in .lta_em(), just fed `ll_c` in place of a directly
+  # computed per-class `fb$ll`.
+  if (C == 1L) {
+    ll   <- ll_c[, 1]
+    post <- matrix(1, n, 1L)
+  } else {
+    lp   <- sweep(ll_c, 2, log(pmax(state$class_weights, 1e-300)), "+")
+    ll   <- logsumexp(lp, MARGIN = 1)
+    post <- exp(lp - ll)
+  }
 
-  # The JOINT node-and-status posterior, per node, computed before it is ever
-  # summed over q. This is the single easiest thing in the Part to get wrong
-  # (14.10.10, failure mode 1): the measurement M-step needs G/P below, never
-  # pq[, q] times the already node-mixed gamma/pairwise.
+  # Per-class, node-mixed status/pairwise posteriors, and the per-class JOINT
+  # (status, node) posterior computed before it is ever summed over q. This
+  # is the single easiest thing in the Part to get wrong (14.10.10, failure
+  # mode 1): the measurement M-step needs the joint quantities below, never
+  # pq[, q] times an already node-mixed gamma/pairwise.
+  es     <- vector("list", C)
+  Gjoint <- vector("list", C)
+  for (c in seq_len(C)) {
+    Gc <- lapply(seq_len(Q), function(q)
+      lapply(fb[[c]][[q]]$gamma, function(g) g * pq_c[[c]][, q]))
+    Pc <- lapply(seq_len(Q), function(q)
+      lapply(fb[[c]][[q]]$pairwise, function(pt)
+        lapply(pt, function(block) block * pq_c[[c]][, q])))
+
+    gamma_mix <- lapply(seq_len(Tn), function(t)
+      Reduce(`+`, lapply(seq_len(Q), function(q) Gc[[q]][[t]])))
+    pair_mix <- if (Tn > 1L) lapply(seq_len(Tn - 1L), function(t)
+      lapply(seq_len(K), function(k)
+        Reduce(`+`, lapply(seq_len(Q), function(q) Pc[[q]][[t]][[k]])))) else
+      list()
+
+    es[[c]]     <- list(ll = ll_c[, c], gamma = gamma_mix, xi = NULL,
+                        pairwise = pair_mix)
+    Gjoint[[c]] <- Gc
+  }
+
+  # The shared factor's sufficient statistic: the per-class joint (status,
+  # node) posterior, pooled over class weighted by each case's class
+  # posterior. With one class this reduces to Gjoint[[1]] unchanged.
   G <- lapply(seq_len(Q), function(q)
-    lapply(fb[[q]]$gamma, function(g) g * pq[, q]))
-  P <- lapply(seq_len(Q), function(q)
-    lapply(fb[[q]]$pairwise, function(pt)
-      lapply(pt, function(block) block * pq[, q])))
+    lapply(seq_len(Tn), function(t) {
+      terms <- lapply(seq_len(C), function(c) {
+        g <- Gjoint[[c]][[q]][[t]]
+        if (C == 1L) g else g * post[, c]
+      })
+      Reduce(`+`, terms)
+    }))
+  pq <- if (C == 1L) pq_c[[1]] else
+    Reduce(`+`, lapply(seq_len(C), function(c) pq_c[[c]] * post[, c]))
 
-  gamma_mix <- lapply(seq_len(Tn), function(t)
-    Reduce(`+`, lapply(seq_len(Q), function(q) G[[q]][[t]])))
-  pair_mix <- if (Tn > 1L) lapply(seq_len(Tn - 1L), function(t)
-    lapply(seq_len(K), function(k)
-      Reduce(`+`, lapply(seq_len(Q), function(q) P[[q]][[t]][[k]])))) else list()
-
-  es <- list(list(ll = ll, gamma = gamma_mix, xi = NULL, pairwise = pair_mix))
-  list(es = es, post = matrix(1, n, 1L), ll = ll, ri = list(pq = pq, G = G))
+  list(es = es, post = post, ll = ll, ri = list(pq = pq, G = G))
 }
 
 # ------------------------------------------------------------------------------

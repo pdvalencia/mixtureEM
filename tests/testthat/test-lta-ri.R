@@ -61,12 +61,55 @@ test_that("`random_intercept` refuses non-binary measurement", {
     "binary indicators only")
 })
 
-test_that("`random_intercept` refuses more than one class", {
+# Mover-Stayer x RI-LTA (roadmap Part 14 Phase B, "a double outer loop over
+# class and node, and no new mathematics"): the factor (`A`/`L`/`mass`) is
+# shared across classes, only `delta`/`tau`/`class_weights` are class-
+# specific, mirroring how the measurement model is already pooled across
+# classes for a non-RI mover-stayer fit. This is a cheap smoke test only --
+# n_init = 1, max_iter tiny, made-up data -- not a match against real-data
+# reference targets, which stays a separate, more expensive follow-up.
+test_that("mover-stayer combines with a random intercept (continuous)", {
+  X <- .lta_refine_sim(n = 30, K = 2, Tn = 4, J = 3, seed = 1)
+  fit0 <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", mover_stayer = TRUE,
+    n_init = 1, max_iter = 3, random_state = 1, standard_errors = FALSE))
+  fit_ri <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", mover_stayer = TRUE,
+    random_intercept = "continuous", n_quadrature = 3,
+    n_init = 1, max_iter = 3, random_state = 1, standard_errors = FALSE))
+  expect_true(is.finite(fit_ri$loglik))
+  # The only new parameters over the plain mover-stayer fit are the R
+  # loadings (M = 1 for the continuous variant); everything else is either
+  # shared (the factor's own A, folded into the already-counted pis) or
+  # already scales with C in n_params (see .lta_n_parameters()).
+  expect_equal(fit_ri$n_params, fit0$n_params + 3L)
+  expect_equal(length(fit_ri$class_weights), 2L)
+  expect_equal(dim(fit_ri$ri$L), c(3L, 1L))
+})
+
+test_that("mover-stayer combines with a random intercept (binary)", {
+  X <- .lta_refine_sim(n = 30, K = 2, Tn = 4, J = 3, seed = 1)
+  fit0 <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", mover_stayer = TRUE,
+    n_init = 1, max_iter = 3, random_state = 1, standard_errors = FALSE))
+  fit_ri <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", mover_stayer = TRUE,
+    random_intercept = "binary", n_ri = 2,
+    n_init = 1, max_iter = 3, random_state = 1, standard_errors = FALSE))
+  expect_true(is.finite(fit_ri$loglik))
+  # For n_ri = 2, the binary variant adds R loadings plus one free mass
+  # (length(mass) - 1) over the plain mover-stayer fit.
+  expect_equal(fit_ri$n_params, fit0$n_params + 3L + 1L)
+  expect_equal(length(fit_ri$class_weights), 2L)
+})
+
+test_that("`random_intercept` still refuses covariate-driven classes", {
   X <- .lta_refine_sim(n = 30, K = 2, Tn = 3, J = 4, seed = 1)
   expect_error(
     fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
-           n_classes = 2, random_intercept = "continuous"),
-    "n_classes")
+           n_classes = 2, predictors_initial = matrix(rnorm(30), 30, 1),
+           random_intercept = "continuous"),
+    "not yet available")
 })
 
 test_that("`random_intercept` refuses covariates", {
