@@ -1,5 +1,20 @@
 # mixtureEM (development version)
 
+## A random intercept may now be combined with covariates and with `group`
+
+`fit_lta()` previously refused to combine `random_intercept` with covariates
+on the initial status or the transitions (`predictors_initial` /
+`predictors_transition`). Because `group` is implemented internally as those
+same covariates, the same refusal also blocked multiple-group random-intercept
+fits. Both are now supported: the expectation step, the parameter packing, the
+score blocks and the parameter count already handled this combination
+correctly, so lifting the one guard that refused it was what was missing.
+Standard errors, the robust sandwich, the MLR scaling factor and the post-EM
+refinement all switch on for these fits the same way they already do for a
+plain random-intercept fit. No number a user has already seen moves: every
+fit that could be estimated before this change either has no random
+intercept or has no covariates, so nothing that could change does.
+
 ## `fit_lta()`'s post-EM refinement now covers random-intercept fits
 
 The optional post-EM L-BFGS polish (`refine = TRUE`, the default) previously

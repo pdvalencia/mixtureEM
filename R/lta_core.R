@@ -1225,6 +1225,14 @@
 
   state$delta_c <- donor$delta_c
   state$tau_c   <- donor$tau_c
+  # A covariate donor has no delta_c/tau_c at all -- .lta_random_start()
+  # nulled delta_beta/tau_beta above on the assumption every restart begins
+  # from probabilities, which does not hold when refine_from hands over a
+  # donor that was itself a covariate fit; carry its regression coefficients
+  # over directly instead, exactly as the loadings/measurement model below
+  # are carried over rather than re-derived.
+  if (!is.null(donor$delta_beta)) state$delta_beta <- donor$delta_beta
+  if (!is.null(donor$tau_beta))   state$tau_beta   <- donor$tau_beta
   if (state$n_classes > 1L) state$class_weights <- donor$class_weights
 
   # An RI fit may take a regular-LTA donor: seed delta, tau and the RI

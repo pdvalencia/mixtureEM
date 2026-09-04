@@ -184,12 +184,31 @@ test_that("`random_intercept` still refuses covariate-driven classes", {
     "not yet available")
 })
 
-test_that("`random_intercept` refuses covariates", {
+test_that("`random_intercept` combines with covariates on the initial status and transitions", {
+  # Roadmap ### 14.17: the guard that used to refuse this combination is
+  # lifted; this is the structural replacement for the old refusal test.
   sim <- .lta_cov_refine_sim()
-  expect_error(
-    fit_lta(sim$X, n_statuses = 2, times = 3, measurement = "binary",
-           predictors_initial = sim$Z, random_intercept = "binary"),
-    "covariates")
+  fit <- suppressWarnings(fit_lta(sim$X, n_statuses = 2, times = 3,
+    measurement = "binary", predictors_initial = sim$Z,
+    predictors_transition = sim$Z, random_intercept = "binary", n_ri = 2,
+    n_init = 1, max_iter = 5, random_state = 1, standard_errors = FALSE))
+  expect_true(is.finite(fit$loglik))
+  expect_false(is.null(fit$delta_beta))
+  expect_false(is.null(fit$tau_beta))
+  expect_false(is.null(fit$ri))
+})
+
+test_that("`random_intercept` combines with `group` (multiple-group RI-LTA)", {
+  # `group` is implemented as covariates on delta/tau (R/lta.R), so this is
+  # the same guard as the test above, exercised through the other interface.
+  sim <- .lta_cov_refine_sim()
+  g <- factor(ifelse(sim$Z$z > 0, "a", "b"))
+  fit <- suppressWarnings(fit_lta(sim$X, n_statuses = 2, times = 3,
+    measurement = "binary", group = g, group_effects = "both",
+    random_intercept = "continuous", n_quadrature = 5,
+    n_init = 1, max_iter = 5, random_state = 1, standard_errors = FALSE))
+  expect_true(is.finite(fit$loglik))
+  expect_false(is.null(fit$ri))
 })
 
 test_that("`n_quadrature`/`n_ri` are validated", {
@@ -558,6 +577,127 @@ test_that("the packed vector describes the same thing the score matrix does, on 
     expect_equal(ll_case, ll_e, tolerance = 1e-10)
     expect_equal(sum(fit$weights_vec * ll_case), fit$loglik, tolerance = 1e-8)
   }
+})
+
+# --- 11. RI x covariates / groups (roadmap ### 14.17) -----------------------
+
+test_that("n_quadrature = 1 reduces RI-plus-covariates exactly to plain covariate LTA", {
+  # A single node at 0 with mass 1 contributes nothing regardless of the
+  # loadings, so the RI model started AT the plain covariate optimum is
+  # already (up to reoptimisation noise) at a fixed point of its own EM --
+  # refine_from() makes this close to an identity check rather than a claim
+  # that two independent random starts converge to the same basin (they need
+  # not, with covariates in play). Only `predictors_initial` is used: with
+  # `predictors_transition` too, this fixture's second transition matrix
+  # sits close to separation (coefficients drift past +-90 on the logit
+  # scale), where two optimiser paths that agree on the likelihood to 0.006
+  # can disagree on raw coefficients by a lot -- test-lta-refine.R's
+  # covariate gradient check documents the same trap. The tolerances below
+  # are optimiser-convergence slack, not algebraic-identity slack.
+  sim <- .lta_cov_refine_sim()
+  X <- sim$X; Z <- sim$Z
+  fit_cov <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
+    measurement = "binary", predictors_initial = Z,
+    smoothing = 0, bayes_constants = .ml, n_init = 1, random_state = 3,
+    tol = 1e-12, max_iter = 5000, standard_errors = FALSE))
+  fit_ri1 <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
+    measurement = "binary", predictors_initial = Z,
+    smoothing = 0, bayes_constants = .ml, refine_from = fit_cov,
+    tol = 1e-12, max_iter = 5000, standard_errors = FALSE,
+    random_intercept = "continuous", n_quadrature = 1))
+  expect_lt(abs(fit_ri1$loglik - fit_cov$loglik), 1e-3)
+  expect_lt(max(abs(fit_ri1$delta_beta - fit_cov$delta_beta)), 1e-2)
+})
+
+test_that("standard errors and the L-BFGS polish switch themselves on for RI-plus-covariates (roadmap 14.17 W5)", {
+  # .lta_scores_supported()/.lta_par_packable() add no covariate test, so
+  # lifting the guard in W2 makes this combination packable/scores-full
+  # without anyone deciding it should be -- confirm that on purpose here.
+  sim <- .lta_cov_refine_sim()
+  X <- sim$X; Z <- sim$Z
+  fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
+    measurement = "binary", predictors_initial = Z, predictors_transition = Z,
+    random_intercept = "continuous", n_quadrature = 5,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = TRUE))
+  expect_true(.lta_par_packable(fit))
+  expect_true(.lta_scores_full(fit))
+  expect_false(is.null(fit$se))
+  bn  <- vapply(fit$se$blocks, function(x) x$name, "")
+  se  <- sqrt(diag(fit$se$vcov))
+  db  <- fit$se$blocks[[which(bn == "delta_beta")]]
+  expect_true(all(is.finite(se[db$cols])) && all(se[db$cols] > 0))
+  for (i in grep("^tau_beta", bn))
+    expect_true(all(is.finite(se[fit$se$blocks[[i]]$cols])) &&
+                  all(se[fit$se$blocks[[i]]$cols] > 0))
+
+  fit_norefine <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
+    measurement = "binary", predictors_initial = Z, predictors_transition = Z,
+    random_intercept = "continuous", n_quadrature = 5,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE,
+    refine = FALSE))
+  fit_refine <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
+    measurement = "binary", predictors_initial = Z, predictors_transition = Z,
+    random_intercept = "continuous", n_quadrature = 5,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE,
+    refine = TRUE))
+  # The standing veto: the polish may only ever raise the log-likelihood.
+  expect_gte(fit_refine$loglik, fit_norefine$loglik - 1e-8)
+})
+
+test_that("a zero true covariate effect is recovered under RI-LTA", {
+  skip_on_cran()
+  set.seed(5)
+  sim <- .lta_cov_refine_sim()
+  noise <- data.frame(z = stats::rnorm(nrow(sim$X)))
+  fit <- suppressWarnings(fit_lta(sim$X, n_statuses = 2, times = 3,
+    measurement = "binary", predictors_initial = noise,
+    smoothing = 0, bayes_constants = .ml,
+    random_intercept = "continuous", n_quadrature = 10,
+    n_init = 1, random_state = 1, standard_errors = TRUE))
+  expect_false(is.null(fit$se))
+  b <- fit$se$blocks[[which(vapply(fit$se$blocks, function(x) x$name, "") ==
+                             "delta_beta")]]
+  est <- fit$delta_beta[1, 2]
+  se  <- sqrt(diag(fit$se$vcov))[b$cols][2]
+  expect_true(is.finite(se) && se > 0)
+  expect_lt(abs(est) / se, 3.5)
+})
+
+test_that("the RI score blocks match finite differences for covariate delta/tau", {
+  sim <- .lta_cov_refine_sim()
+  X <- sim$X; Z <- sim$Z
+  fit <- suppressMessages(suppressWarnings(
+    fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+            predictors_initial = Z, predictors_transition = Z,
+            random_intercept = "continuous", n_quadrature = 5,
+            smoothing = 0, bayes_constants = .ml, n_init = 2,
+            random_state = 1, refine = FALSE, standard_errors = FALSE)))
+  expect_true(.lta_scores_full(fit))
+
+  layout <- .lta_par_layout(fit)
+  par0   <- .lta_par_pack(fit, layout)
+  w      <- fit$weights_vec
+  expect_equal(length(par0), ncol(.lta_score_matrix(fit, X)$S))
+  expect_equal(length(par0), fit$n_params)
+
+  rt <- .lta_par_unpack(par0, fit, layout)
+  expect_equal(rt$delta_beta, fit$delta_beta, tolerance = 1e-10)
+  expect_equal(rt$tau_beta, fit$tau_beta, tolerance = 1e-10)
+
+  obj <- function(p) {
+    st <- .lta_par_unpack(p, fit, layout)
+    sum(w * .lta_score_matrix(st, X)$ll) +
+      .lta_penalty(st, X, layout, 0)$value
+  }
+  ana <- colSums(sweep(.lta_score_matrix(fit, X)$S, 1, w, "*")) +
+    .lta_penalty(fit, X, layout, 0)$gradient
+  eps <- 1e-5
+  fd <- vapply(seq_along(par0), function(i) {
+    e <- numeric(length(par0)); e[i] <- eps
+    (obj(par0 + e) - obj(par0 - e)) / (2 * eps)
+  }, numeric(1))
+
+  expect_lt(max(abs(ana - fd)) / max(1, max(abs(fd))), 1e-5)
 })
 
 test_that("the finite-difference Hessian is finite and negative definite (smoke, continuous RI)", {

@@ -15,6 +15,7 @@ fit_lta(
   forbidden_transitions = NULL,
   n_classes = 1,
   mover_stayer = FALSE,
+  tie_initial_status = FALSE,
   random_intercept = c("none", "continuous", "binary"),
   n_quadrature = 15,
   n_ri = 2,
@@ -111,9 +112,11 @@ otherwise be mistaken for status separation and for stability over time.
 normally-distributed factor by Gauss-Hermite quadrature (\code{n_quadrature}
 nodes); \code{"binary"} instead estimates a small number of discrete intercept
 classes (\code{n_ri} of them, 2 by default, the model's own case). Both require
-\code{measurement_invariance = "full"} and binary indicators, and neither yet
-supports \code{n_classes} > 1, \code{mover_stayer}, or covariates on the initial
-status or the transitions.
+\code{measurement_invariance = "full"} and binary indicators. A random
+intercept combines with \code{mover_stayer}, with covariates on the initial
+status or the transitions (\code{predictors_initial}/\code{predictors_transition}),
+and with \code{group} (implemented as covariates on the same two, so this is
+one capability, not two); it still does not support \code{n_classes} > 1.
 
 \strong{Do not test a random intercept against regular LTA with \code{\link[=lr_test]{lr_test()}}}:
 the continuous variant puts the null (loading = 0) on the boundary of the
@@ -267,11 +270,11 @@ covariates index the statuses through their regression coefficients.}
 scores; \code{FALSE} skips them; \code{"robust"} returns the sandwich estimator, with
 the observed information as its bread. \code{"robust"} costs a
 finite-difference Hessian -- \eqn{2p(p + 1)} likelihood evaluations -- and
-so takes minutes rather than seconds on a model of any size. Where the
-model cannot be packed on an unconstrained scale (several latent classes,
-covariates, or a measurement family whose parameters are not all free)
-\code{"robust"} falls back silently to the default estimator, and \code{summary()}
-then does not report robust errors.}
+so takes minutes rather than seconds on a model of any size. It is
+supported for random-intercept fits. Where the model still cannot be
+packed on an unconstrained scale (covariates, or a measurement family
+whose parameters are not all free) \code{"robust"} falls back silently to the
+default estimator, and \code{summary()} then does not report robust errors.}
 
 \item{predictors_initial}{Optional covariates predicting the latent status at
 the first occasion (Collins & Lanza, sec. 8.10.1).}

@@ -228,12 +228,14 @@
 # here would be slower and less accurate. Only `A` is numerical.
 #
 # Returns NULL wherever the packed vector is not the model's full free
-# parameter vector: a covariate LTA (.lta_par_packable()) -- a mixture over
-# chains, or a random intercept, is supported, since .lta_score_matrix()
-# covers both -- a family whose measurement parameters are not all packed
-# (`conditional`, which is gaussian_diag's free residual variances), or any
-# later family whose count stops matching. A wrong number silently returned is
-# worse than none.
+# parameter vector. `.lta_par_packable()` (R/lta.R) already covers a
+# covariate LTA, a mixture over chains, and a random intercept -- including a
+# random intercept combined with covariates or a grouping variable, since
+# .lta_score_matrix() covers all of it -- so what is left to catch here is a
+# family whose measurement parameters are not all packed (`conditional`,
+# which is gaussian_diag's free residual variances), or any later family
+# whose count stops matching. A wrong number silently returned is worse than
+# none.
 .lta_scaling_pieces <- function(info) {
   fit <- info$fit
   if (!inherits(fit, "lta_model")) return(NULL)

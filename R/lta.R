@@ -87,9 +87,11 @@
 #'   normally-distributed factor by Gauss-Hermite quadrature (`n_quadrature`
 #'   nodes); `"binary"` instead estimates a small number of discrete intercept
 #'   classes (`n_ri` of them, 2 by default, the model's own case). Both require
-#'   `measurement_invariance = "full"` and binary indicators, and neither yet
-#'   supports `n_classes` > 1, `mover_stayer`, or covariates on the initial
-#'   status or the transitions.
+#'   `measurement_invariance = "full"` and binary indicators. A random
+#'   intercept combines with `mover_stayer`, with covariates on the initial
+#'   status or the transitions (`predictors_initial`/`predictors_transition`),
+#'   and with `group` (implemented as covariates on the same two, so this is
+#'   one capability, not two); it still does not support `n_classes` > 1.
 #'
 #'   **Do not test a random intercept against regular LTA with [`lr_test()`]**:
 #'   the continuous variant puts the null (loading = 0) on the boundary of the
@@ -523,9 +525,6 @@ fit_lta <- function(indicators,
     if (measurement != "binary")
       stop("`random_intercept` currently supports binary indicators only.",
            call. = FALSE)
-    if (!is.null(Z_delta) || !is.null(Z_tau))
-      stop("`random_intercept` cannot yet be combined with covariates on the ",
-           "initial status or the transitions.", call. = FALSE)
   }
 
   if (random_intercept == "continuous") {
