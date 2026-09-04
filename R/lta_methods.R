@@ -813,9 +813,9 @@ lr_test <- function(restricted, full, scaled = c("auto", "yes", "no")) {
                 "does not cover (group_prevalence_equal's constrained",
                 "parameterisation), a measurement family with no",
                 "unconstrained packing, or -- for a latent transition model --",
-                "more than one latent class, covariates on the initial status",
-                "or the transitions, or a measurement family whose parameters",
-                "are not all on an unconstrained scale.")
+                "covariates on the initial status or the transitions, or a",
+                "measurement family whose parameters are not all on an",
+                "unconstrained scale.")
         else
           paste("the two models pack to the same number of step-one",
                 "parameters, so the correction is undefined."),

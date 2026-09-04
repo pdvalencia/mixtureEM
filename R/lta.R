@@ -232,11 +232,11 @@
 #'   scores; `FALSE` skips them; `"robust"` returns the sandwich estimator, with
 #'   the observed information as its bread. `"robust"` costs a
 #'   finite-difference Hessian -- \eqn{2p(p + 1)} likelihood evaluations -- and
-#'   so takes minutes rather than seconds on a model of any size. Where the
-#'   model cannot be packed on an unconstrained scale (several latent classes,
-#'   covariates, or a measurement family whose parameters are not all free)
-#'   `"robust"` falls back silently to the default estimator, and `summary()`
-#'   then does not report robust errors.
+#'   so takes minutes rather than seconds on a model of any size. It is
+#'   supported for random-intercept fits. Where the model still cannot be
+#'   packed on an unconstrained scale (covariates, or a measurement family
+#'   whose parameters are not all free) `"robust"` falls back silently to the
+#'   default estimator, and `summary()` then does not report robust errors.
 #' @param predictors_initial Optional covariates predicting the latent status at
 #'   the first occasion (Collins & Lanza, sec. 8.10.1).
 #' @param predictors_transition Optional covariates predicting the transitions
@@ -1420,7 +1420,7 @@ fit_lta <- function(indicators,
   # and `robust = FALSE` rather than an error -- which is why the flag is
   # returned and reported.
   robust_used <- FALSE
-  if (isTRUE(robust) && .lta_scores_full(state)) {
+  if (isTRUE(robust) && .lta_par_packable(state)) {
     layout <- .lta_par_layout(state)
     par    <- .lta_par_pack(state, layout)
     if (length(par) == ncol(S)) {
@@ -1520,17 +1520,35 @@ fit_lta <- function(indicators,
 # parameter it cannot differentiate is a parameter it must not move.
 #
 # A random intercept fit is excluded here even though its score blocks are now
-# built below: `.lta_par_layout()`/`.lta_par_pack()`/`.lta_par_unpack()` (the
-# packing L-BFGS refinement and the robust sandwich both need) have no
-# `alpha`/`lambda` case yet, so both stay off for RI fits until that slice.
-# EM already reaches the reference programs' optimum on the validation
-# benchmark to 1e-4 without the polish (roadmap `### 14.11`), so this is not a
-# gap for the plain (non-robust) standard errors this state now supports.
+# built below, and even though `.lta_par_layout()`/`.lta_par_pack()`/
+# `.lta_par_unpack()` now have an `alpha`/`lambda`/`ri_mass` case
+# (`### 14.15` W2): the L-BFGS refinement additionally needs an RI branch in
+# `.lta_penalty()` and a revised box rule before it climbs the right
+# objective, and that has not been done yet. Use `.lta_par_packable()` below
+# for anything that only needs the packed vector to exist, such as the robust
+# sandwich and the MLR scaling factor -- both are safe for RI fits today.
 .lta_scores_full <- function(state) {
   .lta_scores_supported(state) && is.null(state$ri) &&
     class(state$mm$models[[1]])[1] %in%
       c("bernoulli", "bernoulli_nan", "gaussian_diag", "gaussian_diag_nan",
         "gaussian_unit", "gaussian_unit_nan")
+}
+
+# Whether the packed vector describes this model's full free parameter set,
+# and therefore whether a finite-difference Hessian on it means anything.
+# Wider than `.lta_scores_full()` by exactly the RI case, which `### 14.15`'s
+# W2/W3 taught the packing and the likelihood to handle.
+#
+# The two predicates are deliberately separate. `.lta_scores_full()` is ALSO
+# the L-BFGS polish gate (`.lta_refine_lbfgs()`), and the polish additionally
+# needs an RI branch in `.lta_penalty()` and a revised box rule. Until that
+# has been done, the sandwich may run on an RI fit and the polish may not.
+.lta_par_packable <- function(state) {
+  if (!.lta_scores_supported(state)) return(FALSE)
+  if (!is.null(state$ri)) return(TRUE)
+  class(state$mm$models[[1]])[1] %in%
+    c("bernoulli", "bernoulli_nan", "gaussian_diag", "gaussian_diag_nan",
+      "gaussian_unit", "gaussian_unit_nan")
 }
 
 # The n x p matrix of case-level scores, one column per free parameter, on the

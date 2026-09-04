@@ -167,6 +167,49 @@
   list(es = es, post = post, ll = ll, ri = list(pq = pq, G = G))
 }
 
+# The per-case observed-data log-likelihood of an RI fit: one forward-backward
+# per node, mixed over nodes AFTER the chain, then over classes. This is what
+# the finite-difference Hessian differentiates, so it must be the same
+# quantity .lta_ri_e_step() returns as `ll` -- the RI packing test asserts
+# that to 1e-10.
+#
+# `.lta_ri_e_step()` itself is deliberately not reused: it runs with
+# `keep_pairwise = TRUE` and builds the joint (status, node) posteriors, and
+# the Hessian below calls this 2p(p+1) times and wants none of it. That is not
+# an optimisation, it is what makes the sandwich affordable at Q = 50.
+.lta_ri_ll_case <- function(state, X) {
+  n  <- nrow(X)
+  K  <- state$n_statuses
+  Tn <- state$n_times
+  R  <- state$n_items
+  ri <- state$ri
+  Q  <- length(ri$mass)
+  C  <- state$n_classes %||% 1L
+  w  <- state$weights_vec
+
+  logB <- vector("list", Q)
+  for (q in seq_len(Q)) {
+    pis_q <- plogis(ri$A + matrix(ri$L %*% ri$Dnode[q, ], K, R, byrow = TRUE))
+    mm_q  <- state$mm
+    for (t in seq_len(Tn)) mm_q$models[[t]]$parameters$pis <- pis_q
+    logB[[q]] <- .lta_emission_loglik(mm_q, X)
+  }
+
+  ll_c <- matrix(0, n, C)
+  for (c in seq_len(C)) {
+    sub <- .lta_class_state(state, c)
+    log_delta <- .lta_log_delta(sub)
+    log_tau   <- .lta_log_tau(sub)
+    lq <- vapply(seq_len(Q), function(q)
+      log(pmax(ri$mass[q], 1e-300)) +
+        .lta_forward_backward(logB[[q]], log_delta, log_tau, w)$ll, numeric(n))
+    ll_c[, c] <- logsumexp(lq, MARGIN = 1)
+  }
+  if (C == 1L) return(ll_c[, 1])
+  logsumexp(sweep(ll_c, 2, log(pmax(state$class_weights, 1e-300)), "+"),
+            MARGIN = 1)
+}
+
 # ------------------------------------------------------------------------------
 # Measurement M-step: one aggregated binomial GLM per item
 # ------------------------------------------------------------------------------

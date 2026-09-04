@@ -348,9 +348,10 @@ test_that("order_by_size relabels the random intercept's intercepts too", {
 # --- 9. Standard errors on the loadings -------------------------------------
 
 # The random intercept's loading is the headline estimate the source paper
-# reports with a standard error; W10 adds it. The L-BFGS polish and the robust
-# sandwich stay off for RI (`.lta_scores_full()`), so these only check the
-# default (empirical-information) estimator.
+# reports with a standard error; W10 adds it. The L-BFGS polish still stays
+# off for RI (`.lta_scores_full()`); the robust sandwich no longer does
+# (`### 14.15`), so the tests below check the default (empirical-information)
+# estimator except where noted.
 test_that("standard_errors = TRUE returns finite loading SEs (continuous)", {
   X <- .lta_refine_sim(n = 150, K = 2, Tn = 4, J = 3, seed = 1)
   fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
@@ -379,13 +380,13 @@ test_that("standard_errors = TRUE returns finite loading SEs (binary)", {
   expect_true(all(is.finite(fit$se$loading_se)) && all(fit$se$loading_se > 0))
 })
 
-test_that('standard_errors = "robust" falls back silently for RI fits', {
+test_that('standard_errors = "robust" now works for RI fits (roadmap ### 14.15)', {
   X <- .lta_refine_sim(n = 60, K = 2, Tn = 4, J = 2, seed = 1)
   fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
     measurement = "binary", random_intercept = "continuous", n_quadrature = 5,
     n_init = 1, max_iter = 10, random_state = 1, standard_errors = "robust"))
   expect_false(is.null(fit$se))
-  expect_false(fit$se$robust)
+  expect_true(fit$se$robust)
 })
 
 # --- Mover-stayer x RI standard errors (roadmap ### 14.14) ------------------
@@ -475,4 +476,66 @@ test_that("the RI score blocks match finite differences (single-class and mover-
     random_intercept = "binary", n_ri = 2,
     n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE))
   check_ri_gradient(fit_bin_ms, X)
+})
+
+# --- 10. The packing trio (roadmap ### 14.15 W2/W3/W5) ----------------------
+#
+# .lta_par_layout()/.lta_par_pack()/.lta_par_unpack() now have alpha/lambda/
+# ri_mass cases, and .lta_ll_case() dispatches an RI fit to .lta_ri_ll_case().
+# These four assertions are what would have caught a mis-packed vector: it
+# still round-trips and still produces plausible, wrong standard errors, which
+# is how the 32.2 defect survived its own unit tests (roadmap ### 32.2).
+
+test_that("the packed vector describes the same thing the score matrix does, on all four RI shapes", {
+  X <- .lta_refine_sim(n = 60, K = 2, Tn = 4, J = 3, seed = 1)
+  shapes <- list(
+    con    = list(random_intercept = "continuous", n_quadrature = 5),
+    bin    = list(random_intercept = "binary", n_ri = 2),
+    con_ms = list(random_intercept = "continuous", n_quadrature = 5, mover_stayer = TRUE),
+    bin_ms = list(random_intercept = "binary", n_ri = 2, mover_stayer = TRUE))
+
+  for (shape in shapes) {
+    fit <- suppressWarnings(do.call(fit_lta, c(list(
+      X, n_statuses = 2, times = 4, measurement = "binary",
+      n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE),
+      shape)))
+
+    # Assertion 1: layout and score-matrix block widths agree.
+    layout <- mixtureEM:::.lta_par_layout(fit)
+    sc     <- mixtureEM:::.lta_score_matrix(fit, X)
+    expect_equal(vapply(layout, function(b) b$len, integer(1)),
+                 vapply(sc$blocks, function(b) length(b$cols), integer(1)))
+    par <- mixtureEM:::.lta_par_pack(fit, layout)
+    expect_equal(length(par), ncol(sc$S))
+    expect_equal(ncol(sc$S), fit$n_params)
+
+    # Assertion 2: pack -> unpack -> pack round-trips, and pis is restored.
+    st2  <- mixtureEM:::.lta_par_unpack(par, fit, layout)
+    par2 <- mixtureEM:::.lta_par_pack(st2, layout)
+    expect_equal(par2, par, tolerance = 1e-12)
+    expect_equal(st2$mm$models[[1]]$parameters$pis,
+                 mixtureEM:::.lta_ri_integrated_pis(st2$ri, 2L, 3L),
+                 tolerance = 1e-12, ignore_attr = TRUE)
+
+    # Assertion 3: the likelihood the Hessian differentiates matches both the
+    # E-step's own ll and the fitted loglik.
+    ll_case <- mixtureEM:::.lta_ll_case(fit, X, par, layout)
+    ll_e    <- mixtureEM:::.lta_ri_e_step(fit, X, fit$weights_vec)$ll
+    expect_equal(ll_case, ll_e, tolerance = 1e-10)
+    expect_equal(sum(fit$weights_vec * ll_case), fit$loglik, tolerance = 1e-8)
+  }
+})
+
+test_that("the finite-difference Hessian is finite and negative definite (smoke, continuous RI)", {
+  X <- .lta_refine_sim(n = 60, K = 2, Tn = 4, J = 3, seed = 1)
+  fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", random_intercept = "continuous", n_quadrature = 5,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE))
+  layout <- mixtureEM:::.lta_par_layout(fit)
+  par    <- mixtureEM:::.lta_par_pack(fit, layout)
+  ll_fun <- function(p)
+    sum(fit$weights_vec * mixtureEM:::.lta_ll_case(fit, X, p, layout))
+  H <- mixtureEM:::.step1_fd_hessian(ll_fun, par)
+  expect_true(all(is.finite(H)))
+  expect_true(all(eigen(-H, symmetric = TRUE, only.values = TRUE)$values > 0))
 })

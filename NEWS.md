@@ -1,5 +1,30 @@
 # mixtureEM (development version)
 
+## `fit_lta()` reports robust standard errors and a scaling factor for random-intercept fits
+
+A random-intercept `fit_lta()` fit could report only the default
+(empirical-information) standard errors: `standard_errors = "robust"` fell
+back silently to that same default, and the scaling factor `lr_test()` needs
+for a proper likelihood-ratio comparison between two random-intercept models
+was unavailable. Both were blocked on the same missing piece -- the internal
+parameter layout, packing and unpacking functions had no case for a random
+intercept's free parameters (the item intercepts, the loadings, and a
+discrete mixing distribution's node masses), so such a fit could not be
+reduced to a single vector a finite-difference Hessian could be taken of.
+
+That packing now exists, alongside a matching case-level likelihood used only
+for the Hessian (a full E-step computes more than the Hessian needs and would
+make it unaffordably slow at a realistic quadrature grid). `standard_errors =
+"robust"` and the scaling factor now work for every random-intercept shape --
+continuous or discrete, single-class or mover-stayer. Measured against two
+independent reference implementations on a published random-intercept
+example, the new sandwich standard errors land within a few percent of both
+programs' own robust output on every measurement parameter checked, closing a
+scatter an earlier release could not explain. No previously-reported point
+estimate or standard error changes: this only makes a previously-unavailable
+estimator available. The post-EM refinement step remains off for
+random-intercept fits.
+
 ## `fit_lta()` reports standard errors for a mover-stayer fit crossed with a random intercept
 
 A `fit_lta()` fit combining `mover_stayer = TRUE` with `random_intercept =

@@ -675,16 +675,36 @@
   }
 
   J   <- state$n_items
-  fam <- class(state$mm$models[[1]])[1]
-  kind <- if (fam %in% c("bernoulli", "bernoulli_nan")) "rho" else "mu"
-  inv <- .lta_invariant_items(state)
-  for (j in seq_len(J)) {
-    grps <- if (j %in% inv) list(seq_len(Tn)) else lapply(seq_len(Tn), identity)
-    for (grp in grps) {
-      out[[length(out) + 1L]] <- list(kind = kind, j = j, grp = grp, len = K)
-      if (kind == "mu" &&
-          !is.null(state$mm$models[[grp[1]]]$parameters$covariances))
-        out[[length(out) + 1L]] <- list(kind = "log_sd", j = j, grp = grp, len = K)
+  if (!is.null(state$ri)) {
+    # The measurement free parameters of an RI fit are `ri$A` and `ri$L`, not
+    # the `pis` table the plain branch below packs -- that table is the
+    # node-integrated quantity .lta_ri_integrated_pis() derives from them.
+    # Order is .lta_score_matrix()'s own (R/lta.R): alpha and lambda
+    # interleaved per item, then the node masses last. The two are
+    # descriptions of one vector and the RI packing test asserts they agree.
+    M <- ncol(state$ri$Dnode)
+    Q <- length(state$ri$mass)
+    for (j in seq_len(J)) {
+      out[[length(out) + 1L]] <- list(kind = "alpha",  j = j, len = K)
+      out[[length(out) + 1L]] <- list(kind = "lambda", j = j, len = M)
+    }
+    # The continuous variant's Gauss-Hermite weights are FIXED and must never
+    # get a block, the same restriction .lta_ri_mstep() and
+    # .lta_score_matrix() both observe.
+    if (identical(state$ri$kind, "binary") && Q > 1L)
+      out[[length(out) + 1L]] <- list(kind = "ri_mass", len = Q - 1L)
+  } else {
+    fam <- class(state$mm$models[[1]])[1]
+    kind <- if (fam %in% c("bernoulli", "bernoulli_nan")) "rho" else "mu"
+    inv <- .lta_invariant_items(state)
+    for (j in seq_len(J)) {
+      grps <- if (j %in% inv) list(seq_len(Tn)) else lapply(seq_len(Tn), identity)
+      for (grp in grps) {
+        out[[length(out) + 1L]] <- list(kind = kind, j = j, grp = grp, len = K)
+        if (kind == "mu" &&
+            !is.null(state$mm$models[[grp[1]]]$parameters$covariances))
+          out[[length(out) + 1L]] <- list(kind = "log_sd", j = j, grp = grp, len = K)
+      }
     }
   }
   out
@@ -721,7 +741,14 @@
         stats::qlogis(pmin(pmax(p, 1e-12), 1 - 1e-12))
       },
       mu = state$mm$models[[b$grp[1]]]$parameters$means[, b$j],
-      log_sd = 0.5 * log(state$mm$models[[b$grp[1]]]$parameters$covariances[, b$j]))
+      log_sd = 0.5 * log(state$mm$models[[b$grp[1]]]$parameters$covariances[, b$j]),
+      alpha  = state$ri$A[, b$j],
+      lambda = state$ri$L[b$j, ],
+      ri_mass = {
+        p <- pmax(state$ri$mass, 1e-12)
+        Q <- length(p)
+        log(p[seq_len(Q - 1L)]) - log(p[Q])
+      })
   }), use.names = FALSE)
 }
 
@@ -767,6 +794,13 @@
     } else if (b$kind == "log_sd") {
       for (tt in b$grp)
         state$mm$models[[tt]]$parameters$covariances[, b$j] <- exp(2 * v)
+    } else if (b$kind == "alpha") {
+      state$ri$A[, b$j] <- v
+    } else if (b$kind == "lambda") {
+      state$ri$L[b$j, ] <- v
+    } else if (b$kind == "ri_mass") {
+      p <- exp(c(v, 0) - max(c(v, 0)))
+      state$ri$mass <- p / sum(p)
     } else {
       for (tt in b$grp)
         state$mm$models[[tt]]$parameters$means[, b$j] <- v
@@ -791,6 +825,18 @@
       t(vapply(per_k, function(M) colSums(exp(M) * w) / sum(w), numeric(K))))
     state$tau_c[[1L]] <- state$tau
   }
+  # An RI fit's `pis` is derived from `ri$A`/`ri$L`/`ri$mass`, so writing those
+  # above leaves it stale. Restore it exactly the way .lta_ri_mstep() and
+  # .lta_ri_sign_normalise() do (R/lta_ri.R) -- every downstream reader,
+  # print(), item_probabilities() and .lta_n_parameters() included, reads the
+  # table rather than the factor.
+  if (!is.null(state$ri)) {
+    state$mm$models[[1]]$parameters$pis <-
+      .lta_ri_integrated_pis(state$ri, K, state$n_items)
+    for (tt in seq_len(Tn))
+      state$mm$models[[tt]]$parameters$pis <-
+        state$mm$models[[1]]$parameters$pis
+  }
   # A homogeneous transition matrix is stored once per interval, so each
   # class's single free matrix has to be broadcast back over them.
   if (isTRUE(state$tau_homogeneous) && Tn > 2L)
@@ -811,6 +857,7 @@
 # times and wants neither.
 .lta_ll_case <- function(state, X, par, layout) {
   st <- .lta_par_unpack(par, state, layout)
+  if (!is.null(st$ri)) return(.lta_ri_ll_case(st, X))
   C  <- st$n_classes %||% 1L
   logB <- .lta_emission_loglik(st$mm, X)
   if (C == 1L)
