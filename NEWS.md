@@ -1,5 +1,24 @@
 # mixtureEM (development version)
 
+## `fit_lta()`'s post-EM refinement now covers random-intercept fits
+
+The optional post-EM L-BFGS polish (`refine = TRUE`, the default) previously
+declined every random-intercept fit: the penalty term the refinement climbs
+alongside the likelihood had no case for a random intercept's free parameters
+(the item intercepts, the loadings, and a discrete mixing distribution's node
+masses), so climbing it would have optimised a different objective from the
+one EM uses. That branch is now implemented, mirroring the corresponding
+random-intercept log-prior term for term, and a packing rule that was
+silently clamping the loadings to a `[-25, 25]` box meant for logit-scale
+parameters is corrected.
+
+Measured before and after on four published random-intercept examples (a
+binary and a continuous random intercept, single-class and mover-stayer), the
+refinement moved no log-likelihood, point estimate or reported timing at all:
+in every case EM's own restarts had already reached the same optimum the
+refinement finds. No previously-reported number changes; this only turns on
+an optimisation step that was previously a documented no-op for these fits.
+
 ## `fit_lta()` reports robust standard errors and a scaling factor for random-intercept fits
 
 A random-intercept `fit_lta()` fit could report only the default

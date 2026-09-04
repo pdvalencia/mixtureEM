@@ -1519,16 +1519,17 @@ fit_lta <- function(indicators,
 # and says so through `conditional`. The refinement does need it, because a
 # parameter it cannot differentiate is a parameter it must not move.
 #
-# A random intercept fit is excluded here even though its score blocks are now
-# built below, and even though `.lta_par_layout()`/`.lta_par_pack()`/
-# `.lta_par_unpack()` now have an `alpha`/`lambda`/`ri_mass` case
-# (`### 14.15` W2): the L-BFGS refinement additionally needs an RI branch in
-# `.lta_penalty()` and a revised box rule before it climbs the right
-# objective, and that has not been done yet. Use `.lta_par_packable()` below
-# for anything that only needs the packed vector to exist, such as the robust
-# sandwich and the MLR scaling factor -- both are safe for RI fits today.
+# A random intercept fit is no longer excluded here (`### 14.15` W8): once
+# `.lta_penalty()` grew an RI branch and the box rule stopped clamping
+# `lambda`, the polish climbs the same penalised objective EM does for every
+# RI shape too. This predicate and `.lta_par_packable()` below now differ
+# only in the measurement-family whitelist -- `.lta_par_packable()` is
+# wider only for families this whitelist has not yet been taught, not for
+# any structural reason -- and are kept separate so a future family addition
+# has to decide deliberately whether it supports the polish, not just the
+# packing.
 .lta_scores_full <- function(state) {
-  .lta_scores_supported(state) && is.null(state$ri) &&
+  .lta_scores_supported(state) &&
     class(state$mm$models[[1]])[1] %in%
       c("bernoulli", "bernoulli_nan", "gaussian_diag", "gaussian_diag_nan",
         "gaussian_unit", "gaussian_unit_nan")

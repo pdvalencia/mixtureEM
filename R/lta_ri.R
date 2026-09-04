@@ -312,6 +312,16 @@
       }
     }
   }
+  # The binary variant's node masses are themselves estimated (the
+  # continuous variant's Gauss-Hermite weights are fixed and carry no prior
+  # at all), by .lta_normalise(mass_counts, alpha) at .lta_ri_mstep() above --
+  # an implicit Dirichlet(alpha/Q, ..., alpha/Q), the same (alpha / patterns)
+  # form as the class-mixing term in .lta_log_prior_dt() with Q in place of C.
+  # Missing this term here would let the M-step's actual prior and the
+  # quantity EM's monotonicity check (and the L-BFGS polish, .lta_penalty())
+  # climb disagree on the one place they must not.
+  if (alpha > 0 && identical(ri$kind, "binary") && Q > 1L)
+    val <- val + (alpha / Q) * sum(log(pmax(ri$mass, 1e-300)))
   val
 }
 

@@ -348,10 +348,10 @@ test_that("order_by_size relabels the random intercept's intercepts too", {
 # --- 9. Standard errors on the loadings -------------------------------------
 
 # The random intercept's loading is the headline estimate the source paper
-# reports with a standard error; W10 adds it. The L-BFGS polish still stays
-# off for RI (`.lta_scores_full()`); the robust sandwich no longer does
-# (`### 14.15`), so the tests below check the default (empirical-information)
-# estimator except where noted.
+# reports with a standard error; W10 adds it. The L-BFGS polish now covers RI
+# fits too (`.lta_scores_full()`, `### 14.15` W8); the robust sandwich also
+# does (`### 14.15` W6), so the tests below check the default
+# (empirical-information) estimator except where noted.
 test_that("standard_errors = TRUE returns finite loading SEs (continuous)", {
   X <- .lta_refine_sim(n = 150, K = 2, Tn = 4, J = 3, seed = 1)
   fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
@@ -359,7 +359,7 @@ test_that("standard_errors = TRUE returns finite loading SEs (continuous)", {
     n_quadrature = 10, n_init = 1, max_iter = 25, random_state = 1,
     standard_errors = TRUE))
   expect_true(.lta_scores_supported(fit))
-  expect_false(.lta_scores_full(fit))
+  expect_true(.lta_scores_full(fit))
   expect_false(is.null(fit$se))
   expect_equal(dim(fit$se$loading_se), c(3L, 1L))
   expect_true(all(is.finite(fit$se$loading_se)))
@@ -398,7 +398,7 @@ test_that("standard errors exist for a mover-stayer RI fit", {
     random_intercept = "continuous", n_quadrature = 5,
     n_init = 1, max_iter = 25, random_state = 1, standard_errors = TRUE))
   expect_true(.lta_scores_supported(fit_con))
-  expect_false(.lta_scores_full(fit_con))
+  expect_true(.lta_scores_full(fit_con))
   expect_false(is.null(fit_con$se))
   expect_true(all(is.finite(fit_con$se$loading_se)))
   expect_true(all(fit_con$se$loading_se > 0))
@@ -478,6 +478,40 @@ test_that("the RI score blocks match finite differences (single-class and mover-
   check_ri_gradient(fit_bin_ms, X)
 })
 
+test_that("the RI penalty branch matches finite differences on the RI log-prior (binary and continuous)", {
+  # ### 14.15 W8 step 1: .lta_penalty() grew alpha/lambda/ri_mass branches
+  # mirroring .lta_ri_log_prior() term for term. This checks the whole
+  # penalised gradient -- delta/tau/alpha/lambda/ri_mass together -- against
+  # central differences on .lta_log_prior(), which for an RI fit dispatches to
+  # .lta_ri_log_prior() (R/lta_ri.R:294-316).
+  check_ri_penalty <- function(fit, X) {
+    layout <- .lta_par_layout(fit)
+    par0   <- .lta_par_pack(fit, layout)
+    obj <- function(p) .lta_log_prior(.lta_par_unpack(p, fit, layout), X, 1)
+    ana <- .lta_penalty(fit, X, layout, 1)$gradient
+    eps <- 1e-6
+    fd <- vapply(seq_along(par0), function(i) {
+      e <- numeric(length(par0)); e[i] <- eps
+      (obj(par0 + e) - obj(par0 - e)) / (2 * eps)
+    }, numeric(1))
+    expect_lt(max(abs(ana - fd)) / max(1, max(abs(fd))), 1e-6)
+  }
+
+  X <- .lta_refine_sim(n = 60, K = 2, Tn = 4, J = 3, seed = 1)
+  # Binary RI: exercises the ri_mass block as well as alpha/lambda.
+  fit_bin <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", random_intercept = "binary", n_ri = 2,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE))
+  check_ri_penalty(fit_bin, X)
+
+  # Continuous RI: node weights are fixed Gauss-Hermite quadrature, so only
+  # alpha/lambda get a block -- no ri_mass.
+  fit_con <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", random_intercept = "continuous", n_quadrature = 5,
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE))
+  check_ri_penalty(fit_con, X)
+})
+
 # --- 10. The packing trio (roadmap ### 14.15 W2/W3/W5) ----------------------
 #
 # .lta_par_layout()/.lta_par_pack()/.lta_par_unpack() now have alpha/lambda/
@@ -527,10 +561,16 @@ test_that("the packed vector describes the same thing the score matrix does, on 
 })
 
 test_that("the finite-difference Hessian is finite and negative definite (smoke, continuous RI)", {
+  # refine = FALSE: this checks the packing/Hessian plumbing at whatever EM
+  # converges to, not the L-BFGS polish (`### 14.15` W8 turned the polish on
+  # by default for RI fits too) -- a small n = 60 smoke fixture is not the
+  # place to require the polished optimum's plain-likelihood Hessian to be
+  # cleanly negative definite.
   X <- .lta_refine_sim(n = 60, K = 2, Tn = 4, J = 3, seed = 1)
   fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
     measurement = "binary", random_intercept = "continuous", n_quadrature = 5,
-    n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE))
+    n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE,
+    refine = FALSE))
   layout <- mixtureEM:::.lta_par_layout(fit)
   par    <- mixtureEM:::.lta_par_pack(fit, layout)
   ll_fun <- function(p)

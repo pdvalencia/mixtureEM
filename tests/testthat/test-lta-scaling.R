@@ -80,13 +80,13 @@ test_that(".lta_scaling_pieces() returns a well-formed factor for a random-inter
   # .lta_par_packable() no longer declines an RI fit (the alpha/lambda/ri_mass
   # packing ### 14.15's W2/W3 taught .lta_par_layout()/.lta_par_pack()/
   # .lta_par_unpack() and .lta_ll_case()), so this path -- shared with the
-  # robust sandwich -- picks it up for free. `.lta_scores_full()` itself stays
-  # FALSE for RI (the L-BFGS polish gate, untouched by this item).
+  # robust sandwich -- picks it up for free. `.lta_scores_full()` now also
+  # covers RI fits (### 14.15 W8), once .lta_penalty() grew a matching branch.
   X <- .lta_refine_sim(n = 150, K = 2, Tn = 4, J = 3, seed = 1)
   fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
     measurement = "binary", random_intercept = "continuous", n_quadrature = 5,
     n_init = 1, max_iter = 25, random_state = 1, standard_errors = FALSE))
-  expect_false(.lta_scores_full(fit))
+  expect_true(.lta_scores_full(fit))
   expect_true(.lta_par_packable(fit))
 
   pieces <- .lta_scaling_pieces(.nested_fit_info(fit))

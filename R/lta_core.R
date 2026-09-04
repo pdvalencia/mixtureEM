@@ -1082,6 +1082,43 @@
       a_v <- length(b$grp) * a_var / K
       val <- val - 0.5 * a_v * sum(log(v) + s2 / v)
       g <- a_v * (s2 / v - 1)
+    } else if (b$kind == "alpha" && a_cat > 0) {
+      # Mirrors .lta_ri_log_prior() (R/lta_ri.R:294-316) term for item b$j.
+      # `alpha` (the block) is one un-anchored logit per status -- no last-
+      # category anchoring, unlike delta/tau/class -- so the gradient below
+      # has one entry per status with no dropped last element. The value is
+      # accumulated here only; the paired "lambda" block below shares the
+      # same measurement term and would double-count it if it added val too.
+      ri  <- state$ri
+      Q   <- length(ri$mass)
+      prior_obs <- state$n_times * a_cat / (K * Q)
+      mj  <- .lta_ri_item_marginal(X, state$weights_vec, state$n_items,
+                                   state$n_times, b$j)
+      lp  <- drop(ri$Dnode %*% ri$L[b$j, ])
+      eta <- outer(ri$A[, b$j], lp, "+")
+      p   <- pmin(pmax(plogis(eta), 1e-300), 1 - 1e-300)
+      val <- val + prior_obs * sum(mj * log(p) + (1 - mj) * log1p(-p))
+      g   <- prior_obs * rowSums(mj - p)
+    } else if (b$kind == "lambda" && a_cat > 0) {
+      # Gradient only -- see the "alpha" branch just above for why.
+      ri  <- state$ri
+      Q   <- length(ri$mass)
+      prior_obs <- state$n_times * a_cat / (K * Q)
+      mj  <- .lta_ri_item_marginal(X, state$weights_vec, state$n_items,
+                                   state$n_times, b$j)
+      lp  <- drop(ri$Dnode %*% ri$L[b$j, ])
+      eta <- outer(ri$A[, b$j], lp, "+")
+      p   <- pmin(pmax(plogis(eta), 1e-300), 1 - 1e-300)
+      g   <- prior_obs * as.vector(crossprod(ri$Dnode, colSums(mj - p)))
+    } else if (b$kind == "ri_mass" && alpha > 0) {
+      # Mirrors the "class" branch above with Q in place of C, matching the
+      # implicit Dirichlet(alpha/Q, ...) prior .lta_normalise() applies at
+      # R/lta_ri.R:277 (patterns = 1L there, so the whole alpha is spread
+      # over the Q nodes rather than shared with C or K).
+      Q <- length(state$ri$mass)
+      p <- pmax(state$ri$mass, 1e-300)
+      val <- val + (alpha / Q) * sum(log(p))
+      g <- (alpha / Q) * (1 - Q * p[seq_len(Q - 1L)])
     }
     grad <- c(grad, g)
   }
@@ -1129,8 +1166,11 @@
   # probability of 1.4e-11, near enough to the boundary to lose nothing that
   # can be measured and far enough from it to stay a usable fit. Gaussian
   # means are unbounded; they have no boundary to reach.
+  # `lambda` is a random-intercept loading -- unbounded, like `mu` -- but
+  # does not carry the `"mu"` kind name, so it is excluded from the box the
+  # same way.
   bounded <- unlist(lapply(layout, function(b)
-    rep(b$kind != "mu", b$len)), use.names = FALSE)
+    rep(!(b$kind %in% c("mu", "lambda")), b$len)), use.names = FALSE)
   lo <- ifelse(bounded, -25, -Inf)
   hi <- ifelse(bounded,  25,  Inf)
   # EM can itself arrive at a boundary, which would put the starting vector
