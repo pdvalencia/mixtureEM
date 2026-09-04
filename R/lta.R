@@ -114,16 +114,17 @@
 #'   so, as it does on this package's own benchmark replication of the
 #'   article's example).
 #'
-#'   Not built in this release: a random intercept crossed with several latent
-#'   classes or `mover_stayer`, ordinal or continuous indicators, covariates on
-#'   the random intercept itself, a random *slope*, correlated residuals across
+#'   Not built in this release: continuous indicators, covariates on the
+#'   random intercept itself, a random *slope*, correlated residuals across
 #'   time, or lag-2 dependence - the last of which the article itself reports
 #'   as significant in both of its worked examples, so it is a real
 #'   simplification and not a hypothetical one. Standard errors and the
-#'   post-EM L-BFGS refinement are also not yet available for these models;
-#'   `standard_errors` is silently unavailable (`fit$se` is `NULL`) rather than
-#'   refused, the same treatment other unsupported measurement families
-#'   already get.
+#'   post-EM L-BFGS refinement are available for binary indicators; for
+#'   ordinal indicators they are not yet wired up, and `standard_errors` is
+#'   silently unavailable (`fit$se` is `NULL`) rather than refused, the same
+#'   treatment other unsupported measurement families already get. A random
+#'   intercept crossed with several latent classes or `mover_stayer` is
+#'   supported for both measurement families.
 #' @param n_quadrature Number of Gauss-Hermite nodes for
 #'   `random_intercept = "continuous"`. The default of 15 is a starting point
 #'   to check, not a settled answer, the same way `n_init`'s default is a
@@ -526,9 +527,9 @@ fit_lta <- function(indicators,
            "time-varying item intercept under a time-constant loading is not a ",
            "random-intercept model (Muthen & Asparouhov 2022, sec. 3.1).",
            call. = FALSE)
-    if (!measurement %in% c("binary", "bernoulli"))
-      stop("`random_intercept` currently supports binary indicators only.",
-           call. = FALSE)
+    if (!measurement %in% c("binary", "bernoulli", "ordinal"))
+      stop("`random_intercept` currently supports binary or ordinal ",
+           "indicators only.", call. = FALSE)
   }
 
   if (random_intercept == "continuous") {

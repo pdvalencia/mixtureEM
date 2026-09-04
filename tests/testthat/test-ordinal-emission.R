@@ -59,14 +59,13 @@ test_that("an empty interior category is refused with a message naming the item"
     "empty interior category")
 })
 
-test_that("random_intercept + ordinal is still refused (no M-step exists yet)", {
+test_that("random_intercept + ordinal is accepted (### 14.18, W4)", {
   set.seed(102)
-  X <- matrix(sample(1:2, 200 * 4, replace = TRUE), 200, 4)
-  expect_error(
+  X <- matrix(sample(1:3, 200 * 4, replace = TRUE), 200, 4)
+  expect_no_error(
     fit_lta(X, n_statuses = 2, times = 2, measurement = "ordinal",
-            random_intercept = "continuous", n_init = 1, random_state = 1,
-            standard_errors = FALSE),
-    "binary")
+            random_intercept = "continuous", n_quadrature = 3,
+            n_init = 1, random_state = 1, standard_errors = FALSE))
 })
 
 test_that("random_intercept accepts the bernoulli alias (guard alias bug fixed)", {
@@ -149,6 +148,92 @@ test_that("fit_lta() gives the same single-start fit under ordinal and categoric
   # wires the new family through correctly.
   expect_equal(fit_ord$loglik, fit_cat$loglik, tolerance = 1e-5)
   expect_equal(fit_ord$n_params, fit_cat$n_params)
+})
+
+# ------------------------------------------------------------------------------
+# W5 -- parameter counts for the ragged 3/3/2 item block, K = 5, T = 3,
+# stationary transitions: the article's own Table 7 shape (### 14.18.8),
+# checked here for the three configurations this session actually builds
+# (regular, continuous RI, binary RI). The mover-stayer crosses are left for
+# the session that adds mover-stayer + ordinal coverage.
+# ------------------------------------------------------------------------------
+
+test_that("ordinal RI parameter counts match the W5 table (### 14.18.8)", {
+  set.seed(201)
+  n <- 150
+  X <- cbind(sample(1:3, n, TRUE), sample(1:3, n, TRUE), sample(1:2, n, TRUE),
+            sample(1:3, n, TRUE), sample(1:3, n, TRUE), sample(1:2, n, TRUE),
+            sample(1:3, n, TRUE), sample(1:3, n, TRUE), sample(1:2, n, TRUE))
+
+  fit_reg <- fit_lta(X, n_statuses = 5, times = 3, measurement = "ordinal",
+                     transition_invariance = "full",
+                     n_init = 1, random_state = 1, standard_errors = FALSE)
+  expect_equal(fit_reg$n_params, 49L)
+
+  fit_con <- fit_lta(X, n_statuses = 5, times = 3, measurement = "ordinal",
+                     transition_invariance = "full",
+                     random_intercept = "continuous", n_quadrature = 5,
+                     n_init = 1, random_state = 1, standard_errors = FALSE)
+  expect_equal(fit_con$n_params, 52L)
+
+  fit_bin <- fit_lta(X, n_statuses = 5, times = 3, measurement = "ordinal",
+                     transition_invariance = "full",
+                     random_intercept = "binary", n_ri = 2,
+                     n_init = 1, random_state = 1, standard_errors = FALSE)
+  expect_equal(fit_bin$n_params, 53L)
+})
+
+# ------------------------------------------------------------------------------
+# W6(a) -- binary-as-ordinal regression under a random intercept: a 2-category
+# ordinal item is algebraically Bernoulli (### 14.18.2), so refitting the same
+# data under "binary" and under "ordinal" (1/2-coded) must give the same
+# log-likelihood and parameter count. Needs no reference program.
+# ------------------------------------------------------------------------------
+
+test_that("binary-as-ordinal RI regression: identical loglik and n_params (W6a)", {
+  sim  <- .lta_ri_sim(n = 300, Tn = 3, J = 5, seed = 99)
+  X01  <- sim$X
+  X12  <- X01 + 1L   # ordinal codes must be 1-based
+
+  fit_bin <- fit_lta(X01, n_statuses = 2, times = 3, measurement = "binary",
+                     random_intercept = "continuous", n_quadrature = 5,
+                     n_init = 3, random_state = 1, standard_errors = FALSE)
+  fit_ord <- fit_lta(X12, n_statuses = 2, times = 3, measurement = "ordinal",
+                     random_intercept = "continuous", n_quadrature = 5,
+                     n_init = 3, random_state = 1, standard_errors = FALSE)
+
+  expect_equal(fit_ord$loglik, fit_bin$loglik, tolerance = 1e-6)
+  expect_equal(fit_ord$n_params, fit_bin$n_params)
+})
+
+# ------------------------------------------------------------------------------
+# EM monotonicity for the new RI ordinal M-step (### 14.18, W4): both ECM
+# cycles (thresholds, then the loading) must only ever increase the
+# penalised objective. A short run on a small fixture is enough to catch a
+# sign error in the Newton step, which is the failure mode this exists for;
+# the roadmap's own 200-iteration check on the full Dating data is W7-sized
+# and deferred with the rest of the expensive tail.
+# ------------------------------------------------------------------------------
+
+test_that("the RI ordinal M-step is EM-monotone", {
+  # No per-iteration trace is exposed, so this truncates the SAME seeded run
+  # at increasing iteration counts: since random_state pins the starting
+  # point, the log-likelihood at max_iter = m is one point on the one EM
+  # trajectory that run follows, and that sequence must never decrease.
+  set.seed(303)
+  n <- 150
+  X <- cbind(sample(1:3, n, TRUE), sample(1:2, n, TRUE),
+            sample(1:3, n, TRUE), sample(1:2, n, TRUE))
+  lls <- vapply(1:8, function(m_it) {
+    # Non-convergence at a tiny max_iter is expected and not the point of
+    # this test -- only the trajectory's monotonicity is.
+    suppressWarnings(fit_lta(
+      X, n_statuses = 2, times = 2, measurement = "ordinal",
+      random_intercept = "continuous", n_quadrature = 5,
+      n_init = 1, random_state = 5, standard_errors = FALSE,
+      max_iter = m_it))$loglik
+  }, numeric(1))
+  expect_true(all(diff(lls) > -1e-6))
 })
 
 test_that("ordinal handles a ragged 3/3/2 category block without error", {

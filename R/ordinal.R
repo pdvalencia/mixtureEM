@@ -163,3 +163,159 @@ m_step.ordinal_nan <- m_step.ordinal
 log_likelihood.ordinal_nan <- log_likelihood.ordinal
 #' @exportS3Method n_parameters ordinal_nan
 n_parameters.ordinal_nan <- n_parameters.ordinal
+
+# ==============================================================================
+# Random-intercept ordinal helpers (roadmap ### 14.18, W4)
+# ==============================================================================
+#
+# Under a random intercept the primary parameterisation switches from `pis`
+# (category probabilities) to free per-status thresholds `theta` plus one
+# loading per item `lambda` -- see R/lta_ri.R, which owns the M-step and calls
+# these. `theta` is stored ragged, item-major, like `pis`, but with `cats - 1`
+# columns per item instead of `cats`: item j owns columns
+# `.ordinal_theta_cols(cats, j)`, holding `(theta_2, eta_3, ..., eta_S)`, the
+# increment parameterisation from ### 14.18.2 (`theta_s = theta_2 -
+# sum_{u=3..s} exp(eta_u)`), which is unconstrained and keeps every existing
+# per-coordinate L-BFGS box and finite-difference Hessian machinery unchanged
+# once ordinal is added to their whitelists (W9/W10, not this session).
+
+.lta_is_ordinal_model <- function(m) inherits(m, c("ordinal", "ordinal_nan"))
+
+.ordinal_theta_offsets <- function(cats) cumsum(c(0L, cats - 1L))
+
+.ordinal_theta_cols <- function(cats, j) {
+  off <- .ordinal_theta_offsets(cats)
+  (off[j] + 1L):(off[j + 1L])
+}
+
+# One item's category probabilities at a single node, given that item's
+# threshold block (K x (cats_j - 1), increment-parameterised) and the scalar
+# per-node shift `lambda_j' d_q` (the same shift for every status -- the
+# loading is shared across statuses, categories and occasions, ### 14.18.2).
+.ordinal_cat_probs <- function(theta_j, shift, cats_j) {
+  K <- nrow(theta_j)
+  S <- cats_j
+  th <- matrix(0, K, S - 1L)
+  th[, 1] <- theta_j[, 1]
+  if (S > 2L)
+    for (s in 3:S) th[, s - 1L] <- th[, s - 2L] - exp(theta_j[, s - 1L])
+  Fmat <- cbind(1, plogis(th + shift), 0)
+  Fmat[, seq_len(S), drop = FALSE] - Fmat[, seq_len(S) + 1L, drop = FALSE]
+}
+
+# Every item's category probabilities at node q, cbind()ed into one
+# K x sum(cats) block -- the ordinal analogue of
+# `plogis(ri$A + matrix(ri$L %*% ri$Dnode[q, ], K, R, byrow = TRUE))`.
+.ordinal_node_pis <- function(theta, lambda, Dnode, cats, q) {
+  R  <- length(cats)
+  dq <- Dnode[q, ]
+  blocks <- lapply(seq_len(R), function(j) {
+    cols  <- .ordinal_theta_cols(cats, j)
+    shift <- sum(lambda[j, ] * dq)
+    .ordinal_cat_probs(theta[, cols, drop = FALSE], shift, cats[j])
+  })
+  do.call(cbind, blocks)
+}
+
+# Node-mixed (reported) category probabilities -- the ordinal analogue of
+# .lta_ri_integrated_pis()'s binary loop; what gets written into
+# state$mm$models[[t]]$parameters$pis.
+.ordinal_pis_from_theta <- function(theta, lambda, Dnode, mass, cats) {
+  Q   <- length(mass)
+  K   <- nrow(theta)
+  out <- matrix(0, K, sum(cats))
+  for (q in seq_len(Q))
+    out <- out + mass[q] * .ordinal_node_pis(theta, lambda, Dnode, cats, q)
+  out
+}
+
+# Inverse: recover the increment-parameterised thresholds from a plain
+# (lambda = 0) ordinal fit's `pis`, for the random-intercept warm start. At
+# lambda = 0 every node sees the same category probabilities, so there is
+# nothing to integrate over -- this is the single-node case of the forward
+# map, run backwards.
+.ordinal_theta_from_pis <- function(pis, cats) {
+  K   <- nrow(pis)
+  R   <- length(cats)
+  off <- cumsum(c(0L, cats))
+  theta <- matrix(0, K, .ordinal_theta_offsets(cats)[R + 1L])
+  for (j in seq_len(R)) {
+    cols <- (off[j] + 1L):(off[j + 1L])
+    p    <- pis[, cols, drop = FALSE]
+    S    <- cats[j]
+    cum  <- t(apply(p, 1L, function(row) rev(cumsum(rev(row)))))
+    cum  <- cum[, 2:S, drop = FALSE]              # P(U >= s), s = 2..S
+    cum  <- pmin(pmax(cum, 1e-10), 1 - 1e-10)
+    th   <- qlogis(cum)                            # K x (S - 1), decreasing across s
+    out_cols <- .ordinal_theta_cols(cats, j)
+    theta[, out_cols[1]] <- th[, 1]
+    if (S > 2L)
+      for (s in 3:S)
+        theta[, out_cols[s - 1L]] <- log(pmax(th[, s - 2L] - th[, s - 1L], 1e-10))
+  }
+  theta
+}
+
+# Weighted observed marginal of item j's S_r categories, pooled over every
+# occasion -- the ordinal analogue of .lta_ri_item_marginal() (R/lta_ri.R),
+# which returns a scalar (P(U = 1)) rather than a length-S_r vector.
+.lta_ri_item_marginal_ordinal <- function(X, w, R, Tn, j, Sj) {
+  num <- numeric(Sj); den <- 0
+  for (t in seq_len(Tn)) {
+    xj  <- X[, .time_block_cols(t, R)[j]]
+    obs <- !is.na(xj)
+    for (s in seq_len(Sj)) {
+      in_s   <- obs & (xj == s)
+      num[s] <- num[s] + sum(w[in_s])
+    }
+    den <- den + sum(w[obs])
+  }
+  if (den == 0) rep(1 / Sj, Sj) else num / den
+}
+
+# Negative log-likelihood of one status's thresholds, thresholds free /
+# lambda fixed (ECM cycle 1). `counts` is the (Q x Sj) slice of the
+# sufficient-statistic array for this status; `shift` is length Q
+# (`Dnode %*% lambda_j`).
+.ordinal_theta_negloglik <- function(par, counts, shift, Sj) {
+  th <- numeric(Sj - 1L)
+  th[1] <- par[1]
+  if (Sj > 2L)
+    for (s in 2:(Sj - 1L)) th[s] <- th[s - 1L] - exp(par[s])
+  Q <- length(shift)
+  Fmat <- cbind(1, matrix(plogis(outer(shift, th, "+")), Q, Sj - 1L), 0)
+  p <- Fmat[, seq_len(Sj), drop = FALSE] - Fmat[, seq_len(Sj) + 1L, drop = FALSE]
+  -sum(counts * log(pmax(p, 1e-12)))
+}
+
+.ordinal_newton_theta <- function(par0, counts, shift, Sj) {
+  fit <- stats::nlminb(par0, .ordinal_theta_negloglik,
+                       counts = counts, shift = shift, Sj = Sj)
+  fit$par
+}
+
+# Negative log-likelihood of one item's loading, thresholds fixed / lambda
+# free (ECM cycle 2), pooling every status and node. `n_arr` is the full
+# K x Q x Sj sufficient-statistic array for this item.
+.ordinal_lambda_negloglik <- function(lam, theta_j, Dnode, n_arr, Sj) {
+  K     <- nrow(theta_j)
+  Q     <- nrow(Dnode)
+  shift <- as.vector(Dnode %*% lam)
+  total <- 0
+  for (k in seq_len(K)) {
+    th <- numeric(Sj - 1L)
+    th[1] <- theta_j[k, 1]
+    if (Sj > 2L)
+      for (s in 2:(Sj - 1L)) th[s] <- th[s - 1L] - exp(theta_j[k, s])
+    Fmat <- cbind(1, matrix(plogis(outer(shift, th, "+")), Q, Sj - 1L), 0)
+    p <- Fmat[, seq_len(Sj), drop = FALSE] - Fmat[, seq_len(Sj) + 1L, drop = FALSE]
+    total <- total - sum(matrix(n_arr[k, , ], Q, Sj) * log(pmax(p, 1e-12)))
+  }
+  total
+}
+
+.ordinal_newton_lambda <- function(lam0, theta_j, Dnode, n_arr, Sj) {
+  fit <- stats::nlminb(lam0, .ordinal_lambda_negloglik,
+                       theta_j = theta_j, Dnode = Dnode, n_arr = n_arr, Sj = Sj)
+  fit$par
+}

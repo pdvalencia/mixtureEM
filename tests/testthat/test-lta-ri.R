@@ -53,12 +53,12 @@ test_that("`random_intercept` refuses partial/no invariance", {
     "measurement_invariance")
 })
 
-test_that("`random_intercept` refuses non-binary measurement", {
+test_that("`random_intercept` refuses continuous measurement", {
   X <- .lta_gaussian_refine_sim()
   expect_error(
     fit_lta(X, n_statuses = 3, times = 2, measurement = "continuous",
            random_intercept = "continuous"),
-    "binary indicators only")
+    "binary or ordinal indicators only")
 })
 
 # Mover-Stayer x RI-LTA (roadmap Part 14 Phase B, "a double outer loop over

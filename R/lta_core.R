@@ -1295,7 +1295,13 @@
     R <- J
     M <- ncol(state$ri$Dnode)
     pis0 <- state$mm$models[[1]]$parameters$pis
-    state$ri$A <- qlogis(pmin(pmax(pis0, 0.05), 0.95))
+    if (.lta_is_ordinal_model(state$mm$models[[1]])) {
+      cats <- state$mm$models[[1]]$cats
+      state$ri$theta <- .ordinal_theta_from_pis(pis0, cats)
+      state$ri$cats  <- cats
+    } else {
+      state$ri$A <- qlogis(pmin(pmax(pis0, 0.05), 0.95))
+    }
     # Never start a loading at exactly 0: 14.3 says zero is a stationary ridge
     # a restart placed there cannot leave, and the failure it causes -- the fit
     # equals regular LTA -- is indistinguishable from a real "no random

@@ -31,12 +31,23 @@
 # closed form; the published article's eq.-(4) probit approximation is a
 # different, less accurate quantity and is never written here.
 .lta_ri_integrated_pis <- function(ri, K, R) {
+  if (!is.null(ri$theta))
+    return(.ordinal_pis_from_theta(ri$theta, ri$L, ri$Dnode, ri$mass, ri$cats))
   Q <- length(ri$mass)
   pis <- matrix(0, K, R)
   for (q in seq_len(Q))
     pis <- pis + ri$mass[q] *
       plogis(ri$A + matrix(ri$L %*% ri$Dnode[q, ], K, R, byrow = TRUE))
   pis
+}
+
+# One node's emission table, dispatched on measurement family: ordinal
+# (`ri$theta` set) or binary (`ri$A` set). Used by both .lta_ri_e_step() and
+# .lta_ri_ll_case(), which otherwise build this identically.
+.lta_ri_node_pis <- function(ri, K, R, q) {
+  if (!is.null(ri$theta))
+    return(.ordinal_node_pis(ri$theta, ri$L, ri$Dnode, ri$cats, q))
+  plogis(ri$A + matrix(ri$L %*% ri$Dnode[q, ], K, R, byrow = TRUE))
 }
 
 # Weighted observed marginal of item j, pooled over every occasion -- RI fits
@@ -83,7 +94,7 @@
   # forward-backward pass below.
   logB <- vector("list", Q)
   for (q in seq_len(Q)) {
-    pis_q <- plogis(ri$A + matrix(ri$L %*% ri$Dnode[q, ], K, R, byrow = TRUE))
+    pis_q <- .lta_ri_node_pis(ri, K, R, q)
     mm_q  <- state$mm
     for (t in seq_len(Tn)) mm_q$models[[t]]$parameters$pis <- pis_q
     logB[[q]] <- .lta_emission_loglik(mm_q, X)
@@ -189,7 +200,7 @@
 
   logB <- vector("list", Q)
   for (q in seq_len(Q)) {
-    pis_q <- plogis(ri$A + matrix(ri$L %*% ri$Dnode[q, ], K, R, byrow = TRUE))
+    pis_q <- .lta_ri_node_pis(ri, K, R, q)
     mm_q  <- state$mm
     for (t in seq_len(Tn)) mm_q$models[[t]]$parameters$pis <- pis_q
     logB[[q]] <- .lta_emission_loglik(mm_q, X)
@@ -220,6 +231,9 @@
 # not an approximation -- 14.10.5's whole point, and what keeps an RI fit
 # affordable at Q = 20.
 .lta_ri_mstep <- function(state, X, E, alpha) {
+  if (!is.null(state$ri$theta) || .lta_is_ordinal_model(state$mm$models[[1]]))
+    return(.lta_ri_mstep_ordinal(state, X, E, alpha))
+
   K  <- state$n_statuses
   R  <- state$n_items
   Tn <- state$n_times
@@ -284,6 +298,99 @@
   state
 }
 
+# ------------------------------------------------------------------------------
+# Measurement M-step, ordinal family: two-cycle ECM, one item at a time
+# ------------------------------------------------------------------------------
+#
+# The binomial GLM above collapses each item to one aggregated (K*Q) x 2
+# table because a Bernoulli response has one sufficient statistic. An ordinal
+# item's cumulative-logit response does not collapse the same way -- its
+# sufficient statistic is a K x Q x S_r table of category counts (### 14.18,
+# W4) -- so this is not `.wglm_fit()` on a wider table, it is a small
+# per-item Newton problem: thresholds first (lambda fixed, one status at a
+# time), then the loading (thresholds fixed, pooling every status and node).
+# Both cycles only ever increase the penalised objective, so alternating them
+# preserves EM monotonicity exactly as alternating the delta/tau cycles does
+# elsewhere in this file.
+.lta_ri_mstep_ordinal <- function(state, X, E, alpha) {
+  K    <- state$n_statuses
+  Tn   <- state$n_times
+  ri   <- state$ri
+  Q    <- length(ri$mass)
+  w    <- state$weights_vec
+  G    <- E$ri$G
+  cats <- ri$cats %||% state$mm$models[[1]]$cats
+  R    <- length(cats)
+
+  a_cat     <- .bayes_alpha(state$mm$models[[1]], "categorical")
+  prior_obs <- Tn * a_cat / (K * Q)
+
+  theta  <- ri$theta
+  lambda <- ri$L
+
+  for (j in seq_len(R)) {
+    Sj   <- cats[j]
+    cols <- .ordinal_theta_cols(cats, j)
+
+    # n[k, q, s]: the K x Q x Sj sufficient statistic, accumulated from the
+    # joint (status, node) posterior E$ri$G exactly as the binary branch
+    # accumulates succ/tot, but keeping every category separate.
+    n_arr <- array(0, dim = c(K, Q, Sj))
+    for (t in seq_len(Tn)) {
+      xj  <- X[, .time_block_cols(t, R)[j]]
+      obs <- !is.na(xj)
+      for (q in seq_len(Q)) {
+        Gqt <- G[[q]][[t]]
+        for (s in seq_len(Sj)) {
+          in_s <- obs & (xj == s)
+          if (any(in_s))
+            n_arr[, q, s] <- n_arr[, q, s] +
+              colSums(w[in_s] * Gqt[in_s, , drop = FALSE])
+        }
+      }
+    }
+
+    # Dirichlet-style pseudo-count prior: the same prior_obs mass the binary
+    # branch uses, spread across this item's S_r categories by the weighted
+    # observed marginal (mirrors m_step.ordinal's marginal_prob, R/ordinal.R).
+    m_j <- .lta_ri_item_marginal_ordinal(X, w, R, Tn, j, Sj)
+    for (s in seq_len(Sj))
+      n_arr[, , s] <- n_arr[, , s] + prior_obs * m_j[s]
+
+    theta_j  <- theta[, cols, drop = FALSE]
+    lambda_j <- lambda[j, ]
+
+    # Cycle 1: per-status Newton on thresholds, lambda fixed. matrix() below
+    # guards against R silently dropping the Q dimension when Q == 1 (the
+    # n_quadrature = 1 test case).
+    shift <- as.vector(ri$Dnode %*% lambda_j)
+    for (k in seq_len(K))
+      theta_j[k, ] <- .ordinal_newton_theta(
+        theta_j[k, ], matrix(n_arr[k, , ], Q, Sj), shift, Sj)
+    theta[, cols] <- theta_j
+
+    # Cycle 2: one Newton step on the loading, thresholds fixed, pooling
+    # every status and node.
+    lambda[j, ] <- .ordinal_newton_lambda(lambda_j, theta_j, ri$Dnode, n_arr, Sj)
+  }
+  ri$theta <- theta
+  ri$L     <- lambda
+  ri$cats  <- cats
+
+  # Node masses: identical to the binary branch, family-agnostic.
+  if (ri$kind == "binary") {
+    mass_counts <- vapply(seq_len(Q), function(q) sum(w * E$ri$pq[, q]), numeric(1))
+    ri$mass <- .lta_normalise(mass_counts, alpha)
+  }
+
+  state$ri <- ri
+  state$mm$models[[1]]$parameters$pis <-
+    .ordinal_pis_from_theta(theta, lambda, ri$Dnode, ri$mass, cats)
+  for (t in seq_len(Tn))
+    state$mm$models[[t]]$parameters$pis <- state$mm$models[[1]]$parameters$pis
+  state
+}
+
 # The measurement side of .lta_log_prior() for an RI fit: the closed form of
 # the same pseudo-observation prior .lta_ri_mstep() fits against, so the EM
 # stopping rule and the restart ranking climb the objective the M-step
@@ -300,7 +407,22 @@
   Tn <- state$n_times
   Q  <- length(ri$mass)
   a_cat <- .bayes_alpha(state$mm$models[[1]], "categorical")
-  if (a_cat > 0) {
+  if (a_cat > 0 && !is.null(ri$theta)) {
+    w <- state$weights_vec
+    prior_obs <- Tn * a_cat / (K * Q)
+    cats <- ri$cats
+    for (j in seq_len(R)) {
+      Sj    <- cats[j]
+      m_j   <- .lta_ri_item_marginal_ordinal(X, w, R, Tn, j, Sj)
+      cols  <- .ordinal_theta_cols(cats, j)
+      theta_j <- ri$theta[, cols, drop = FALSE]
+      for (q in seq_len(Q)) {
+        shift <- sum(ri$L[j, ] * ri$Dnode[q, ])
+        p <- pmin(pmax(.ordinal_cat_probs(theta_j, shift, Sj), 1e-300), 1 - 1e-300)
+        val <- val + prior_obs * sum(sweep(log(p), 2, m_j, "*"))
+      }
+    }
+  } else if (a_cat > 0) {
     w <- state$weights_vec
     prior_obs <- Tn * a_cat / (K * Q)
     for (j in seq_len(R)) {
@@ -364,9 +486,19 @@
     if (q_star != 1L) {
       perm      <- c(q_star, setdiff(seq_len(Q), q_star))
       new_delta <- sweep(delta[perm, , drop = FALSE], 2, delta[q_star, ], "-")
-      A         <- A + matrix(delta[q_star, ], K, R, byrow = TRUE)
-      ri$L      <- t(new_delta[-1, , drop = FALSE])
-      ri$mass   <- ri$mass[perm]
+      if (!is.null(ri$theta)) {
+        # Shifting item j's whole linear predictor by a constant is the same
+        # as shifting only the base threshold theta_2: the increments
+        # (eta_3, ..., eta_S) are relative gaps and are untouched.
+        for (j in seq_len(R)) {
+          base_col <- .ordinal_theta_cols(ri$cats, j)[1]
+          ri$theta[, base_col] <- ri$theta[, base_col] + delta[q_star, j]
+        }
+      } else {
+        A <- A + matrix(delta[q_star, ], K, R, byrow = TRUE)
+      }
+      ri$L    <- t(new_delta[-1, , drop = FALSE])
+      ri$mass <- ri$mass[perm]
     }
   }
 
@@ -374,7 +506,7 @@
     warning("A random-intercept loading exceeds 10 in absolute value; the ",
             "model may be weakly identified on these data.", call. = FALSE)
 
-  ri$A <- A
+  if (is.null(ri$theta)) ri$A <- A
   state$ri <- ri
   state$mm$models[[1]]$parameters$pis <- .lta_ri_integrated_pis(ri, K, R)
   for (t in seq_len(state$n_times))
@@ -454,11 +586,17 @@ random_intercept_scores <- function(fit) {
               silent = TRUE)
   if (inherits(warm, "try-error")) return(state)
 
-  # The plain pass's own `pis` is exactly the K x R intercept table a random
-  # intercept with zero loadings would report, which is where `A` belongs; the
-  # loadings stay at the draw this restart was given. Mirrors
+  # The plain pass's own `pis` is exactly the table a random intercept with
+  # zero loadings would report, which is where the intercept parameters
+  # belong; the loadings stay at the draw this restart was given. Mirrors
   # .lta_refine_start()'s treatment of a regular-LTA donor.
-  ri$A <- qlogis(pmin(pmax(warm$mm$models[[1]]$parameters$pis, 0.05), 0.95))
+  if (!is.null(ri$theta)) {
+    cats     <- ri$cats %||% state$mm$models[[1]]$cats
+    ri$theta <- .ordinal_theta_from_pis(warm$mm$models[[1]]$parameters$pis, cats)
+    ri$cats  <- cats
+  } else {
+    ri$A <- qlogis(pmin(pmax(warm$mm$models[[1]]$parameters$pis, 0.05), 0.95))
+  }
   warm$ri <- ri
   warm$mm$models[[1]]$parameters$pis <-
     .lta_ri_integrated_pis(ri, state$n_statuses, state$n_items)
