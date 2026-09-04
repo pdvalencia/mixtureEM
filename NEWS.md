@@ -1,5 +1,17 @@
 # mixtureEM (development version)
 
+## `fit_lta()` gains an `"ordinal"` measurement option
+
+Items with more than two ordered response categories can now be declared
+`measurement = "ordinal"`, a cumulative-logit block that lets items with
+different numbers of categories (a 3-category, 3-category and binary set of
+items, for instance) share one measurement block instead of needing a mixed
+specification. Without a random intercept it is numerically identical to
+`measurement = "categorical"` (free per-status category probabilities are the
+same model as free per-status thresholds); the random-intercept form of this
+emission is not built yet, so `random_intercept` still requires binary
+indicators. No number a current user sees changes.
+
 ## A random intercept may now be combined with covariates and with `group`
 
 `fit_lta()` previously refused to combine `random_intercept` with covariates

@@ -40,7 +40,11 @@
 #' @param n_statuses Integer. Number of latent statuses.
 #' @param times Integer. Number of occasions. Required for wide input.
 #' @param measurement Measurement model for one occasion's items: `"binary"`,
-#'   `"categorical"`, `"continuous"`, or a named list for a mixed block.
+#'   `"categorical"`, `"ordinal"`, `"continuous"`, or a named list for a mixed
+#'   block. `"ordinal"` fits one cumulative-logit block per item, with its own
+#'   number of ordered categories inferred per item (so a 3/3/2-category block
+#'   needs no mixed specification); without a random intercept it is
+#'   numerically identical to `"categorical"`.
 #' @param measurement_invariance Whether the item parameters are held equal
 #'   across occasions: `"full"` (the default), `"none"`, or `"partial"` for only
 #'   the items named in `invariant_items`. See the note above on why `"full"` is
@@ -522,7 +526,7 @@ fit_lta <- function(indicators,
            "time-varying item intercept under a time-constant loading is not a ",
            "random-intercept model (Muthen & Asparouhov 2022, sec. 3.1).",
            call. = FALSE)
-    if (measurement != "binary")
+    if (!measurement %in% c("binary", "bernoulli"))
       stop("`random_intercept` currently supports binary indicators only.",
            call. = FALSE)
   }
@@ -570,7 +574,8 @@ fit_lta <- function(indicators,
     mm              = time_blocks_model(K, prep$n_items, Tn,
                                         sub_model       = engine$sub_model,
                                         invariant_items = spec$invariant_items,
-                                        max_val         = engine$max_val),
+                                        max_val         = engine$max_val,
+                                        cats            = engine$cats),
     ri              = .lta_ri_init(random_intercept, n_quadrature, n_ri)
   )
 

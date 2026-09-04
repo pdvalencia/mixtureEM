@@ -72,6 +72,10 @@ build_emission <- function(descriptor, n_components = 2, ...) {
       return(.construct_emission(poisson_model, c(list(type = "poisson"), args_list)))
     } else if (descriptor %in% c("poisson_nan", "count_nan")) {
       return(.construct_emission(poisson_model, c(list(type = "poisson_nan"), args_list)))
+    } else if (descriptor == "ordinal") {
+      return(.construct_emission(ordinal_model, c(list(type = "ordinal"), args_list)))
+    } else if (descriptor == "ordinal_nan") {
+      return(.construct_emission(ordinal_model, c(list(type = "ordinal_nan"), args_list)))
 
       # ------------------------------------------------------------------
       # Longitudinal measurement model: J items observed at T occasions,

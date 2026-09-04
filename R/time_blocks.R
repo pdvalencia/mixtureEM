@@ -37,7 +37,8 @@
                           invariant_items = integer(0),
                           invariant_params = character(0),
                           variances_equal = FALSE,
-                          max_val = NULL, prefix = "B", extra_class = "blocks") {
+                          max_val = NULL, cats = NULL,
+                          prefix = "B", extra_class = "blocks") {
   n_items  <- as.integer(n_items)
   n_blocks <- as.integer(n_blocks)
   invariant_items <- sort(unique(as.integer(invariant_items)))
@@ -66,10 +67,12 @@
   # max_val is meaningful only for the polytomous family; the Gaussian
   # constructors take no such argument and would reject it. `variances_equal`
   # travels the other way, and .construct_emission() drops it where it does not
-  # apply.
+  # apply. `cats` is the ordinal family's ragged analogue of max_val -- a
+  # per-item category-count vector rather than one value shared by all items.
   sub_args <- list(descriptor = sub_model, n_components = n_components,
                    variances_equal = isTRUE(variances_equal))
   if (!is.null(max_val)) sub_args$max_val <- max_val
+  if (!is.null(cats)) sub_args$cats <- cats
 
   for (b in seq_len(n_blocks))
     state$models[[paste0(prefix, b)]] <- do.call(build_emission, sub_args)
@@ -86,13 +89,13 @@ time_blocks_model <- function(n_components, n_items, n_times,
                               invariant_items = integer(0),
                               invariant_params = character(0),
                               variances_equal = FALSE,
-                              max_val = NULL, ...) {
+                              max_val = NULL, cats = NULL, ...) {
   state <- .blocks_model(n_components, n_items, n_blocks = n_times,
                          sub_model = sub_model,
                          invariant_items = invariant_items,
                          invariant_params = invariant_params,
                          variances_equal = variances_equal,
-                         max_val = max_val, prefix = "T",
+                         max_val = max_val, cats = cats, prefix = "T",
                          extra_class = "time_blocks")
   state$n_times <- state$n_blocks
   state
@@ -363,6 +366,10 @@ n_parameters.blocks <- function(model_state, ...) {
 # .item_submodel_map() for why the ranges are consecutive and how they are
 # found).
 .per_item_nparams <- function(sub, J) {
+  # Ragged: an ordinal item's cost is K*(cats[j]-1), not a shared average --
+  # items with different category counts (a 3/3/2 block) cost differently.
+  if (inherits(sub, c("ordinal", "ordinal_nan")))
+    return(sub$n_components * (sub$cats - 1L))
   if (!inherits(sub, "nested")) return(rep(n_parameters(sub) / J, J))
 
   out    <- numeric(J)

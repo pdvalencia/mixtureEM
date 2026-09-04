@@ -58,7 +58,11 @@ frame with \code{id} and \code{time}.}
 \item{times}{Integer. Number of occasions. Required for wide input.}
 
 \item{measurement}{Measurement model for one occasion's items: \code{"binary"},
-\code{"categorical"}, \code{"continuous"}, or a named list for a mixed block.}
+\code{"categorical"}, \code{"ordinal"}, \code{"continuous"}, or a named list for a mixed
+block. \code{"ordinal"} fits one cumulative-logit block per item, with its own
+number of ordered categories inferred per item (so a 3/3/2-category block
+needs no mixed specification); without a random intercept it is
+numerically identical to \code{"categorical"}.}
 
 \item{measurement_invariance}{Whether the item parameters are held equal
 across occasions: \code{"full"} (the default), \code{"none"}, or \code{"partial"} for only

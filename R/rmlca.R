@@ -177,10 +177,11 @@ fit_rmlca <- function(indicators,
 .longitudinal_measurement_spec <- function(measurement, X, n_items, n_times) {
   sub_model <- .resolve_emission_descriptor(measurement, X)
 
-  is_binary <- function(d) is.character(d) &&
+  is_binary  <- function(d) is.character(d) &&
     d %in% c("binary", "bernoulli", "binary_nan", "bernoulli_nan")
-  is_poly   <- function(d) is.character(d) &&
+  is_poly    <- function(d) is.character(d) &&
     d %in% c("categorical", "multinoulli", "categorical_nan", "multinoulli_nan")
+  is_ordinal <- function(d) is.character(d) && d %in% c("ordinal", "ordinal_nan")
 
   if (is_binary(sub_model)) {
     X <- .recode_binary_blocks(X, n_items, n_times)$X
@@ -192,12 +193,41 @@ fit_rmlca <- function(indicators,
   }
 
   max_val <- NULL
+  cats    <- NULL
   if (is_poly(sub_model)) {
     max_val <- max(X, na.rm = TRUE)
     if (!is.finite(max_val) || max_val != as.integer(max_val))
       stop('measurement = "categorical" requires integer-coded categories ',
            "(1, 2, 3, ...).", call. = FALSE)
     max_val <- as.integer(max_val)
+  } else if (is_ordinal(sub_model)) {
+    # Per-item category counts, read across every occasion so all T columns
+    # of one item share the same response space (### 14.18.6). Codes must be
+    # 1-based and contiguous, and no interior category may be empty: a
+    # category with zero observed responses that is neither the top nor the
+    # bottom one leaves one of its thresholds unidentified.
+    cats <- integer(n_items)
+    for (j in seq_len(n_items)) {
+      cols <- ((seq_len(n_times) - 1L) * n_items) + j
+      vals <- X[, cols][!is.na(X[, cols])]
+      if (!length(vals)) {
+        cats[j] <- 2L
+        next
+      }
+      if (!all(vals == as.integer(vals)) || min(vals) < 1)
+        stop(sprintf(paste0(
+          'measurement = "ordinal" requires integer-coded categories ',
+          "(1, 2, 3, ...) for item %d."), j), call. = FALSE)
+      cats[j] <- as.integer(max(vals))
+      observed <- tabulate(vals, nbins = cats[j])
+      interior <- if (cats[j] > 2L) seq(2L, cats[j] - 1L) else integer(0)
+      if (any(observed[interior] == 0L))
+        stop(sprintf(paste(
+          "measurement = \"ordinal\": item %d has an empty interior",
+          "category (a category between the lowest and highest observed",
+          "value with zero responses), which leaves one of its thresholds",
+          "unidentified."), j), call. = FALSE)
+    }
   } else if (is.list(sub_model)) {
     # Mixed block: resolve each sub-block against the first occasion's columns
     # so that block-wise FIML upgrading matches the data actually seen there.
@@ -205,7 +235,7 @@ fit_rmlca <- function(indicators,
       measurement, X[, .time_block_cols(1L, n_items), drop = FALSE])
   }
 
-  list(sub_model = sub_model, max_val = max_val, X = X)
+  list(sub_model = sub_model, max_val = max_val, cats = cats, X = X)
 }
 
 # Class-by-time-by-item array of the quantity that characterises each class at
