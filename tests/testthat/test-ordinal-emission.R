@@ -152,10 +152,9 @@ test_that("fit_lta() gives the same single-start fit under ordinal and categoric
 
 # ------------------------------------------------------------------------------
 # W5 -- parameter counts for the ragged 3/3/2 item block, K = 5, T = 3,
-# stationary transitions: the article's own Table 7 shape (### 14.18.8),
-# checked here for the three configurations this session actually builds
-# (regular, continuous RI, binary RI). The mover-stayer crosses are left for
-# the session that adds mover-stayer + ordinal coverage.
+# stationary transitions: the article's own Table 7 shape (### 14.18.8), all
+# six rows now: regular, continuous RI, binary RI, and their three
+# mover-stayer crosses.
 # ------------------------------------------------------------------------------
 
 test_that("ordinal RI parameter counts match the W5 table (### 14.18.8)", {
@@ -181,6 +180,31 @@ test_that("ordinal RI parameter counts match the W5 table (### 14.18.8)", {
                      random_intercept = "binary", n_ri = 2,
                      n_init = 1, random_state = 1, standard_errors = FALSE)
   expect_equal(fit_bin$n_params, 53L)
+
+  # The table's structural count (24, shared with the non-mover-stayer rows,
+  # plus one for the stayer mixing weight) assumes ONE initial-status vector
+  # shared across the mover and stayer classes, not two -- so these three need
+  # tie_initial_status = TRUE, the same option test-lta-ri.R's mover-stayer
+  # fits use for the same reason.
+  fit_ms <- suppressWarnings(fit_lta(X, n_statuses = 5, times = 3,
+                     measurement = "ordinal", transition_invariance = "full",
+                     mover_stayer = TRUE, tie_initial_status = TRUE,
+                     n_init = 1, random_state = 1, standard_errors = FALSE))
+  expect_equal(fit_ms$n_params, 50L)
+
+  fit_ms_con <- suppressWarnings(fit_lta(X, n_statuses = 5, times = 3,
+                     measurement = "ordinal", transition_invariance = "full",
+                     mover_stayer = TRUE, tie_initial_status = TRUE,
+                     random_intercept = "continuous", n_quadrature = 5,
+                     n_init = 1, random_state = 1, standard_errors = FALSE))
+  expect_equal(fit_ms_con$n_params, 53L)
+
+  fit_ms_bin <- suppressWarnings(fit_lta(X, n_statuses = 5, times = 3,
+                     measurement = "ordinal", transition_invariance = "full",
+                     mover_stayer = TRUE, tie_initial_status = TRUE,
+                     random_intercept = "binary", n_ri = 2,
+                     n_init = 1, random_state = 1, standard_errors = FALSE))
+  expect_equal(fit_ms_bin$n_params, 54L)
 })
 
 # ------------------------------------------------------------------------------
@@ -249,4 +273,59 @@ test_that("ordinal handles a ragged 3/3/2 category block without error", {
   # job and belongs to a later session.
   expect_equal(n_parameters(fit$mm), 2L * (2L + 2L + 1L))
   expect_true(is.finite(fit$loglik))
+})
+
+# ------------------------------------------------------------------------------
+# .lta_ri_log_prior()'s ordinal arm (R/lta_ri.R), added so bayes_constants()'s
+# default categorical = 1 does not crash the very first ordinal-RI EM
+# iteration, had no dedicated test of its own -- the smoke tests above only
+# exercise it incidentally, by fitting to convergence at defaults. This
+# recomputes its value independently: base-R plogis instead of
+# .ordinal_cat_probs(), and a hand-rolled weighted marginal instead of
+# .lta_ri_item_marginal_ordinal(). alpha = 0 isolates the categorical term
+# from .lta_log_prior_dt()'s delta/tau contribution.
+# ------------------------------------------------------------------------------
+
+test_that(".lta_ri_log_prior()'s ordinal arm matches an independent computation", {
+  set.seed(55)
+  n <- 80
+  cls  <- sample(1:2, n, replace = TRUE)
+  draw <- function() apply(matrix(c(.75, .25, .2, .8), 2, 2, byrow = TRUE)[cls, ],
+                           1, function(p) sample(1:2, 1, prob = p))
+  X <- cbind(draw(), draw(), draw())   # one item, T = 3, S = 2 (binary-collapsed)
+
+  fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
+    measurement = "ordinal", random_intercept = "continuous", n_quadrature = 3,
+    n_init = 1, max_iter = 3, random_state = 1, standard_errors = FALSE))
+
+  val <- .lta_ri_log_prior(fit, X, alpha = 0)
+
+  K  <- fit$n_statuses
+  Q  <- length(fit$ri$mass)
+  Tn <- fit$n_times
+  a_cat     <- .bayes_alpha(fit$mm$models[[1]], "categorical")
+  prior_obs <- Tn * a_cat / (K * Q)
+  w  <- fit$weights_vec
+  xs <- as.vector(X)
+  ws <- rep(w, times = Tn)
+  m1 <- sum(ws[xs == 1]) / sum(ws)
+  m2 <- sum(ws[xs == 2]) / sum(ws)
+  theta <- fit$ri$theta[, 1]                    # one item, S = 2 -> one column
+  expected <- 0
+  for (q in seq_len(Q)) {
+    shift <- sum(fit$ri$L[1, ] * fit$ri$Dnode[q, ])
+    p2 <- plogis(theta + shift)
+    p1 <- 1 - p2
+    expected <- expected + prior_obs *
+      sum(m1 * log(pmax(p1, 1e-300)) + m2 * log(pmax(p2, 1e-300)))
+  }
+  expect_equal(val, expected, tolerance = 1e-8)
+
+  # And the fact this test exists for: a fresh ordinal-RI fit at the
+  # bayes_constants() DEFAULT (categorical = 1, not 0) must not crash or
+  # produce a non-finite penalised objective on its first iteration.
+  fit_default <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
+    measurement = "ordinal", random_intercept = "continuous", n_quadrature = 3,
+    n_init = 1, max_iter = 1, random_state = 1, standard_errors = FALSE))
+  expect_true(is.finite(.lta_ri_log_prior(fit_default, X, alpha = 1)))
 })
