@@ -160,3 +160,54 @@ test_that("at zero loading an RI ordinal fit reproduces the plain ordinal likeli
 
   expect_equal(ll_ri, ll_plain, tolerance = 1e-6)
 })
+
+test_that("an ordinal RI fit's stored state reproduces its own reported log-likelihood", {
+  # .sort_lta_statuses() relabels statuses by Time 1 prevalence at the end of a
+  # fit, and it has to move every status-indexed quantity together. For an
+  # ordinal random intercept the measurement model is `ri$theta`, not the `ri$A`
+  # a binary one carries; leaving `theta` behind while `pis` and delta/tau moved
+  # left the returned object holding two different models at once. Everything a
+  # user reads off the fit stayed right (those readers use the permuted `pis`),
+  # but everything recomputed from `ri$theta` -- the score matrix, the packed
+  # log-likelihood, standard errors and the scaling factor -- was evaluated at a
+  # scrambled model. The invariant that catches it is the cheapest one there is:
+  # an E-step over the object's own stored parameters must return the number the
+  # object reports.
+  X <- .lta_ordinal_sim(n = 400, seed = 3)
+  check_consistent <- function(fit) {
+    w  <- fit$weights_vec
+    sc <- .lta_score_matrix(fit, X)
+    expect_equal(sum(w * sc$ll), fit$loglik, tolerance = 1e-8)
+    layout <- .lta_par_layout(fit)
+    par    <- .lta_par_pack(fit, layout)
+    expect_equal(sum(w * .lta_ll_case(fit, X, par, layout)), fit$loglik,
+                 tolerance = 1e-8)
+  }
+
+  args <- list(X, n_statuses = 2, times = 3, measurement = "ordinal",
+               cats = c(3L, 3L, 2L), n_init = 3, max_iter = 200,
+               random_state = 5, standard_errors = FALSE)
+  check_consistent(suppressWarnings(do.call(fit_lta, args)))
+  check_consistent(suppressWarnings(do.call(fit_lta,
+    c(args, list(random_intercept = "binary", n_ri = 2)))))
+  check_consistent(suppressWarnings(do.call(fit_lta,
+    c(args, list(random_intercept = "continuous", n_quadrature = 15)))))
+})
+
+test_that(".sort_lta_statuses() permutes an ordinal random intercept's thresholds", {
+  # The unit-level statement of the same defect, so a future edit to the sort
+  # cannot drop `theta` again without a test naming it.
+  X <- .lta_ordinal_sim(n = 300, seed = 8)
+  fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
+    measurement = "ordinal", cats = c(3L, 3L, 2L),
+    random_intercept = "continuous", n_quadrature = 15,
+    n_init = 1, max_iter = 20, random_state = 2, standard_errors = FALSE))
+
+  # Force a relabelling by making status 2 the more prevalent one at Time 1.
+  flipped <- fit
+  flipped$delta_c <- list(rev(fit$delta_c[[1]]))
+  sorted <- .sort_lta_statuses(flipped)
+  expect_equal(sorted$ri$theta, flipped$ri$theta[c(2L, 1L), , drop = FALSE])
+  expect_equal(sorted$mm$models[[1]]$parameters$pis,
+               flipped$mm$models[[1]]$parameters$pis[c(2L, 1L), , drop = FALSE])
+})

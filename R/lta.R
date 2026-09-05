@@ -1357,14 +1357,20 @@ fit_lta <- function(indicators,
   state$tau_allowed_c <- lapply(state$tau_allowed_c, perm_mats)
   state$gamma <- lapply(state$gamma, function(g) g[, ord, drop = FALSE])
   state$xi    <- perm_mats(state$xi)
-  # A random intercept's `A` IS the measurement model; the `pis` permuted below
-  # is only its integral over the nodes. Permuting `pis` and leaving `A` where
-  # it was leaves the fit carrying two different models at once, and every
-  # reader that recomputes from `A` disagrees with every reader that does not.
-  # `L` is indexed by item and `mass`/`Dnode` by node, so neither moves with a
-  # status.
-  if (!is.null(state$ri))
-    state$ri$A <- state$ri$A[ord, , drop = FALSE]
+  # A random intercept's own measurement parameters ARE the measurement model;
+  # the `pis` permuted below is only their integral over the nodes. Permuting
+  # `pis` and leaving them where they were leaves the fit carrying two
+  # different models at once, and every reader that recomputes from them
+  # disagrees with every reader that does not. Both families are indexed by
+  # status in their rows -- `A` for a binary indicator, `theta` for an ordinal
+  # one -- and exactly one of the two is set. `L` is indexed by item and
+  # `mass`/`Dnode` by node, so neither moves with a status.
+  if (!is.null(state$ri)) {
+    if (!is.null(state$ri$theta))
+      state$ri$theta <- state$ri$theta[ord, , drop = FALSE]
+    if (!is.null(state$ri$A))
+      state$ri$A <- state$ri$A[ord, , drop = FALSE]
+  }
   if (C > 1L) {
     state$gamma_by_class <- lapply(state$gamma_by_class, function(gl)
       lapply(gl, function(g) g[, ord, drop = FALSE]))
