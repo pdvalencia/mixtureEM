@@ -1545,7 +1545,7 @@ fit_lta <- function(indicators,
   .lta_scores_supported(state) &&
     class(state$mm$models[[1]])[1] %in%
       c("bernoulli", "bernoulli_nan", "gaussian_diag", "gaussian_diag_nan",
-        "gaussian_unit", "gaussian_unit_nan")
+        "gaussian_unit", "gaussian_unit_nan", "ordinal", "ordinal_nan")
 }
 
 # Whether the packed vector describes this model's full free parameter set,
@@ -1562,7 +1562,7 @@ fit_lta <- function(indicators,
   if (!is.null(state$ri)) return(TRUE)
   class(state$mm$models[[1]])[1] %in%
     c("bernoulli", "bernoulli_nan", "gaussian_diag", "gaussian_diag_nan",
-      "gaussian_unit", "gaussian_unit_nan")
+      "gaussian_unit", "gaussian_unit_nan", "ordinal", "ordinal_nan")
 }
 
 # The n x p matrix of case-level scores, one column per free parameter, on the
@@ -1818,7 +1818,31 @@ fit_lta <- function(indicators,
     ri <- state$ri
     Q  <- length(ri$mass)
     M  <- ncol(ri$Dnode)
+    ordinal_ri <- !is.null(ri$theta)
+    cats <- if (ordinal_ri) ri$cats else NULL
     for (j in seq_len(J)) {
+      if (ordinal_ri) {
+        Sj      <- cats[j]
+        cols    <- .ordinal_theta_cols(cats, j)
+        theta_j <- ri$theta[, cols, drop = FALSE]
+        s_theta  <- matrix(0, n, K * (Sj - 1L))
+        s_lambda <- matrix(0, n, M)
+        for (q in seq_len(Q)) {
+          shift <- sum(ri$L[j, ] * ri$Dnode[q, ])
+          blk   <- matrix(0, n, K * (Sj - 1L))
+          for (tt in seq_len(Tn)) {
+            xj <- X[, .time_block_cols(tt, J)[j]]
+            blk <- blk + .ordinal_theta_score_block(theta_j, shift, xj,
+                                                     ri_G[[q]][[tt]], Sj)
+          }
+          s_theta  <- s_theta + blk
+          s_lambda <- s_lambda +
+            outer(rowSums(blk[, seq_len(K), drop = FALSE]), ri$Dnode[q, ])
+        }
+        add_block(s_theta, NULL, NULL, sprintf("theta[item %d]", j))
+        add_block(s_lambda, NULL, NULL, sprintf("lambda[item %d]", j))
+        next
+      }
       s_alpha  <- matrix(0, n, K)
       s_lambda <- matrix(0, n, M)
       for (q in seq_len(Q)) {
@@ -1904,6 +1928,30 @@ fit_lta <- function(indicators,
         # the plain mixture engine's Gaussian variances.
         if (has_var)
           add_block(s_v, NULL, NULL, sprintf("log_sd[item %d]", j))
+      }
+    }
+  } else if (fam %in% c("ordinal", "ordinal_nan")) {
+    # Non-RI ordinal: the single-"node" case of the RI arm above (shift = 0,
+    # one status-posterior `gam[[tt]]` in place of a node-and-status joint
+    # posterior), so it reuses the same .ordinal_theta_score_block() helper.
+    conditional <- FALSE
+    inv <- .lta_invariant_items(state)
+    for (j in seq_len(J)) {
+      ts_groups <- if (j %in% inv) list(seq_len(Tn)) else
+        lapply(seq_len(Tn), identity)
+      for (grp in ts_groups) {
+        m       <- state$mm$models[[grp[1]]]
+        cats    <- m$cats
+        Sj      <- cats[j]
+        cols    <- .ordinal_theta_cols(cats, j)
+        theta_j <- .ordinal_theta_from_pis(m$parameters$pis, cats)[, cols,
+                                                                    drop = FALSE]
+        s <- matrix(0, n, K * (Sj - 1L))
+        for (tt in grp) {
+          xj <- X[, .time_block_cols(tt, J)[j]]
+          s  <- s + .ordinal_theta_score_block(theta_j, 0, xj, gam[[tt]], Sj)
+        }
+        add_block(s, NULL, NULL, sprintf("theta[item %d]", j))
       }
     }
   }

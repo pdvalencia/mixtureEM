@@ -244,6 +244,12 @@ test_that("the RI ordinal M-step is EM-monotone", {
   # at increasing iteration counts: since random_state pins the starting
   # point, the log-likelihood at max_iter = m is one point on the one EM
   # trajectory that run follows, and that sequence must never decrease.
+  # `refine = FALSE`: ordinal joined `.lta_scores_full()`'s whitelist in
+  # ### 14.18's W9, so the default L-BFGS polish now runs after every
+  # truncated fit here too -- and each truncation's *own* polish run adds its
+  # own small numerical noise, which breaks monotonicity across truncations
+  # (a cross-run comparison the polish makes no claim about) even though the
+  # M-step this test exists to check is, and stays, exactly monotone.
   set.seed(303)
   n <- 150
   X <- cbind(sample(1:3, n, TRUE), sample(1:2, n, TRUE),
@@ -255,7 +261,7 @@ test_that("the RI ordinal M-step is EM-monotone", {
       X, n_statuses = 2, times = 2, measurement = "ordinal",
       random_intercept = "continuous", n_quadrature = 5,
       n_init = 1, random_state = 5, standard_errors = FALSE,
-      max_iter = m_it))$loglik
+      max_iter = m_it, refine = FALSE))$loglik
   }, numeric(1))
   expect_true(all(diff(lls) > -1e-6))
 })

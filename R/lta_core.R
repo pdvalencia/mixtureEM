@@ -684,8 +684,15 @@
     # descriptions of one vector and the RI packing test asserts they agree.
     M <- ncol(state$ri$Dnode)
     Q <- length(state$ri$mass)
+    ordinal_ri <- !is.null(state$ri$theta)
     for (j in seq_len(J)) {
-      out[[length(out) + 1L]] <- list(kind = "alpha",  j = j, len = K)
+      if (ordinal_ri) {
+        cats <- state$ri$cats
+        out[[length(out) + 1L]] <- list(kind = "theta", j = j,
+                                        len = K * (cats[j] - 1L))
+      } else {
+        out[[length(out) + 1L]] <- list(kind = "alpha", j = j, len = K)
+      }
       out[[length(out) + 1L]] <- list(kind = "lambda", j = j, len = M)
     }
     # The continuous variant's Gauss-Hermite weights are FIXED and must never
@@ -695,11 +702,22 @@
       out[[length(out) + 1L]] <- list(kind = "ri_mass", len = Q - 1L)
   } else {
     fam <- class(state$mm$models[[1]])[1]
-    kind <- if (fam %in% c("bernoulli", "bernoulli_nan")) "rho" else "mu"
+    kind <- if (fam %in% c("bernoulli", "bernoulli_nan")) "rho"
+            else if (fam %in% c("ordinal", "ordinal_nan")) "theta"
+            else if (fam %in% c("gaussian_diag", "gaussian_diag_nan",
+                                "gaussian_unit", "gaussian_unit_nan")) "mu"
+            else stop("`.lta_par_layout()` does not recognise measurement ",
+                     "family '", fam, "'.", call. = FALSE)
     inv <- .lta_invariant_items(state)
     for (j in seq_len(J)) {
       grps <- if (j %in% inv) list(seq_len(Tn)) else lapply(seq_len(Tn), identity)
       for (grp in grps) {
+        if (kind == "theta") {
+          cats <- state$mm$models[[grp[1]]]$cats
+          out[[length(out) + 1L]] <- list(kind = "theta", j = j, grp = grp,
+                                          len = K * (cats[j] - 1L))
+          next
+        }
         out[[length(out) + 1L]] <- list(kind = kind, j = j, grp = grp, len = K)
         if (kind == "mu" &&
             !is.null(state$mm$models[[grp[1]]]$parameters$covariances))
@@ -742,6 +760,15 @@
       },
       mu = state$mm$models[[b$grp[1]]]$parameters$means[, b$j],
       log_sd = 0.5 * log(state$mm$models[[b$grp[1]]]$parameters$covariances[, b$j]),
+      theta = if (!is.null(state$ri)) {
+        cols <- .ordinal_theta_cols(state$ri$cats, b$j)
+        as.vector(state$ri$theta[, cols, drop = FALSE])
+      } else {
+        m    <- state$mm$models[[b$grp[1]]]
+        cols <- .ordinal_theta_cols(m$cats, b$j)
+        as.vector(.ordinal_theta_from_pis(m$parameters$pis, m$cats)[, cols,
+                                                                     drop = FALSE])
+      },
       alpha  = state$ri$A[, b$j],
       lambda = state$ri$L[b$j, ],
       ri_mass = {
@@ -794,6 +821,19 @@
     } else if (b$kind == "log_sd") {
       for (tt in b$grp)
         state$mm$models[[tt]]$parameters$covariances[, b$j] <- exp(2 * v)
+    } else if (b$kind == "theta" && !is.null(state$ri)) {
+      cats <- state$ri$cats
+      cols <- .ordinal_theta_cols(cats, b$j)
+      state$ri$theta[, cols] <- matrix(v, K, cats[b$j] - 1L)
+    } else if (b$kind == "theta") {
+      m    <- state$mm$models[[b$grp[1]]]
+      cats <- m$cats
+      Sj   <- cats[b$j]
+      theta_j <- matrix(v, K, Sj - 1L)
+      probs   <- .ordinal_cat_probs(theta_j, shift = 0, cats_j = Sj)
+      cols    <- .ordinal_pis_cols(cats, b$j)
+      for (tt in b$grp)
+        state$mm$models[[tt]]$parameters$pis[, cols] <- probs
     } else if (b$kind == "alpha") {
       state$ri$A[, b$j] <- v
     } else if (b$kind == "lambda") {
@@ -992,7 +1032,8 @@
 
   fam <- class(state$mm$models[[1]])[1]
   known <- c("bernoulli", "bernoulli_nan",     # marginal-preserving Beta prior
-             "gaussian_unit", "gaussian_unit_nan")  # no measurement prior at all
+             "gaussian_unit", "gaussian_unit_nan",  # no measurement prior at all
+             "ordinal", "ordinal_nan")          # marginal-preserving Dirichlet prior
   if (!fam %in% known) return(NA_real_)
 
   val <- .lta_log_prior_dt(state, alpha)
@@ -1011,6 +1052,25 @@
         mj <- marginals[g[1], j]
         val <- val + length(g) * (a_cat / K) *
           sum(mj * log(p) + (1 - mj) * log1p(-p))
+      }
+    }
+  } else if (a_cat > 0 && fam %in% c("ordinal", "ordinal_nan")) {
+    # Mirrors .lta_ri_log_prior()'s ordinal arm exactly (fact (j)): the same
+    # (a_cat / K) mass per occasion, spread over this item's S_r categories by
+    # its weighted observed marginal rather than a single Bernoulli marginal.
+    inv  <- .lta_invariant_items(state)
+    cats <- state$mm$models[[1]]$cats
+    for (j in seq_len(state$n_items)) {
+      Sj   <- cats[j]
+      cols <- .ordinal_pis_cols(cats, j)
+      mj   <- .lta_ri_item_marginal_ordinal(X, state$weights_vec,
+                                            state$n_items, Tn, j, Sj)
+      grps <- if (j %in% inv) list(seq_len(Tn)) else lapply(seq_len(Tn), identity)
+      for (g in grps) {
+        p <- pmin(pmax(state$mm$models[[g[1]]]$parameters$pis[, cols,
+                                                              drop = FALSE],
+                       1e-300), 1 - 1e-300)
+        val <- val + length(g) * (a_cat / K) * sum(sweep(log(p), 2, mj, "*"))
       }
     }
   }
@@ -1099,6 +1159,46 @@
       p   <- pmin(pmax(plogis(eta), 1e-300), 1 - 1e-300)
       val <- val + prior_obs * sum(mj * log(p) + (1 - mj) * log1p(-p))
       g   <- prior_obs * rowSums(mj - p)
+    } else if (b$kind == "theta" && !is.null(state$ri) && a_cat > 0) {
+      # Ordinal analogue of the "alpha" branch above -- .ordinal_theta_prior_
+      # term() is the per-node value/gradient closed form, matching
+      # .lta_ri_log_prior()'s ordinal arm exactly (fact (j)); the value is
+      # accumulated here only, same reason as the binary case.
+      ri   <- state$ri
+      Q    <- length(ri$mass)
+      Sj   <- ri$cats[b$j]
+      cols <- .ordinal_theta_cols(ri$cats, b$j)
+      theta_j <- ri$theta[, cols, drop = FALSE]
+      prior_obs <- state$n_times * a_cat / (K * Q)
+      mj  <- .lta_ri_item_marginal_ordinal(X, state$weights_vec,
+                                           state$n_items, state$n_times, b$j, Sj)
+      g <- numeric(b$len)
+      for (q in seq_len(Q)) {
+        shift <- sum(ri$L[b$j, ] * ri$Dnode[q, ])
+        term  <- .ordinal_theta_prior_term(theta_j, shift, mj, Sj)
+        val   <- val + prior_obs * term$value
+        g     <- g + prior_obs * term$grad
+      }
+    } else if (b$kind == "lambda" && a_cat > 0 && !is.null(state$ri$theta)) {
+      # Ordinal analogue of the binary "lambda" branch: the shift-derivative
+      # sum is exactly the theta block's own status-summed first column (the
+      # "eta_1" entry, which is shared with the shift by construction -- see
+      # .ordinal_theta_prior_term()) times the node value, summed over nodes.
+      ri   <- state$ri
+      Q    <- length(ri$mass)
+      Sj   <- ri$cats[b$j]
+      cols <- .ordinal_theta_cols(ri$cats, b$j)
+      theta_j <- ri$theta[, cols, drop = FALSE]
+      prior_obs <- state$n_times * a_cat / (K * Q)
+      mj  <- .lta_ri_item_marginal_ordinal(X, state$weights_vec,
+                                           state$n_items, state$n_times, b$j, Sj)
+      g <- numeric(b$len)
+      for (q in seq_len(Q)) {
+        shift <- sum(ri$L[b$j, ] * ri$Dnode[q, ])
+        term  <- .ordinal_theta_prior_term(theta_j, shift, mj, Sj)
+        shift_grad <- sum(term$grad[seq_len(K)])
+        g <- g + prior_obs * shift_grad * ri$Dnode[q, ]
+      }
     } else if (b$kind == "lambda" && a_cat > 0) {
       # Gradient only -- see the "alpha" branch just above for why.
       ri  <- state$ri
@@ -1110,6 +1210,21 @@
       eta <- outer(ri$A[, b$j], lp, "+")
       p   <- pmin(pmax(plogis(eta), 1e-300), 1 - 1e-300)
       g   <- prior_obs * as.vector(crossprod(ri$Dnode, colSums(mj - p)))
+    } else if (b$kind == "theta" && a_cat > 0) {
+      # Non-RI ordinal: the single-node case of the RI arm above (shift = 0),
+      # mirroring .lta_log_prior()'s own ordinal arm exactly (fact (j)).
+      m    <- state$mm$models[[b$grp[1]]]
+      cats <- m$cats
+      Sj   <- cats[b$j]
+      cols <- .ordinal_theta_cols(cats, b$j)
+      theta_j <- .ordinal_theta_from_pis(m$parameters$pis, cats)[, cols,
+                                                                  drop = FALSE]
+      mj  <- .lta_ri_item_marginal_ordinal(X, state$weights_vec,
+                                           state$n_items, state$n_times, b$j, Sj)
+      a_rho <- length(b$grp) * a_cat / K
+      term  <- .ordinal_theta_prior_term(theta_j, 0, mj, Sj)
+      val   <- val + a_rho * term$value
+      g     <- a_rho * term$grad
     } else if (b$kind == "ri_mass" && alpha > 0) {
       # Mirrors the "class" branch above with Q in place of C, matching the
       # implicit Dirichlet(alpha/Q, ...) prior .lta_normalise() applies at

@@ -319,3 +319,107 @@ n_parameters.ordinal_nan <- n_parameters.ordinal
                        theta_j = theta_j, Dnode = Dnode, n_arr = n_arr, Sj = Sj)
   fit$par
 }
+
+# ------------------------------------------------------------------------------
+# Analytic score, one item at a single node (### 14.18, W9)
+# ------------------------------------------------------------------------------
+#
+# Column layout matches .lta_par_pack()'s `as.vector(theta_j)`: status fastest,
+# threshold-column slowest, i.e. column (m - 1) * K + k holds d log p / d
+# eta[k, m], the increment-parameterised threshold (theta_j's own scale, not
+# the raw boundary th derived from it).
+.ordinal_pis_cols <- function(cats, j) {
+  off <- cumsum(c(0L, cats))
+  (off[j] + 1L):(off[j + 1L])
+}
+
+# theta_j: K x (Sj - 1) increment-parameterised threshold block for one item.
+# shift: scalar (RI node shift) or 0 (non-RI). xj: length-n observed category
+# (1..Sj), NA where missing. resp_weight: n x K responsibility (gamma, or one
+# node's joint status/node posterior under an RI). Returns an n x (K*(Sj-1))
+# matrix, already weighted by `resp_weight`, ready to accumulate across
+# occasions/nodes exactly as the binary branch accumulates `resid`.
+.ordinal_theta_score_block <- function(theta_j, shift, xj, resp_weight, Sj) {
+  n   <- length(xj)
+  K   <- nrow(theta_j)
+  out <- matrix(0, n, K * (Sj - 1L))
+  obs <- !is.na(xj)
+  if (Sj < 2L || !any(obs)) return(out)
+
+  th <- matrix(0, K, Sj - 1L)
+  th[, 1] <- theta_j[, 1]
+  if (Sj > 2L)
+    for (s in 3:Sj) th[, s - 1L] <- th[, s - 2L] - exp(theta_j[, s - 1L])
+  Fmat <- cbind(1, plogis(th + shift), 0)             # K x (Sj + 1)
+  pmat <- pmax(Fmat[, seq_len(Sj), drop = FALSE] -
+                 Fmat[, seq_len(Sj) + 1L, drop = FALSE], 1e-12)
+
+  for (k in seq_len(K)) {
+    Fk <- Fmat[k, ]
+    dF <- Fk * (1 - Fk)
+    pk <- pmat[k, ]
+    # d log p_s / d th[, m] = (1{m == s-1} dF[s] - 1{m == s} dF[s+1]) / p_s,
+    # in terms of boundary index c = m + 1 (Fk[c] is the boundary at column m).
+    g <- matrix(0, n, Sj - 1L)
+    for (m in seq_len(Sj - 1L)) {
+      plus  <- obs & (xj == (m + 1L))
+      minus <- obs & (xj == m)
+      if (any(plus))  g[plus, m]  <- g[plus, m]  + dF[m + 1L] / pk[m + 1L]
+      if (any(minus)) g[minus, m] <- g[minus, m] - dF[m + 1L] / pk[m]
+    }
+    # Chain rule to the increment scale: eta_1 (the raw first threshold) gets
+    # every m's contribution; eta_u, u >= 2, gets -exp(eta_u) times the sum of
+    # every m >= u's contribution (th[, m] = eta_1 - sum_{u=2}^{m} exp(eta_u)).
+    e <- matrix(0, n, Sj - 1L)
+    e[, 1] <- rowSums(g)
+    if (Sj > 2L) {
+      cs <- matrix(0, n, Sj - 1L)   # cs[, u] = sum_{m=u}^{Sj-1} g[, m]
+      cs[, Sj - 1L] <- g[, Sj - 1L]
+      if (Sj > 3L)
+        for (u in (Sj - 2L):2L) cs[, u] <- cs[, u + 1L] + g[, u]
+      for (u in 2:(Sj - 1L)) e[, u] <- -exp(theta_j[k, u]) * cs[, u]
+    }
+    cols <- (seq_len(Sj - 1L) - 1L) * K + k
+    out[, cols] <- e * resp_weight[, k]
+  }
+  out
+}
+
+# The marginal-preserving Dirichlet prior's value and gradient for one item's
+# threshold block at a single shift (### 14.18, W10). `m_j` is a length-Sj
+# fractional "pseudo-observation" (the weighted observed marginal, as fed to
+# `.lta_ri_mstep_ordinal()`'s sufficient statistic and to `.lta_ri_log_prior()`
+# 's value term, which this must agree with exactly -- see the roadmap's fact
+# (j)). Unlike `.ordinal_theta_score_block()` this has no case dimension: the
+# prior is one fixed pseudo-observation per status, not one per person, so
+# `grad` is length `K * (Sj - 1)` directly, in the same column-major layout.
+.ordinal_theta_prior_term <- function(theta_j, shift, m_j, Sj) {
+  K  <- nrow(theta_j)
+  th <- matrix(0, K, Sj - 1L)
+  th[, 1] <- theta_j[, 1]
+  if (Sj > 2L)
+    for (s in 3:Sj) th[, s - 1L] <- th[, s - 2L] - exp(theta_j[, s - 1L])
+  Fmat  <- cbind(1, plogis(th + shift), 0)
+  pmat  <- pmax(Fmat[, seq_len(Sj), drop = FALSE] -
+                  Fmat[, seq_len(Sj) + 1L, drop = FALSE], 1e-300)
+  value <- sum(sweep(log(pmat), 2, m_j, "*"))
+
+  grad <- matrix(0, K, Sj - 1L)
+  for (k in seq_len(K)) {
+    Fk <- Fmat[k, ]; dF <- Fk * (1 - Fk); pk <- pmat[k, ]
+    g <- numeric(Sj - 1L)
+    for (m in seq_len(Sj - 1L))
+      g[m] <- dF[m + 1L] * (m_j[m + 1L] / pk[m + 1L] - m_j[m] / pk[m])
+    e <- numeric(Sj - 1L)
+    e[1] <- sum(g)
+    if (Sj > 2L) {
+      cs <- numeric(Sj - 1L)
+      cs[Sj - 1L] <- g[Sj - 1L]
+      if (Sj > 3L)
+        for (u in (Sj - 2L):2L) cs[u] <- cs[u + 1L] + g[u]
+      for (u in 2:(Sj - 1L)) e[u] <- -exp(theta_j[k, u]) * cs[u]
+    }
+    grad[k, ] <- e
+  }
+  list(value = value, grad = as.vector(grad))
+}

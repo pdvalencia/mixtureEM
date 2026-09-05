@@ -109,3 +109,30 @@
   colnames(X) <- paste0("t", rep(seq_len(Tn), each = J), "_i", rep(seq_len(J), Tn))
   list(X = X, z = z, S = S, delta = delta, tau = tau)
 }
+
+# A small ordinal (cumulative-logit) LTA, ragged category counts by item
+# (### 14.18, W9's own test fixture) -- two 3-category items and one binary
+# item, matching the article's own Dating-data shape without its size or
+# extreme thresholds, so a finite-difference check over it costs seconds.
+.lta_ordinal_sim <- function(n = 150, Tn = 3, K = 2, cats = c(3L, 3L, 2L),
+                             seed = 1) {
+  set.seed(seed)
+  J <- length(cats)
+  delta <- c(0.5, 0.5)
+  tau <- matrix(c(0.8, 0.2, 0.2, 0.8), K, K, byrow = TRUE)
+  X <- matrix(NA_integer_, n, Tn * J)
+  for (i in seq_len(n)) {
+    s <- sample(K, 1, prob = delta)
+    for (t in seq_len(Tn)) {
+      if (t > 1) s <- sample(K, 1, prob = tau[s, ])
+      for (j in seq_len(J)) {
+        Sj <- cats[j]
+        probs <- if (s == 1) rev(seq_len(Sj)) else seq_len(Sj)
+        probs <- probs / sum(probs)
+        X[i, (t - 1) * J + j] <- sample(Sj, 1, prob = probs)
+      }
+    }
+  }
+  colnames(X) <- paste0("t", rep(seq_len(Tn), each = J), "_i", rep(seq_len(J), Tn))
+  X
+}
