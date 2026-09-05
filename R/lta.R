@@ -119,10 +119,8 @@
 #'   time, or lag-2 dependence - the last of which the article itself reports
 #'   as significant in both of its worked examples, so it is a real
 #'   simplification and not a hypothetical one. Standard errors and the
-#'   post-EM L-BFGS refinement are available for binary indicators; for
-#'   ordinal indicators they are not yet wired up, and `standard_errors` is
-#'   silently unavailable (`fit$se` is `NULL`) rather than refused, the same
-#'   treatment other unsupported measurement families already get. A random
+#'   post-EM L-BFGS refinement are available for both binary and ordinal
+#'   indicators. A random
 #'   intercept crossed with several latent classes or `mover_stayer` is
 #'   supported for both measurement families.
 #' @param n_quadrature Number of Gauss-Hermite nodes for

@@ -8,9 +8,16 @@ different numbers of categories (a 3-category, 3-category and binary set of
 items, for instance) share one measurement block instead of needing a mixed
 specification. Without a random intercept it is numerically identical to
 `measurement = "categorical"` (free per-status category probabilities are the
-same model as free per-status thresholds); the random-intercept form of this
-emission is not built yet, so `random_intercept` still requires binary
-indicators. No number a current user sees changes.
+same model as free per-status thresholds).
+
+`random_intercept` now accepts ordinal indicators too, in both its
+`"continuous"` and `"binary"` forms, with standard errors, the robust
+sandwich, the MLR scaling factor and the post-EM L-BFGS refinement all
+available exactly as they already were for binary indicators. This was
+checked against another program's fit of the same published worked example,
+with the same estimates and log-likelihood. No number a current user sees
+changes: this is new capability, not a change to any previously available
+fit.
 
 ## A random intercept may now be combined with covariates and with `group`
 
