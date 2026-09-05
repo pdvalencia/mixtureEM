@@ -139,23 +139,32 @@ belong costs almost nothing (a handful of parameters, and BIC will say
 so, as it does on this package's own benchmark replication of the
 article's example).
 
-Not built in this release: a random intercept crossed with several latent
-classes or \code{mover_stayer}, ordinal or continuous indicators, covariates on
-the random intercept itself, a random \emph{slope}, correlated residuals across
+Not built in this release: continuous indicators, covariates on the
+random intercept itself, a random \emph{slope}, correlated residuals across
 time, or lag-2 dependence - the last of which the article itself reports
 as significant in both of its worked examples, so it is a real
 simplification and not a hypothetical one. Standard errors and the
-post-EM L-BFGS refinement are also not yet available for these models;
-\code{standard_errors} is silently unavailable (\code{fit$se} is \code{NULL}) rather than
-refused, the same treatment other unsupported measurement families
-already get.}
+post-EM L-BFGS refinement are available for binary indicators; for
+ordinal indicators they are not yet wired up, and \code{standard_errors} is
+silently unavailable (\code{fit$se} is \code{NULL}) rather than refused, the same
+treatment other unsupported measurement families already get. A random
+intercept crossed with several latent classes or \code{mover_stayer} is
+supported for both measurement families.}
 
 \item{n_quadrature}{Number of Gauss-Hermite nodes for
 \code{random_intercept = "continuous"}. The default of 15 is a starting point
 to check, not a settled answer, the same way \code{n_init}'s default is a
 floor: raise it (the two reference implementations behind this package's
 own validation use 15-30 depending on the model) and confirm the
-log-likelihood moves by less than 0.01. \code{n_quadrature = 1} is a valid,
+log-likelihood moves by less than 0.01. Make that check over a wide range
+of node counts rather than one step up. When a fit's thresholds are
+extreme, the item response is almost a step function of the factor, and
+the log-likelihood is then not even monotone in the number of nodes: two
+nearby small settings can differ by several log-likelihood units while
+both sit far from the converged value. One ordinal five-status fit used
+in this package's own validation reads -16047.3 at 15 nodes and -16040.5
+at 20, but settles at -16041.18 only from roughly 80 nodes upward.
+\code{n_quadrature = 1} is a valid,
 deliberate special case - a single node at 0 with mass 1 - under which
 the model reduces exactly to regular LTA; it is not a model worth fitting
 on its own, but is how the package's own test suite proves the node

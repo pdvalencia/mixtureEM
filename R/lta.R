@@ -130,7 +130,15 @@
 #'   to check, not a settled answer, the same way `n_init`'s default is a
 #'   floor: raise it (the two reference implementations behind this package's
 #'   own validation use 15-30 depending on the model) and confirm the
-#'   log-likelihood moves by less than 0.01. `n_quadrature = 1` is a valid,
+#'   log-likelihood moves by less than 0.01. Make that check over a wide range
+#'   of node counts rather than one step up. When a fit's thresholds are
+#'   extreme, the item response is almost a step function of the factor, and
+#'   the log-likelihood is then not even monotone in the number of nodes: two
+#'   nearby small settings can differ by several log-likelihood units while
+#'   both sit far from the converged value. One ordinal five-status fit used
+#'   in this package's own validation reads -16047.3 at 15 nodes and -16040.5
+#'   at 20, but settles at -16041.18 only from roughly 80 nodes upward.
+#'   `n_quadrature = 1` is a valid,
 #'   deliberate special case - a single node at 0 with mass 1 - under which
 #'   the model reduces exactly to regular LTA; it is not a model worth fitting
 #'   on its own, but is how the package's own test suite proves the node
