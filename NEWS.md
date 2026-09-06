@@ -1,5 +1,18 @@
 # mixtureEM (development version)
 
+## Multi-start and bootstrap loops no longer leave cores idle
+
+Every loop that `n_cores` spreads over workers -- the multi-start search, the
+bootstrap likelihood ratio test, the bootstrap standard errors and the `K`
+grids of the `compare_*()` functions -- now hands work out one piece at a time
+instead of dividing it into fixed per-worker chunks in advance. Random starts
+can differ several-fold in how long they take to converge, and under the old
+scheme a worker that drew a chunk of cheap ones sat idle until the unluckiest
+chunk finished. It helps most where there are many more pieces than workers --
+a bootstrap likelihood ratio test at its defaults is over two thousand fits.
+No fitted number moves: which worker runs a restart was never an input to it,
+and results are still returned in the order they were requested.
+
 ## Covariates may now predict the continuous random intercept itself
 
 `fit_lta()` gains `predictors_random_intercept`, letting a continuous random

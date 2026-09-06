@@ -179,10 +179,31 @@
     return(lapply(X, FUN, ...))
   }
 
+  # parLapplyLB() rather than parLapply(): the latter cuts `X` into one fixed
+  # chunk per worker before any of it runs, which is only efficient when the
+  # pieces cost the same. The pieces here are model fits, and they do not: two
+  # random starts of the same model routinely differ several-fold in how many
+  # iterations they need, and a bootstrap replicate is no more predictable.
+  # Under static chunking the call cannot finish before its unluckiest chunk,
+  # so the workers that drew the cheap pieces wait. parLapplyLB() hands out one
+  # piece at a time to whichever worker is free, so the tail is one piece long
+  # instead of one chunk long.
+  #
+  # This is worth having wherever the pool is smaller than the job -- a BLRT's
+  # two thousand replicates, a hundred-restart search. It cannot help a call
+  # with fewer pieces than workers, which is a different problem with a
+  # different fix.
+  #
+  # Nothing about the answer changes. Which worker runs a restart was never an
+  # input to it -- workers draw no random numbers, see the note at the top of
+  # this file -- and clusterApplyLB() returns results in the order of `X`, not
+  # the order they finished. The bit-for-bit equality across `n_cores` that the
+  # validation targets rest on is untouched.
+  #
   # The pool outlives this call, so a failure here must not leave it holding a
   # half-finished state. stopCluster() on error is the safe reading: the next
   # call rebuilds, which costs a spawn and cannot cost a wrong answer.
-  res <- tryCatch(parallel::parLapply(cl, X, FUN, ...),
+  res <- tryCatch(parallel::parLapplyLB(cl, X, FUN, ...),
                   error = function(e) { .par_stop_cluster(); stop(e) })
   res
 }
