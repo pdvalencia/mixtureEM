@@ -9,13 +9,13 @@ factor is absorbed exactly by the free per-class thresholds and is not
 identified). The estimator reweights the fixed quadrature grid by an exact
 importance identity rather than shifting the grid per case, so the fit costs
 one closed-form weighted-least-squares step per EM iteration and no numerical
-optimiser. This was checked against another program's fit of the same
-published worked example's own covariate step, at the same 56- and
-88-parameter model shapes; the accurate integral this package computes sits a
-few log-likelihood units above that program's own default-integration answer
-on both, which is expected rather than a discrepancy. No number a current
-user sees changes: this is new capability, not a change to any previously
-available fit.
+optimiser. The identity itself is checked against `stats::integrate()` and the
+coefficients are recovered on simulated data with a known answer; cross-
+validation against another program's fit of the same published worked
+example's own covariate step is still open (the search does not yet reliably
+match that program's optimum on that data, tracked internally) and is not yet
+claimed. No number a current user sees changes: this is new capability, not a
+change to any previously available fit.
 
 ## `fit_lta()` gains an `"ordinal"` measurement option
 
