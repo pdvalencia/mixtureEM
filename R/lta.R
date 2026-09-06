@@ -114,15 +114,21 @@
 #'   so, as it does on this package's own benchmark replication of the
 #'   article's example).
 #'
-#'   Not built in this release: continuous indicators, covariates on the
-#'   random intercept itself, a random *slope*, correlated residuals across
-#'   time, or lag-2 dependence - the last of which the article itself reports
+#'   Not built in this release: continuous indicators, a random *slope*,
+#'   correlated residuals across time, or lag-2 dependence - the last of which
+#'   the article itself reports
 #'   as significant in both of its worked examples, so it is a real
 #'   simplification and not a hypothetical one. Standard errors and the
 #'   post-EM L-BFGS refinement are available for both binary and ordinal
 #'   indicators. A random
 #'   intercept crossed with several latent classes or `mover_stayer` is
 #'   supported for both measurement families.
+#'
+#'   `predictors_random_intercept` regresses the factor on covariates. The
+#'   item probabilities the fit reports are integrated over the factor at a
+#'   zero random-intercept mean - the residual grid - not at each case's own
+#'   predicted mean; the per-case means are in
+#'   `random_intercept_scores()$predicted_mean`.
 #' @param n_quadrature Number of Gauss-Hermite nodes for
 #'   `random_intercept = "continuous"`. The default of 15 is a starting point
 #'   to check, not a settled answer, the same way `n_init`'s default is a
@@ -140,7 +146,9 @@
 #'   deliberate special case - a single node at 0 with mass 1 - under which
 #'   the model reduces exactly to regular LTA; it is not a model worth fitting
 #'   on its own, but is how the package's own test suite proves the node
-#'   machinery is wired correctly.
+#'   machinery is wired correctly. The node count matters more once
+#'   `predictors_random_intercept` is used: the person-specific reweighting is
+#'   exact only up to whatever quadrature error the fixed grid already has.
 #' @param n_ri Number of discrete intercept classes for
 #'   `random_intercept = "binary"`. The default of 2 is Muthen & Asparouhov's
 #'   own case.
@@ -254,6 +262,15 @@
 #'   the first occasion (Collins & Lanza, sec. 8.10.1).
 #' @param predictors_transition Optional covariates predicting the transitions
 #'   between statuses (sec. 8.10.2).
+#' @param predictors_random_intercept Optional covariates predicting the
+#'   continuous random intercept itself (the article's own Step 5). The
+#'   factor's residual variance is fixed at 1 and its residual mean at 0, so no
+#'   intercept is estimated and a constant column is refused: the coefficients
+#'   are the regression of the stable trait on the covariates, and each costs
+#'   one parameter. Requires `random_intercept = "continuous"`. The factor's
+#'   orientation is arbitrary - the fit pins it by making the largest loading
+#'   positive - so the sign of every coefficient is meaningful only relative to
+#'   the loadings.
 #' @param transition_effects How covariates act on the transitions.
 #'   `"common"` (default) gives each origin status its own intercepts but one
 #'   slope per covariate shared across origins, which is the specification in
@@ -367,6 +384,7 @@ fit_lta <- function(indicators,
                     standard_errors = TRUE,
                     predictors_initial = NULL,
                     predictors_transition = NULL,
+                    predictors_random_intercept = NULL,
                     transition_effects = c("common", "by_origin"),
                     group = NULL,
                     group_effects = c("both", "initial", "transitions", "none"),
@@ -447,6 +465,7 @@ fit_lta <- function(indicators,
     cluster               <- .subset_cases(cluster, keep)
     predictors_initial    <- .subset_cases(predictors_initial, keep)
     predictors_transition <- .subset_cases(predictors_transition, keep)
+    predictors_random_intercept <- .subset_cases(predictors_random_intercept, keep)
     group                 <- .subset_cases(group, keep)
 
     warning(sprintf(
@@ -552,6 +571,20 @@ fit_lta <- function(indicators,
       stop("`n_ri` must be a single whole number of at least 2.", call. = FALSE)
   }
 
+  # --- covariates on the random intercept itself ------------------------------
+  Z_ri <- .lta_ri_design(predictors_random_intercept, n,
+                         "predictors_random_intercept")
+  if (!is.null(Z_ri)) {
+    if (random_intercept != "continuous")
+      stop("`predictors_random_intercept` requires ",
+           "`random_intercept = \"continuous\"`.", call. = FALSE)
+    if (C > 1L || isTRUE(mover_stayer))
+      stop("Covariates on the random intercept are not yet available for a ",
+           "mixture latent Markov model (`n_classes` > 1 or ",
+           "`mover_stayer = TRUE`). Fit the mixture without them, or use one ",
+           "class.", call. = FALSE)
+  }
+
   allowed <- .lta_tau_allowed(tau_zeros, K, Tn, C, mover_stayer)
 
   state <- list(
@@ -574,6 +607,8 @@ fit_lta <- function(indicators,
     has_survey_design = has_design,
     Z_delta         = Z_delta,
     Z_tau           = Z_tau,
+    Z_ri            = Z_ri,
+    ri_beta         = NULL,
     transition_effects = transition_effects,
     group_info      = group_info,
     group_effects   = if (is.null(group)) NULL else group_effects,
@@ -947,6 +982,7 @@ fit_lta <- function(indicators,
 # to this argument.
 .lta_collapse <- function(state, X) {
   if (!is.null(state$Z_delta) || !is.null(state$Z_tau)) return(NULL)
+  if (!is.null(state$Z_ri))             return(NULL)
   if (!is.null(state$group_info))       return(NULL)
   if (isTRUE(state$has_survey_design))  return(NULL)
 
@@ -1078,8 +1114,9 @@ fit_lta <- function(indicators,
   n_ri <- if (is.null(state$ri)) 0L else
     length(state$ri$L) + if (state$ri$kind == "binary")
       length(state$ri$mass) - 1L else 0L
+  n_ri_beta <- if (is.null(state$Z_ri)) 0L else ncol(state$Z_ri)
 
-  (C - 1L) + n_delta + n_tau + n_parameters(state$mm) + n_ri
+  (C - 1L) + n_delta + n_tau + n_parameters(state$mm) + n_ri + n_ri_beta
 }
 
 # ------------------------------------------------------------------------------
@@ -1878,6 +1915,14 @@ fit_lta <- function(indicators,
       add_block(sweep(ri_pq[, seq_len(Q - 1L), drop = FALSE], 2,
                       ri$mass[seq_len(Q - 1L)], "-"),
                 ri$mass, seq_len(Q - 1L), "ri_mass")
+    }
+    if (!is.null(state$Z_ri)) {
+      # d/dbeta log L_i = x_i (fbar_i - mu_i). Fisher identity on the node
+      # prior: d/dbeta log mass_iq = x_i (z_q - mu_i), weighted by the node
+      # posterior.
+      fbar <- as.vector(ri_pq %*% ri$Dnode[, 1L])
+      mu   <- as.vector(state$Z_ri %*% state$ri_beta)
+      add_block(state$Z_ri * (fbar - mu), NULL, NULL, "ri_beta")
     }
     fam <- NULL
   } else {

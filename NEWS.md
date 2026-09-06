@@ -1,5 +1,22 @@
 # mixtureEM (development version)
 
+## Covariates may now predict the continuous random intercept itself
+
+`fit_lta()` gains `predictors_random_intercept`, letting a continuous random
+intercept's factor be regressed on covariates (`f ON x`, with the factor's
+residual variance fixed at 1 and no intercept, since a location shift of the
+factor is absorbed exactly by the free per-class thresholds and is not
+identified). The estimator reweights the fixed quadrature grid by an exact
+importance identity rather than shifting the grid per case, so the fit costs
+one closed-form weighted-least-squares step per EM iteration and no numerical
+optimiser. This was checked against another program's fit of the same
+published worked example's own covariate step, at the same 56- and
+88-parameter model shapes; the accurate integral this package computes sits a
+few log-likelihood units above that program's own default-integration answer
+on both, which is expected rather than a discrepancy. No number a current
+user sees changes: this is new capability, not a change to any previously
+available fit.
+
 ## `fit_lta()` gains an `"ordinal"` measurement option
 
 Items with more than two ordered response categories can now be declared

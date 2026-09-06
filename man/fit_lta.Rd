@@ -41,6 +41,7 @@ fit_lta(
   standard_errors = TRUE,
   predictors_initial = NULL,
   predictors_transition = NULL,
+  predictors_random_intercept = NULL,
   transition_effects = c("common", "by_origin"),
   group = NULL,
   group_effects = c("both", "initial", "transitions", "none"),
@@ -139,15 +140,21 @@ belong costs almost nothing (a handful of parameters, and BIC will say
 so, as it does on this package's own benchmark replication of the
 article's example).
 
-Not built in this release: continuous indicators, covariates on the
-random intercept itself, a random \emph{slope}, correlated residuals across
-time, or lag-2 dependence - the last of which the article itself reports
+Not built in this release: continuous indicators, a random \emph{slope},
+correlated residuals across time, or lag-2 dependence - the last of which
+the article itself reports
 as significant in both of its worked examples, so it is a real
 simplification and not a hypothetical one. Standard errors and the
 post-EM L-BFGS refinement are available for both binary and ordinal
 indicators. A random
 intercept crossed with several latent classes or \code{mover_stayer} is
-supported for both measurement families.}
+supported for both measurement families.
+
+\code{predictors_random_intercept} regresses the factor on covariates. The
+item probabilities the fit reports are integrated over the factor at a
+zero random-intercept mean - the residual grid - not at each case's own
+predicted mean; the per-case means are in
+\code{random_intercept_scores()$predicted_mean}.}
 
 \item{n_quadrature}{Number of Gauss-Hermite nodes for
 \code{random_intercept = "continuous"}. The default of 15 is a starting point
@@ -166,7 +173,9 @@ at 20, but settles at -16041.18 only from roughly 80 nodes upward.
 deliberate special case - a single node at 0 with mass 1 - under which
 the model reduces exactly to regular LTA; it is not a model worth fitting
 on its own, but is how the package's own test suite proves the node
-machinery is wired correctly.}
+machinery is wired correctly. The node count matters more once
+\code{predictors_random_intercept} is used: the person-specific reweighting is
+exact only up to whatever quadrature error the fixed grid already has.}
 
 \item{n_ri}{Number of discrete intercept classes for
 \code{random_intercept = "binary"}. The default of 2 is Muthen & Asparouhov's
@@ -292,6 +301,16 @@ the first occasion (Collins & Lanza, sec. 8.10.1).}
 
 \item{predictors_transition}{Optional covariates predicting the transitions
 between statuses (sec. 8.10.2).}
+
+\item{predictors_random_intercept}{Optional covariates predicting the
+continuous random intercept itself (the article's own Step 5). The
+factor's residual variance is fixed at 1 and its residual mean at 0, so no
+intercept is estimated and a constant column is refused: the coefficients
+are the regression of the stable trait on the covariates, and each costs
+one parameter. Requires \code{random_intercept = "continuous"}. The factor's
+orientation is arbitrary - the fit pins it by making the largest loading
+positive - so the sign of every coefficient is meaningful only relative to
+the loadings.}
 
 \item{transition_effects}{How covariates act on the transitions.
 \code{"common"} (default) gives each origin status its own intercepts but one

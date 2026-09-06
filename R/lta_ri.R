@@ -50,6 +50,28 @@
   plogis(ri$A + matrix(ri$L %*% ri$Dnode[q, ], K, R, byrow = TRUE))
 }
 
+# The Q emission tables shared by every RI likelihood computation: one node's
+# response-probability table, built at every case. Factored out of
+# .lta_ri_e_step() and .lta_ri_ll_case() so the two can never build it
+# differently -- they are asserted to agree to 1e-10
+# (tests/testthat/test-lta-ri.R:577) and the finite-difference Hessian
+# differentiates only the second.
+.lta_ri_logB <- function(state, X) {
+  K  <- state$n_statuses
+  Tn <- state$n_times
+  R  <- state$n_items
+  ri <- state$ri
+  Q  <- length(ri$mass)
+  logB <- vector("list", Q)
+  for (q in seq_len(Q)) {
+    pis_q <- .lta_ri_node_pis(ri, K, R, q)
+    mm_q  <- state$mm
+    for (t in seq_len(Tn)) mm_q$models[[t]]$parameters$pis <- pis_q
+    logB[[q]] <- .lta_emission_loglik(mm_q, X)
+  }
+  logB
+}
+
 # Weighted observed marginal of item j, pooled over every occasion -- RI fits
 # require measurement_invariance = "full" (fit_lta() refuses otherwise), so
 # "pooled over the occasions this item's M-step pools" is always all of them.
@@ -92,13 +114,8 @@
   # The emission table at each node depends only on the shared factor, not on
   # class, so it is built once per node and reused across every class's
   # forward-backward pass below.
-  logB <- vector("list", Q)
-  for (q in seq_len(Q)) {
-    pis_q <- .lta_ri_node_pis(ri, K, R, q)
-    mm_q  <- state$mm
-    for (t in seq_len(Tn)) mm_q$models[[t]]$parameters$pis <- pis_q
-    logB[[q]] <- .lta_emission_loglik(mm_q, X)
-  }
+  logB  <- .lta_ri_logB(state, X)
+  lmass <- .lta_ri_log_mass(state, n)
 
   # Inner mix, per class: exactly the single-class node loop this function
   # has always run, using that class's own delta/tau.
@@ -118,7 +135,7 @@
                             keep_pairwise = TRUE))
 
     lq <- vapply(seq_len(Q), function(q)
-      log(pmax(ri$mass[q], 1e-300)) + fb[[c]][[q]]$ll, numeric(n))
+      lmass[, q] + fb[[c]][[q]]$ll, numeric(n))
     ll_c[, c] <- logsumexp(lq, MARGIN = 1)
     pq_c[[c]] <- exp(lq - ll_c[, c])
   }
@@ -198,13 +215,8 @@
   C  <- state$n_classes %||% 1L
   w  <- state$weights_vec
 
-  logB <- vector("list", Q)
-  for (q in seq_len(Q)) {
-    pis_q <- .lta_ri_node_pis(ri, K, R, q)
-    mm_q  <- state$mm
-    for (t in seq_len(Tn)) mm_q$models[[t]]$parameters$pis <- pis_q
-    logB[[q]] <- .lta_emission_loglik(mm_q, X)
-  }
+  logB  <- .lta_ri_logB(state, X)
+  lmass <- .lta_ri_log_mass(state, n)
 
   ll_c <- matrix(0, n, C)
   for (c in seq_len(C)) {
@@ -212,7 +224,7 @@
     log_delta <- .lta_log_delta(sub)
     log_tau   <- .lta_log_tau(sub)
     lq <- vapply(seq_len(Q), function(q)
-      log(pmax(ri$mass[q], 1e-300)) +
+      lmass[, q] +
         .lta_forward_backward(logB[[q]], log_delta, log_tau, w)$ll, numeric(n))
     ll_c[, c] <- logsumexp(lq, MARGIN = 1)
   }
@@ -476,6 +488,10 @@
     if (ri$L[j_star, 1] < 0) {
       ri$L     <- -ri$L
       ri$Dnode <- -ri$Dnode   # symmetric nodes: the integral is unchanged
+      # promote() (R/lta.R) later overwrites Dnode with the unflipped full
+      # grid, licensed only by L, Dnode and ri_beta moving together -- flip
+      # two of the three and it silently changes the model.
+      if (!is.null(state$ri_beta)) state$ri_beta <- -state$ri_beta
     }
   } else {
     Q <- length(ri$mass)
@@ -522,7 +538,9 @@
 #' `node2_posterior`, and so on. For `random_intercept = "continuous"`, where
 #' the nodes are quadrature points on a single scale rather than unordered
 #' classes, `mean_score` (the posterior mean) and `map_score` (the quadrature
-#' node at the posterior mode) are added as well.
+#' node at the posterior mode) are added as well. When the fit used
+#' `predictors_random_intercept`, `predicted_mean` (the regression-implied
+#' factor mean, `x_i'beta`) is added too, alongside the posterior `mean_score`.
 #'
 #' @param fit A model fitted by [`fit_lta()`] with `random_intercept` not
 #'   `"none"`.
@@ -539,6 +557,8 @@ random_intercept_scores <- function(fit) {
     out$mean_score <- as.vector(pq %*% z)
     out$map_score  <- z[map_idx]
   }
+  if (!is.null(fit$Z_ri) && !is.null(fit$ri_beta))
+    out$predicted_mean <- as.vector(fit$Z_ri %*% fit$ri_beta)
   colnames(pq) <- paste0("node", seq_len(ncol(pq)), "_posterior")
   cbind(out, pq)
 }
@@ -581,7 +601,8 @@ random_intercept_scores <- function(fit) {
 .lta_ri_warm_start <- function(state, X, alpha, max_iter = 200L) {
   ri <- state$ri
   plain <- state
-  plain$ri <- NULL
+  plain$ri      <- NULL
+  plain$ri_beta <- NULL
   warm <- try(.lta_em(plain, X, max_iter = max_iter, tol = 1e-6, alpha = alpha),
               silent = TRUE)
   if (inherits(warm, "try-error")) return(state)
@@ -597,7 +618,8 @@ random_intercept_scores <- function(fit) {
   } else {
     ri$A <- qlogis(pmin(pmax(warm$mm$models[[1]]$parameters$pis, 0.05), 0.95))
   }
-  warm$ri <- ri
+  warm$ri      <- ri
+  warm$ri_beta <- state$ri_beta
   warm$mm$models[[1]]$parameters$pis <-
     .lta_ri_integrated_pis(ri, state$n_statuses, state$n_items)
   for (t in seq_len(state$n_times))

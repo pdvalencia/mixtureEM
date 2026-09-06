@@ -232,7 +232,8 @@ lta_covariate_summary <- function(object, digits = 3) {
     stop("`object` must be a fitted latent transition model.", call. = FALSE)
   K <- object$n_statuses
 
-  if (is.null(object$delta_beta) && is.null(object$tau_beta)) {
+  if (is.null(object$delta_beta) && is.null(object$tau_beta) &&
+      is.null(object$ri_beta)) {
     message("This model has no covariates or grouping variable.")
     return(invisible(object))
   }
@@ -240,9 +241,11 @@ lta_covariate_summary <- function(object, digits = 3) {
   cat("\n=========================================================\n")
   cat("   LATENT TRANSITION MODEL - COVARIATE EFFECTS (logits)\n")
   cat("=========================================================\n")
-  cat(sprintf("Reference status: %d. Coefficients are contrasts against it;\n",
-              K))
-  cat("exp(coefficient) is an odds ratio.\n")
+  if (!is.null(object$delta_beta) || !is.null(object$tau_beta)) {
+    cat(sprintf("Reference status: %d. Coefficients are contrasts against it;\n",
+                K))
+    cat("exp(coefficient) is an odds ratio.\n")
+  }
 
   # Coefficient table with Wald tests from the multinomial-logit information.
   # The Hessian covers the free classes only, packed row-major by class.
@@ -294,6 +297,28 @@ lta_covariate_summary <- function(object, digits = 3) {
                    paste0("to Status ", seq_len(K - 1L)))
       }
     }
+  }
+
+  if (!is.null(object$ri_beta)) {
+    cat("\nPREDICTING THE RANDOM INTERCEPT (linear regression, residual variance fixed at 1)\n")
+    cat("The factor's sign is fixed by making the largest loading positive;\n")
+    cat("reversing that convention reverses every coefficient here.\n")
+    est <- as.vector(object$ri_beta)
+    se  <- rep(NA_real_, length(est))
+    if (!is.null(object$se) && !is.null(object$se$vcov)) {
+      blk <- Find(function(b) identical(b$name, "ri_beta"), object$se$blocks)
+      if (!is.null(blk))
+        se <- sqrt(pmax(diag(object$se$vcov)[blk$cols], 0))
+    }
+    z   <- est / se
+    out <- data.frame(
+      Term     = colnames(object$Z_ri),
+      Estimate = round(est, digits),
+      SE       = round(se, digits),
+      z        = round(z, 2),
+      p        = format.pval(2 * stats::pnorm(-abs(z)), digits = 3, eps = 1e-16)
+    )
+    print(out, row.names = FALSE)
   }
   cat("\n=========================================================\n")
   invisible(object)

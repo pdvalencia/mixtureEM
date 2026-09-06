@@ -480,6 +480,7 @@
     # to prevent.
     if (!is.null(state$ri)) {
       state <- .lta_ri_mstep(state, X, E, alpha)
+      state <- .lta_ri_mstep_beta(state, E)
     } else {
       state$mm <- m_step(state$mm, X, .lta_mixed_gamma(E, Tn, C),
                          weights = if (all(w == 1)) NULL else w)
@@ -700,6 +701,11 @@
     # .lta_score_matrix() both observe.
     if (identical(state$ri$kind, "binary") && Q > 1L)
       out[[length(out) + 1L]] <- list(kind = "ri_mass", len = Q - 1L)
+    # A regression coefficient on the factor's node prior carries no prior of
+    # its own -- .lta_penalty()'s default zero gradient for an unmatched
+    # `kind` is deliberate here.
+    if (!is.null(state$Z_ri))
+      out[[length(out) + 1L]] <- list(kind = "ri_beta", len = ncol(state$Z_ri))
   } else {
     fam <- class(state$mm$models[[1]])[1]
     kind <- if (fam %in% c("bernoulli", "bernoulli_nan")) "rho"
@@ -775,7 +781,8 @@
         p <- pmax(state$ri$mass, 1e-12)
         Q <- length(p)
         log(p[seq_len(Q - 1L)]) - log(p[Q])
-      })
+      },
+      ri_beta = as.vector(state$ri_beta))
   }), use.names = FALSE)
 }
 
@@ -841,6 +848,8 @@
     } else if (b$kind == "ri_mass") {
       p <- exp(c(v, 0) - max(c(v, 0)))
       state$ri$mass <- p / sum(p)
+    } else if (b$kind == "ri_beta") {
+      state$ri_beta <- matrix(v, ncol = 1L)
     } else {
       for (tt in b$grp)
         state$mm$models[[tt]]$parameters$means[, b$j] <- v
@@ -1283,9 +1292,10 @@
   # means are unbounded; they have no boundary to reach.
   # `lambda` is a random-intercept loading -- unbounded, like `mu` -- but
   # does not carry the `"mu"` kind name, so it is excluded from the box the
-  # same way.
+  # same way. `ri_beta`, a regression coefficient on the factor, is unbounded
+  # for the same reason.
   bounded <- unlist(lapply(layout, function(b)
-    rep(!(b$kind %in% c("mu", "lambda")), b$len)), use.names = FALSE)
+    rep(!(b$kind %in% c("mu", "lambda", "ri_beta")), b$len)), use.names = FALSE)
   lo <- ifelse(bounded, -25, -Inf)
   hi <- ifelse(bounded,  25,  Inf)
   # EM can itself arrive at a boundary, which would put the starting vector
@@ -1348,6 +1358,7 @@
   # are carried over rather than re-derived.
   if (!is.null(donor$delta_beta)) state$delta_beta <- donor$delta_beta
   if (!is.null(donor$tau_beta))   state$tau_beta   <- donor$tau_beta
+  if (!is.null(donor$ri_beta))    state$ri_beta    <- donor$ri_beta
   if (state$n_classes > 1L) state$class_weights <- donor$class_weights
 
   # An RI fit may take a regular-LTA donor: seed delta, tau and the RI
@@ -1422,6 +1433,7 @@
     # equals regular LTA -- is indistinguishable from a real "no random
     # intercept needed" result (roadmap ### 14.10.10, failure mode 4).
     state$ri$L <- matrix(stats::runif(R * M, 0.2, 0.8), R, M)
+    if (!is.null(state$Z_ri)) state$ri_beta <- matrix(0, ncol(state$Z_ri), 1L)
     if (state$ri$kind == "binary")
       state$ri$mass <- rep(1 / length(state$ri$mass), length(state$ri$mass))
     state$mm$models[[1]]$parameters$pis <-

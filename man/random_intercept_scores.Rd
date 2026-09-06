@@ -20,5 +20,7 @@ node's own posterior probability is returned as \code{node1_posterior},
 \code{node2_posterior}, and so on. For \code{random_intercept = "continuous"}, where
 the nodes are quadrature points on a single scale rather than unordered
 classes, \code{mean_score} (the posterior mean) and \code{map_score} (the quadrature
-node at the posterior mode) are added as well.
+node at the posterior mode) are added as well. When the fit used
+\code{predictors_random_intercept}, \code{predicted_mean} (the regression-implied
+factor mean, \verb{x_i'beta}) is added too, alongside the posterior \code{mean_score}.
 }
