@@ -82,22 +82,50 @@ e_step <- function(model_state, X, Y = NULL) {
 # observed code can produce, so a missing cell stays distinct from every
 # observed one -- which it must be, since two rows that differ only in where
 # they are missing are different patterns.
-.pattern_index <- function(X) {
-  key     <- do.call(paste, c(as.data.frame(X), sep = "\r"))
+#
+# `Z` widens the key. Two rows are the same pattern only if they agree on every
+# column of `X` *and* every column of `Z`, which is what a case-level covariate
+# requires: once a case's class probabilities are a function of its own
+# covariate values, agreeing on the responses alone is no longer enough to make
+# two cases interchangeable. Passing `Z = NULL` is the original key, unchanged.
+.pattern_index <- function(X, Z = NULL) {
+  parts   <- as.data.frame(X)
+  if (!is.null(Z)) parts <- c(parts, as.data.frame(Z))
+  key     <- do.call(paste, c(parts, sep = "\r"))
   rep_row <- !duplicated(key)
   list(rep_row = rep_row, idx = match(key, key[rep_row]))
 }
 
 # Collapse X to unique response patterns, summing the case weights within each
 # pattern, so the EM iterations run on the pattern table instead of the full
-# n rows. Returns NULL when the fit is not eligible for collapsing: a
-# structural model is active, the measurement model is not one of the plain
+# n rows. Where a class-membership regression is active the key widens to
+# (response pattern, covariate values) rather than switching the economy off,
+# which is the grouping another program's manual describes, for the same
+# reason: two cases are interchangeable when they give the same responses AND
+# carry the same covariate values. Returns NULL when the fit is not eligible
+# for collapsing: some other structural model is active, a covariate value is
+# missing, the measurement model is not one of the plain
 # categorical families (continuous data has no duplicate rows, and collapsing
 # would change which seed rows the Gaussian restarts draw), a survey design is
 # attached (strata/cluster are per case), the table is too wide, or collapsing
 # would not be worth it (fewer than half the rows are duplicates).
 .collapse_patterns <- function(model_state, X, Y) {
-  if (!is.null(Y)) return(NULL)
+  if (!is.null(Y)) {
+    # A class-membership regression, and nothing else. Its M-step
+    # (`m_step.covariate()`, R/covariate.R) takes the case weights and folds
+    # them into the multinomial fit, which is what makes a pooled row with
+    # weight w behave exactly like w separate rows. No other structural family
+    # has been checked for that, so no other one collapses.
+    if (!inherits(model_state$sm, "covariate")) return(NULL)
+    # Missing covariates are imputed by `complete_covariates()` (R/utils.R)
+    # from an UNWEIGHTED colMeans()/cov(). On a collapsed table every pattern
+    # row would count once whatever its weight, so the imputed values -- and
+    # therefore the likelihood -- would quietly differ from the full-sample
+    # fit. Refusing to collapse when any covariate is missing is what keeps the
+    # two identical. Do not remove this gate without making that imputation
+    # weight-aware first.
+    if (anyNA(Y)) return(NULL)
+  }
   if (!class(model_state$mm)[1] %in%
       c("bernoulli", "bernoulli_nan", "multinoulli", "multinoulli_nan")) return(NULL)
   if (isTRUE(model_state$has_survey_design)) return(NULL)
@@ -122,14 +150,19 @@ e_step <- function(model_state, X, Y = NULL) {
   }
   if ((mv + 2)^ncol(X) >= 2^53) return(NULL)
 
-  pat <- .pattern_index(X)
+  # With covariates the key is (response pattern, covariate values) jointly, so
+  # continuous covariates make nearly every row unique and the payoff gate
+  # below declines the collapse on its own. The saving is real for discrete
+  # covariates -- sex, group, treatment arm -- which is the common applied case.
+  pat <- .pattern_index(X, Y)
   Xc  <- X[pat$rep_row, , drop = FALSE]
   if (nrow(Xc) > 0.5 * n) return(NULL)
 
   # rowsum() returns its groups sorted by label, and integer labels 1..P sort to
   # 1..P, so the counts line up with the rows of Xc.
   w <- model_state$sample_weights
-  list(X = Xc, w = as.vector(rowsum(w, pat$idx)), w_orig = w)
+  list(X = Xc, Y = if (is.null(Y)) NULL else Y[pat$rep_row, , drop = FALSE],
+       w = as.vector(rowsum(w, pat$idx)), w_orig = w)
 }
 
 # Restore the full-sample weights and rebuild the per-case E-step fields

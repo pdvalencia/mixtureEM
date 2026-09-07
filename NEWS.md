@@ -1,5 +1,30 @@
 # mixtureEM (development version)
 
+## One-step fits with covariates now use the response-pattern economy too
+
+A `fit_mixture(n_steps = 1)` fit with categorical indicators runs its EM
+iterations on the table of distinct response patterns, each carrying the number
+of cases that share it, rather than on all `n` rows. Until now that economy
+switched off entirely as soon as `predictors` were supplied, because a case
+whose class probabilities depend on its own covariate values is no longer
+interchangeable with another case that merely gave the same answers. The right
+answer is to widen the key rather than abandon it: cases are now pooled when
+they give the same responses *and* carry the same covariate values, which is
+the grouping another program's manual describes for the same identity. The
+likelihood is the same weighted sum either way. Continuous covariates make
+almost every row distinct, so nothing collapses there and nothing changes; the
+saving is for discrete covariates such as sex, group or treatment arm, where a
+1500-case five-item two-covariate fit collapses to 181 rows. A covariate with
+any missing value is not collapsed, because the imputation those cells receive
+is computed from an unweighted mean that the pattern table would change.
+
+**One number moves.** Random starting values are drawn per row, so a fit that
+newly collapses starts its restarts from different points and may report a
+different log-likelihood than it did before -- a different sample of the same
+likelihood surface, not a different model. This affects only one-step
+categorical fits with fully observed discrete covariates; every other fit,
+including every fit in the package's own validation set, is unchanged.
+
 ## Multi-start and bootstrap loops no longer leave cores idle
 
 Every loop that `n_cores` spreads over workers -- the multi-start search, the

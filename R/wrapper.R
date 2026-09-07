@@ -2166,10 +2166,14 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 
   coll <- .collapse_patterns(model_state, X, if (n_steps == 1) Y else NULL)
   X_em <- if (is.null(coll)) X else coll$X
+  # A one-step fit with a class-membership regression now collapses too, and
+  # its covariates have to travel to the same pattern table the responses did.
+  # `coll$Y` is NULL on every other path, so this is `Y` unchanged there.
+  Y_em <- if (is.null(coll) || is.null(coll$Y)) Y else coll$Y
   if (!is.null(coll)) model_state$sample_weights <- coll$w
 
   if (n_steps == 1) {
-    model_state <- fit_em(model_state, X_em, Y, n_init, max_iter, random_state,
+    model_state <- fit_em(model_state, X_em, Y_em, n_init, max_iter, random_state,
                           refine = refine, warm_start = warm_start,
                           n_cores = n_cores)
     model_state <- .expand_patterns(model_state, coll, X, Y)
