@@ -701,7 +701,19 @@ fit_lta <- function(indicators,
   # apply: they are about how slowly a chain mixture converges, not about how
   # the search is organised.
   if (!is.null(refine_from)) staged <- FALSE
-  n_survivors <- if (staged) min(3L, max(1L, n_init)) else 0L
+  # A tenth of the pool, rounded up, is another program's own documented
+  # default -- not invented here. The floor of 3 means every fit at
+  # `n_init <= 30` promotes exactly as many survivors as before (bit-for-bit
+  # unchanged); only `n_init >= 40` moves, and only upward, because taking
+  # more of the top-ranked candidates can never lower the winner's score.
+  # Deliberately NOT a function of `n_cores`: workers never draw random
+  # numbers, and a survivor count that did would make a fit's reported number
+  # depend on the hardware it ran on. Override with
+  # `options(mixtureEM.lta_survivors = <n>)`.
+  n_survivors <- if (staged) {
+    min(n_init, max(3L, getOption("mixtureEM.lta_survivors",
+                                   ceiling(0.10 * n_init))))
+  } else 0L
 
   # The ranking pass integrates on a coarser grid than the fit reports on.
   # .lta_ri_e_step() runs one whole forward-backward pass per node, so an
@@ -796,7 +808,17 @@ fit_lta <- function(indicators,
       # factor is switched on; see .lta_ri_warm_start() for the local maximum
       # this is there to keep the search out of, and for why the binary variant
       # is deliberately left alone. Nothing without a random intercept moves.
-      if (!is.null(s$ri) && identical(s$ri$kind, "continuous"))
+      #
+      # Only the second half of the pool gets it. Measured cold against warm,
+      # same pool composition, on two real benchmarks that disagree: an
+      # all-warm pool misses one benchmark's reference optimum by 14+, an
+      # all-cold pool misses the other's by 1.76, and a pool split evenly
+      # between the two reaches both. `i` is unchanged from the plain-restart
+      # numbering, so this only removes the warm-start call from the first
+      # half's draws -- the second half's fits, and every non-continuous-RI
+      # fit, are unaffected.
+      if (!is.null(s$ri) && identical(s$ri$kind, "continuous") &&
+          i > n_init %/% 2L)
         s <- .lta_ri_warm_start(s, X_fit, alpha)
       s
     })

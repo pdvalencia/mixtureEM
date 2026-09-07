@@ -335,6 +335,29 @@ test_that("a staged multi-start RI search recovers the generator's truth", {
   expect_lt(abs(trans11 - 0.622), 0.08)
 })
 
+# How many stage-1 winners get promoted to the full grid. `fit$metrics$n_starts`
+# is `length(final_lls)`, which on the staged path is populated only by the
+# promoted-survivor loop (R/lta.R), so it doubles as an observable count of
+# `n_survivors` without reaching into an internal.
+test_that("the survivor count is proportional, floored at 3, and overridable", {
+  X <- .lta_refine_sim(n = 120, K = 2, Tn = 2, J = 3, seed = 2)
+  fit_default <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 2,
+                measurement = "binary", random_intercept = "continuous",
+                n_quadrature = 5, n_init = 10, max_iter = 5,
+                random_state = 1, standard_errors = FALSE))
+  # 10% of 10 rounds up to 1, below the floor of 3.
+  expect_equal(fit_default$metrics$n_starts, 3L)
+
+  old <- getOption("mixtureEM.lta_survivors")
+  on.exit(options(mixtureEM.lta_survivors = old), add = TRUE)
+  options(mixtureEM.lta_survivors = 7L)
+  fit_opt <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 2,
+                measurement = "binary", random_intercept = "continuous",
+                n_quadrature = 5, n_init = 10, max_iter = 5,
+                random_state = 1, standard_errors = FALSE))
+  expect_equal(fit_opt$metrics$n_starts, 7L)
+})
+
 # --- 8. The status ordering has to carry the random intercept with it -------
 
 # `order_by_size` relabels the statuses at the very end of fit_lta(). For a
