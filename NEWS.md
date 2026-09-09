@@ -1,5 +1,29 @@
 # mixtureEM (development version)
 
+## `blrt()` seeds its bootstrap replicates the way the reference programs do
+
+Each bootstrap replicate used to refit both the smaller and the larger model
+from `n_init_boot` random restarts apiece. Neither reference program searches
+the smaller (null) model on a replicate at all -- one seeds it from the
+observed-data fit's own parameters and runs no random restarts, the other
+spends essentially no search budget on it -- and both put their restart
+budget into the larger (alternative) model instead. Running a full random
+search on the null replicate wasted computation and inflated its
+log-likelihood, which biases the bootstrap likelihood-ratio statistic down
+(conservative); under-searching the alternative relative to the null biases
+it up (anti-conservative). The two together push the p-value by an uncontrolled
+amount in an unknown direction.
+
+`blrt()`'s null replicate is now seeded from the observed-data null fit with
+no random restarts, and `n_init_boot` now sizes the alternative replicate's
+search alone, at twice its old value (so the default alternative search is
+20 restarts, not 10) -- spending the search budget the null no longer needs
+on the side both reference programs search harder. `n_init_boot`'s meaning
+therefore changes; nothing else about `blrt()`'s interface does. Measured
+against the pre-change behavior on both well-separated and weakly-separated
+simulated fixtures: see the account in the package's internal records for
+what moved and what did not.
+
 ## The continuous random-intercept LTA search no longer pre-fits a simpler model
 
 `fit_lta(..., random_intercept = "continuous")`'s restart pool used to build

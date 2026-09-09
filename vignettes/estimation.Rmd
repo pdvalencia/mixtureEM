@@ -156,19 +156,29 @@ so at 100 draws the smallest is 0.0099 and the test cannot separate .04 from
 test has been randomly displaced" (p. 155). `blrt()` warns when the result lands
 within one step of .05 and names `n_reps = 999`.
 
-**`n_init_boot = 10` is a compute compromise, not a recommendation.** Each draw
-refits both models, so the replicate search is where the cost of the test lives,
-and 10 restarts per replicate is where this package puts the trade-off. No
-source endorses that number. Dziak et al. (p. 4, fn. 3) say the minimum "is not
-known", that too few starts under the alternative "can lead to invalid results",
-and that a local maximum there can make "the calculated likelihood ratio …
-occasionally be nonsensical negative value"; they used 50. Lee, Wickrama and
-O'Neal (2023, p. 654) make the same point from the applied side: "If a local
-solution is detected in either the k-1 class or the k-class model (or both), the
-difference between the log-likelihood values will be biased. In turn, this leads
-to biased inference statistics (p-values)." That negative statistic is the
-diagnostic, and `blrt()` counts it: any negative draw and it warns, naming
-`n_init_boot = 50`.
+**Each replicate's null fit is seeded from the observed data, not searched.**
+Two reference implementations were checked here: one reports that "the maximum
+likelihood estimates serve as start values" for every bootstrap replicate, so
+"no random sets are used for the replications" on the smaller model; the other
+runs zero random sets and zero optimizations for the smaller model on a
+replicate, spending its whole restart budget on the larger one instead.
+`blrt()` matches that: a replicate's (*k*-1)-class fit starts from the observed
+(*k*-1)-class model's own converged parameters and runs no random restarts.
+
+**`n_init_boot = 10` sizes the *k*-class replicate's search alone, and is a
+compute compromise, not a recommendation** — the alternative gets
+`2 * n_init_boot` restarts (20 by default), the budget the null no longer
+needs, because that is where both reference programs put theirs and where
+this package's own cost lives. No source endorses the number 10 itself.
+Dziak et al. (p. 4, fn. 3) say the minimum "is not known", that too few starts
+under the alternative "can lead to invalid results", and that a local maximum
+there can make "the calculated likelihood ratio … occasionally be nonsensical
+negative value"; they used 50. Lee, Wickrama and O'Neal (2023, p. 654) make the
+same point from the applied side: "If a local solution is detected in either
+the k-1 class or the k-class model (or both), the difference between the
+log-likelihood values will be biased. In turn, this leads to biased inference
+statistics (p-values)." That negative statistic is the diagnostic, and
+`blrt()` counts it: any negative draw and it warns, naming `n_init_boot = 50`.
 
 **A non-significant BLRT is not evidence that there is no extra class.** Its
 power turns on class separation far more than on sample size. In Tekle, Gudicha

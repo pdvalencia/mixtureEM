@@ -231,11 +231,16 @@ generate_synthetic_data <- function(mm, classes, N) {
 #'   \eqn{\alpha = .01}). See \code{vignette("estimation")}.
 #' @param n_init_base Random restarts when fitting the observed-data models.
 #'   Default \code{20}, as elsewhere in the package.
-#' @param n_init_boot Random restarts per bootstrap replicate. Default
-#'   \code{10}. This is a compute compromise rather than a recommended value:
-#'   the two models are refitted \code{2 * n_reps} times, so the replicate
-#'   search is where the cost of the test lives. Dziak et al. (2014) used 50
-#'   and note that too few restarts under the alternative can make the
+#' @param n_init_boot Random restarts for the alternative model on each
+#'   bootstrap replicate (the null model's replicate fit is seeded from the
+#'   observed-data null fit's own parameters and runs no random restarts at
+#'   all, matching both reference programs' practice; see
+#'   \code{vignette("estimation")}). \code{blrt()} gives the alternative
+#'   \code{2 * n_init_boot} restarts, spending on it what the null no longer
+#'   needs. Default \code{10} (so \code{20} restarts per replicate on the
+#'   alternative). This is a compute compromise rather than a recommended
+#'   value: this is where the cost of the test lives. Dziak et al. (2014) used
+#'   50 and note that too few restarts under the alternative can make the
 #'   likelihood ratio come out negative. \code{blrt()} counts those draws and
 #'   warns when there are any; if it does, raise this to \code{50}.
 #' @param n_cores Positive integer. Number of processes to spread the bootstrap
@@ -394,9 +399,18 @@ blrt <- function(indicators, k_small, k_large, measurement,
     # `n_cores = 1L` is not the caller's value and must not be: this body is
     # itself what the workers are running, so a fit that spread its restarts
     # again would nest one cluster inside another.
-    m_null_gen <- fit_engine(X_gen, k_small, n_init = n_init_boot,
-                             refine = FALSE, n_cores = 1L)
-    m_alt_gen  <- fit_engine(X_gen, k_large, n_init = n_init_boot,
+    #
+    # The null replicate is seeded from the observed-data null fit's own
+    # parameters and runs no random restarts at all -- the same `warm_start`
+    # device `refine_from` uses (`.mixture_refine_warm_start()`), and the
+    # practice of both reference programs, which never re-search the null on a
+    # replicate. What that frees up goes to the alternative, which is where
+    # both of them put their budget: it gets twice the restarts a single
+    # currency (n_init_boot) used to spend on each side.
+    m_null_gen <- fit_engine(X_gen, k_small, n_init = 0L, refine = FALSE,
+                             n_cores = 1L,
+                             warm_start = .mixture_refine_warm_start(null_model))
+    m_alt_gen  <- fit_engine(X_gen, k_large, n_init = 2L * n_init_boot,
                              refine = FALSE, n_cores = 1L)
 
     2 * (m_alt_gen$metrics$ll - m_null_gen$metrics$ll)

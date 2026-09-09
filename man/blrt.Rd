@@ -58,11 +58,16 @@ of the full test where 99 draws recover about 0.83 (and only about 0.60 at
 \item{n_init_base}{Random restarts when fitting the observed-data models.
 Default \code{20}, as elsewhere in the package.}
 
-\item{n_init_boot}{Random restarts per bootstrap replicate. Default
-\code{10}. This is a compute compromise rather than a recommended value:
-the two models are refitted \code{2 * n_reps} times, so the replicate
-search is where the cost of the test lives. Dziak et al. (2014) used 50
-and note that too few restarts under the alternative can make the
+\item{n_init_boot}{Random restarts for the alternative model on each
+bootstrap replicate (the null model's replicate fit is seeded from the
+observed-data null fit's own parameters and runs no random restarts at
+all, matching both reference programs' practice; see
+\code{vignette("estimation")}). \code{blrt()} gives the alternative
+\code{2 * n_init_boot} restarts, spending on it what the null no longer
+needs. Default \code{10} (so \code{20} restarts per replicate on the
+alternative). This is a compute compromise rather than a recommended
+value: this is where the cost of the test lives. Dziak et al. (2014) used
+50 and note that too few restarts under the alternative can make the
 likelihood ratio come out negative. \code{blrt()} counts those draws and
 warns when there are any; if it does, raise this to \code{50}.}
 
