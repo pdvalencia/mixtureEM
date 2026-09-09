@@ -1,5 +1,33 @@
 # mixtureEM (development version)
 
+## `fit_lta()` can share transition slopes across occasions while leaving the intercepts free
+
+`transition_invariance` gains a third setting, `"slopes"`, between the
+`"none"` and `"full"` it already had. `"none"` estimates a separate transition
+regression for every pair of adjacent occasions; `"full"` shares one
+throughout, intercepts included. `"slopes"` shares the covariate slopes across
+occasions but gives each occasion its own intercepts, so a covariate's effect
+on moving between statuses is held constant over time while the underlying
+rate of movement is not. It is nested inside `"none"` and contains `"full"`,
+so `lr_test()` tests both restrictions, and with only two occasions it is
+identical to `"full"`.
+
+This is the specification a good deal of the published latent-transition
+literature actually fits, and the package could not express it before: asking
+for it with `"full"` also pools the intercepts and reports four fewer
+parameters on a five-status, three-occasion model. Graded against an outside
+program's published fit of exactly this model -- five statuses, three
+occasions, ordinal indicators, one covariate on both the initial status and
+the transitions -- the package now reproduces its parameter count exactly and
+its log-likelihood to 0.012.
+
+`"slopes"` requires `predictors_transition` (or a `group` acting on the
+transitions), since without a transition regression there are no slopes to
+share, and `transition_effects = "common"`; both are refused with an
+explanation rather than silently reinterpreted. No existing fit changes: the
+occasion contrasts are a zero-width addition under every other setting, and
+every log-likelihood the package produced before is bit-identical.
+
 ## `blrt()` seeds its bootstrap replicates the way the reference programs do
 
 Each bootstrap replicate used to refit both the smaller and the larger model

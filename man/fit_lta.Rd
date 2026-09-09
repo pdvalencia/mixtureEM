@@ -11,7 +11,7 @@ fit_lta(
   measurement = "binary",
   measurement_invariance = c("full", "none", "partial"),
   invariant_items = NULL,
-  transition_invariance = c("none", "full"),
+  transition_invariance = c("none", "full", "slopes"),
   forbidden_transitions = NULL,
   n_classes = 1,
   mover_stayer = FALSE,
@@ -78,7 +78,18 @@ equal across occasions. \code{"none"} (the default) estimates a separate matrix
 for each pair of adjacent occasions; \code{"full"} shares one matrix throughout.
 Whether change happens at a constant rate is usually a substantive question
 rather than an assumption, and the two models are nested, so
-\code{\link[=lr_test]{lr_test()}} tests it (Collins & Lanza, sec. 7.14).}
+\code{\link[=lr_test]{lr_test()}} tests it (Collins & Lanza, sec. 7.14).
+
+\code{"slopes"} sits between the two and applies only when something predicts
+the transitions. It shares the covariate slopes across occasions while
+giving each occasion its own intercepts, so the effect of a covariate on
+moving between statuses is held constant over time but the underlying rate
+of movement is not. It costs \code{(n_statuses - 1) * (occasions - 2)}
+parameters more than \code{"full"} and is nested inside \code{"none"}, so
+\code{\link[=lr_test]{lr_test()}} tests both restrictions. It requires
+\code{predictors_transition} (or a \code{group} acting on the transitions) and
+\code{transition_effects = "common"}, and with only two occasions it is
+identical to \code{"full"}.}
 
 \item{forbidden_transitions}{Transitions that are impossible by design, as in
 a stage-sequential process where people cannot move backwards. Give a
@@ -386,7 +397,7 @@ Three things are estimated:
 \item{transition probabilities}{the chance of moving from each status to
 each other status, as a square table read from row (earlier occasion) to
 column (later occasion). There is one table per pair of adjacent
-occasions unless \code{transition_invariance = "full"};}
+occasions unless \code{transition_invariance} restricts them;}
 \item{item parameters}{what people in each status tend to answer, which is
 what gives the statuses their meaning.}
 }

@@ -990,8 +990,12 @@
         state$mm$models[[1]]$parameters$pis
   }
   # A homogeneous transition matrix is stored once per interval, so each
-  # class's single free matrix has to be broadcast back over them.
-  if (isTRUE(state$tau_homogeneous) && Tn > 2L)
+  # class's single free matrix has to be broadcast back over them. Not under a
+  # transition regression: there the occasions' matrices were just recomputed
+  # above from the coefficients, and under
+  # `transition_invariance = "slopes"` they legitimately differ, so
+  # broadcasting would silently overwrite occasions 2..Tn-1 with occasion 1's.
+  if (isTRUE(state$tau_homogeneous) && Tn > 2L && is.null(state$tau_beta))
     for (c in seq_len(C))
       state$tau_c[[c]] <- rep(state$tau_c[[c]][1], Tn - 1L)
   .lta_pack(state)

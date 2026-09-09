@@ -82,23 +82,46 @@
   lapply(seq_len(Tn - 1L), function(t) {
     m <- if (isTRUE(state$tau_homogeneous)) 1L else t
     lapply(seq_len(state$n_statuses), function(k)
-      log(pmax(softmax_rows(.lta_tau_design(state, k) %*%
+      log(pmax(softmax_rows(.lta_tau_design(state, k, t) %*%
                               t(.lta_tau_beta(state, m, k))), 1e-300)))
   })
 }
 
-# Design matrix used by the transition regression for origin status k.
+# Design matrix used by the transition regression for origin status k, for the
+# transition out of occasion `occasion`.
 #   "common"    : [intercept, origin dummies, covariates] - one slope per
 #                 covariate shared across origin statuses (Wang & Wang eq. 6.28)
 #   "by_origin" : [intercept, covariates] fitted separately per origin status
-.lta_tau_design <- function(state, k) {
+#
+# `transition_invariance = "slopes"` appends Tn - 2 occasion contrasts, so that
+# one set of slopes is shared across occasions while each occasion keeps its own
+# intercept. Occasion 1 is the reference, which is why there are Tn - 2 of them
+# and not Tn - 1. The block is zero-width, and therefore a pure no-op, under
+# every other setting.
+.lta_tau_design <- function(state, k, occasion = 1L) {
   Z <- state$Z_tau
   K <- state$n_statuses
+  # "by_origin" is refused with "slopes" in fit_lta(), so no contrasts can be
+  # due here; returning Z unchanged keeps this identical to the design
+  # .lta_mstep_tau_cov()'s by-origin branch builds from state$Z_tau directly.
   if (identical(state$transition_effects, "by_origin")) return(Z)
+  occ <- .lta_tau_occasion_contrasts(state, nrow(Z), occasion)
   dummies <- matrix(0, nrow(Z), K - 1L)
   if (k < K) dummies[, k] <- 1
   colnames(dummies) <- paste0("from:", seq_len(K - 1L))
-  cbind(Z[, 1L, drop = FALSE], dummies, Z[, -1L, drop = FALSE])
+  cbind(Z[, 1L, drop = FALSE], dummies, Z[, -1L, drop = FALSE], occ)
+}
+
+# The Tn - 2 occasion contrasts, or NULL where there are none to add. Separated
+# out so the two design branches cannot drift apart.
+.lta_tau_occasion_contrasts <- function(state, n, occasion) {
+  if (!isTRUE(state$tau_occasion_free_intercepts)) return(NULL)
+  Tn <- state$n_times
+  if (Tn < 3L) return(NULL)
+  occ <- matrix(0, n, Tn - 2L)
+  colnames(occ) <- paste0("occ:", seq.int(2L, Tn - 1L))
+  if (occasion > 1L) occ[, occasion - 1L] <- 1
+  occ
 }
 
 # ------------------------------------------------------------------------------
@@ -159,11 +182,15 @@
     } else {
       # The stacked design is the same at every EM iteration - only the
       # responsibilities and weights change - so it is built once and cached.
-      key <- as.character(length(ts))
+      # Its row order must match the fill loop below exactly: occasion outer,
+      # origin inner. Under "slopes" the design depends on WHICH occasions are
+      # stacked and not merely on how many, so the cache key names them.
+      key <- paste(ts, collapse = "-")
       if (is.null(state$.tau_design_cache[[key]])) {
-        state$.tau_design_cache[[key]] <- do.call(
-          rbind, rep(lapply(seq_len(K), function(k) .lta_tau_design(state, k)),
-                     length(ts)))
+        blocks <- list()
+        for (i_t in seq_along(ts)) for (k in seq_len(K))
+          blocks[[length(blocks) + 1L]] <- .lta_tau_design(state, k, ts[i_t])
+        state$.tau_design_cache[[key]] <- do.call(rbind, blocks)
       }
       Zs <- state$.tau_design_cache[[key]]
 
@@ -279,6 +306,11 @@ lta_covariate_summary <- function(object, digits = 3) {
 
   if (!is.null(object$tau_beta)) {
     cat("\nPREDICTING TRANSITIONS\n")
+    if (isTRUE(object$tau_occasion_free_intercepts) && object$n_times > 2L)
+      cat("The `occ:t` terms are occasion contrasts against the first ",
+          "occasion, which\nis the reference: occasion t's intercept is ",
+          "Intercept + occ:t. The slopes\nare shared across occasions.\n",
+          sep = "")
     by_origin <- identical(object$transition_effects, "by_origin")
     for (m in seq_along(object$tau_beta)) {
       tag <- if (length(object$tau_beta) == 1L) "all occasions" else

@@ -436,6 +436,19 @@ The choice of constant is therefore all the more a finite-sample judgement,
 which is why the default is deliberately weak and the guidance above is a
 rule with a check rather than a magic value.
 
+Because every M-step, the L-BFGS polish that follows it, and the restart
+search itself all maximise this penalised objective, the model
+\code{fit_mixture()} returns sits at the posterior mode, not the
+likelihood maximum, and \code{$loglik} together with every information
+criterion built on it is the plain log-likelihood evaluated \emph{at that
+point} — not at the point that maximises the plain log-likelihood. The
+gap between the two grows with the strength of these constants: at
+\code{variances = n_classes} for a collapsed fit, it is on the order of
+ten log-likelihood units. This is not a defect to correct by lowering the
+constants — it is a property of penalised estimation worth keeping in
+mind when comparing \code{$loglik} across two fits with different
+\code{bayes_constants}.
+
 This is not a tuning menu. The defaults are the intended settings.}
 
 \item{se}{How standard errors for \code{predictors} are computed in a 2- or

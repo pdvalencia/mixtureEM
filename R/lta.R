@@ -18,7 +18,7 @@
 #'   \item{transition probabilities}{the chance of moving from each status to
 #'     each other status, as a square table read from row (earlier occasion) to
 #'     column (later occasion). There is one table per pair of adjacent
-#'     occasions unless `transition_invariance = "full"`;}
+#'     occasions unless `transition_invariance` restricts them;}
 #'   \item{item parameters}{what people in each status tend to answer, which is
 #'     what gives the statuses their meaning.}
 #' }
@@ -57,6 +57,17 @@
 #'   Whether change happens at a constant rate is usually a substantive question
 #'   rather than an assumption, and the two models are nested, so
 #'   [`lr_test()`] tests it (Collins & Lanza, sec. 7.14).
+#'
+#'   `"slopes"` sits between the two and applies only when something predicts
+#'   the transitions. It shares the covariate slopes across occasions while
+#'   giving each occasion its own intercepts, so the effect of a covariate on
+#'   moving between statuses is held constant over time but the underlying rate
+#'   of movement is not. It costs `(n_statuses - 1) * (occasions - 2)`
+#'   parameters more than `"full"` and is nested inside `"none"`, so
+#'   [`lr_test()`] tests both restrictions. It requires
+#'   `predictors_transition` (or a `group` acting on the transitions) and
+#'   `transition_effects = "common"`, and with only two occasions it is
+#'   identical to `"full"`.
 #' @param forbidden_transitions Transitions that are impossible by design, as in
 #'   a stage-sequential process where people cannot move backwards. Give a
 #'   \eqn{K \times K} logical or 0/1 matrix, with `TRUE`/`1` marking a forbidden
@@ -357,7 +368,7 @@ fit_lta <- function(indicators,
                     measurement = "binary",
                     measurement_invariance = c("full", "none", "partial"),
                     invariant_items = NULL,
-                    transition_invariance = c("none", "full"),
+                    transition_invariance = c("none", "full", "slopes"),
                     forbidden_transitions = NULL,
                     n_classes = 1,
                     mover_stayer = FALSE,
@@ -420,7 +431,11 @@ fit_lta <- function(indicators,
   bayes_constants        <- .resolve_bayes_constants(bayes_constants)
 
   time_invariance <- measurement_invariance
-  tau_homogeneous <- transition_invariance == "full"
+  # "slopes" pools the occasions exactly as "full" does and then gives each
+  # occasion its own intercept back through the design, so it is a homogeneous
+  # fit everywhere except in .lta_tau_design().
+  tau_homogeneous <- transition_invariance %in% c("full", "slopes")
+  tau_occasion_free_intercepts <- transition_invariance == "slopes"
   tau_zeros       <- forbidden_transitions
   alpha           <- smoothing
 
@@ -545,6 +560,21 @@ fit_lta <- function(indicators,
          "available for a mixture latent Markov model (`n_classes` > 1 or ",
          "`mover_stayer = TRUE`). Fit the mixture without them, or use one ",
          "class.", call. = FALSE)
+  if (tau_occasion_free_intercepts) {
+    if (is.null(Z_tau))
+      stop("`transition_invariance = \"slopes\"` shares the transition slopes ",
+           "across occasions while leaving each occasion its own intercepts, ",
+           "which is a restriction on a transition regression. Without ",
+           "`predictors_transition` (or a `group` acting on the transitions) ",
+           "there are no slopes to share; use \"full\" or \"none\".",
+           call. = FALSE)
+    if (identical(transition_effects, "by_origin"))
+      stop("`transition_invariance = \"slopes\"` needs ",
+           "`transition_effects = \"common\"`. Under \"by_origin\" every origin ",
+           "status already has its own regression, so sharing slopes across ",
+           "occasions restricts a different set of coefficients; specify the ",
+           "model you want rather than letting it be guessed.", call. = FALSE)
+  }
 
   if (random_intercept != "none") {
     if (measurement_invariance != "full")
@@ -598,6 +628,7 @@ fit_lta <- function(indicators,
     tau_c           = rep(list(rep(list(matrix(1 / K, K, K)), Tn - 1L)), C),
     tau_allowed_c   = allowed,
     tau_homogeneous = isTRUE(tau_homogeneous),
+    tau_occasion_free_intercepts = isTRUE(tau_occasion_free_intercepts),
     tie_initial_status = isTRUE(tie_initial_status),
     weights_vec     = w,
     weight_type       = weight_type,
@@ -1741,7 +1772,7 @@ fit_lta <- function(indicators,
           D <- ncol(.lta_tau_design(state, 1L))
           s <- matrix(0, n, (K - 1L) * D)
           for (tt in ts) for (k in seq_len(K)) {
-            Zk     <- .lta_tau_design(state, k)
+            Zk     <- .lta_tau_design(state, k, tt)
             phat_k <- exp(lt[[tt]][[k]])
             pk     <- fb$pairwise[[tt]][[k]]
             resid  <- pk[, seq_len(K - 1L), drop = FALSE] -
