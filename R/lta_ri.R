@@ -16,14 +16,25 @@
   if (random_intercept == "continuous") {
     gh <- .gauss_hermite(n_quadrature)
     list(kind = "continuous", Dnode = matrix(gh$z, ncol = 1L), mass = gh$w,
-         A = NULL, L = NULL)
+         A = NULL, L = NULL, loading_free = TRUE)
   } else {
     Q <- as.integer(n_ri)
     M <- Q - 1L
     list(kind = "binary", Dnode = rbind(0, diag(M)), mass = rep(1 / Q, Q),
-         A = NULL, L = NULL)
+         A = NULL, L = NULL, loading_free = TRUE)
   }
 }
+
+# Whether this fit's random intercept is a real one, with a loading to
+# estimate, or the degenerate single node at z = 0 that `predictors_items`
+# borrows purely to reach the cumulative-logit parameterisation (see
+# .lta_dif_init(), R/lta_dif.R). Everything that counts, reports, normalises,
+# searches for or draws a loading must ask this rather than
+# `!is.null(state$ri)`: with the degenerate factor there is no loading, and
+# counting its three fixed zeros is the difference between a 76-parameter fit
+# and a 79-parameter one. Written as a negated `identical()` so a fit saved
+# before this field existed reads as TRUE.
+.lta_ri_loading_free <- function(state) !identical(state$ri$loading_free, FALSE)
 
 # The numerically-integrated conditional response probability (14.4): what
 # gets written into state$mm$models[[t]]$parameters$pis for every downstream
@@ -44,9 +55,20 @@
 # One node's emission table, dispatched on measurement family: ordinal
 # (`ri$theta` set) or binary (`ri$A` set). Used by both .lta_ri_e_step() and
 # .lta_ri_ll_case(), which otherwise build this identically.
-.lta_ri_node_pis <- function(ri, K, R, q) {
+#
+# `dif_shift`, when given, is the K x R additive shift one covariate pattern
+# puts on every item's linear predictor (.lta_dif_shift(), R/lta_dif.R). It
+# enters at exactly the place the loading's node shift does, which is what
+# makes direct covariate effects on the indicators a change of emission table
+# rather than a change of model.
+.lta_ri_node_pis <- function(ri, K, R, q, dif_shift = NULL) {
   if (!is.null(ri$theta))
-    return(.ordinal_node_pis(ri$theta, ri$L, ri$Dnode, ri$cats, q))
+    return(.ordinal_node_pis(ri$theta, ri$L, ri$Dnode, ri$cats, q, dif_shift))
+  # Binary DIF is refused at fit_lta()'s argument, so reaching here with a
+  # shift means an internal caller built a state that cannot exist.
+  if (!is.null(dif_shift))
+    stop("`predictors_items` is not available for a binary random intercept.",
+         call. = FALSE)
   plogis(ri$A + matrix(ri$L %*% ri$Dnode[q, ], K, R, byrow = TRUE))
 }
 
@@ -62,12 +84,34 @@
   R  <- state$n_items
   ri <- state$ri
   Q  <- length(ri$mass)
+  dif  <- state$dif
   logB <- vector("list", Q)
   for (q in seq_len(Q)) {
-    pis_q <- .lta_ri_node_pis(ri, K, R, q)
-    mm_q  <- state$mm
-    for (t in seq_len(Tn)) mm_q$models[[t]]$parameters$pis <- pis_q
-    logB[[q]] <- .lta_emission_loglik(mm_q, X)
+    if (is.null(dif)) {
+      pis_q <- .lta_ri_node_pis(ri, K, R, q)
+      mm_q  <- state$mm
+      for (t in seq_len(Tn)) mm_q$models[[t]]$parameters$pis <- pis_q
+      logB[[q]] <- .lta_emission_loglik(mm_q, X)
+      next
+    }
+    # With direct covariate effects the emission table is no longer shared by
+    # every case: it depends on the case's covariate pattern as well as the
+    # node. The pattern loop SPLITS the rows rather than multiplying them --
+    # each case belongs to exactly one pattern -- so the total row-work is
+    # Q x n exactly as it is above, and the extra cost is loop overhead. That
+    # is why `predictors_items` refuses a many-valued covariate rather than
+    # warning about one (.lta_dif_init(), R/lta_dif.R).
+    acc <- lapply(seq_len(Tn), function(t) matrix(0, nrow(X), K))
+    for (p in seq_len(dif$P)) {
+      rows  <- dif$rows[[p]]
+      if (!length(rows)) next
+      pis_p <- .lta_ri_node_pis(ri, K, R, q, .lta_dif_shift(dif, p))
+      mm_p  <- state$mm
+      for (t in seq_len(Tn)) mm_p$models[[t]]$parameters$pis <- pis_p
+      lb <- .lta_emission_loglik(mm_p, X[rows, , drop = FALSE])
+      for (t in seq_len(Tn)) acc[[t]][rows, ] <- lb[[t]]
+    }
+    logB[[q]] <- acc
   }
   logB
 }
@@ -243,6 +287,11 @@
 # not an approximation -- 14.10.5's whole point, and what keeps an RI fit
 # affordable at Q = 20.
 .lta_ri_mstep <- function(state, X, E, alpha) {
+  # Direct covariate effects on the indicators get their own sibling M-step
+  # (R/lta_dif.R). .lta_ri_mstep_ordinal() below is the shipped path and is
+  # deliberately left byte for byte alone.
+  if (!is.null(state$dif))
+    return(.lta_dif_mstep_ordinal(state, X, E, alpha))
   if (!is.null(state$ri$theta) || .lta_is_ordinal_model(state$mm$models[[1]]))
     return(.lta_ri_mstep_ordinal(state, X, E, alpha))
 
@@ -478,6 +527,11 @@
 # it; A absorbs the old anchor's shift so every node's actual per-item logit
 # (A[k,j] + Dnode[q,] %*% L[j,]) is unchanged, node for node.
 .lta_ri_sign_normalise <- function(state) {
+  # The degenerate factor `predictors_items` borrows has one node at z = 0 and
+  # a loading fixed at zero, so there is no reflection to fix and no anchor to
+  # relabel: normalising it would only risk touching thresholds it has no
+  # business touching.
+  if (!.lta_ri_loading_free(state)) return(state)
   ri <- state$ri
   K  <- state$n_statuses
   R  <- state$n_items
@@ -547,7 +601,11 @@
 #' @return A data frame with one row per case in the fitted data.
 #' @export
 random_intercept_scores <- function(fit) {
-  if (is.null(fit$ri) || is.null(fit$ri$pq))
+  # A `predictors_items` fit carries a degenerate one-node factor purely to
+  # reach the cumulative-logit parameterisation; there is no between-subject
+  # factor to score, so it is refused with the same message as a fit that has
+  # no random intercept at all.
+  if (is.null(fit$ri) || is.null(fit$ri$pq) || !.lta_ri_loading_free(fit))
     stop("`fit` was not fitted with `random_intercept`.", call. = FALSE)
   pq <- fit$ri$pq
   z  <- if (ncol(fit$ri$Dnode) == 1L) fit$ri$Dnode[, 1] else NULL

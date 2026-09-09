@@ -273,6 +273,18 @@
 #'   the first occasion (Collins & Lanza, sec. 8.10.1).
 #' @param predictors_transition Optional covariates predicting the transitions
 #'   between statuses (sec. 8.10.2).
+#' @param predictors_items Optional covariates entering each indicator
+#'   directly, inside each latent status - a test of measurement invariance
+#'   with respect to those covariates. One proportional-odds slope per latent
+#'   status per item per covariate, shared across occasions, so the cost is
+#'   `n_statuses * n_items * ncol(predictors_items)` parameters. **This is not
+#'   `group`**: `group` gives every group its own status prevalences and
+#'   transition matrices while the measurement model stays invariant across
+#'   groups, which is the assumption this argument exists to relax. Requires
+#'   `measurement = "ordinal"` and `measurement_invariance = "full"`.
+#'   Restricted to covariates taking few distinct values - see
+#'   `options(mixtureEM.dif_max_patterns = )`. The item probabilities the fit
+#'   reports are those of a case with every one of these covariates at zero.
 #' @param predictors_random_intercept Optional covariates predicting the
 #'   continuous random intercept itself (the article's own Step 5). The
 #'   factor's residual variance is fixed at 1 and its residual mean at 0, so no
@@ -395,6 +407,7 @@ fit_lta <- function(indicators,
                     standard_errors = TRUE,
                     predictors_initial = NULL,
                     predictors_transition = NULL,
+                    predictors_items = NULL,
                     predictors_random_intercept = NULL,
                     transition_effects = c("common", "by_origin"),
                     group = NULL,
@@ -480,6 +493,7 @@ fit_lta <- function(indicators,
     cluster               <- .subset_cases(cluster, keep)
     predictors_initial    <- .subset_cases(predictors_initial, keep)
     predictors_transition <- .subset_cases(predictors_transition, keep)
+    predictors_items      <- .subset_cases(predictors_items, keep)
     predictors_random_intercept <- .subset_cases(predictors_random_intercept, keep)
     group                 <- .subset_cases(group, keep)
 
@@ -587,6 +601,36 @@ fit_lta <- function(indicators,
            "indicators only.", call. = FALSE)
   }
 
+  # --- direct covariate effects on the indicators -----------------------------
+  # Every refusal here is a model shape the estimator does not cover, stated at
+  # the argument rather than discovered inside an E-step. The ordinal one is
+  # not a limitation of the covariate: a proportional-odds slope only means
+  # something in the cumulative-logit parameterisation, and that is the ordinal
+  # family's own.
+  if (!is.null(predictors_items)) {
+    if (!measurement %in% c("ordinal"))
+      stop("`predictors_items` requires `measurement = \"ordinal\"`: a direct ",
+           "covariate effect on an item is a proportional-odds slope, which ",
+           "only exists in the cumulative-logit parameterisation. Binary ",
+           "indicators can be passed as two-category ordinal data (coded 1 ",
+           "and 2) to get the same model.", call. = FALSE)
+    if (measurement_invariance != "full")
+      stop("`predictors_items` requires `measurement_invariance = \"full\"`. ",
+           "The covariate slopes are shared across occasions, which is a ",
+           "restriction on a measurement model that is itself held equal ",
+           "across them; with the occasions free there is nothing shared to ",
+           "restrict.", call. = FALSE)
+    if (n_classes > 1 || isTRUE(mover_stayer))
+      stop("`predictors_items` is not yet available for a mixture latent ",
+           "Markov model (`n_classes` > 1 or `mover_stayer = TRUE`). Fit the ",
+           "mixture without it, or use one class.", call. = FALSE)
+    if (random_intercept == "binary")
+      stop("`predictors_items` is not available for a binary random ",
+           "intercept, whose nodes are estimated latent classes rather than ",
+           "points on a scale. Use `random_intercept = \"continuous\"` or ",
+           "\"none\".", call. = FALSE)
+  }
+
   if (random_intercept == "continuous") {
     n_quadrature <- as.integer(n_quadrature)
     # Q = 1 is not a corner case to reject: it is the node loop's own
@@ -649,8 +693,25 @@ fit_lta <- function(indicators,
                                         invariant_items = spec$invariant_items,
                                         max_val         = engine$max_val,
                                         cats            = engine$cats),
-    ri              = .lta_ri_init(random_intercept, n_quadrature, n_ri)
+    ri              = .lta_ri_init(random_intercept, n_quadrature, n_ri),
+    dif             = if (is.null(predictors_items)) NULL else
+      .lta_dif_init(predictors_items, n, K, prep$n_items, "predictors_items")
   )
+
+  # A DIF slope only means something in the cumulative-logit parameterisation,
+  # and in this package that parameterisation lives only on the random-
+  # intercept path -- the plain ordinal emission is a ragged multinoulli fitted
+  # by closed-form counts. Rather than write a second cumulative-logit path,
+  # a DIF fit with no random intercept rides the RI machinery with a DEGENERATE
+  # factor: one node at z = 0 carrying all the mass, which is already a
+  # documented, tested exact reduction to regular LTA (R/quadrature.R). The
+  # loading is fixed at zero and flagged as such, so `.lta_ri_loading_free()`
+  # keeps it out of the parameter count, the standard errors, the sign
+  # normalisation, the random draw and the staged search -- that flag is the
+  # difference between a 76-parameter fit and a 79-parameter one.
+  if (!is.null(state$dif) && is.null(state$ri))
+    state$ri <- list(kind = "continuous", Dnode = matrix(0, 1L, 1L), mass = 1,
+                     A = NULL, L = NULL, loading_free = FALSE)
 
   # The measurement M-steps read their prior strengths off the emission. LTA has
   # its own EM driver, so the constants are pushed down here rather than by
@@ -720,12 +781,17 @@ fit_lta <- function(indicators,
   # written to pay for it. Nothing else about a single-chain fit changes here;
   # plain LTA keeps the unstaged search every locked reference target was
   # measured on.
-  staged <- C > 1L || !is.null(state$ri)
+  # The predicate, not `!is.null(state$ri)`: the degenerate one-node factor a
+  # `predictors_items` fit borrows integrates over nothing and converges at
+  # plain-LTA speed, so it must keep plain LTA's unstaged search and its
+  # untightened defaults rather than inheriting an RI fit's.
+  staged <- C > 1L || (!is.null(state$ri) && .lta_ri_loading_free(state))
   if (staged) {
     if (missing(tol))      tol      <- 1e-11
     if (missing(max_iter)) max_iter <- 5000
   }
-  if (!is.null(state$ri) && n_init_default) n_init <- max(n_init, 50L)
+  if (!is.null(state$ri) && .lta_ri_loading_free(state) && n_init_default)
+    n_init <- max(n_init, 50L)
   # Staging ranks a pool of restarts against each other. There is no pool to
   # rank when the start is handed over, so a refine goes straight to the full
   # stopping rule. The tightened `tol`/`max_iter` defaults just above still
@@ -847,8 +913,10 @@ fit_lta <- function(indicators,
       # plain-restart numbering, so this only replaces the second half's
       # draws -- the first half's fits, and every non-continuous-RI fit, are
       # unaffected.
+      # The predicate again: the second construction exists to diversify a
+      # search over a real loading, and the degenerate factor has none.
       if (!is.null(s$ri) && identical(s$ri$kind, "continuous") &&
-          i > n_init %/% 2L)
+          .lta_ri_loading_free(s) && i > n_init %/% 2L)
         s <- .lta_ri_random_start2(s, X_fit)
       s
     })
@@ -1035,6 +1103,11 @@ fit_lta <- function(indicators,
 .lta_collapse <- function(state, X) {
   if (!is.null(state$Z_delta) || !is.null(state$Z_tau)) return(NULL)
   if (!is.null(state$Z_ri))             return(NULL)
+  # Two cases with the same responses but different covariate values have
+  # different emission tables, so they are not one pattern. (The family
+  # whitelist below already excludes every model `predictors_items` accepts;
+  # this states the reason rather than relying on that coincidence.)
+  if (!is.null(state$dif))              return(NULL)
   if (!is.null(state$group_info))       return(NULL)
   if (isTRUE(state$has_survey_design))  return(NULL)
 
@@ -1163,12 +1236,19 @@ fit_lta <- function(indicators,
   # A random intercept's integrated `pis` occupy the same `K x R` slot
   # `n_parameters(state$mm)` already counts; the loadings (and, for the binary
   # variant, the node masses beyond the anchor) are the only new parameters.
+  #
+  # The degenerate factor a `predictors_items` fit borrows has a loading fixed
+  # at zero, which is not a parameter: counting its R zeros is exactly the
+  # difference between the 76-parameter model and the 79-parameter one.
   n_ri <- if (is.null(state$ri)) 0L else
-    length(state$ri$L) + if (state$ri$kind == "binary")
-      length(state$ri$mass) - 1L else 0L
+    (if (.lta_ri_loading_free(state)) length(state$ri$L) else 0L) +
+      if (state$ri$kind == "binary") length(state$ri$mass) - 1L else 0L
   n_ri_beta <- if (is.null(state$Z_ri)) 0L else ncol(state$Z_ri)
+  # One proportional-odds slope per (latent status, item, covariate), shared
+  # across occasions.
+  n_dif <- if (is.null(state$dif)) 0L else length(state$dif$beta)
 
-  (C - 1L) + n_delta + n_tau + n_parameters(state$mm) + n_ri + n_ri_beta
+  (C - 1L) + n_delta + n_tau + n_parameters(state$mm) + n_ri + n_ri_beta + n_dif
 }
 
 # ------------------------------------------------------------------------------
@@ -1458,6 +1538,14 @@ fit_lta <- function(indicators,
     if (!is.null(state$ri$A))
       state$ri$A <- state$ri$A[ord, , drop = FALSE]
   }
+  # `dif$beta` is the second status-indexed quantity outside `pis`, and leaving
+  # it unpermuted is the same defect `ri$theta` above was paid for once
+  # already: everything a user reads stays right and everything recomputed --
+  # the scores, the sandwich, the MLR scaling factor -- is evaluated at a
+  # scrambled model. Its other two margins are item and covariate and do not
+  # move with a status.
+  if (!is.null(state$dif))
+    state$dif$beta <- state$dif$beta[ord, , , drop = FALSE]
   if (C > 1L) {
     state$gamma_by_class <- lapply(state$gamma_by_class, function(gl)
       lapply(gl, function(g) g[, ord, drop = FALSE]))
@@ -1546,7 +1634,7 @@ fit_lta <- function(indicators,
   # `state$ri$L` already is, rather than making a caller parse block-name
   # strings. Raw numbers only -- formatted reporting is a later slice's job.
   loading_se <- NULL
-  if (!is.null(state$ri)) {
+  if (!is.null(state$ri) && .lta_ri_loading_free(state)) {
     n_items    <- nrow(state$ri$L)
     n_dim      <- ncol(state$ri$Dnode)
     loading_se <- matrix(NA_real_, n_items, n_dim)
@@ -1913,6 +2001,9 @@ fit_lta <- function(indicators,
     M  <- ncol(ri$Dnode)
     ordinal_ri <- !is.null(ri$theta)
     cats <- if (ordinal_ri) ri$cats else NULL
+    # No block for a loading that is not estimated; the layout omits it too,
+    # and the two descriptions of one vector must agree.
+    loading_free <- .lta_ri_loading_free(state)
     for (j in seq_len(J)) {
       if (ordinal_ri) {
         Sj      <- cats[j]
@@ -1920,20 +2011,47 @@ fit_lta <- function(indicators,
         theta_j <- ri$theta[, cols, drop = FALSE]
         s_theta  <- matrix(0, n, K * (Sj - 1L))
         s_lambda <- matrix(0, n, M)
+        # With direct covariate effects the shift depends on the case's
+        # covariate pattern as well as the node, so the node loop becomes a
+        # node AND pattern loop. Two facts already in the code make the DIF
+        # block free: shifting the whole linear predictor by c is the same as
+        # shifting the base threshold by c (stated at .lta_ri_sign_normalise()
+        # and already used for the loading just below), so `blk`'s first K
+        # columns ARE d log p / d shift_k; and rows outside pattern p are
+        # already zero in them, so scaling by the pattern's covariate row
+        # needs no mask.
+        dif <- state$dif
+        Dd  <- if (is.null(dif)) 0L else ncol(dif$Zu)
+        s_dif <- if (is.null(dif)) NULL else matrix(0, n, K * Dd)
+        pats <- if (is.null(dif)) 1L else seq_len(dif$P)
         for (q in seq_len(Q)) {
-          shift <- sum(ri$L[j, ] * ri$Dnode[q, ])
-          blk   <- matrix(0, n, K * (Sj - 1L))
-          for (tt in seq_len(Tn)) {
-            xj <- X[, .time_block_cols(tt, J)[j]]
-            blk <- blk + .ordinal_theta_score_block(theta_j, shift, xj,
-                                                     ri_G[[q]][[tt]], Sj)
+          node <- sum(ri$L[j, ] * ri$Dnode[q, ])
+          for (p in pats) {
+            rows  <- if (is.null(dif)) seq_len(n) else dif$rows[[p]]
+            shift <- if (is.null(dif)) node else
+              node + .lta_dif_shift(dif, p)[, j]
+            blk   <- matrix(0, n, K * (Sj - 1L))
+            for (tt in seq_len(Tn)) {
+              xj <- X[, .time_block_cols(tt, J)[j]]
+              blk[rows, ] <- blk[rows, ] +
+                .ordinal_theta_score_block(theta_j, shift, xj[rows],
+                                           ri_G[[q]][[tt]][rows, , drop = FALSE],
+                                           Sj)
+            }
+            s_theta <- s_theta + blk
+            base    <- blk[, seq_len(K), drop = FALSE]   # d log p / d shift_k
+            s_lambda <- s_lambda + outer(rowSums(base), ri$Dnode[q, ])
+            if (!is.null(dif))
+              for (dd in seq_len(Dd))
+                s_dif[, (dd - 1L) * K + seq_len(K)] <-
+                  s_dif[, (dd - 1L) * K + seq_len(K)] + base * dif$Zu[p, dd]
           }
-          s_theta  <- s_theta + blk
-          s_lambda <- s_lambda +
-            outer(rowSums(blk[, seq_len(K), drop = FALSE]), ri$Dnode[q, ])
         }
         add_block(s_theta, NULL, NULL, sprintf("theta[item %d]", j))
-        add_block(s_lambda, NULL, NULL, sprintf("lambda[item %d]", j))
+        if (loading_free)
+          add_block(s_lambda, NULL, NULL, sprintf("lambda[item %d]", j))
+        if (!is.null(dif))
+          add_block(s_dif, NULL, NULL, sprintf("dif[item %d]", j))
         next
       }
       s_alpha  <- matrix(0, n, K)
@@ -1952,7 +2070,8 @@ fit_lta <- function(indicators,
         s_lambda <- s_lambda + outer(rowSums(resid), ri$Dnode[q, ])
       }
       add_block(s_alpha, NULL, NULL, sprintf("alpha[item %d]", j))
-      add_block(s_lambda, NULL, NULL, sprintf("lambda[item %d]", j))
+      if (loading_free)
+        add_block(s_lambda, NULL, NULL, sprintf("lambda[item %d]", j))
     }
     if (identical(ri$kind, "binary") && Q > 1L) {
       # The node masses are a mixing proportion at the case level, so their

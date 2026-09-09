@@ -41,6 +41,7 @@ fit_lta(
   standard_errors = TRUE,
   predictors_initial = NULL,
   predictors_transition = NULL,
+  predictors_items = NULL,
   predictors_random_intercept = NULL,
   transition_effects = c("common", "by_origin"),
   group = NULL,
@@ -312,6 +313,19 @@ the first occasion (Collins & Lanza, sec. 8.10.1).}
 
 \item{predictors_transition}{Optional covariates predicting the transitions
 between statuses (sec. 8.10.2).}
+
+\item{predictors_items}{Optional covariates entering each indicator
+directly, inside each latent status - a test of measurement invariance
+with respect to those covariates. One proportional-odds slope per latent
+status per item per covariate, shared across occasions, so the cost is
+\code{n_statuses * n_items * ncol(predictors_items)} parameters. \strong{This is not
+\code{group}}: \code{group} gives every group its own status prevalences and
+transition matrices while the measurement model stays invariant across
+groups, which is the assumption this argument exists to relax. Requires
+\code{measurement = "ordinal"} and \code{measurement_invariance = "full"}.
+Restricted to covariates taking few distinct values - see
+\code{options(mixtureEM.dif_max_patterns = )}. The item probabilities the fit
+reports are those of a case with every one of these covariates at zero.}
 
 \item{predictors_random_intercept}{Optional covariates predicting the
 continuous random intercept itself (the article's own Step 5). The

@@ -192,6 +192,12 @@ n_parameters.ordinal_nan <- n_parameters.ordinal
 # threshold block (K x (cats_j - 1), increment-parameterised) and the scalar
 # per-node shift `lambda_j' d_q` (the same shift for every status -- the
 # loading is shared across statuses, categories and occasions, ### 14.18.2).
+#
+# `shift` may also be a length-K vector, and that is load-bearing rather than
+# incidental: `th` below is a K x (S-1) matrix, so R recycles a length-K shift
+# column-major and row k receives shift[k] -- exactly a per-status shift. That
+# is the whole reason direct covariate effects on the indicators need no edit
+# here (part-r9-item-dif.md, W5).
 .ordinal_cat_probs <- function(theta_j, shift, cats_j) {
   K <- nrow(theta_j)
   S <- cats_j
@@ -206,12 +212,17 @@ n_parameters.ordinal_nan <- n_parameters.ordinal
 # Every item's category probabilities at node q, cbind()ed into one
 # K x sum(cats) block -- the ordinal analogue of
 # `plogis(ri$A + matrix(ri$L %*% ri$Dnode[q, ], K, R, byrow = TRUE))`.
-.ordinal_node_pis <- function(theta, lambda, Dnode, cats, q) {
+#
+# `dif_shift`, when given, is a K x R matrix of per-status, per-item shifts for
+# one covariate pattern; item j's column is added to its node shift, which is
+# where a direct covariate effect on the indicators enters the model.
+.ordinal_node_pis <- function(theta, lambda, Dnode, cats, q, dif_shift = NULL) {
   R  <- length(cats)
   dq <- Dnode[q, ]
   blocks <- lapply(seq_len(R), function(j) {
     cols  <- .ordinal_theta_cols(cats, j)
     shift <- sum(lambda[j, ] * dq)
+    if (!is.null(dif_shift)) shift <- shift + dif_shift[, j]
     .ordinal_cat_probs(theta[, cols, drop = FALSE], shift, cats[j])
   })
   do.call(cbind, blocks)
@@ -320,6 +331,30 @@ n_parameters.ordinal_nan <- n_parameters.ordinal
   fit$par
 }
 
+# Negative log-likelihood of one item over an ARBITRARY (status, grid-row)
+# shift matrix. `shift` is K x G and `counts` is K x G x Sj. This is the same
+# objective the two cycles above minimise -- the two functions differ only in
+# that the shift may now depend on the status as well as on the grid row,
+# which is what a direct covariate effect on the indicators needs (the
+# covariate is shared across occasions but not across statuses). Used by
+# .lta_dif_mstep_ordinal() (R/lta_dif.R) for both of its cycles; the grid rows
+# there are (node, covariate pattern) pairs followed by the prior's own rows.
+.ordinal_grid_negloglik <- function(theta_j, shift, counts, Sj) {
+  K <- nrow(theta_j)
+  G <- ncol(shift)
+  th <- matrix(0, K, Sj - 1L)
+  th[, 1] <- theta_j[, 1]
+  if (Sj > 2L)
+    for (s in 3:Sj) th[, s - 1L] <- th[, s - 2L] - exp(theta_j[, s - 1L])
+  total <- 0
+  for (k in seq_len(K)) {
+    Fmat <- cbind(1, matrix(plogis(outer(shift[k, ], th[k, ], "+")), G, Sj - 1L), 0)
+    p <- Fmat[, seq_len(Sj), drop = FALSE] - Fmat[, seq_len(Sj) + 1L, drop = FALSE]
+    total <- total - sum(matrix(counts[k, , ], G, Sj) * log(pmax(p, 1e-12)))
+  }
+  total
+}
+
 # ------------------------------------------------------------------------------
 # Analytic score, one item at a single node (### 14.18, W9)
 # ------------------------------------------------------------------------------
@@ -334,7 +369,11 @@ n_parameters.ordinal_nan <- n_parameters.ordinal
 }
 
 # theta_j: K x (Sj - 1) increment-parameterised threshold block for one item.
-# shift: scalar (RI node shift) or 0 (non-RI). xj: length-n observed category
+# shift: scalar (RI node shift), 0 (non-RI), or -- for a direct covariate
+# effect on this item -- a length-K per-status shift, which `th + shift`
+# recycles column-major into one value per status exactly as
+# .ordinal_cat_probs() does. No edit was needed here for R9's DIF half either;
+# see part-r9-item-dif.md, W5. xj: length-n observed category
 # (1..Sj), NA where missing. resp_weight: n x K responsibility (gamma, or one
 # node's joint status/node posterior under an RI). Returns an n x (K*(Sj-1))
 # matrix, already weighted by `resp_weight`, ready to accumulate across

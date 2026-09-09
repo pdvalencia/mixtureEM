@@ -789,6 +789,12 @@
     M <- ncol(state$ri$Dnode)
     Q <- length(state$ri$mass)
     ordinal_ri <- !is.null(state$ri$theta)
+    # A degenerate one-node factor's loading is fixed at zero and gets no
+    # block; a direct covariate effect on the indicators gets one per item,
+    # K * D long, after the loading. The order here is .lta_score_matrix()'s
+    # own and the two must not drift apart.
+    loading_free <- .lta_ri_loading_free(state)
+    D_dif <- if (is.null(state$dif)) 0L else ncol(state$dif$Zu)
     for (j in seq_len(J)) {
       if (ordinal_ri) {
         cats <- state$ri$cats
@@ -797,7 +803,10 @@
       } else {
         out[[length(out) + 1L]] <- list(kind = "alpha", j = j, len = K)
       }
-      out[[length(out) + 1L]] <- list(kind = "lambda", j = j, len = M)
+      if (loading_free)
+        out[[length(out) + 1L]] <- list(kind = "lambda", j = j, len = M)
+      if (D_dif > 0L)
+        out[[length(out) + 1L]] <- list(kind = "dif", j = j, len = K * D_dif)
     }
     # The continuous variant's Gauss-Hermite weights are FIXED and must never
     # get a block, the same restriction .lta_ri_mstep() and
@@ -880,6 +889,9 @@
       },
       alpha  = state$ri$A[, b$j],
       lambda = state$ri$L[b$j, ],
+      # Status fastest, covariate slowest -- as.vector() on a K x D matrix.
+      dif = as.vector(matrix(state$dif$beta[, b$j, ], K,
+                             ncol(state$dif$Zu))),
       ri_mass = {
         p <- pmax(state$ri$mass, 1e-12)
         Q <- length(p)
@@ -948,6 +960,8 @@
       state$ri$A[, b$j] <- v
     } else if (b$kind == "lambda") {
       state$ri$L[b$j, ] <- v
+    } else if (b$kind == "dif") {
+      state$dif$beta[, b$j, ] <- matrix(v, K, ncol(state$dif$Zu))
     } else if (b$kind == "ri_mass") {
       p <- exp(c(v, 0) - max(c(v, 0)))
       state$ri$mass <- p / sum(p)
@@ -1401,8 +1415,11 @@
   # does not carry the `"mu"` kind name, so it is excluded from the box the
   # same way. `ri_beta`, a regression coefficient on the factor, is unbounded
   # for the same reason.
+  # `dif`, a proportional-odds slope on the threshold scale, is unbounded for
+  # the same reason `lambda` is.
   bounded <- unlist(lapply(layout, function(b)
-    rep(!(b$kind %in% c("mu", "lambda", "ri_beta")), b$len)), use.names = FALSE)
+    rep(!(b$kind %in% c("mu", "lambda", "ri_beta", "dif")), b$len)),
+    use.names = FALSE)
   lo <- ifelse(bounded, -25, -Inf)
   hi <- ifelse(bounded,  25,  Inf)
   # EM can itself arrive at a boundary, which would put the starting vector
@@ -1538,8 +1555,13 @@
     # Never start a loading at exactly 0: 14.3 says zero is a stationary ridge
     # a restart placed there cannot leave, and the failure it causes -- the fit
     # equals regular LTA -- is indistinguishable from a real "no random
-    # intercept needed" result (roadmap ### 14.10.10, failure mode 4).
-    state$ri$L <- matrix(stats::runif(R * M, 0.2, 0.8), R, M)
+    # intercept needed" result (roadmap ### 14.10.10, failure mode 4). The
+    # degenerate factor is the one exception, because equalling regular LTA is
+    # exactly what it is for. It draws NO random numbers: any change to what
+    # this function consumes moves every seeded fit and every locked target.
+    state$ri$L <- if (.lta_ri_loading_free(state)) {
+      matrix(stats::runif(R * M, 0.2, 0.8), R, M)
+    } else matrix(0, R, M)
     if (!is.null(state$Z_ri)) state$ri_beta <- matrix(0, ncol(state$Z_ri), 1L)
     if (state$ri$kind == "binary")
       state$ri$mass <- rep(1 / length(state$ri$mass), length(state$ri$mass))

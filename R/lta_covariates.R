@@ -260,7 +260,7 @@ lta_covariate_summary <- function(object, digits = 3) {
   K <- object$n_statuses
 
   if (is.null(object$delta_beta) && is.null(object$tau_beta) &&
-      is.null(object$ri_beta)) {
+      is.null(object$ri_beta) && is.null(object$dif)) {
     message("This model has no covariates or grouping variable.")
     return(invisible(object))
   }
@@ -352,6 +352,45 @@ lta_covariate_summary <- function(object, digits = 3) {
     )
     print(out, row.names = FALSE)
   }
+  if (!is.null(object$dif)) {
+    cat("\nDIRECT COVARIATE EFFECTS ON THE INDICATORS (measurement non-invariance)\n")
+    cat("A non-zero coefficient means the item behaves differently at that\n")
+    cat("covariate value for people in the same latent status -- measurement\n")
+    cat("non-invariance. The item probabilities elsewhere in this output are\n")
+    cat("those of a case with every `predictors_items` covariate at zero.\n")
+    dif  <- object$dif
+    D    <- ncol(dif$Zu)
+    J    <- dim(dif$beta)[2]
+    nms  <- dif$names %||% paste0("V", seq_len(D))
+    itn  <- object$longitudinal$item_names %||% paste("Item", seq_len(J))
+    # The block columns are packed status-fastest, covariate-slowest, which is
+    # the order .lta_par_pack()'s `dif` arm writes them in.
+    est <- se <- numeric(0); lab_i <- lab_k <- lab_t <- character(0)
+    for (j in seq_len(J)) {
+      blk <- if (is.null(object$se)) NULL else
+        Find(function(b) identical(b$name, sprintf("dif[item %d]", j)),
+             object$se$blocks)
+      se_j <- if (is.null(blk)) rep(NA_real_, K * D) else
+        sqrt(pmax(diag(object$se$vcov)[blk$cols], 0))
+      est <- c(est, as.vector(matrix(dif$beta[, j, ], K, D)))
+      se  <- c(se, se_j)
+      lab_i <- c(lab_i, rep(itn[j], K * D))
+      lab_k <- c(lab_k, rep(paste("Status", seq_len(K)), times = D))
+      lab_t <- c(lab_t, rep(nms, each = K))
+    }
+    z <- est / se
+    print(data.frame(
+      Item     = lab_i,
+      Status   = lab_k,
+      Term     = lab_t,
+      Estimate = round(est, digits),
+      SE       = round(se, digits),
+      z        = round(z, 2),
+      p        = format.pval(2 * stats::pnorm(-abs(z)), digits = 3, eps = 1e-16),
+      OR       = round(exp(est), digits)
+    ), row.names = FALSE)
+  }
+
   cat("\n=========================================================\n")
   invisible(object)
 }

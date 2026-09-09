@@ -1,5 +1,44 @@
 # mixtureEM (development version)
 
+## `fit_lta()` can test whether the items mean the same thing to everyone
+
+`predictors_items` lets a covariate act on each indicator directly, inside
+each latent status, instead of only on which status a person is in and where
+they move. A non-zero coefficient means two people in the same latent status
+answer that item differently -- measurement non-invariance, or differential
+item functioning. One proportional-odds slope per latent status per item per
+covariate, shared across occasions, so the cost is
+`n_statuses * n_items * ncol(predictors_items)` parameters.
+
+This is not what `group` does. A grouping variable gives every group its own
+status prevalences and its own transition matrices while the measurement model
+is held invariant across groups; `predictors_items` exists to relax exactly
+that assumption, and the two answer different questions. Fitting the model
+both ways and comparing them with `lr_test()` is the invariance test itself.
+
+`lta_covariate_summary()` prints the coefficients with standard errors and
+Wald tests, under a heading that states what a non-zero value means and that
+the item probabilities reported elsewhere are those of a case with every one
+of these covariates at zero. The estimator covers a five-status,
+three-occasion, three-item ordinal model with a binary covariate: graded
+against an outside program's published fit of exactly that model, the package
+reproduces its parameter count exactly and its log-likelihood to 0.03.
+Combining it with `random_intercept = "continuous"` is estimated by the same
+code but is **not yet graded against an outside number**, and neither is any
+model with more than one latent class.
+
+The argument requires `measurement = "ordinal"`, because a proportional-odds
+slope only exists in the cumulative-logit parameterisation -- binary
+indicators can be passed as two-category ordinal data to get the same model --
+and `measurement_invariance = "full"`, because the slopes are shared across
+occasions. It is restricted to covariates taking few distinct values: each
+distinct combination costs one extra emission table per quadrature node in
+every E-step, so more than sixteen of them is refused with an explanation
+rather than accepted and left to run for days. Raise the limit deliberately
+with `options(mixtureEM.dif_max_patterns = )` if that is really what you want.
+
+No existing fit changes.
+
 ## `fit_lta()` can share transition slopes across occasions while leaving the intercepts free
 
 `transition_invariance` gains a third setting, `"slopes"`, between the

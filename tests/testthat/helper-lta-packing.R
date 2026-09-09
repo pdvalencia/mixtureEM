@@ -114,6 +114,57 @@
 # (### 14.18, W9's own test fixture) -- two 3-category items and one binary
 # item, matching the article's own Dating-data shape without its size or
 # extreme thresholds, so a finite-difference check over it costs seconds.
+# The same ordinal shape, generated from the cumulative-logit model itself so
+# that a known direct covariate effect is in the data: item j in status k has
+# free thresholds and gains `x_i * dif[k, j]` on its linear predictor, shared
+# across occasions -- exactly what `predictors_items` estimates. One binary
+# covariate, so there are two covariate patterns and the emission cost is two
+# tables per node instead of one.
+.lta_dif_sim <- function(n = 600, Tn = 3, K = 2L, cats = c(3L, 3L, 2L),
+                         dif = NULL, seed = 3) {
+  set.seed(seed)
+  J <- length(cats)
+  if (is.null(dif)) {
+    dif <- matrix(0, K, J)
+    dif[1, 1] <- 0.8            # item 1 behaves differently in status 1 only
+  }
+  # Thresholds on the P(U >= s) scale, decreasing across s within an item, and
+  # separated by status so the statuses are recoverable.
+  th <- lapply(seq_len(J), function(j) {
+    base <- seq(0.8, -0.8, length.out = cats[j] - 1L)
+    # matrix(), not t(vapply()): a two-category item has one threshold, and
+    # vapply() would hand back a vector that t() turns into a 1 x K matrix.
+    matrix(rep(base, each = K) + rep(ifelse(seq_len(K) == 1L, 0.9, -0.9),
+                                     times = cats[j] - 1L),
+           K, cats[j] - 1L)
+  })
+  x <- stats::rbinom(n, 1L, 0.5)
+  delta <- rep(1 / K, K)
+  tau   <- matrix(0.2 / (K - 1L), K, K); diag(tau) <- 0.8
+
+  S <- matrix(0L, n, Tn)
+  S[, 1] <- sample.int(K, n, replace = TRUE, prob = delta)
+  for (t in 2:Tn) for (k in seq_len(K)) {
+    i <- S[, t - 1] == k
+    if (any(i)) S[i, t] <- sample.int(K, sum(i), replace = TRUE, prob = tau[k, ])
+  }
+
+  X <- matrix(NA_integer_, n, Tn * J)
+  for (t in seq_len(Tn)) for (j in seq_len(J)) {
+    Sj <- cats[j]
+    for (i in seq_len(n)) {
+      k <- S[i, t]
+      F_ <- c(1, stats::plogis(th[[j]][k, ] + x[i] * dif[k, j]), 0)
+      p  <- F_[seq_len(Sj)] - F_[seq_len(Sj) + 1L]
+      X[i, (t - 1L) * J + j] <- sample.int(Sj, 1L, prob = p)
+    }
+  }
+  colnames(X) <- paste0("t", rep(seq_len(Tn), each = J), "_i",
+                        rep(seq_len(J), Tn))
+  list(X = X, Z = matrix(x, ncol = 1L, dimnames = list(NULL, "x")),
+       dif = dif, S = S)
+}
+
 .lta_ordinal_sim <- function(n = 150, Tn = 3, K = 2, cats = c(3L, 3L, 2L),
                              seed = 1) {
   set.seed(seed)
