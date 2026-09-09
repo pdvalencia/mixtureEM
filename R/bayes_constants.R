@@ -33,6 +33,15 @@
 # (no -((K+1)/2) log|Sigma| term), see the comment in m_step.gaussian_diag().
 # The short version: the truncated form is the one for which alpha = 0 recovers
 # ML exactly, which is the whole point of the escape hatch.
+#
+# Because every M-step -- and the L-BFGS polish, and fit_em()'s restart ranking
+# and stopping rule (R/em_core.R, .em_log_prior()) -- maximises the penalised
+# objective these constants weight, the fitted model sits at the posterior
+# mode, not the likelihood maximum, and every reported log-likelihood and
+# information criterion is evaluated there. The gap grows with the constants:
+# about ten log-likelihood units at variances = n_classes, the value this
+# file's own documentation recommends for a collapsed fit. See DECISIONS.md,
+# "Part 47 -- three questions answered", section A.
 
 # The defaults. All four at 1, which is the value the first three were already
 # hard-coded to; `variances = 1` is new and is deliberately weak — see the

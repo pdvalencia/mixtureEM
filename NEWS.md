@@ -1,5 +1,29 @@
 # mixtureEM (development version)
 
+## `fit_mixture()` now ranks and stops its restart search on the same objective its M-step maximises
+
+Every M-step in the mixture engine, and the L-BFGS polish that follows it,
+maximises a penalised likelihood -- the weak priors `bayes_constants` controls.
+Until now, `fit_mixture()`'s restart search ranked candidates, and each restart
+decided when to stop iterating, on the *plain* log-likelihood instead: a
+different quantity from the one every other stage was climbing, so the winner
+returned by the search was not guaranteed to be the point EM had actually
+converged to. This is fixed for every measurement family the engine supports,
+including multiple-group and repeated-measures models and mixed-indicator
+models, whose shared class weights are priced once and whose per-block or
+per-item measurement terms are priced individually, matching the multiplier
+each one's own M-step already applies to an item held invariant across
+occasions or groups.
+
+**Some fitted numbers move.** A restart search that used to stop early because
+the plain log-likelihood looked flat can now keep climbing the posterior for
+longer, so the number of EM iterations on well-separated fixtures can rise.
+`$loglik` and the information criteria built on it are unaffected in kind --
+they still report the plain log-likelihood -- but the point they are evaluated
+at can differ from before, by the order of magnitude the `bayes_constants`
+documentation now discloses (about ten log-likelihood units at
+`variances = n_classes`, the package's own recommendation for a collapsed fit).
+
 ## Latent transition models fit three to four times faster, with identical results
 
 The forward-backward recursion at the centre of every `fit_lta()` and

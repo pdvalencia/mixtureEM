@@ -276,6 +276,333 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 # four orders of magnitude tighter than the default.
 .em_tol_unpolished <- list(abs = 1e-4, rel = 1e-8)
 
+# The log-prior term every m_step.<family>() and refine_lbfgs() already add to
+# the likelihood -- computed here so fit_single_init()'s convergence check and
+# fit_em()'s restart ranking can be stopped and ranked on the same quantity
+# those two stages climb, rather than on the plain log-likelihood (see
+# DECISIONS.md, "Part 47 -- three questions answered", section A). Covers every
+# family the engine can fit, including the `blocks` (multiple-group and
+# repeated-measures) and `nested` (mixed-indicator) composites: a currency fix
+# that covers only some of the emissions creates the very defect it exists to
+# remove, once a fit of a covered kind is compared against a fit of an
+# uncovered kind.
+.em_prior_supported <- c("bernoulli", "bernoulli_nan",
+                         "multinoulli", "multinoulli_nan",
+                         "ordinal", "ordinal_nan",
+                         "poisson", "poisson_nan",
+                         "gaussian_diag", "gaussian_diag_nan",
+                         "gaussian_unit", "gaussian_unit_nan")
+
+# The marginals every measurement prior is centred on. They are functions of the
+# data and the case weights and never of the parameters, so they are computed
+# once per fit and handed back on each call -- the arrangement .lta_em() already
+# has with .lta_prior_marginals().
+#
+# The weighting mirrors m_step_core(), which passes `weights` down only when
+# they are non-trivial. A marginal computed the other way would centre the prior
+# somewhere the sufficient statistics never go, and the same data supplied as a
+# frequency-weighted table and as expanded rows would agree only by accident.
+#
+# Returns NULL for `blocks`/`nested`: a composite model has no single flat
+# marginal object to hand back, and its own marginals are cheap enough (the
+# same colMeans-scale work m_step.blocks() itself repeats every M-step) to
+# recompute inside .em_blocks_family_log_prior()/.em_nested_family_log_prior()
+# on each call rather than cached here.
+.em_prior_marginals <- function(model_state, X) {
+  mm  <- model_state$mm
+  if (inherits(mm, "blocks") || inherits(mm, "nested")) return(NULL)
+  fam <- class(mm)[1]
+  w   <- model_state$sample_weights
+  wt  <- .em_trivial_wt(w, nrow(X))
+
+  switch(fam,
+    bernoulli      = list(m = .em_col_marginal(X, wt)),
+    bernoulli_nan  = list(m = .em_col_marginal_valid(X, wt)),
+    poisson        = ,
+    poisson_nan    = {
+      m <- .em_col_marginal(X, wt)
+      m[!is.finite(m)] <- 0
+      list(m = m)
+    },
+    multinoulli     = ,
+    multinoulli_nan = list(m = .em_onehot_marginal(
+      X, one_hot(X, mm$max_val), wt,
+      function(j) ((j - 1L) * mm$max_val + 1L):(j * mm$max_val))),
+    ordinal      = ,
+    ordinal_nan  = list(m = .em_onehot_marginal(
+      X, one_hot_ragged(X, mm$cats), wt,
+      function(j) .ordinal_item_cols(mm, j))),
+    gaussian_diag     = ,
+    gaussian_diag_nan = list(s2 = .marginal_var(X, wt)),
+    NULL)
+}
+
+# A weight vector worth actually applying, or NULL when it would be a no-op --
+# shared by the flat marginals above and the per-block/per-item variant below
+# so "no weighting" is decided the same way everywhere.
+.em_trivial_wt <- function(w, n)
+  if (!is.null(w) && length(w) == n && any(w != 1)) w else NULL
+
+.em_col_marginal <- function(M, wt) {
+  if (is.null(wt)) colMeans(M, na.rm = TRUE)
+  else colSums(sweep(M, 1, wt, "*"), na.rm = TRUE) / sum(wt)
+}
+# Per column, over that column's observed cells only -- what the _nan M-steps
+# do, and what a column with missing cells needs.
+.em_col_marginal_valid <- function(M, wt) {
+  vapply(seq_len(ncol(M)), function(j) {
+    ok <- !is.na(M[, j])
+    if (!any(ok)) return(0)
+    if (is.null(wt)) mean(M[ok, j]) else sum(M[ok, j] * wt[ok]) / sum(wt[ok])
+  }, numeric(1))
+}
+# A one-hot expansion's marginal, item by item, over the rows that observed
+# that item. Shared by the multinoulli and ordinal arms, which differ only in
+# how wide each item's block of columns is.
+.em_onehot_marginal <- function(X, X_oh, wt, cols_of) {
+  m <- numeric(ncol(X_oh))
+  for (j in seq_len(ncol(X))) {
+    ok   <- !is.na(X[, j])
+    cols <- cols_of(j)
+    if (!any(ok)) next
+    m[cols] <- if (is.null(wt))
+      colMeans(X_oh[ok, cols, drop = FALSE])
+    else
+      colSums(X_oh[ok, cols, drop = FALSE] * wt[ok]) / sum(wt[ok])
+  }
+  m
+}
+
+# Parameter-matrix columns belonging to `items` on a flat (non-composite)
+# sub-model -- one column per item for Bernoulli/Gaussian/Poisson, `max_val`
+# columns per item for multinoulli, and the ragged `offsets`-based span for
+# ordinal (`.item_param_cols()` in R/time_blocks.R only handles the shared-
+# width multinoulli case and is not reused here for that reason).
+.em_item_cols <- function(sub, items) {
+  fam <- class(sub)[1]
+  if (fam %in% c("ordinal", "ordinal_nan"))
+    return(unlist(lapply(items, function(j) .ordinal_item_cols(sub, j))))
+  if (!is.null(sub$max_val)) {
+    M <- sub$max_val
+    return(as.integer(unlist(lapply(items, function(j) ((j - 1L) * M + 1L):(j * M)))))
+  }
+  as.integer(items)
+}
+
+# The log-prior contribution of one flat sub-model, restricted to `items` (a
+# subset of its own 1:n_items) and multiplied by `scale` -- the same
+# `prior_scale` multiplier m_step.<family>() applies to a stacked update's
+# pseudo-observation count, i.e. `scale * alpha / K` in place of `alpha / K`
+# throughout. `items = seq_len(n_items)` and `scale = 1` reproduces the plain
+# per-block or whole-model term exactly.
+.em_flat_family_log_prior_items <- function(sub, X_view, K, items, wt,
+                                            scale = 1) {
+  fam <- class(sub)[1]
+  if (!fam %in% .em_prior_supported) return(NA_real_)
+
+  cols <- .em_item_cols(sub, items)
+  val  <- 0
+
+  if (fam %in% c("bernoulli", "bernoulli_nan")) {
+    a <- .bayes_alpha(sub, "categorical")
+    if (a > 0) {
+      Xi <- X_view[, items, drop = FALSE]
+      m  <- if (fam == "bernoulli") .em_col_marginal(Xi, wt)
+            else .em_col_marginal_valid(Xi, wt)
+      p  <- pmin(pmax(sub$parameters$pis[, cols, drop = FALSE], 1e-300), 1 - 1e-300)
+      mm_ <- matrix(m, nrow = K, ncol = length(cols), byrow = TRUE)
+      val <- val + scale * (a / K) * sum(mm_ * log(p) + (1 - mm_) * log1p(-p))
+    }
+  } else if (fam %in% c("multinoulli", "multinoulli_nan",
+                        "ordinal", "ordinal_nan")) {
+    a <- .bayes_alpha(sub, "categorical")
+    if (a > 0) {
+      if (fam %in% c("multinoulli", "multinoulli_nan")) {
+        X_oh    <- one_hot(X_view, sub$max_val)
+        cols_of <- function(j) ((j - 1L) * sub$max_val + 1L):(j * sub$max_val)
+      } else {
+        X_oh    <- one_hot_ragged(X_view, sub$cats)
+        cols_of <- function(j) .ordinal_item_cols(sub, j)
+      }
+      m_full <- .em_onehot_marginal(X_view, X_oh, wt, cols_of)
+      m   <- m_full[cols]
+      p   <- pmax(sub$parameters$pis[, cols, drop = FALSE], 1e-300)
+      mm_ <- matrix(m, nrow = K, ncol = length(cols), byrow = TRUE)
+      val <- val + scale * (a / K) * sum(mm_ * log(p))
+    }
+  } else if (fam %in% c("poisson", "poisson_nan")) {
+    a <- .bayes_alpha(sub, "poisson")
+    if (a > 0) {
+      Xi  <- X_view[, items, drop = FALSE]
+      m   <- .em_col_marginal(Xi, wt)
+      m[!is.finite(m)] <- 0
+      lam <- pmax(sub$parameters$rates[, cols, drop = FALSE], 1e-300)
+      mm_ <- matrix(m, nrow = K, ncol = length(cols), byrow = TRUE)
+      val <- val + scale * (a / K) * sum(mm_ * log(lam) - lam)
+    }
+  } else if (fam %in% c("gaussian_diag", "gaussian_diag_nan")) {
+    a <- .bayes_alpha(sub, "variances")
+    if (a > 0) {
+      Xi  <- X_view[, items, drop = FALSE]
+      s2  <- .marginal_var(Xi, wt)
+      v   <- pmax(sub$parameters$covariances[, cols, drop = FALSE], 1e-300)
+      s2m <- matrix(s2, nrow = K, ncol = length(cols), byrow = TRUE)
+      val <- val - scale * 0.5 * (a / K) * sum(log(v) + s2m / v)
+    }
+  }
+  # gaussian_unit / gaussian_unit_nan: no measurement prior at all -- the
+  # variance is fixed at 1 and there is nothing to regularise.
+  val
+}
+
+# The flat-family log-prior on the whole sub-model, in terms of the
+# already-restricted-items helper above.
+.em_flat_family_log_prior <- function(mm, X, K, marginals) {
+  fam <- class(mm)[1]
+  val <- 0
+  if (fam %in% c("bernoulli", "bernoulli_nan")) {
+    a <- .bayes_alpha(mm, "categorical")
+    if (a > 0) {
+      p <- pmin(pmax(mm$parameters$pis, 1e-300), 1 - 1e-300)
+      m <- matrix(marginals$m, nrow = K, ncol = ncol(p), byrow = TRUE)
+      val <- val + (a / K) * sum(m * log(p) + (1 - m) * log1p(-p))
+    }
+  } else if (fam %in% c("multinoulli", "multinoulli_nan",
+                        "ordinal", "ordinal_nan")) {
+    a <- .bayes_alpha(mm, "categorical")
+    if (a > 0) {
+      p <- pmax(mm$parameters$pis, 1e-300)
+      m <- matrix(marginals$m, nrow = K, ncol = ncol(p), byrow = TRUE)
+      val <- val + (a / K) * sum(m * log(p))
+    }
+  } else if (fam %in% c("poisson", "poisson_nan")) {
+    a <- .bayes_alpha(mm, "poisson")
+    if (a > 0) {
+      lam <- pmax(mm$parameters$rates, 1e-300)
+      m   <- matrix(marginals$m, nrow = K, ncol = ncol(lam), byrow = TRUE)
+      val <- val + (a / K) * sum(m * log(lam) - lam)
+    }
+  } else if (fam %in% c("gaussian_diag", "gaussian_diag_nan")) {
+    a <- .bayes_alpha(mm, "variances")
+    if (a > 0) {
+      v  <- pmax(mm$parameters$covariances, 1e-300)
+      s2 <- matrix(marginals$s2, nrow = K, ncol = ncol(v), byrow = TRUE)
+      val <- val - 0.5 * (a / K) * sum(log(v) + s2 / v)
+    }
+  }
+  val
+}
+
+# `blocks` (time_blocks/group_blocks): a free item gets an ordinary per-block
+# term on that block's own data; an item held invariant across blocks gets ONE
+# term, on the representative block's parameters (identical everywhere by
+# construction) against the pooled marginal, multiplied by `scale` -- the exact
+# multiplier m_step.blocks() passes as `prior_scale` on its own stacked update
+# (R/time_blocks.R: `scale <- if (inherits(model_state, "time_blocks")) Bn else
+# 1L`; group blocks are one response variable observed once per case, not Bn
+# distinct equations, so they do not get the multiplier).
+#
+# A block whose `invariant_params` is non-empty (the ECM path,
+# .blocks_gaussian_ecm() in R/blocks_constraints.R) is left uncovered: that
+# path is reachable only for continuous sub-models, and refine_lbfgs() already
+# declines to polish it (.refine_time_block_view() returns NULL whenever
+# `length(mm$invariant_params)`), so there is no existing penalised objective
+# to check a log-prior term against. See DECISIONS.md and RECORDS.md, Part 47.
+.em_blocks_family_log_prior <- function(mm, X, K, wt) {
+  if (length(mm$invariant_params)) return(NA_real_)
+
+  J     <- mm$n_items
+  Bn    <- mm$n_blocks
+  inv   <- mm$invariant_items
+  free  <- setdiff(seq_len(J), inv)
+  scale <- if (inherits(mm, "time_blocks")) Bn else 1L
+  val   <- 0
+
+  if (length(free)) {
+    for (b in seq_len(Bn)) {
+      X_sub   <- .strip_block_prefix(X[, .time_block_cols(b, J), drop = FALSE])
+      fam_val <- .em_flat_family_log_prior_items(mm$models[[b]], X_sub, K,
+                                                 free, wt)
+      if (is.na(fam_val)) return(NA_real_)
+      val <- val + fam_val
+    }
+  }
+  if (length(inv)) {
+    X_pool  <- .strip_block_prefix(.stack_blocks(X, J, Bn))
+    wt_pool <- if (is.null(wt)) NULL else rep(wt, Bn)
+    fam_val <- .em_flat_family_log_prior_items(mm$models[[1]], X_pool, K, inv,
+                                               wt_pool, scale = scale)
+    if (is.na(fam_val)) return(NA_real_)
+    val <- val + fam_val
+  }
+  val
+}
+
+# `nested` (mixed-indicator): the complete-data log-likelihood is additive over
+# its named sub-models (log_likelihood.nested() in R/nested.R sums them the
+# same way), so the log-prior is too -- one term per sub-model, on its own
+# column slice, recursed through .em_family_log_prior() so a nested sub-model
+# that is itself `blocks` is handled for free. Any one sub-model outside
+# .em_prior_supported makes the whole nested model's contribution NA, the same
+# "no partial penalty" rule as everywhere else in this file.
+.em_nested_family_log_prior <- function(mm, X, K, wt) {
+  val <- 0
+  start_col <- 1
+  for (name in names(mm$models)) {
+    n_cols  <- mm$columns_per_model[name]
+    end_col <- start_col + n_cols - 1
+    X_sub   <- X[, start_col:end_col, drop = FALSE]
+    fam_val <- .em_family_log_prior(mm$models[[name]], X_sub, K, NULL, wt)
+    if (is.na(fam_val)) return(NA_real_)
+    val <- val + fam_val
+    start_col <- end_col + 1
+  }
+  val
+}
+
+# One level below .em_log_prior()'s weights term: the measurement-family
+# contribution only, dispatching on whether `mm` is a flat emission or one of
+# the two composite wrappers. `blocks`/`nested` are the *second* class on these
+# objects (`class(mm)[1]` is `"time_blocks"`/`"group_blocks"`/`"nested"`
+# itself for nested), so dispatch is by inherits(), never by matching
+# `class(mm)[1]` against the literal strings "blocks"/"nested" -- see the same
+# trap flagged in R/bootstrap.R.
+.em_family_log_prior <- function(mm, X, K, marginals, wt) {
+  if (inherits(mm, "nested")) return(.em_nested_family_log_prior(mm, X, K, wt))
+  if (inherits(mm, "blocks")) return(.em_blocks_family_log_prior(mm, X, K, wt))
+
+  fam <- class(mm)[1]
+  if (!fam %in% .em_prior_supported) return(NA_real_)
+  if (is.null(marginals))
+    marginals <- .em_prior_marginals(list(mm = mm, sample_weights = wt), X)
+  .em_flat_family_log_prior(mm, X, K, marginals)
+}
+
+# The log-prior itself, in the same units as sum(sample_weights * log_prob_norm)
+# -- an absolute quantity to be added to a total log-likelihood, never the
+# per-observation one refine_lbfgs() works in.
+.em_log_prior <- function(model_state, X, Y = NULL, marginals = NULL) {
+  mm  <- model_state$mm
+  K   <- model_state$n_components
+  val <- 0
+
+  # The class weights are free parameters, and carry their Dirichlet prior,
+  # unless the structural model is supplying the class probabilities itself.
+  # Priced once, at the outer level, regardless of whether the measurement
+  # model underneath is flat or composite.
+  if (!(!is.null(Y) && .supplies_class_probs(model_state$sm))) {
+    a_lat <- .bayes_alpha(mm, "latent")
+    if (a_lat > 0)
+      val <- val + (a_lat / K) * sum(log(pmax(model_state$weights, 1e-300)))
+  }
+
+  if (is.null(marginals)) marginals <- .em_prior_marginals(model_state, X)
+
+  fam_val <- .em_family_log_prior(mm, X, K, marginals, model_state$sample_weights)
+  if (is.na(fam_val)) return(NA_real_)
+  val + fam_val
+}
+
 # L-BFGS refinement after EM convergence — Penalised Maximum Likelihood (PM).
 #
 # EM converges to a Q-function fixed point, not necessarily the PM optimum.
@@ -770,6 +1097,16 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
   converged <- FALSE
   n_iter <- 0
 
+  # The log-prior term, evaluated at whatever parameters the state holds when
+  # called -- data-dependent (via the cached marginals) but not iteration-
+  # dependent, so it is safe to call again after every M-step. `use_pen` is
+  # decided once, off the initial state, since coverage is a property of the
+  # emission family, not of where EM currently is.
+  prior_marg <- tryCatch(.em_prior_marginals(model_state, X), error = function(e) NULL)
+  log_prior_of <- function(st)
+    tryCatch(.em_log_prior(st, X, Y, prior_marg), error = function(e) NA_real_)
+  use_pen <- !is.na(log_prior_of(model_state))
+
   for (iter in 1:max_iter) {
     # 1. E-STEP
     e_res <- e_step(model_state, X, Y)
@@ -780,6 +1117,8 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
     # Calculate the SCALAR TOTAL LL for the convergence check
     # This uses the weights we added to support survey data!
     current_total_ll <- sum(model_state$sample_weights * log_prob_vector)
+    if (use_pen)
+      current_total_ll <- current_total_ll + log_prior_of(model_state)
 
     # 2. CONVERGENCE CHECK (Using scalars)
     if (iter > 1) {
@@ -890,19 +1229,27 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
   # that matters, where a rule relative to |L| is not.
   run_warm <- run_from
 
-  # Restarts are ranked on the plain log-likelihood, which is NOT the quantity
-  # EM climbs: every M-step here maximises a penalised likelihood, and so does
-  # refine_lbfgs(). The two are not monotonically related once any Bayes
-  # constant is non-zero, so this ranking can return a point the search did not
-  # converge to. fit_lta() ranks on the penalised objective for exactly that
-  # reason and this engine does not yet.
-  #
-  # The fix is written and measured but is deliberately not in place, because a
-  # half-applied one is worse than none: the penalty can be written down for the
-  # flat emissions and not for the block and nested ones, so covering only the
-  # first kind would leave a comparison between two fits of different kinds
-  # comparing two different objectives. It goes in when every family is covered.
-  ll_of <- function(s) sum(s$sample_weights * s$lower_bound)
+  # Restarts are ranked, and stopped, on the same penalised objective the
+  # M-step and refine_lbfgs() maximise -- see .em_log_prior() above and
+  # DECISIONS.md, "Part 47 -- three questions answered", section A. Every
+  # family the engine can fit is covered, including `blocks` and `nested`;
+  # falling back to the plain log-likelihood happens only where the exact
+  # prior cannot be written down (a sub-model outside .em_prior_supported),
+  # and then for the whole fit, never for part of it. The marginals are cached
+  # on first use rather than computed up front, because a polytomous
+  # emission's `max_val` is inferred by init_params() and is not yet known on
+  # the state this closure is built from.
+  rank_marg  <- NULL
+  marg_ready <- FALSE
+  ll_of <- function(s) {
+    ll <- sum(s$sample_weights * s$lower_bound)
+    if (!marg_ready) {
+      rank_marg  <<- tryCatch(.em_prior_marginals(s, X), error = function(e) NULL)
+      marg_ready <<- TRUE
+    }
+    lp <- tryCatch(.em_log_prior(s, X, Y, rank_marg), error = function(e) NA_real_)
+    if (is.na(lp)) ll else ll + lp
+  }
 
   # The starting values of every restart, drawn here rather than inside the fit.
   #
