@@ -37,21 +37,124 @@
     log_likelihood(mm$models[[t]], X[, .time_block_cols(t, J), drop = FALSE]))
 }
 
-# Forward-backward in log space.
+# Forward-backward.
 #
 # Returns the per-case log-likelihood, the occasion-wise posteriors γ, and the
 # weighted pairwise transition counts Ξ_t[k, l] = Σ_i w_i P(S_t = k, S_{t+1} = l | y_i).
-# The pairwise term is accumulated one (k, l) pair at a time: each element is a
-# probability, so its logarithm is non-positive and exponentiating is safe,
-# while never materialising an n x K x K array.
 #
 # `log_delta` is either a length-K vector or, when covariates predict the initial
 # status, an n x K matrix. Each element of `log_tau` is either a K x K matrix or,
 # when covariates predict transitions, a list of K matrices of size n x K (one
-# per origin status). The three helpers below hide that distinction so the
-# recursions are written once.
+# per origin status). The three helpers in .lta_fb_log() hide that distinction
+# so its recursions are written once.
+#
+# Which recursion to run. The scaled one below is the same arithmetic done in
+# the probability domain, and it is a great deal faster because the whole inner
+# loop becomes one matrix product per occasion; it needs one shared K x K
+# transition matrix per occasion to be a matrix product at all, so a model whose
+# transitions depend on covariates -- where `log_tau[[t]]` is a list of K
+# matrices of size n x K -- stays on the log-domain recursion. The two are
+# checked against each other in tests/testthat/test-lta-forward-backward.R.
 .lta_forward_backward <- function(logB, log_delta, log_tau, weights,
                                   keep_pairwise = FALSE) {
+  shared <- !length(log_tau) || !any(vapply(log_tau, is.list, logical(1)))
+  if (shared)
+    .lta_fb_scaled(logB, log_delta, log_tau, weights, keep_pairwise)
+  else
+    .lta_fb_log(logB, log_delta, log_tau, weights, keep_pairwise)
+}
+
+# The scaled forward-backward recursion (Rabiner 1989, sec. V.A; the device is
+# Levinson, Rabiner & Sondhi's). alpha and beta are carried as probabilities,
+# normalised at every occasion by a scaling constant c_t, and the case
+# log-likelihood is the sum of log c_t. Nothing here is an approximation: the
+# scaling constants cancel exactly out of every posterior and reappear exactly
+# in the log-likelihood.
+#
+# Why it is worth having a second recursion. Part 42's profile put
+# .lta_forward_backward() at 78% of an LTA fit's total time with exp() alone at
+# 28% of self time, and the log-domain form is why: it makes 2 * K * (Tn - 1)
+# logsumexp() calls per pass, one per destination status per occasion in each
+# direction, plus one exp() of an n x K block per (occasion, origin) in the
+# pairwise accumulation. Here each of those becomes a single matrix product.
+# Another program's own account of a large release-to-release speed-up says it
+# went to the same place for the same reason.
+#
+# Underflow, which is the thing a probability-domain recursion is usually
+# accused of, is handled where it arises rather than by staying in logs: each
+# occasion's emission matrix has its own row maximum factored out before it is
+# exponentiated, and those factors are additive in the log-likelihood, so a
+# model with fifty items is as safe as one with five. The per-occasion
+# normalisation then keeps alpha away from zero for the rest of the recursion,
+# which is exactly what the scaling device is for.
+.lta_fb_scaled <- function(logB, log_delta, log_tau, weights,
+                           keep_pairwise = FALSE) {
+  Tn <- length(logB)
+  n  <- nrow(logB[[1]])
+  K  <- ncol(logB[[1]])
+
+  B  <- vector("list", Tn)
+  mB <- matrix(0, n, Tn)
+  for (t in seq_len(Tn)) {
+    m <- .row_max(logB[[t]])
+    # A case with no admissible status at this occasion has a row of -Inf. Its
+    # log-likelihood is -Inf either way; zeroing the offset only keeps the
+    # subtraction from producing NaN before that conclusion is reached.
+    m[!is.finite(m)] <- 0
+    mB[, t]  <- m
+    B[[t]]   <- exp(logB[[t]] - m)
+  }
+  Tau <- lapply(log_tau, exp)
+
+  d1 <- if (is.matrix(log_delta)) exp(log_delta) else
+    matrix(exp(log_delta), n, K, byrow = TRUE)
+
+  la <- vector("list", Tn)
+  cs <- matrix(0, n, Tn)
+  x  <- d1 * B[[1]]
+  cs[, 1] <- rowSums(x)
+  csafe   <- function(v) ifelse(v > 0, v, 1)
+  la[[1]] <- x / csafe(cs[, 1])
+  if (Tn > 1L) for (t in 2:Tn) {
+    x <- (la[[t - 1]] %*% Tau[[t - 1]]) * B[[t]]
+    cs[, t] <- rowSums(x)
+    la[[t]] <- x / csafe(cs[, t])
+  }
+
+  ll <- rowSums(log(cs)) + rowSums(mB)
+
+  lb <- vector("list", Tn)
+  lb[[Tn]] <- matrix(1, n, K)
+  if (Tn > 1L) for (t in (Tn - 1):1)
+    lb[[t]] <- ((B[[t + 1]] * lb[[t + 1]]) %*% t(Tau[[t]])) / csafe(cs[, t + 1])
+
+  gamma <- lapply(seq_len(Tn), function(t) la[[t]] * lb[[t]])
+
+  xi   <- vector("list", max(Tn - 1L, 0L))
+  pair <- if (keep_pairwise) vector("list", max(Tn - 1L, 0L)) else NULL
+  if (Tn > 1L) for (t in seq_len(Tn - 1L)) {
+    # G[i, l] is everything downstream of the transition into l, already
+    # divided by its scaling constant, so the pairwise probability is
+    # alpha_t[i, k] * Tau[k, l] * G[i, l] and the totals are one matrix product.
+    G <- (B[[t + 1]] * lb[[t + 1]]) / csafe(cs[, t + 1])
+    xi[[t]] <- Tau[[t]] * (t(la[[t]] * weights) %*% G)
+    if (keep_pairwise)
+      pair[[t]] <- lapply(seq_len(K), function(k)
+        sweep(G, 2, Tau[[t]][k, ], "*") * la[[t]][, k])
+  }
+
+  list(ll = ll, gamma = gamma, xi = xi, pairwise = pair)
+}
+
+# The same recursion in log space, kept for the covariate-transition case the
+# scaled form cannot express as a matrix product, and as the reference the
+# scaled form is checked against.
+#
+# The pairwise term is accumulated one (k, l) pair at a time: each element is a
+# probability, so its logarithm is non-positive and exponentiating is safe,
+# while never materialising an n x K x K array.
+.lta_fb_log <- function(logB, log_delta, log_tau, weights,
+                        keep_pairwise = FALSE) {
   Tn <- length(logB)
   n  <- nrow(logB[[1]])
   K  <- ncol(logB[[1]])

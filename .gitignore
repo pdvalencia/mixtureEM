@@ -15,3 +15,7 @@ README.html
 mixtureEM.Rcheck/
 mixtureEM_*.tar.gz
 /docs/
+
+# testthat writes these when a test fails; they are run artefacts, not sources.
+tests/testthat/_problems/
+tests/testthat/testthat-problems.rds

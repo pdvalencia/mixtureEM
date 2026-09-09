@@ -23,12 +23,10 @@
   return(FALSE)
 }
 
-# Helper to initialize random responsibilities
-initialize_resp <- function(n_samples, n_components) {
-  resp <- matrix(runif(n_samples * n_components), nrow = n_samples)
-  resp <- sweep(resp, 1, rowSums(resp), "/")
-  return(resp)
-}
+# A helper that built random responsibilities used to sit here. Nothing called
+# it -- not one caller anywhere in R/ or in either suite -- and it was a trap for
+# a reader, because it looks exactly like the initializer and is not one. What
+# actually seeds a restart is init_params(), per emission. Removed 2026-09-08.
 
 # E-step: Calculate responsibilities
 e_step <- function(model_state, X, Y = NULL) {
@@ -892,6 +890,18 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
   # that matters, where a rule relative to |L| is not.
   run_warm <- run_from
 
+  # Restarts are ranked on the plain log-likelihood, which is NOT the quantity
+  # EM climbs: every M-step here maximises a penalised likelihood, and so does
+  # refine_lbfgs(). The two are not monotonically related once any Bayes
+  # constant is non-zero, so this ranking can return a point the search did not
+  # converge to. fit_lta() ranks on the penalised objective for exactly that
+  # reason and this engine does not yet.
+  #
+  # The fix is written and measured but is deliberately not in place, because a
+  # half-applied one is worse than none: the penalty can be written down for the
+  # flat emissions and not for the block and nested ones, so covering only the
+  # first kind would leave a comparison between two fits of different kinds
+  # comparing two different objectives. It goes in when every family is covered.
   ll_of <- function(s) sum(s$sample_weights * s$lower_bound)
 
   # The starting values of every restart, drawn here rather than inside the fit.

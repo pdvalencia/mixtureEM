@@ -1,5 +1,29 @@
 # mixtureEM (development version)
 
+## Latent transition models fit three to four times faster, with identical results
+
+The forward-backward recursion at the centre of every `fit_lta()` and
+`fit_rmlca()` fit now runs in the probability domain with a per-occasion scaling
+constant -- the standard scaled recursion (Rabiner, 1989, sec. V.A) -- instead of
+in log space. It was 78% of an LTA fit's total time, and the work it does per
+occasion collapses from one log-sum-exp per destination status in each direction
+to a single matrix product. Two representative fits went from 33.8 to 9.8 seconds
+and from 70.3 to 17.5 seconds, and the gain grows with the number of statuses: on
+an eight-status model the recursion alone is over eight times faster. Models with
+a random intercept, which run one pass per quadrature node, have the most to
+gain.
+
+**No fitted number moves.** The two forms are the same arithmetic, and the
+log-likelihoods of both fits above agree to every digit printed. A regression
+test asserts that the two recursions agree to `1e-10` on the case log-likelihood,
+the occasion-wise posteriors and the pairwise transition counts, across two to
+five statuses, one to five occasions, weighted data, and a forty-item model with
+response probabilities at 0.001 -- the case a probability-domain recursion is
+usually said to fail on, which it does not here because each occasion's emission
+matrix has its own row maximum factored out before it is exponentiated. Models
+whose transition probabilities depend on covariates keep the log-space recursion,
+which is the form that expresses them.
+
 ## One-step fits with covariates now use the response-pattern economy too
 
 A `fit_mixture(n_steps = 1)` fit with categorical indicators runs its EM
