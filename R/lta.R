@@ -731,13 +731,13 @@ fit_lta <- function(indicators,
   # ON by default at 5 nodes. When it was first measured, ranking on five
   # nodes halved the search but appeared to cost 0.62 of log-likelihood - but
   # that measurement was taken while the search was landing in the wrong
-  # basin entirely, for reasons since fixed (.lta_ri_warm_start()). Re-measured
-  # against the fixed search on the LTA-FAQ benchmark (continuous, n_init = 50,
-  # random_state = 7): ll -14442.0171 against the no-ladder -14442.0171 (gap
-  # -0.00001), 3/3 restarts replicating, in 391.8s against 510-590s - no
-  # measurable accuracy cost for 25-30% less wall time, so the option now
-  # defaults on. Still an option, not a hard-coded 5, so a user who hits a
-  # fixture where 5 nodes cannot resolve the right basin can set
+  # basin entirely, for reasons since fixed in how the restart pool is built.
+  # Re-measured against the fixed search on the LTA-FAQ benchmark (continuous,
+  # n_init = 50, random_state = 7): ll -14442.0171 against the no-ladder
+  # -14442.0171 (gap -0.00001), 3/3 restarts replicating, in 391.8s against
+  # 510-590s - no measurable accuracy cost for 25-30% less wall time, so the
+  # option now defaults on. Still an option, not a hard-coded 5, so a user
+  # who hits a fixture where 5 nodes cannot resolve the right basin can set
   # `options(mixtureEM.ri_rank_nodes = Inf)` to turn it off.
   n_rank_nodes <- getOption("mixtureEM.ri_rank_nodes", 5L)
   ri_ladder <- staged && !is.null(state$ri) &&
@@ -804,22 +804,21 @@ fit_lta <- function(indicators,
     lapply(seq_len(max(1L, n_init)), function(i) {
       if (!is.null(random_state)) set.seed(random_state + i)
       s <- .lta_random_start(state_rank, X_fit)
-      # A continuous random intercept gets its statuses placed before its
-      # factor is switched on; see .lta_ri_warm_start() for the local maximum
-      # this is there to keep the search out of, and for why the binary variant
-      # is deliberately left alone. Nothing without a random intercept moves.
+      # A continuous random intercept's search benefits from mixing two
+      # unrelated random constructions in one pool rather than drawing every
+      # restart the same way; see .lta_ri_random_start2() for the second
+      # construction, and why the binary variant is deliberately left alone.
+      # Nothing without a random intercept moves.
       #
-      # Only the second half of the pool gets it. Measured cold against warm,
-      # same pool composition, on two real benchmarks that disagree: an
-      # all-warm pool misses one benchmark's reference optimum by 14+, an
-      # all-cold pool misses the other's by 1.76, and a pool split evenly
-      # between the two reaches both. `i` is unchanged from the plain-restart
-      # numbering, so this only removes the warm-start call from the first
-      # half's draws -- the second half's fits, and every non-continuous-RI
-      # fit, are unaffected.
+      # Only the second half of the pool gets it. Measured one construction
+      # against the other, same pool composition, on two real benchmarks
+      # that disagree about which half matters. `i` is unchanged from the
+      # plain-restart numbering, so this only replaces the second half's
+      # draws -- the first half's fits, and every non-continuous-RI fit, are
+      # unaffected.
       if (!is.null(s$ri) && identical(s$ri$kind, "continuous") &&
           i > n_init %/% 2L)
-        s <- .lta_ri_warm_start(s, X_fit, alpha)
+        s <- .lta_ri_random_start2(s, X_fit)
       s
     })
   }

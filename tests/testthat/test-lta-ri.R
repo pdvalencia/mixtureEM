@@ -226,11 +226,18 @@ test_that("`n_quadrature`/`n_ri` are validated", {
 # --- 4. Q = 1 reduces exactly to regular LTA --------------------------------
 
 test_that("n_quadrature = 1 reproduces regular LTA exactly", {
-  # A single deterministic start is enough here: this is an algebraic
-  # identity (a zero node contributes nothing regardless of the loadings it
-  # is multiplied by), not a statistical recovery claim, so it holds at
-  # whatever point n_init = 1 happens to converge to, not only at the global
-  # optimum -- confirmed at n = 100 to ~1e-9, well inside the asserted bound.
+  # This is an algebraic identity (a zero node contributes nothing
+  # regardless of the loadings it is multiplied by), not a statistical
+  # recovery claim, but it is an identity between two DIFFERENT
+  # parametrizations of the same surface, so a single restart of each can
+  # still land in different basins of it. n_init = 1 confirmed this at
+  # ~1e-9 back when the RI restart pool's second half was seeded from a
+  # plain-LTA pre-fit, which happened to bias that one restart toward the
+  # same basin fit_reg finds; with an unbiased second construction
+  # (Part 47's W4) that bias is gone and n_init = 1 lands ~7.8 away. A
+  # handful of restarts finds the shared optimum exactly again (confirmed
+  # at n_init = 3, 5 and 10, all agreeing to ~1e-9), which is what this test
+  # asks for.
   X <- .lta_refine_sim(n = 100, K = 2, Tn = 3, J = 4, seed = 4)
   fit_reg <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
                      measurement = "binary",
@@ -239,7 +246,7 @@ test_that("n_quadrature = 1 reproduces regular LTA exactly", {
                      standard_errors = FALSE))
   fit_ri1 <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
                      measurement = "binary",
-                     smoothing = 0, bayes_constants = .ml, n_init = 1,
+                     smoothing = 0, bayes_constants = .ml, n_init = 3,
                      random_state = 3, tol = 1e-12, max_iter = 5000,
                      standard_errors = FALSE,
                      random_intercept = "continuous", n_quadrature = 1))

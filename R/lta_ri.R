@@ -564,7 +564,7 @@ random_intercept_scores <- function(fit) {
 }
 
 # ------------------------------------------------------------------------------
-# Warm start: place the statuses before the factor is switched on
+# A second random construction
 # ------------------------------------------------------------------------------
 #
 # A random intercept and the latent statuses compete to explain the same
@@ -572,58 +572,49 @@ random_intercept_scores <- function(fit) {
 # EM then settles on a solution with the right statuses but inflated loadings,
 # a genuine local maximum a short way below the global one. Measured on the
 # LTA-FAQ benchmark (roadmap ### 14.10), fifty random restarts converged to
-# -14443.775 against the two reference programs' -14442.017, with loadings of
-# 1.0 to 4.5 against their 0.12 to 0.97. Those programs pay for that surface
-# with 250 and 1000 restarts respectively.
+# -14443.775 against the reference programs' -14442.017, with loadings of 1.0
+# to 4.5 against their 0.12 to 0.97. Both reference programs address this not
+# by pre-fitting anything, but by mixing two unrelated random constructions in
+# one restart pool. This is the second construction: it redraws the random
+# intercept's own thresholds directly, independent of whatever
+# `.lta_random_start()` gave them, rather than reusing that draw or fitting a
+# simpler model first. No EM runs here, so it costs nothing beyond the draw
+# itself. Loadings (`ri$L`) are left exactly as `.lta_random_start()` set
+# them.
 #
-# Paying instead with a better start is what Muthen & Asparouhov (2022)
-# themselves recommend, and it is what `refine_from` already does by hand: run
-# the model WITHOUT the random intercept first, then turn the factor on from
-# there. This does it for each restart automatically, so the search that a user
-# gets by default is a search over where the factor starts rather than over the
-# statuses and the factor at once. The plain pass is cheap -- one iteration of
-# it costs a `Q`th of an RI iteration, since the RI E-step runs one whole
-# forward-backward per node.
-#
-# It is deliberately NOT run to convergence. Every restart would then reach the
-# same plain-LTA optimum and the pool would differ only in its loading draw,
-# throwing away the diversity the restarts are there to provide.
-#
-# fit_lta() calls this for the CONTINUOUS variant only, and that restriction is
-# measured rather than cautious. The binary variant's nodes are estimated
-# classes -- `n_ri` IS part of the model, the same distinction the quadrature
-# ladder draws -- so its search is an ordinary mixture search that wants
-# diverse starts, and seeding every restart from one plain-LTA solution takes
-# that diversity away. On the LTA-FAQ binary benchmark fifty restarts reach the
-# reference programs' -14435.618 exactly without this, and stop 3.78 short with
-# it; 200 restarts recover it, at four times the cost. The continuous variant
-# is the opposite case: this is what closes its 1.76.
-.lta_ri_warm_start <- function(state, X, alpha, max_iter = 200L) {
+# fit_lta() calls this for the CONTINUOUS variant only, mixed half-and-half
+# with `.lta_random_start()`'s own draw -- the binary variant's nodes are
+# estimated classes, an ordinary mixture search that wants diverse starts, so
+# it is left alone. Measured on both benchmarks that motivated this Part
+# (`internal/part47/w4-ltafaq-probe.R`, `w4-dating-probe.R`): a 5+5 pool of
+# the two constructions reaches the LTA-FAQ optimum (-14442.0244 against
+# -14442.017) and the Dating/Lanza-Collins optimum (-15653.2238 against
+# -15653.194), both within 0.1 -- the same bar the pre-fit version was held
+# to, without running any EM to build a start.
+.lta_ri_random_start2 <- function(state, X) {
   ri <- state$ri
-  plain <- state
-  plain$ri      <- NULL
-  plain$ri_beta <- NULL
-  warm <- try(.lta_em(plain, X, max_iter = max_iter, tol = 1e-6, alpha = alpha),
-              silent = TRUE)
-  if (inherits(warm, "try-error")) return(state)
-
-  # The plain pass's own `pis` is exactly the table a random intercept with
-  # zero loadings would report, which is where the intercept parameters
-  # belong; the loadings stay at the draw this restart was given. Mirrors
-  # .lta_refine_start()'s treatment of a regular-LTA donor.
   if (!is.null(ri$theta)) {
-    cats     <- ri$cats %||% state$mm$models[[1]]$cats
-    ri$theta <- .ordinal_theta_from_pis(warm$mm$models[[1]]$parameters$pis, cats)
+    cats <- ri$cats %||% state$mm$models[[1]]$cats
+    K    <- state$n_statuses
+    pis1 <- matrix(stats::runif(K * sum(cats)), K, sum(cats))
+    end  <- cumsum(cats)
+    start <- end - cats + 1L
+    for (j in seq_along(cats)) {
+      cols <- start[j]:end[j]
+      pis1[, cols] <- pis1[, cols, drop = FALSE] /
+        rowSums(pis1[, cols, drop = FALSE])
+    }
+    ri$theta <- .ordinal_theta_from_pis(pis1, cats)
     ri$cats  <- cats
   } else {
-    ri$A <- qlogis(pmin(pmax(warm$mm$models[[1]]$parameters$pis, 0.05), 0.95))
+    ri$A <- qlogis(matrix(stats::runif(length(ri$A), 0.05, 0.95),
+                           nrow(ri$A), ncol(ri$A)))
   }
-  warm$ri      <- ri
-  warm$ri_beta <- state$ri_beta
-  warm$mm$models[[1]]$parameters$pis <-
+  state$ri <- ri
+  state$mm$models[[1]]$parameters$pis <-
     .lta_ri_integrated_pis(ri, state$n_statuses, state$n_items)
   for (t in seq_len(state$n_times))
-    warm$mm$models[[t]]$parameters$pis <-
-      warm$mm$models[[1]]$parameters$pis
-  warm
+    state$mm$models[[t]]$parameters$pis <-
+      state$mm$models[[1]]$parameters$pis
+  state
 }

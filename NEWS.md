@@ -1,5 +1,18 @@
 # mixtureEM (development version)
 
+## The continuous random-intercept LTA search no longer pre-fits a simpler model
+
+`fit_lta(..., random_intercept = "continuous")`'s restart pool used to build
+half its restarts by fitting a random-intercept-free model first and seeding
+the intercept's thresholds from it. It now draws a second, independent random
+start instead, matching the reference programs' own practice of mixing two
+random constructions rather than pre-fitting one model to seed another.
+Measured against the same two external benchmarks the pre-fit version was
+validated against, the new pool reaches both reference optima to within 0.03
+and 0.09 log-likelihood units, matching the accuracy the pre-fit approach was
+held to. This is an internal search-strategy change; no public interface
+moves, and the same restart budget produces the same class of result.
+
 ## `fit_mixture()` now ranks and stops its restart search on the same objective its M-step maximises
 
 Every M-step in the mixture engine, and the L-BFGS polish that follows it,
