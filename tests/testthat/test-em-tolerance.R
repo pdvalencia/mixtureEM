@@ -139,6 +139,36 @@ test_that("failing to converge within max_iter is reported, not swallowed", {
                 n_init = 1, max_iter = 5000, random_state = 1))
 })
 
+test_that("the polish declines a fit whose class priors come from a regression", {
+  # .is_refinable() deliberately mirrors only the first three of refine_lbfgs()'s
+  # guards, so this one -- a class-membership regression is active, and the
+  # refinement packs a single pooled weight vector that cannot represent one --
+  # had nothing pinning it down. It is the guard that must never be lifted
+  # without the packing changing with it. When it was absent the refinement
+  # maximised a different model from the one being fitted: on a separable
+  # two-group fit it left a 0.26 deficit that vanished without it, and cut the
+  # restarts reaching the best solution from 19 of 21 to 1 of 21.
+  set.seed(909)
+  n   <- 500
+  z   <- rnorm(n)
+  cls <- 1L + rbinom(n, 1, plogis(-0.4 + 1.2 * z))
+  pis <- rbind(c(.15, .15, .85, .85), c(.85, .85, .15, .15))
+  X   <- matrix(rbinom(n * 4, 1, pis[cls, ]), n, 4)
+
+  fit <- suppressMessages(
+    fit_mixture(X, n_classes = 2, measurement = "binary", predictors = cbind(z),
+                n_steps = 1, n_init = 3, random_state = 5, refine = FALSE))
+
+  # Without these two the assertion below could pass vacuously: the guard reads
+  # `!is.null(Y) && .supplies_class_probs(sm)`, so a NULL Y would skip it and
+  # the polish would run.
+  expect_false(is.null(fit$Y))
+  expect_true(.supplies_class_probs(fit$sm))
+
+  # A guard that fires hands back the very object it was given.
+  expect_identical(refine_lbfgs(fit, fit$X, fit$Y), fit)
+})
+
 test_that("polished emissions keep their loose rule and their previous answers", {
   set.seed(4242)
   n <- 800

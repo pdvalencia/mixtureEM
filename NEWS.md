@@ -1,5 +1,35 @@
 # mixtureEM (development version)
 
+## `refine` now documents which models it actually applies to
+
+`fit_mixture(refine = )` defaults to `TRUE` and its help page promised an
+L-BFGS pass after EM convergence, without saying that most models never get
+one. Five separate conditions turn it off: polytomous and count indicators,
+mixed-measurement models, `fit_lcga()` and `fit_gmm()`, continuous indicators
+at `variances_equal = TRUE` -- which is the default for continuous indicators,
+so an ordinary continuous fit was never refined -- any model carrying
+covariates or `group_effects`, and block models holding parameters invariant
+across blocks. In a `group_effects` model the pass still reaches the pooled and
+per-group pre-fits that seed the search, but never the group model itself.
+
+None of those fits was ever left part-way up the likelihood: EM is given a
+tighter stopping rule instead and is the whole estimator for them. The defect
+was a documented default that silently did nothing, and it is fixed by saying
+so. Measured across ten models graded against outside implementations, the pass
+turns out to be worth very little even where it does run, because EM has
+already converged before it starts: on the two such models it moved the
+log-likelihood by zero and by one ten-thousandth. `refine = FALSE` is a safe way
+to save time, and is what `blrt()` already does for its bootstrap replicates.
+
+A regression test now pins the guard that declines a fit whose class
+probabilities come from a covariate regression. That guard is load-bearing --
+the refinement packs a single pooled vector of class weights and has no slot for
+a regression, so lifting it without changing the packing would maximise a
+different model from the one being fitted.
+
+No fitted value changes. This release note and the help page are the whole of
+it.
+
 ## `fit_lta()` can test whether the items mean the same thing to everyone
 
 `predictors_items` lets a covariate act on each indicator directly, inside

@@ -314,6 +314,26 @@ controls: number of random starts (default 20), maximum EM iterations, RNG
 seed, whether to order classes by size, and whether to run L-BFGS
 refinement.
 
+\code{refine} does not apply to every model, and where it does not apply it
+is skipped rather than refused. The pass is written for binary and
+continuous indicators with class-varying variances, in flat and
+repeated-measures models. It is skipped for polytomous and count
+indicators, for mixed-measurement models, for \code{fit_lcga()} and
+\code{fit_gmm()}, for continuous indicators at
+\code{variances_equal = TRUE} (which is the default for continuous
+indicators), for any model carrying covariates or \code{group_effects},
+and for block models holding parameters invariant across blocks. In a
+\code{group_effects} model it still reaches the pooled and per-group
+pre-fits that seed the search, but not the group model itself.
+
+None of those fits is left part-way up the likelihood. EM is given a
+tighter stopping rule instead and is the whole estimator for them. Where
+the pass does run it is worth very little, because EM has already
+converged before it starts: on two models graded against outside
+implementations it moved the log-likelihood by 0 and by 0.0001. Setting
+\code{refine = FALSE} is therefore a safe way to save time, and is what
+\code{blrt()} does for its bootstrap replicates.
+
 A mixture likelihood usually has several local maxima, so a single start is
 a coin toss rather than an estimate; the fit reports how many of the starts
 reached the solution it kept. If that count is 1, refit with

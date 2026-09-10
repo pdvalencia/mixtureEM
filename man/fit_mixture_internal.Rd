@@ -103,8 +103,20 @@ identical cases and set the effective sample size).}
 
 \item{cluster}{Optional vector of cluster identifiers for complex survey designs.}
 
-\item{refine}{Logical. If \code{TRUE} (default), applies L-BFGS refinement
-after EM convergence to optimize the penalized maximum likelihood.}
+\item{refine}{Logical. If \code{TRUE} (default), runs an L-BFGS pass after EM
+convergence to finish climbing the penalized maximum likelihood.
+
+\strong{The pass does not cover every model, and where it does not it is
+skipped rather than refused.} It is written for binary and continuous
+indicators with class-varying variances, in flat and repeated-measures
+models. It is skipped for polytomous and count indicators, for
+mixed-measurement models, for \code{fit_lcga()} and \code{fit_gmm()}, for
+continuous indicators at \code{variances_equal = TRUE}, for any model
+carrying covariates or \code{group_effects}, and for block models holding
+parameters invariant across blocks. Such a fit is not left part-way up:
+EM is given a tighter stopping rule instead and is the whole estimator for
+it. See \code{\link{fit_mixture}} for what that costs, which is measured
+and small.}
 
 \item{bayes_constants}{Optional named list of prior strengths
 (\code{latent}, \code{categorical}, \code{poisson}, \code{variances}), each
