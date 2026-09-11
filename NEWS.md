@@ -1,5 +1,22 @@
 # mixtureEM (development version)
 
+## EM stops two orders of magnitude tighter
+
+The rule that decides when plain EM has converged (every model that is not
+fitted by `fit_lta()`, which has its own convergence logic) was loosened past
+where it should have stopped: checked against five fits this package holds
+outside references for, the old rule landed below every one of them, and the
+tighter rule lands on all five, inside a few ten-thousandths.
+
+Published fits move by a few thousandths of a log-likelihood unit or less --
+the fourth decimal, not the second -- and the direction is *onto* the values
+other implementations report, not away from them. The cost is real: EM now
+runs one-and-a-half times as many iterations on the median model and up to two
+and a half times on the slowest, so a fit or a `blrt()` replicate that used to
+finish quickly now takes longer in proportion. `refine = FALSE` fits and
+`blrt()`'s bootstrap replicates, which never get the optional post-EM polish,
+feel this the most, because for them EM is the whole estimator.
+
 ## `refine` now documents which models it actually applies to
 
 `fit_mixture(refine = )` defaults to `TRUE` and its help page promised an

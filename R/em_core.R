@@ -267,14 +267,18 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 # converged value and a response probability 0.56 off, which is a different
 # class profile, not a rounding difference.
 #
-# The value is chosen from the accuracy/cost curve rather than by taking the
-# tightest rule available. At abs = 1e-4 all four models above land within 0.006
-# of their maximum; tightening to 1e-8 buys the remaining 0.006 for three to
-# four times the iterations. The relative term is kept only as a safety valve so
-# that a very large sample cannot iterate indefinitely; at 1e-8 it does not bind
-# until the log-likelihood is in the tens of thousands, and even there it is
-# four orders of magnitude tighter than the default.
-.em_tol_unpolished <- list(abs = 1e-4, rel = 1e-8)
+# The value above was chosen from the accuracy/cost curve on simulated data,
+# but that curve only bounds how far a fit sits from its own optimum, and
+# "the optimum" is not the same target as an external anchor. Checked against
+# five reference fits this package owns, abs = 1e-4 sat below every one of
+# them; abs = 1e-6 lands on all five, inside 2e-4. Full ladder and settings:
+# RECORDS.md, "R3's W1"; the reasoning that ruled out chasing the gap with a
+# gradient fix instead: DECISIONS.md, "R3 — the polish was never the gap".
+# Median cost across the ten models measured is 1.5x the iterations, worst
+# case 2.6x. The relative term is kept only as a safety valve so that a very
+# large sample cannot iterate indefinitely; it is not implicated in the gap
+# above and stays at 1e-8.
+.em_tol_unpolished <- list(abs = 1e-6, rel = 1e-8)
 
 # The log-prior term every m_step.<family>() and refine_lbfgs() already add to
 # the likelihood -- computed here so fit_single_init()'s convergence check and
