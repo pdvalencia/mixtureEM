@@ -1,5 +1,37 @@
 # mixtureEM (development version)
 
+## A degenerate categorical fit under a random intercept is now detected and flagged
+
+A continuous random intercept's item-response logits (`fit$ri$A` for binary
+indicators, `fit$ri$theta` for ordinal ones) have no bound on them once the
+categorical prior is switched off, and the search could reach a solution with
+a response probability pinned near 0 or 1 -- a spurious optimum that scores
+higher than the true one by construction, not a better answer. This is now
+caught the same way collapsed class variances already are: the fit's `print()`
+and `summary()` carry a warning, `fit$degenerate` records the flagged cells,
+and every consumer that already reads `fit$degenerate` (BIC comparisons,
+`lr_test()`, the replication note) treats it the same as a variance collapse.
+`fit_lta()`'s restart search also no longer lets a flagged candidate win the
+ranking over a clean one purely on likelihood; a clean solution is always
+preferred, and a flagged one is only ever returned when every restart reached
+the boundary.
+
+This does not change any previously reported log-likelihood on a fit that
+was not already at the boundary -- proved by an exact no-op check across five
+model shapes before and after. On the one benchmark this was found on, every
+member of the restart pool that reaches full convergence is itself a boundary
+solution (two different ones, in fact), so the fit returned is unchanged and
+still flagged; restoring the interior optimum on that benchmark needs a
+change to which restarts the search promotes, not to how the winner among
+them is picked, and is not part of this change.
+
+The check applies only to the random-intercept item parameters, not to a
+plain categorical fit's response probabilities, which are a bounded weighted
+average with no equivalent failure mode; measured directly, a real,
+externally-validated fit routinely reaches a class-by-item probability of
+1e-7 as a stable optimum; the correct instrument is the logit scale that
+random-intercept indicators use.
+
 ## EM stops two orders of magnitude tighter
 
 The rule that decides when plain EM has converged (every model that is not
@@ -143,13 +175,28 @@ what moved and what did not.
 `fit_lta(..., random_intercept = "continuous")`'s restart pool used to build
 half its restarts by fitting a random-intercept-free model first and seeding
 the intercept's thresholds from it. It now draws a second, independent random
-start instead, matching the reference programs' own practice of mixing two
-random constructions rather than pre-fitting one model to seed another.
-Measured against the same two external benchmarks the pre-fit version was
-validated against, the new pool reaches both reference optima to within 0.03
-and 0.09 log-likelihood units, matching the accuracy the pre-fit approach was
-held to. This is an internal search-strategy change; no public interface
-moves, and the same restart budget produces the same class of result.
+start instead.
+
+**A fit of this kind can land on a different solution than it did before**, and
+the change matters most if you have switched the default priors off. With the
+priors in place — the default — a fit of the benchmark this package validates
+against lands where it always did, on a solution whose item probabilities are
+all well inside 0 and 1. With `smoothing = 0` and the categorical Bayes
+constant set to zero, so that plain maximum likelihood is what is being
+maximised, the deeper search now finds a higher peak at which two item
+probabilities are pinned at 0 and 1 — a boundary solution, which fits better
+and means less.
+
+That is a property of the likelihood rather than of this change, and it is not
+really a peak: continue the fit and the log-likelihood stops moving in the
+eleventh decimal while those two parameters keep growing until the arithmetic
+runs out of precision. Without a prior there is nothing there to converge to,
+so which values get reported is decided by where the algorithm stops rather
+than by the data. **It is a reason to leave the priors on**, which is what they
+are for, and a reason to read the item probabilities of any unpenalised fit
+before trusting its log-likelihood.
+
+No public interface moves, and no other model family is affected.
 
 ## `fit_mixture()` now ranks and stops its restart search on the same objective its M-step maximises
 

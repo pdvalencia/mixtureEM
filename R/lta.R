@@ -863,6 +863,20 @@ fit_lta <- function(indicators,
   }
 
   best <- NULL
+  best_degenerate <- TRUE
+  # A boundary solution -- a categorical response probability driven towards
+  # 0 or 1 by a continuous random intercept -- can score higher than an
+  # interior optimum once the prior is off, by construction (RECORDS.md,
+  # "R11"). Ranking on score() alone can therefore return a spurious winner.
+  # A non-degenerate candidate always outranks a degenerate one regardless of
+  # score; among candidates with the same status, score still decides. Never
+  # discards a candidate outright -- if every candidate is degenerate the
+  # best-scoring one still wins, flagged via fit$degenerate downstream.
+  beats_current <- function(deg, s) {
+    if (is.null(best)) return(TRUE)
+    if (deg != best_degenerate) return(best_degenerate)
+    s > best_score
+  }
   stage1 <- list()
   # Every restart that ran to convergence, kept so the fit can report how many
   # of them found the reported maximum. On the staged path that is the second
@@ -944,7 +958,10 @@ fit_lta <- function(indicators,
     else {
       s <- score_of(cand)
       final_lls <- c(final_lls, s)
-      if (is.null(best) || s > best_score) { best <- cand; best_score <- s }
+      deg <- !is.null(.categorical_boundary(cand, X_fit))
+      if (beats_current(deg, s)) {
+        best <- cand; best_score <- s; best_degenerate <- deg
+      }
     }
   }
 
@@ -958,7 +975,10 @@ fit_lta <- function(indicators,
     for (cand in survivors) {
       s <- score_of(cand)
       final_lls <- c(final_lls, s)
-      if (is.null(best) || s > best_score) { best <- cand; best_score <- s }
+      deg <- !is.null(.categorical_boundary(cand, X_fit))
+      if (beats_current(deg, s)) {
+        best <- cand; best_score <- s; best_degenerate <- deg
+      }
     }
   }
   if (is.null(best))

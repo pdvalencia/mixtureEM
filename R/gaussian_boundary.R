@@ -102,9 +102,34 @@
 
   nms <- colnames(X) %||% paste0("column ", seq_len(ncol(X)))
   flagged$item <- nms[flagged$col]
+  flagged$kind <- "variance"
 
   flagged[order(flagged$ratio), c("class", "col", "item", "variance",
-                                  "marginal", "ratio", "mean", "pinned")]
+                                  "marginal", "ratio", "mean", "pinned", "kind")]
+}
+
+# Two flagged-cell frames -- one per kind of degeneracy -- into the single
+# frame stored on fit$degenerate. Columns not shared between kinds are padded
+# with NA rather than dropped, so .degeneracy_lines() can still read each
+# kind's own fields after subsetting by `kind`.
+.combine_degenerate <- function(...) {
+  frames <- Filter(Negate(is.null), list(...))
+  if (!length(frames)) return(NULL)
+  all_cols <- Reduce(union, lapply(frames, names))
+  do.call(rbind, lapply(frames, function(d) {
+    for (m in setdiff(all_cols, names(d))) d[[m]] <- NA
+    d[all_cols]
+  }))
+}
+
+# Dispatches each flagged row to its own formatter by `kind`. Mirrors
+# .gaussian_boundary_lines()'s per-kind text; a fit degenerate in both ways at
+# once gets both kinds of line, each capped at max_show independently.
+.degeneracy_lines <- function(flagged, max_show = 5L) {
+  var_rows  <- flagged[flagged$kind == "variance", , drop = FALSE]
+  prob_rows <- flagged[flagged$kind == "probability", , drop = FALSE]
+  c(if (nrow(var_rows))  .gaussian_boundary_lines(var_rows, max_show),
+    if (nrow(prob_rows)) .categorical_boundary_lines(prob_rows, max_show))
 }
 
 # Format the flagged cells for a warning or for print().
@@ -123,8 +148,14 @@
 .print_degenerate_note <- function(x) {
   flagged <- x$degenerate
   if (is.null(flagged) || !nrow(flagged)) return(invisible(NULL))
-  cat("\nWARNING - collapsed class variance:\n")
-  for (line in .gaussian_boundary_lines(flagged)) cat("  ", line, "\n", sep = "")
+  has_var  <- any(flagged$kind == "variance")
+  has_prob <- any(flagged$kind == "probability")
+  header <- if (has_var && has_prob)
+    "WARNING - collapsed class variance and boundary response probability:"
+  else if (has_prob) "WARNING - boundary response probability:"
+  else "WARNING - collapsed class variance:"
+  cat("\n", header, "\n", sep = "")
+  for (line in .degeneracy_lines(flagged)) cat("  ", line, "\n", sep = "")
   cat("  These estimates are not interpretable, and this fit's BIC cannot be\n")
   cat("  compared with a clean one's. See ?fit_mixture for what to do.\n\n")
   invisible(NULL)
@@ -142,13 +173,16 @@
 # Run the check on a fitted model, store the result, and warn.
 #
 # Called from both fitting paths -- fit_mixture_internal() and fit_lta(), which
-# has its own EM driver -- so a continuous indicator is checked wherever it is
-# estimated. Silent for every model with no continuous indicators.
+# has its own EM driver -- so a continuous or categorical indicator is checked
+# wherever it is estimated. Silent for every model with neither.
 .check_gaussian_degeneracy <- function(fit, X, quiet = FALSE) {
   # `sample_weights` on a mixture_model, `weights_vec` on an lta_model.
   w <- fit$sample_weights %||% fit$weights_vec
-  flagged <- tryCatch(.gaussian_boundary(fit$mm, X, weights = w),
-                      error = function(e) NULL)
+  var_flagged  <- tryCatch(.gaussian_boundary(fit$mm, X, weights = w),
+                           error = function(e) NULL)
+  prob_flagged <- tryCatch(.categorical_boundary(fit, X),
+                           error = function(e) NULL)
+  flagged <- .combine_degenerate(var_flagged, prob_flagged)
   fit$degenerate <- flagged
   if (is.null(flagged) || isTRUE(quiet)) return(fit)
 
@@ -159,29 +193,42 @@
   # implementation on five-point scales, one observation per class was the
   # weakest setting that both lifted the flagged variance into the range of the
   # model's genuinely small variances and moved its class mean off the scale
-  # ceiling. See the `bayes_constants` section of ?fit_mixture.
+  # ceiling. See the `bayes_constants` section of ?fit_mixture. The categorical
+  # remedy is the reference programs' own device, named in their manual as
+  # existing "to prevent boundary solutions".
   K <- .degeneracy_n_classes(fit)
-  prior_hint <- if (is.na(K)) "bayes_constants = list(variances = <n_classes>)"
-                else sprintf("bayes_constants = list(variances = %d)", K)
+  has_var  <- any(flagged$kind == "variance")
+  has_prob <- any(flagged$kind == "probability")
+  var_hint  <- if (is.na(K)) "bayes_constants = list(variances = <n_classes>)"
+               else sprintf("bayes_constants = list(variances = %d)", K)
+  prob_hint <- if (is.na(K)) "bayes_constants = list(categorical = <n_classes>)"
+               else sprintf("bayes_constants = list(categorical = %d)", K)
+  remedies <- c(
+    if (has_var)  sprintf("a stronger variance prior, %s", var_hint),
+    if (has_prob) sprintf("a stronger categorical prior, %s", prob_hint))
+  what <- if (has_var && has_prob) "A class variance and a response probability have"
+          else if (has_prob) "A response probability has"
+          else "A class variance has"
 
   # R truncates a condition message at getOption("warning.length"), which
   # defaults to 1000 bytes and which RStudio does not raise -- so a warning
   # written to full length loses its tail in the console most applied users are
   # in, and the tail is where the remedies are. This message is therefore kept
-  # under that limit at the worst case .gaussian_boundary_lines() can produce,
-  # and the reasoning it used to carry lives in ?fit_mixture instead. The
+  # under that limit at the worst case .degeneracy_lines() can produce, and
+  # the reasoning it used to carry lives in ?fit_mixture instead. The
   # asymmetry with .print_degenerate_note() is deliberate: cat() has no limit, so
   # the printed note and the help file are the long form and this is the short
   # one. The flagged cells come first because they are the only content the user
   # cannot get anywhere else, and so must never be what gets cut.
   warning(sprintf(
-    paste0("A class variance has collapsed towards zero: %s. ",
+    paste0("%s collapsed towards the boundary: %s. ",
            "These estimates are not interpretable, and this fit's BIC cannot ",
-           "be compared with a clean fit's. Three ways out, to choose between ",
-           "on substantive grounds: (1) variances_equal = TRUE; (2) fewer ",
-           "classes; or (3) a stronger prior, %s. ",
+           "be compared with a clean fit's. Ways out, to choose between on ",
+           "substantive grounds: (1) variances_equal = TRUE; (2) fewer ",
+           "classes; or (3) %s. ",
            "See ?fit_mixture for why, and what to check afterwards."),
-    paste(.gaussian_boundary_lines(flagged), collapse = "; "), prior_hint),
+    what, paste(.degeneracy_lines(flagged), collapse = "; "),
+    paste(remedies, collapse = ", or ")),
     call. = FALSE)
   fit
 }
