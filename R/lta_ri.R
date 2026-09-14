@@ -334,11 +334,20 @@
     m_j <- .lta_ri_item_marginal(X, w, R, Tn, j)
     pri <- .wglm_prior_rows(D, rep(m_j, K * Q), prior_obs)
 
-    fit_j <- .wglm_fit(rbind(D, pri$D),
-                       y = c(succ_vec / tot_vec, pri$y),
-                       w = c(tot_vec, pri$w),
-                       fam = .wglm_family("binomial"),
-                       start = c(A[, j], L[j, ]))
+    # `ri$gem`: the search stage's generalised-EM M-step, one safeguarded
+    # Newton step from the current iterate (see .wglm_newton_step()).
+    fit_j <- if (isTRUE(ri$gem)) {
+      .wglm_newton_step(rbind(D, pri$D),
+                        y = c(succ_vec / tot_vec, pri$y),
+                        w = c(tot_vec, pri$w),
+                        start = c(A[, j], L[j, ]))
+    } else {
+      .wglm_fit(rbind(D, pri$D),
+                y = c(succ_vec / tot_vec, pri$y),
+                w = c(tot_vec, pri$w),
+                fam = .wglm_family("binomial"),
+                start = c(A[, j], L[j, ]))
+    }
     A[, j] <- fit_j$coefficients[seq_len(K)]
     L[j, ] <- fit_j$coefficients[K + seq_len(M)]
   }
@@ -424,15 +433,20 @@
     # Cycle 1: per-status Newton on thresholds, lambda fixed. matrix() below
     # guards against R silently dropping the Q dimension when Q == 1 (the
     # n_quadrature = 1 test case).
+    # Under `ri$gem` (the search stage's generalised-EM M-step) each cycle
+    # takes one improving step instead of running to its own optimum, the
+    # ordinal counterpart of .wglm_newton_step().
     shift <- as.vector(ri$Dnode %*% lambda_j)
     for (k in seq_len(K))
       theta_j[k, ] <- .ordinal_newton_theta(
-        theta_j[k, ], matrix(n_arr[k, , ], Q, Sj), shift, Sj)
+        theta_j[k, ], matrix(n_arr[k, , ], Q, Sj), shift, Sj,
+        one_step = isTRUE(ri$gem))
     theta[, cols] <- theta_j
 
     # Cycle 2: one Newton step on the loading, thresholds fixed, pooling
     # every status and node.
-    lambda[j, ] <- .ordinal_newton_lambda(lambda_j, theta_j, ri$Dnode, n_arr, Sj)
+    lambda[j, ] <- .ordinal_newton_lambda(lambda_j, theta_j, ri$Dnode, n_arr, Sj,
+                                          one_step = isTRUE(ri$gem))
   }
   ri$theta <- theta
   ri$L     <- lambda
@@ -649,6 +663,75 @@ random_intercept_scores <- function(fit) {
 # -14442.017) and the Dating/Lanza-Collins optimum (-15653.2238 against
 # -15653.194), both within 0.1 -- the same bar the pre-fit version was held
 # to, without running any EM to build a start.
+# The third construction, `options(mixtureEM.lta_ri_search = "wide")`: the
+# restart pool another program draws, read off its own runs rather than its
+# manual (RECORDS.md, "R12", the OPTSEED entry). Odd restarts perturb the
+# item's own sample logit -- staggered a little by status -- by U(-5, 5); even
+# restarts draw every response probability uniformly on (0, 1); every restart
+# starts each loading at 1 + U(-5, 5), so the factor begins as a contrast
+# with mixed signs rather than a general level. Such a start is far wider
+# than either of the two above, and it only works with the generalised-EM
+# M-step (`ri$gem`, see .wglm_newton_step()): solved to convergence, the
+# first M-step from here sends the loadings to 1e12. Measured on the LTA-FAQ
+# continuous-RI benchmark, 100 such starts through the shipped stages with
+# that M-step reach the reference programs' interior optimum 7 times, which
+# is the rate the other program's own unscreened starts show (11 of 187);
+# neither of the two constructions above reaches it at all from a random
+# start (RECORDS.md, "R12", the OPTSEED entry).
+.lta_ri_wide_start <- function(state, X, i) {
+  ri <- state$ri
+  K  <- state$n_statuses
+  R  <- state$n_items
+  Tn <- state$n_times
+  M  <- ncol(ri$Dnode)
+  w  <- state$weights_vec %||% rep(1, nrow(X))
+  data_free <- (i %% 2L) == 0L
+  offset <- if (K > 1L) seq(-0.75, 0.75, length.out = K) else 0
+  if (!is.null(ri$theta) || .lta_is_ordinal_model(state$mm$models[[1]])) {
+    cats <- ri$cats %||% state$mm$models[[1]]$cats
+    if (data_free) {
+      pis1  <- matrix(stats::runif(K * sum(cats)), K, sum(cats))
+      end   <- cumsum(cats)
+      start <- end - cats + 1L
+      for (j in seq_along(cats)) {
+        cols <- start[j]:end[j]
+        pis1[, cols] <- pis1[, cols, drop = FALSE] /
+          rowSums(pis1[, cols, drop = FALSE])
+      }
+      theta <- .ordinal_theta_from_pis(pis1, cats)
+    } else {
+      marg <- do.call(cbind, lapply(seq_along(cats), function(j)
+        matrix(.lta_ri_item_marginal_ordinal(X, w, R, Tn, j, cats[j]),
+               K, cats[j], byrow = TRUE)))
+      theta <- .ordinal_theta_from_pis(marg, cats)
+      # Increment-parameterised: shifting the first threshold moves the whole
+      # ladder and keeps it ordered.
+      for (j in seq_along(cats)) {
+        first <- .ordinal_theta_cols(cats, j)[1]
+        theta[, first] <- theta[, first] + offset + stats::runif(K, -5, 5)
+      }
+    }
+    ri$theta <- theta
+    ri$cats  <- cats
+  } else {
+    if (data_free) {
+      ri$A <- qlogis(matrix(stats::runif(K * R, 0.001, 0.999), K, R))
+    } else {
+      p <- vapply(seq_len(R), function(j) .lta_ri_item_marginal(X, w, R, Tn, j),
+                  numeric(1))
+      p <- pmin(pmax(p, 0.01), 0.99)
+      ri$A <- matrix(qlogis(p), K, R, byrow = TRUE) + offset +
+        matrix(stats::runif(K * R, -5, 5), K, R)
+    }
+  }
+  ri$L <- matrix(1 + stats::runif(R * M, -5, 5), R, M)
+  state$ri <- ri
+  state$mm$models[[1]]$parameters$pis <- .lta_ri_integrated_pis(ri, K, R)
+  for (t in seq_len(Tn))
+    state$mm$models[[t]]$parameters$pis <- state$mm$models[[1]]$parameters$pis
+  state
+}
+
 .lta_ri_random_start2 <- function(state, X) {
   ri <- state$ri
   if (!is.null(ri$theta)) {

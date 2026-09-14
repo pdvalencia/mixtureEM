@@ -749,3 +749,51 @@ test_that("the finite-difference Hessian is finite and negative definite (smoke,
   expect_true(all(is.finite(H)))
   expect_true(all(eigen(-H, symmetric = TRUE, only.values = TRUE)$values > 0))
 })
+
+# ------------------------------------------------------------------------------
+# The wide restart search, options(mixtureEM.lta_ri_search = "wide")
+# ------------------------------------------------------------------------------
+
+test_that("one Newton step of the binomial M-step never lowers the aggregated log-likelihood", {
+  set.seed(4)
+  D <- cbind(diag(3)[rep(1:3, times = 4), ], rep(c(-2, -0.5, 0.5, 2), each = 3))
+  y <- runif(12); w <- runif(12, 1, 20)
+  wll <- function(b) { eta <- as.vector(D %*% b); sum(w * (y * eta - log1p(exp(eta)))) }
+  for (s in 1:5) {
+    start <- rnorm(4, sd = 4)                      # wild, as a wide start is
+    out <- mixtureEM:::.wglm_newton_step(D, y, w, start)
+    expect_true(all(is.finite(out$coefficients)))
+    expect_gte(wll(out$coefficients), wll(start) - 1e-10)
+  }
+  # An empty design keeps its start.
+  out <- mixtureEM:::.wglm_newton_step(D, y, w * 0, c(0, 0, 0, 0))
+  expect_equal(out$coefficients, c(0, 0, 0, 0))
+})
+
+test_that("the wide search runs, hands survivors back to the full M-step and leaves the default path alone", {
+  X <- .lta_refine_sim(n = 120, K = 2, Tn = 3, J = 3, seed = 2)
+  call_fit <- function() suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
+    measurement = "binary", random_intercept = "continuous", n_quadrature = 6,
+    n_init = 4, max_iter = 60, random_state = 5, standard_errors = FALSE,
+    refine = FALSE))
+  old <- options(mixtureEM.lta_ri_search = "current"); on.exit(options(old), add = TRUE)
+  f_cur1 <- call_fit()
+  options(mixtureEM.lta_ri_search = "wide")
+  f_wide <- call_fit()
+  expect_true(is.finite(f_wide$loglik))
+  expect_true(all(is.finite(f_wide$ri$L)))
+  expect_null(f_wide$ri$gem)                  # cleared at promotion
+  expect_equal(f_wide$n_params, f_cur1$n_params)
+  # The option is read at fit time, so the default path is untouched by it.
+  options(mixtureEM.lta_ri_search = "current")
+  f_cur2 <- call_fit()
+  expect_identical(f_cur2$loglik, f_cur1$loglik)
+  # The wide construction itself: every start finite, loadings wide, and the
+  # even/odd schemes distinct.
+  st <- mixtureEM:::.lta_random_start(f_cur1, X)
+  set.seed(1); s_odd  <- mixtureEM:::.lta_ri_wide_start(st, X, 1L)
+  set.seed(1); s_even <- mixtureEM:::.lta_ri_wide_start(st, X, 2L)
+  expect_true(all(is.finite(s_odd$ri$A)) && all(is.finite(s_even$ri$A)))
+  expect_false(isTRUE(all.equal(s_odd$ri$A, s_even$ri$A)))
+  expect_true(max(abs(s_odd$ri$L)) > 0.8)
+})

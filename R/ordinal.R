@@ -299,9 +299,10 @@ n_parameters.ordinal_nan <- n_parameters.ordinal
   -sum(counts * log(pmax(p, 1e-12)))
 }
 
-.ordinal_newton_theta <- function(par0, counts, shift, Sj) {
+.ordinal_newton_theta <- function(par0, counts, shift, Sj, one_step = FALSE) {
   fit <- stats::nlminb(par0, .ordinal_theta_negloglik,
-                       counts = counts, shift = shift, Sj = Sj)
+                       counts = counts, shift = shift, Sj = Sj,
+                       control = if (one_step) list(iter.max = 1L) else list())
   fit$par
 }
 
@@ -325,9 +326,10 @@ n_parameters.ordinal_nan <- n_parameters.ordinal
   total
 }
 
-.ordinal_newton_lambda <- function(lam0, theta_j, Dnode, n_arr, Sj) {
+.ordinal_newton_lambda <- function(lam0, theta_j, Dnode, n_arr, Sj, one_step = FALSE) {
   fit <- stats::nlminb(lam0, .ordinal_lambda_negloglik,
-                       theta_j = theta_j, Dnode = Dnode, n_arr = n_arr, Sj = Sj)
+                       theta_j = theta_j, Dnode = Dnode, n_arr = n_arr, Sj = Sj,
+                       control = if (one_step) list(iter.max = 1L) else list())
   fit$par
 }
 

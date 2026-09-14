@@ -855,8 +855,21 @@ fit_lta <- function(indicators,
   # alongside its `L`; overwriting `Dnode` with the unflipped full grid is
   # still the same model, because a Gauss-Hermite grid is symmetric in both its
   # nodes and its weights, so negating it only permutes the terms of a sum.
+  # `options(mixtureEM.lta_ri_search = "wide")`: the search another program
+  # runs, on the continuous-RI staged path only -- its restart construction,
+  # its one-Newton-step M-step during the ranking stage, and one full-grid
+  # E-step per ranked candidate before promotion. Measured on the LTA-FAQ
+  # benchmark (RECORDS.md, "R12", the OPTSEED entry): the interior-bound
+  # candidates rank 1-3 of 100 on the full grid at 250 iterations and 7-12 on
+  # the five-node ladder, which mis-ranks boundary-bound candidates upward.
+  # Default "current" leaves every fit bit-for-bit as before.
+  ri_wide <- identical(getOption("mixtureEM.lta_ri_search", "current"), "wide") &&
+    staged && is.null(refine_from) && !is.null(state$ri) &&
+    identical(state$ri$kind, "continuous") && .lta_ri_loading_free(state)
   promote <- function(cand) {
-    if (!ri_ladder || inherits(cand, "try-error")) return(cand)
+    if (inherits(cand, "try-error")) return(cand)
+    if (ri_wide) cand$ri$gem <- NULL
+    if (!ri_ladder) return(cand)
     cand$ri$Dnode <- state$ri$Dnode
     cand$ri$mass  <- state$ri$mass
     cand
@@ -929,7 +942,14 @@ fit_lta <- function(indicators,
       # unaffected.
       # The predicate again: the second construction exists to diversify a
       # search over a real loading, and the degenerate factor has none.
-      if (!is.null(s$ri) && identical(s$ri$kind, "continuous") &&
+      if (ri_wide) {
+        # The third construction and the generalised-EM ranking stage
+        # (.lta_ri_wide_start(), .wglm_newton_step()); replaces both halves
+        # of the pool above. `ri$gem` is cleared again when a survivor is
+        # promoted, so the reported fit is converged by the full M-step.
+        s <- .lta_ri_wide_start(s, X_fit, i)
+        s$ri$gem <- TRUE
+      } else if (!is.null(s$ri) && identical(s$ri$kind, "continuous") &&
           .lta_ri_loading_free(s) && i > n_init %/% 2L)
         s <- .lta_ri_random_start2(s, X_fit)
       s
@@ -966,7 +986,16 @@ fit_lta <- function(indicators,
   }
 
   if (staged && length(stage1)) {
-    ord <- order(vapply(stage1, score_of, numeric(1)), decreasing = TRUE)
+    rank_score <- if (ri_wide && ri_ladder) {
+      # One E-step on the full grid per candidate: rank on the objective the
+      # survivors will be converged on rather than the ladder's.
+      function(cand) {
+        full <- try(.lta_em(promote(cand), X_fit, max_iter = 0L, tol = tol,
+                            alpha = alpha), silent = TRUE)
+        if (inherits(full, "try-error")) score_of(cand) else score_of(full)
+      }
+    } else score_of
+    ord <- order(vapply(stage1, rank_score, numeric(1)), decreasing = TRUE)
     survivors <- .par_lapply(utils::head(ord, n_survivors), function(i) {
       cand <- try(.lta_em(promote(stage1[[i]]), X_fit, max_iter = max_iter,
                           tol = tol, alpha = alpha), silent = TRUE)

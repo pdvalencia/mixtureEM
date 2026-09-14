@@ -125,6 +125,46 @@
        converged    = isTRUE(fit$converged))
 }
 
+# One safeguarded Newton step of the weighted binomial GLM from `start`,
+# instead of the full IRLS solve above: the generalised-EM M-step both
+# reference programs run ("Number of M step iterations 1" in every output
+# header of one; the M step "involves finding new theta improving log Lc" in
+# the other's technical guide). Used by the random-intercept search when
+# `state$ri$gem` is set. The difference matters from a wide random start:
+# solving each item's GLM to convergence there drives the loadings to 1e12
+# within three iterations (RECORDS.md, "R12", the OPTSEED entry), while one
+# step follows the damped path the reference programs follow. Step-halving on
+# the aggregated log-likelihood keeps the EM guarantee that the objective
+# never falls.
+.wglm_newton_step <- function(D, y, w, start) {
+  ok <- is.finite(y) & is.finite(w) & w > 0
+  if (!any(ok)) return(list(coefficients = start, dispersion = 1, converged = FALSE))
+  Dk <- D[ok, , drop = FALSE]
+  yk <- y[ok]
+  wk <- w[ok]
+  wll <- function(b) {
+    eta <- as.vector(Dk %*% b)
+    sum(wk * (yk * eta - log1p(exp(eta))))
+  }
+  beta <- start
+  cur  <- wll(beta)
+  mu   <- stats::plogis(as.vector(Dk %*% beta))
+  sc   <- crossprod(Dk, wk * (yk - mu))
+  info <- crossprod(Dk, Dk * (wk * mu * (1 - mu)))
+  step <- tryCatch(solve(info + diag(1e-8, ncol(Dk)), sc), error = function(e) NULL)
+  if (!is.null(step) && all(is.finite(step))) {
+    step <- as.vector(step)
+    for (h in 0:12) {
+      cand <- beta + step
+      new  <- wll(cand)
+      if (is.finite(new) && new >= cur - 1e-10) { beta <- cand; break }
+      step <- step / 2
+    }
+  }
+  names(beta) <- NULL
+  list(coefficients = beta, dispersion = 1, converged = FALSE)
+}
+
 # Pseudo-observations that keep a class from separating.
 #
 # The package's Bernoulli and Poisson emissions each carry a conjugate prior of
