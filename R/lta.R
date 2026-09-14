@@ -94,6 +94,10 @@
 #'   in which case only the last class is a stayer. The restricted rows cost no
 #'   parameters, so the model is nested in the unrestricted mixture and
 #'   [`lr_test()`] tests it.
+#' @param tie_initial_status For a mover-stayer fit, hold the occasion-1
+#'   status distribution equal across the latent classes instead of
+#'   estimating one per class. Drops the initial-status parameter count from
+#'   `(K - 1) * C` to `K - 1`. Default `FALSE`.
 #' @param random_intercept Add a random intercept to the measurement model
 #'   (Muthen & Asparouhov, 2022): a person-level "how likely to endorse items
 #'   in general" trait that regular LTA has no way to represent, and that can
