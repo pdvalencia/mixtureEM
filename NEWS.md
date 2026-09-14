@@ -1,5 +1,31 @@
 # mixtureEM (development version)
 
+## The continuous random-intercept LTA search is faster and reaches better optima
+
+`fit_lta(random_intercept = "continuous")`'s restart search now draws on the
+search another program runs for the same model: a different restart
+construction, a cheaper one-step update while ranking candidates instead of
+solving each one to convergence, and one accurate rescore of every ranked
+candidate before the best few are promoted to the full search. Measured
+against two independent reference implementations across several benchmarks,
+the new search reaches the same optimum the reference programs report, or a
+better one than this package's own previous search found, in a fraction of
+the time -- one benchmark that used to land on a spurious boundary solution
+now reaches the interior optimum both reference programs report, three to
+four times faster than before.
+
+This changes what `fit_lta()` returns for a continuous random intercept:
+where the old search settled for a worse local optimum, the new one usually
+finds a better one, so a log-likelihood, BIC, or set of estimates from a
+continuous-RI fit made under this version can differ from one made under an
+earlier version of this package. Nothing here has been released before this
+version, so there is no previously published number this affects. The old
+search is still available, for reproducing a fit made under it, via
+`options(mixtureEM.lta_ri_search = "narrow")`; the new one is
+`options(mixtureEM.lta_ri_search = "wide")`, now the default. Binary and
+ordinal indicators are both covered. See `?fit_lta`, under
+`random_intercept`.
+
 ## A degenerate categorical fit under a random intercept is now detected and flagged
 
 A continuous random intercept's item-response logits (`fit$ri$A` for binary

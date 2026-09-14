@@ -663,8 +663,10 @@ random_intercept_scores <- function(fit) {
 # -14442.017) and the Dating/Lanza-Collins optimum (-15653.2238 against
 # -15653.194), both within 0.1 -- the same bar the pre-fit version was held
 # to, without running any EM to build a start.
-# The third construction, `options(mixtureEM.lta_ri_search = "wide")`: the
-# restart pool another program draws, read off its own runs rather than its
+# The third construction, `options(mixtureEM.lta_ri_search = "wide")` (the
+# default; `"narrow"` reproduces the search as it was before this
+# construction existed): the restart pool another program draws, read off
+# its own runs rather than its
 # manual (RECORDS.md, "R12", the OPTSEED entry). Odd restarts perturb the
 # item's own sample logit -- staggered a little by status -- by U(-5, 5); even
 # restarts draw every response probability uniformly on (0, 1); every restart

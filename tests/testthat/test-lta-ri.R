@@ -736,6 +736,12 @@ test_that("the finite-difference Hessian is finite and negative definite (smoke,
   # by default for RI fits too) -- a small n = 60 smoke fixture is not the
   # place to require the polished optimum's plain-likelihood Hessian to be
   # cleanly negative definite.
+  # Pinned to "narrow": `staged` triggers on any free-loading continuous RI
+  # regardless of n_init, so the wide construction's deliberately far-out
+  # single start (n_init = 1 here) plus only 25 unrefined iterations need not
+  # land anywhere near a clean interior stationary point -- that is a
+  # property of this tiny, low-iteration fixture, not a search regression.
+  old <- options(mixtureEM.lta_ri_search = "narrow"); on.exit(options(old), add = TRUE)
   X <- .lta_refine_sim(n = 60, K = 2, Tn = 4, J = 3, seed = 1)
   fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
     measurement = "binary", random_intercept = "continuous", n_quadrature = 5,
@@ -770,27 +776,32 @@ test_that("one Newton step of the binomial M-step never lowers the aggregated lo
   expect_equal(out$coefficients, c(0, 0, 0, 0))
 })
 
-test_that("the wide search runs, hands survivors back to the full M-step and leaves the default path alone", {
+test_that("the wide search is the default, runs, hands survivors back to the full M-step, and 'narrow' reproduces the search from before it existed", {
   X <- .lta_refine_sim(n = 120, K = 2, Tn = 3, J = 3, seed = 2)
   call_fit <- function() suppressWarnings(fit_lta(X, n_statuses = 2, times = 3,
     measurement = "binary", random_intercept = "continuous", n_quadrature = 6,
     n_init = 4, max_iter = 60, random_state = 5, standard_errors = FALSE,
     refine = FALSE))
-  old <- options(mixtureEM.lta_ri_search = "current"); on.exit(options(old), add = TRUE)
-  f_cur1 <- call_fit()
+  old <- options(mixtureEM.lta_ri_search = NULL); on.exit(options(old), add = TRUE)
+  f_default <- call_fit()                     # no option set: "wide"
   options(mixtureEM.lta_ri_search = "wide")
   f_wide <- call_fit()
+  expect_identical(f_wide$loglik, f_default$loglik)
   expect_true(is.finite(f_wide$loglik))
   expect_true(all(is.finite(f_wide$ri$L)))
   expect_null(f_wide$ri$gem)                  # cleared at promotion
-  expect_equal(f_wide$n_params, f_cur1$n_params)
-  # The option is read at fit time, so the default path is untouched by it.
-  options(mixtureEM.lta_ri_search = "current")
-  f_cur2 <- call_fit()
-  expect_identical(f_cur2$loglik, f_cur1$loglik)
+  # "narrow" is read at fit time and reproduces the search as it stood
+  # before "wide" existed -- kept selectable, not because any shipped
+  # number depends on it, but because it is what several already-recorded
+  # validation runs (RECORDS.md) were graded under.
+  options(mixtureEM.lta_ri_search = "narrow")
+  f_narrow1 <- call_fit()
+  expect_equal(f_wide$n_params, f_narrow1$n_params)
+  f_narrow2 <- call_fit()
+  expect_identical(f_narrow2$loglik, f_narrow1$loglik)
   # The wide construction itself: every start finite, loadings wide, and the
   # even/odd schemes distinct.
-  st <- mixtureEM:::.lta_random_start(f_cur1, X)
+  st <- mixtureEM:::.lta_random_start(f_narrow1, X)
   set.seed(1); s_odd  <- mixtureEM:::.lta_ri_wide_start(st, X, 1L)
   set.seed(1); s_even <- mixtureEM:::.lta_ri_wide_start(st, X, 2L)
   expect_true(all(is.finite(s_odd$ri$A)) && all(is.finite(s_even$ri$A)))

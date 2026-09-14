@@ -135,6 +135,15 @@ status or the transitions (\code{predictors_initial}/\code{predictors_transition
 and with \code{group} (implemented as covariates on the same two, so this is
 one capability, not two); it still does not support \code{n_classes} > 1.
 
+\code{"continuous"}'s restart search draws on the search another program runs
+for the same model (\code{options(mixtureEM.lta_ri_search = "wide")}, the
+default): its own restart construction, a cheaper one-step M-step while
+ranking candidates, and one full-grid rescore before promoting
+survivors. Measured on several benchmarks external to this package, it
+reaches the same or a better optimum, several times faster, than the
+search this package used before. \code{options(mixtureEM.lta_ri_search = "narrow")} restores the earlier search exactly, for reproducing a fit
+made under it.
+
 \strong{Do not test a random intercept against regular LTA with \code{\link[=lr_test]{lr_test()}}}:
 the continuous variant puts the null (loading = 0) on the boundary of the
 parameter space, and the binary variant adds a latent class variable, so

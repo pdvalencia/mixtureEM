@@ -108,6 +108,16 @@
 #'   and with `group` (implemented as covariates on the same two, so this is
 #'   one capability, not two); it still does not support `n_classes` > 1.
 #'
+#'   `"continuous"`'s restart search draws on the search another program runs
+#'   for the same model (`options(mixtureEM.lta_ri_search = "wide")`, the
+#'   default): its own restart construction, a cheaper one-step M-step while
+#'   ranking candidates, and one full-grid rescore before promoting
+#'   survivors. Measured on several benchmarks external to this package, it
+#'   reaches the same or a better optimum, several times faster, than the
+#'   search this package used before. `options(mixtureEM.lta_ri_search =
+#'   "narrow")` restores the earlier search exactly, for reproducing a fit
+#'   made under it.
+#'
 #'   **Do not test a random intercept against regular LTA with [`lr_test()`]**:
 #'   the continuous variant puts the null (loading = 0) on the boundary of the
 #'   parameter space, and the binary variant adds a latent class variable, so
@@ -855,15 +865,18 @@ fit_lta <- function(indicators,
   # alongside its `L`; overwriting `Dnode` with the unflipped full grid is
   # still the same model, because a Gauss-Hermite grid is symmetric in both its
   # nodes and its weights, so negating it only permutes the terms of a sum.
-  # `options(mixtureEM.lta_ri_search = "wide")`: the search another program
-  # runs, on the continuous-RI staged path only -- its restart construction,
-  # its one-Newton-step M-step during the ranking stage, and one full-grid
-  # E-step per ranked candidate before promotion. Measured on the LTA-FAQ
-  # benchmark (RECORDS.md, "R12", the OPTSEED entry): the interior-bound
-  # candidates rank 1-3 of 100 on the full grid at 250 iterations and 7-12 on
-  # the five-node ladder, which mis-ranks boundary-bound candidates upward.
-  # Default "current" leaves every fit bit-for-bit as before.
-  ri_wide <- identical(getOption("mixtureEM.lta_ri_search", "current"), "wide") &&
+  # `options(mixtureEM.lta_ri_search = "wide")` (the default): the search
+  # another program runs, on the continuous-RI staged path only -- its
+  # restart construction, its one-Newton-step M-step during the ranking
+  # stage, and one full-grid E-step per ranked candidate before promotion.
+  # Measured on the LTA-FAQ benchmark (RECORDS.md, "R12", the OPTSEED entry):
+  # the interior-bound candidates rank 1-3 of 100 on the full grid at 250
+  # iterations and 7-12 on the five-node ladder, which mis-ranks
+  # boundary-bound candidates upward. `"narrow"` leaves every fit bit-for-bit
+  # as it was before this search existed; kept selectable to reproduce a
+  # specific already-recorded validation run, not as a public compatibility
+  # guarantee.
+  ri_wide <- !identical(getOption("mixtureEM.lta_ri_search", "wide"), "narrow") &&
     staged && is.null(refine_from) && !is.null(state$ri) &&
     identical(state$ri$kind, "continuous") && .lta_ri_loading_free(state)
   promote <- function(cand) {
