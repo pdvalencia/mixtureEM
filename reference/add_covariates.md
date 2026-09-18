@@ -100,8 +100,7 @@ N before comparing coefficients with a published set.
 `se = "corrected"` (the default) is the Bakk, Oberski and Vermunt (2014)
 estimator, which propagates the uncertainty in the step-1 estimates as
 well as the step-3 sampling variability. `se = "robust"` reports only
-the latter; use it when reproducing an analysis whose standard errors
-were computed that way.
+the latter; use it when the assigned classes are to be treated as given.
 
 **Why a three-step function at all, when the measurement model could
 just be refit with `predictors` supplied to
@@ -174,8 +173,8 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.760  [    0.000, 18310.293]     0.958
-#>   age                      0.929  [    0.280,     3.077]     0.904
+#>   Intercept                0.761  [    0.000, 18492.922]     0.958
+#>   age                      0.929  [    0.280,     3.078]     0.904
 #> =========================================================
 
 # The same covariate named in a formula against its data frame

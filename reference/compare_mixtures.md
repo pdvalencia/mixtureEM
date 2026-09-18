@@ -15,7 +15,7 @@ compare_mixtures(
   n_init = 10,
   n_steps = 1,
   vlmr = c("none", "standard", "robust", "both"),
-  n_cores = 1L,
+  n_cores = .default_n_cores(),
   ...
 )
 ```
@@ -58,7 +58,9 @@ compare_mixtures(
 - n_cores:
 
   Positive integer. Number of processes to spread the random starts
-  over, within each K. Default `1` (sequential).
+  over, within each K. Default `1` (sequential), or the value of
+  `options(mixtureEM.n_cores = )` where that has been set; an argument
+  given here overrides the option.
 
 - ...:
 
@@ -71,10 +73,15 @@ An object of class `mixture_comparison`: a named list with three
 elements, which can be indexed exactly as a plain list.
 
 - `fit_table` Data frame with one row per K and columns `Classes`, `LL`,
-  `Params`, `AIC`, `BIC`, `SABIC`, `Entropy` and `Unreplicated`. With
-  `vlmr` set it also carries `VLMR_LR` and one p-value column per
-  requested form (`VLMR_p`, `VLMR_p_robust`); each row tests its own K
-  against the next one in the table, so the last row is `NA`.
+  `Params`, `AIC`, `BIC`, `CAIC`, `AIC3`, `ICL`, `SABIC`, `Entropy` and
+  `Unreplicated`. `CAIC` and `AIC3` apply a heavier parameter penalty
+  than `BIC`; `ICL` is `BIC` penalised further by classification entropy
+  (Baudry). The `-> Best model` line and `best_k` below are always
+  chosen by `BIC` alone; the other indices are printed for comparison,
+  not used to pick a model. With `vlmr` set it also carries `VLMR_LR`
+  and one p-value column per requested form (`VLMR_p`, `VLMR_p_robust`);
+  each row tests its own K against the next one in the table, so the
+  last row is `NA`.
 
 - `models` Named list of fitted `mixture_model` objects, one per K
   (names are `"K1"`, `"K2"`, etc.).
@@ -124,14 +131,15 @@ implementations yield uniformly distributed p-values under the correct
 null hypothesis, indicating this test is not the best model selection
 tool in mixture modeling".
 
-The two implementations differ only in which covariance matrix of the
-parameters enters the reference distribution: one program uses the
-ordinary one, another the robust (sandwich) one (Vermunt, 2024). The
-difference is not cosmetic: on the same data the two can return p = .00
-and p = .15. The robust version's reference distribution is much more
-sensitive to the particular sample, especially when the classes are
-poorly separated. Neither version's p-values are uniform under the null,
-so treat a VLMR result as one input among several and prefer
+The two versions of the test differ only in which covariance matrix of
+the parameters enters the reference distribution: the ordinary one
+(`vlmr = "standard"`) or the robust sandwich (`vlmr = "robust"`;
+Vermunt, 2024). The difference is not cosmetic: on the same data the two
+can return p = .00 and p = .15. The robust version's reference
+distribution is much more sensitive to the particular sample, especially
+when the classes are poorly separated. Neither version's p-values are
+uniform under the null, so treat a VLMR result as one input among
+several and prefer
 [`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)
 where it is affordable.
 
@@ -219,19 +227,29 @@ result <- compare_mixtures(X, k_range = 1:4, measurement = "binary",
 #> Fitting 4-class model...
 #> 
 #> === Model Selection Summary ===
-#>   Classes       LL Params     AIC     BIC   SABIC Entropy Unreplicated
-#> 1       1 -342.102      5 694.203 707.229 691.438   1.000        FALSE
-#> 2       2 -340.085     11 702.169 730.826 696.085   0.303        FALSE
-#> 3       3 -337.020     17 708.040 752.328 698.637   0.458        FALSE
-#> 4       4 -334.543     23 715.086 775.005 702.365   0.590        FALSE
+#>   Classes       LL Params     AIC     BIC    CAIC    AIC3     ICL   SABIC
+#> 1       1 -342.102      5 694.203 707.229 712.229 699.203 707.229 691.438
+#> 2       2 -340.085     11 702.170 730.827 741.827 713.170 827.464 696.086
+#> 3       3 -337.019     17 708.039 752.327 769.327 725.039 871.466 698.636
+#> 4       4 -334.543     23 715.086 775.005 798.005 738.086 888.720 702.365
+#>   Entropy Unreplicated
+#> 1   1.000        FALSE
+#> 2   0.303        FALSE
+#> 3   0.458        FALSE
+#> 4   0.590        FALSE
 #> 
 #> -> Best model according to BIC: 1 classes
 result$fit_table
-#>   Classes        LL Params      AIC      BIC    SABIC   Entropy Unreplicated
-#> 1       1 -342.1016      5 694.2032 707.2290 691.4378 1.0000000        FALSE
-#> 2       2 -340.0846     11 702.1692 730.8261 696.0854 0.3033780        FALSE
-#> 3       3 -337.0199     17 708.0398 752.3277 698.6374 0.4575710        FALSE
-#> 4       4 -334.5428     23 715.0857 775.0046 702.3648 0.5898679        FALSE
+#>   Classes        LL Params      AIC      BIC     CAIC     AIC3      ICL
+#> 1       1 -342.1016      5 694.2032 707.2290 712.2290 699.2032 707.2290
+#> 2       2 -340.0851     11 702.1702 730.8271 741.8271 713.1702 827.4638
+#> 3       3 -337.0194     17 708.0389 752.3268 769.3268 725.0389 871.4656
+#> 4       4 -334.5429     23 715.0857 775.0046 798.0046 738.0857 888.7195
+#>      SABIC   Entropy Unreplicated
+#> 1 691.4378 1.0000000        FALSE
+#> 2 696.0863 0.3029134        FALSE
+#> 3 698.6365 0.4577758        FALSE
+#> 4 702.3649 0.5898603        FALSE
 result$best_k
 #> [1] 1
 ```

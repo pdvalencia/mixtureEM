@@ -19,7 +19,7 @@ Three things are estimated:
   the chance of moving from each status to each other status, as a
   square table read from row (earlier occasion) to column (later
   occasion). There is one table per pair of adjacent occasions unless
-  `transition_invariance = "full"`;
+  `transition_invariance` restricts them;
 
 - item parameters:
 
@@ -48,10 +48,14 @@ fit_lta(
   measurement = "binary",
   measurement_invariance = c("full", "none", "partial"),
   invariant_items = NULL,
-  transition_invariance = c("none", "full"),
+  transition_invariance = c("none", "full", "slopes"),
   forbidden_transitions = NULL,
   n_classes = 1,
   mover_stayer = FALSE,
+  tie_initial_status = FALSE,
+  random_intercept = c("none", "continuous", "binary"),
+  n_quadrature = 15,
+  n_ri = 2,
   layout = c("time_major", "item_major"),
   id = NULL,
   time = NULL,
@@ -63,8 +67,10 @@ fit_lta(
   strata = NULL,
   cluster = NULL,
   n_init = 20,
+  refine = TRUE,
+  refine_from = NULL,
   max_iter = 1000,
-  n_cores = 1L,
+  n_cores = .default_n_cores(),
   tol = 1e-08,
   smoothing = 1,
   random_state = NULL,
@@ -72,6 +78,8 @@ fit_lta(
   standard_errors = TRUE,
   predictors_initial = NULL,
   predictors_transition = NULL,
+  predictors_items = NULL,
+  predictors_random_intercept = NULL,
   transition_effects = c("common", "by_origin"),
   group = NULL,
   group_effects = c("both", "initial", "transitions", "none"),
@@ -100,7 +108,11 @@ fit_lta(
 - measurement:
 
   Measurement model for one occasion's items: `"binary"`,
-  `"categorical"`, `"continuous"`, or a named list for a mixed block.
+  `"categorical"`, `"ordinal"`, `"continuous"`, or a named list for a
+  mixed block. `"ordinal"` fits one cumulative-logit block per item,
+  with its own number of ordered categories inferred per item (so a
+  3/3/2-category block needs no mixed specification); without a random
+  intercept it is numerically identical to `"categorical"`.
 
 - measurement_invariance:
 
@@ -123,6 +135,19 @@ fit_lta(
   rather than an assumption, and the two models are nested, so
   [`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
   tests it (Collins & Lanza, sec. 7.14).
+
+  `"slopes"` sits between the two and applies only when something
+  predicts the transitions. It shares the covariate slopes across
+  occasions while giving each occasion its own intercepts, so the effect
+  of a covariate on moving between statuses is held constant over time
+  but the underlying rate of movement is not. It costs
+  `(n_statuses - 1) * (occasions - 2)` parameters more than `"full"` and
+  is nested inside `"none"`, so
+  [`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+  tests both restrictions. It requires `predictors_transition` (or a
+  `group` acting on the transitions) and
+  `transition_effects = "common"`, and with only two occasions it is
+  identical to `"full"`.
 
 - forbidden_transitions:
 
@@ -160,6 +185,105 @@ fit_lta(
   [`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
   tests it.
 
+- tie_initial_status:
+
+  For a mover-stayer fit, hold the occasion-1 status distribution equal
+  across the latent classes instead of estimating one per class. Drops
+  the initial-status parameter count from `(K - 1) * C` to `K - 1`.
+  Default `FALSE`.
+
+- random_intercept:
+
+  Add a random intercept to the measurement model (Muthen & Asparouhov,
+  2022): a person-level "how likely to endorse items in general" trait
+  that regular LTA has no way to represent, and that can otherwise be
+  mistaken for status separation and for stability over time. `"none"`
+  (the default) fits ordinary LTA. `"continuous"` integrates over a
+  normally-distributed factor by Gauss-Hermite quadrature
+  (`n_quadrature` nodes); `"binary"` instead estimates a small number of
+  discrete intercept classes (`n_ri` of them, 2 by default, the model's
+  own case). Both require `measurement_invariance = "full"` and binary
+  indicators. A random intercept combines with `mover_stayer`, with
+  covariates on the initial status or the transitions
+  (`predictors_initial`/`predictors_transition`), and with `group`
+  (implemented as covariates on the same two, so this is one capability,
+  not two); it still does not support `n_classes` \> 1.
+
+  `"continuous"`'s restart search
+  (`options(mixtureEM.lta_ri_search = "wide")`, the default) draws wide
+  random starts – perturbed item logits and loadings of either sign –
+  ranks them with a one-step generalised-EM M-step, and rescores every
+  ranked candidate on the full quadrature grid before promoting
+  survivors to the full search. On several published benchmark data sets
+  it reaches the same or a better optimum, several times faster, than
+  the search this package used before, and it escapes the
+  inflated-loading local maximum that search could settle in.
+  `options(mixtureEM.lta_ri_search = "narrow")` restores the earlier
+  search exactly, for reproducing a fit made under it.
+
+  **Do not test a random intercept against regular LTA with
+  [`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)**:
+  the continuous variant puts the null (loading = 0) on the boundary of
+  the parameter space, and the binary variant adds a latent class
+  variable, so the usual chi-squared reference distribution does not
+  apply either way. Compare the two by BIC instead.
+
+  Whether a random intercept is worth adding is a sample-size question
+  more than a modelling one. Tseng (2024), for the continuous-indicator
+  analogue (RI-LPTA), puts the requirement at upwards of 2,000 cases for
+  80% power and 90% coverage at a between-profile separation of d =
+  0.75, with more items, occasions or separation lowering that bar; the
+  asymmetry that makes trying it worthwhile anyway is that omitting a
+  random intercept when one belongs costs a lot (inflated apparent
+  separation and stability), while including one when it does not belong
+  costs almost nothing (a handful of parameters, and BIC will say so, as
+  it does on this package's own benchmark replication of the article's
+  example).
+
+  Not built in this release: continuous indicators, a random *slope*,
+  correlated residuals across time, or lag-2 dependence - the last of
+  which the article itself reports as significant in both of its worked
+  examples, so it is a real simplification and not a hypothetical one.
+  Standard errors and the post-EM L-BFGS refinement are available for
+  both binary and ordinal indicators. A random intercept crossed with
+  several latent classes or `mover_stayer` is supported for both
+  measurement families.
+
+  `predictors_random_intercept` regresses the factor on covariates. The
+  item probabilities the fit reports are integrated over the factor at a
+  zero random-intercept mean - the residual grid - not at each case's
+  own predicted mean; the per-case means are in
+  `random_intercept_scores()$predicted_mean`.
+
+- n_quadrature:
+
+  Number of Gauss-Hermite nodes for `random_intercept = "continuous"`.
+  The default of 15 is a starting point to check, not a settled answer,
+  the same way `n_init`'s default is a floor: raise it (15-30 nodes is
+  the usual working range, more when the loadings are large) and confirm
+  the log-likelihood moves by less than 0.01. Make that check over a
+  wide range of node counts rather than one step up. When a fit's
+  thresholds are extreme, the item response is almost a step function of
+  the factor, and the log-likelihood is then not even monotone in the
+  number of nodes: two nearby small settings can differ by several
+  log-likelihood units while both sit far from the converged value. One
+  ordinal five-status fit used in this package's own validation reads
+  -16047.3 at 15 nodes and -16040.5 at 20, but settles at -16041.18 only
+  from roughly 80 nodes upward. `n_quadrature = 1` is a valid,
+  deliberate special case - a single node at 0 with mass 1 - under which
+  the model reduces exactly to regular LTA; it is not a model worth
+  fitting on its own, but is how the package's own test suite proves the
+  node machinery is wired correctly. The node count matters more once
+  `predictors_random_intercept` is used: the person-specific reweighting
+  is exact only up to whatever quadrature error the fixed grid already
+  has.
+
+- n_ri:
+
+  Number of discrete intercept classes for
+  `random_intercept = "binary"`. The default of 2 is Muthen &
+  Asparouhov's own case.
+
 - layout, id, time, items, item_names, time_labels:
 
   Data-shape arguments, passed through as in
@@ -194,6 +318,31 @@ fit_lta(
   specification rather than at the search. See
   [`vignette("estimation")`](https://pdvalencia.github.io/mixtureEM/articles/estimation.md).
 
+- refine:
+
+  Logical. If `TRUE` (default), each start that runs to convergence is
+  followed by an L-BFGS climb on the same penalised objective the EM
+  steps maximise, and the starts are then ranked on the refined
+  log-likelihoods. EM converges to a fixed point of its own surrogate,
+  which on a near-flat likelihood ridge can sit measurably short of the
+  maximum; the climb steps past it, and never returns a fit worse than
+  the one it was given. This is the same refinement
+  [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+  has always applied. It is a no-op - silently, and the fit is
+  unchanged - for models whose free parameters it cannot differentiate:
+  covariate models and measurement families other than binary and
+  continuous. Mixtures over chains (`n_classes` \> 1) are refined like
+  any other supported model.
+
+- refine_from:
+
+  A model fitted by `fit_lta()` on the same data and with the same
+  shape, whose solution this fit continues from. No random starts are
+  run and `n_init` is ignored, because the search that produced the
+  donor already ran and this only carries its winner further - typically
+  to a tighter `tol` or a larger `max_iter`. Passing `n_init` alongside
+  is an error rather than a silent override.
+
 - max_iter, tol:
 
   EM iteration limit and relative convergence tolerance. A mixture over
@@ -216,15 +365,17 @@ fit_lta(
   package and `n_init` is high by necessity, so this is where the
   argument earns the most. Starting values are drawn in this session
   before any fitting begins, so the fit is identical at every `n_cores`.
+  `options(mixtureEM.n_cores = )` sets the default for a whole session;
+  an argument given here overrides it.
 
 - smoothing:
 
-  How much smoothing to apply to the status prevalences and to each row
-  of the transition matrices, expressed as a number of pseudo-cases
-  spread evenly over the possible destinations. Sparse transition tables
-  otherwise collapse onto probabilities of exactly zero, which are
-  awkward to interpret and to test. The default of `1` is negligible at
-  any realistic sample size; set it to `0` for unsmoothed maximum
+  How much smoothing to apply to the status prevalences and to the
+  transition matrices, expressed as a number of pseudo-cases spread
+  evenly over each conditional table. Sparse transition tables otherwise
+  collapse onto probabilities of exactly zero, which are awkward to
+  interpret and to test. The default of `1` is negligible at any
+  realistic sample size; set it to `0` for unsmoothed maximum
   likelihood. It governs the status prevalences, the transition matrices
   and - with `n_classes` \> 1 - the class weights, and it does **not**
   govern the measurement model, whose prior is `bayes_constants`.
@@ -236,24 +387,25 @@ fit_lta(
   `smoothing` has no effect on it. The initial status prevalences behave
   the same way under `predictors_initial`.
 
-  The mass is one pseudo-case per *origin row*, which is the prior
-  Chung, Lanza and Loken (2008) use for this model, and it is spread
-  evenly rather than in proportion to how often each destination is
-  occupied: a rare origin row shrunk toward the destination marginal
-  would be asserting that everyone moves to the prevalent status, which
-  is a confident claim to make about a row the sample says little about,
-  whereas an even spread is uninformative.
+  The mass is one pseudo-case per *conditional table*, so with `K`
+  statuses an origin row of a transition matrix carries a `K`th of it.
+  It is spread evenly rather than in proportion to how often each
+  destination is occupied: a rare origin row shrunk toward the
+  destination marginal would be asserting that everyone moves to the
+  prevalent status, which is a confident claim to make about a row the
+  sample says little about, whereas an even spread is uninformative.
 
   The cost falls on exactly those rows. On a row with few expected cases
-  the prior carries a visible share of the estimate - at most \\\[\alpha
-  / (m + \alpha)\](1 - 1/K_a)\\ of it, for a row with \\m\\ expected
-  cases and \\K_a\\ reachable destinations - and the fit says so when
-  that share exceeds five percentage points, naming the worst row. The
-  remedy worth reaching for first is `transition_invariance = "full"`,
-  which puts every occasion's cases behind one pseudo-case;
-  `smoothing = 0.5` simply halves the pull. `smoothing = 0` is not a
-  good answer, since it removes the protection against transition
-  probabilities of exactly zero that the prior is there to give.
+  the prior carries a visible share of the estimate - at most \\\[a /
+  (m + a)\](1 - 1/K_a)\\ of it, where \\a\\ is that row's share of the
+  mass, \\m\\ the cases expected in it and \\K_a\\ the reachable
+  destinations - and the fit says so when that share exceeds five
+  percentage points, naming the worst row. The remedy worth reaching for
+  first is `transition_invariance = "full"`, which puts every occasion's
+  cases behind one pseudo-case; `smoothing = 0.5` simply halves the
+  pull. `smoothing = 0` is not a good answer, since it removes the
+  protection against transition probabilities of exactly zero that the
+  prior is there to give.
 
 - random_state:
 
@@ -269,7 +421,18 @@ fit_lta(
 
 - standard_errors:
 
-  Compute standard errors for \\\delta\\ and \\\tau\\.
+  Compute standard errors for \\\delta\\ and \\\tau\\. `TRUE` (the
+  default) uses the outer product of the case-level scores; `FALSE`
+  skips them; `"robust"` returns the sandwich estimator, with the
+  observed information as its bread. `"robust"` costs a
+  finite-difference Hessian – \\2p(p + 1)\\ likelihood evaluations – and
+  so takes minutes rather than seconds on a model of any size. It is
+  supported for random-intercept fits. Where the model still cannot be
+  packed on an unconstrained scale (covariates, or a measurement family
+  whose parameters are not all free) `"robust"` falls back silently to
+  the default estimator, and
+  [`summary()`](https://rdrr.io/r/base/summary.html) then does not
+  report robust errors.
 
 - predictors_initial:
 
@@ -280,6 +443,34 @@ fit_lta(
 
   Optional covariates predicting the transitions between statuses (sec.
   8.10.2).
+
+- predictors_items:
+
+  Optional covariates entering each indicator directly, inside each
+  latent status - a test of measurement invariance with respect to those
+  covariates. One proportional-odds slope per latent status per item per
+  covariate, shared across occasions, so the cost is
+  `n_statuses * n_items * ncol(predictors_items)` parameters. **This is
+  not `group`**: `group` gives every group its own status prevalences
+  and transition matrices while the measurement model stays invariant
+  across groups, which is the assumption this argument exists to relax.
+  Requires `measurement = "ordinal"` and
+  `measurement_invariance = "full"`. Restricted to covariates taking few
+  distinct values - see `options(mixtureEM.dif_max_patterns = )`. The
+  item probabilities the fit reports are those of a case with every one
+  of these covariates at zero.
+
+- predictors_random_intercept:
+
+  Optional covariates predicting the continuous random intercept itself
+  (the article's own Step 5). The factor's residual variance is fixed at
+  1 and its residual mean at 0, so no intercept is estimated and a
+  constant column is refused: the coefficients are the regression of the
+  stable trait on the covariates, and each costs one parameter. Requires
+  `random_intercept = "continuous"`. The factor's orientation is
+  arbitrary - the fit pins it by making the largest loading positive -
+  so the sign of every coefficient is meaningful only relative to the
+  loadings.
 
 - transition_effects:
 
@@ -343,6 +534,21 @@ and
 take a `class` argument to reach them. Standard errors are not available
 for a mixture over chains and `se` is `NULL`.
 
+`metrics$entropy` (the headline number, printed by
+[`print()`](https://rdrr.io/r/base/print.html)) is the relative entropy
+of the joint latent-status path across all occasions at once: one
+classification per case over the `K^T` possible paths, normalised by
+`n * T * log(K)`. The per-occasion alternative – the relative entropy of
+each occasion's status posterior on its own, normalised by `log(K)` – is
+`metrics$entropy_by_occasion` (printed by
+[`summary()`](https://rdrr.io/r/base/summary.html)). A per-occasion
+entropy can also be normalised by the entropy of that occasion's
+estimated status proportions instead of by `log(K)`; the two are related
+by `1 - (1 - r2) * log(K) / H(pi_hat)`, where `r2` is the package's
+value, `K` is `n_statuses`, and `H(pi_hat)` is the entropy of that
+occasion's estimated status proportions (from
+[`status_prevalences()`](https://pdvalencia.github.io/mixtureEM/reference/status_prevalences.md)).
+
 ## References
 
 Collins, L. M., & Lanza, S. T. (2010). *Latent Class and Latent
@@ -362,6 +568,15 @@ Fienberg, S. E., & Holland, P. W. (1973). Simultaneous estimation of
 multinomial cell probabilities. *Journal of the American Statistical
 Association*, *68*(343), 683-691.
 [doi:10.1080/01621459.1973.10481405](https://doi.org/10.1080/01621459.1973.10481405)
+
+Muthen, B., & Asparouhov, T. (2022). Latent transition analysis with
+random intercepts (RI-LTA). *Psychological Methods*, *27*(1), 1-16.
+[doi:10.1037/met0000370](https://doi.org/10.1037/met0000370)
+
+Tseng, M.-C. (2024). Latent profile transition analysis with random
+intercepts (RI-LPTA). *Structural Equation Modeling*, *31*(4), 626-634.
+[doi:10.1080/10705511.2023.2284671](https://doi.org/10.1080/10705511.2023.2284671) -
+the sample-size analysis behind the guidance above.
 
 ## See also
 

@@ -25,7 +25,7 @@ else indexed by class; the constraint is stated in the printed heading."></head>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -41,6 +41,7 @@ else indexed by class; the constraint is stated in the printed heading."></head>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -107,10 +108,9 @@ else indexed by class; the constraint is stated in the printed heading.</p>
 <dd><p>For categorical indicators, what scale the item parameters are
 reported on. <code>"probability"</code> (the default) is unchanged from before
 this argument existed. <code>"logit"</code> reports <code><a href="https://rdrr.io/r/stats/Logistic.html" class="external-link">qlogis()</a></code> of the same
-table. <code>"effect"</code> reports the effect-coded parameterisation several
-other programs use by default – an item intercept plus one deviation per
-class, the deviations summing to zero – which is what lets a mixtureEM
-measurement model be placed beside such a program's printed output;
+table. <code>"effect"</code> reports the effect-coded parameterisation of the
+same table – an item intercept plus one deviation per class, the
+deviations summing to zero – for readers who think in log-linear terms;
 binary indicators only, since a polytomous item's effect coding is a
 modelling choice (ordinal with fixed scores, giving one class effect per
 class, versus nominal, giving one per category) that the package does
@@ -158,7 +158,7 @@ name.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> CATEGORICAL PROBABILITIES</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Indicator            | Class 1 | Class 2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> ---------------------------------------- </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Item_1               |   0.253 |   0.800</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Item_1               |   0.253 |   0.799</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Item_2               |   0.574 |   0.492</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Item_3               |   0.270 |   0.534</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Item_4               |   0.495 |   0.339</span>
@@ -174,7 +174,7 @@ name.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> CATEGORICAL PROBABILITIES</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Indicator            | Class 1 | Class 2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> ---------------------------------------- </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Item_1               |   0.253 |   0.800</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Item_1               |   0.253 |   0.799</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Item_2               |   0.574 |   0.492</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Item_3               |   0.270 |   0.534</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Item_4               |   0.495 |   0.339</span>

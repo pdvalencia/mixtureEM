@@ -25,6 +25,7 @@ fit_mixture(
   group_invariant_params = NULL,
   group_prevalence_equal = NULL,
   start_from = NULL,
+  refine_from = NULL,
   variances_equal = NULL,
   n_steps = 1,
   correction = "none",
@@ -40,7 +41,7 @@ fit_mixture(
   refine = TRUE,
   bayes_constants = NULL,
   se = c("corrected", "robust", "hessian"),
-  n_cores = 1L,
+  n_cores = .default_n_cores(),
   X = NULL,
   Y = NULL,
   n_components = NULL,
@@ -303,16 +304,28 @@ fit_mixture(
   fits with
   [`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md).
 
+- refine_from:
+
+  A fitted model of the same shape whose solution this fit continues
+  from. One EM run is seeded from that model's own converged parameters
+  and carried on under this call's `max_iter`; no random restarts are
+  run, because the search that produced the donor already ran and this
+  only continues its winner. `n_init` is not accepted at the same time.
+
+  It is not `start_from`, and the two cannot be combined. `start_from`
+  *replaces* a search that has not happened, which is safe only under
+  the relabelling argument set out there; `refine_from` sits downstream
+  of a search that has, so it skips nothing.
+
 - variances_equal:
 
   Logical, for continuous indicators only: hold each item's variance
   equal across the classes, so the classes differ in location only. This
-  is the homoscedastic latent profile model and the default
-  parameterisation of several commercial programs, and it combines with
-  `group_invariant_params` to give a variance that is free across groups
-  but shared by the classes within each. Passed through to the
-  measurement model, so it is also available on an ordinary single-group
-  fit.
+  is the homoscedastic latent profile model, the conventional LPA
+  parameterisation, and it combines with `group_invariant_params` to
+  give a variance that is free across groups but shared by the classes
+  within each. Passed through to the measurement model, so it is also
+  available on an ordinary single-group fit.
 
   **This is the default when `measurement` is continuous**, and
   `variances_equal = FALSE` recovers the class-varying parameterisation
@@ -362,6 +375,31 @@ fit_mixture(
   Estimation controls: number of random starts (default 20), maximum EM
   iterations, RNG seed, whether to order classes by size, and whether to
   run L-BFGS refinement.
+
+  `refine` does not apply to every model, and where it does not apply it
+  is skipped rather than refused. The pass is written for binary and
+  continuous indicators with class-varying variances, in flat and
+  repeated-measures models. It is skipped for polytomous and count
+  indicators, for mixed-measurement models, for
+  [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
+  and
+  [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md),
+  for continuous indicators at `variances_equal = TRUE` (which is the
+  default for continuous indicators), for any model carrying covariates
+  or `group_effects`, and for block models holding parameters invariant
+  across blocks. In a `group_effects` model it still reaches the pooled
+  and per-group pre-fits that seed the search, but not the group model
+  itself.
+
+  None of those fits is left part-way up the likelihood. EM is given a
+  tighter stopping rule instead and is the whole estimator for them.
+  Where the pass does run it is worth very little, because EM has
+  already converged before it starts: on two models graded against
+  outside implementations it moved the log-likelihood by 0 and by
+  0.0001. Setting `refine = FALSE` is therefore a safe way to save time,
+  and is what
+  [`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)
+  does for its bootstrap replicates.
 
   A mixture likelihood usually has several local maxima, so a single
   start is a coin toss rather than an estimate; the fit reports how many
@@ -447,13 +485,13 @@ fit_mixture(
   data-scaled penalty over a constant one (Chen, Tan, & Zhang, 2008,
   sec. 4).
 
-  Two uses. **Reproducing an unregularized fit:** setting a constant to
-  `0` removes that prior and gives plain maximum likelihood for that
-  block. This is an escape hatch for matching a reference analysis, not
-  a recommended setting — the unpenalised mixture likelihood for a
-  mixture of normals is unbounded, so a *global* maximum likelihood
-  estimate does not exist (Day, 1969; Kiefer & Wolfowitz, 1956) and what
-  an unregularized program reports is a local maximum.
+  Two uses. **An unregularized fit:** setting a constant to `0` removes
+  that prior and gives plain maximum likelihood for that block. This is
+  an escape hatch, not a recommended setting — the unpenalised mixture
+  likelihood for a mixture of normals is unbounded, so a *global*
+  maximum likelihood estimate does not exist (Day, 1969; Kiefer &
+  Wolfowitz, 1956) and what an unregularized fit reports is a local
+  maximum.
 
   **Rescuing a collapsed fit:** this situation is now rare, because a
   continuous measurement model holds the variances equal across classes
@@ -496,6 +534,19 @@ fit_mixture(
   default is deliberately weak and the guidance above is a rule with a
   check rather than a magic value.
 
+  Because every M-step, the L-BFGS polish that follows it, and the
+  restart search itself all maximise this penalised objective, the model
+  `fit_mixture()` returns sits at the posterior mode, not the likelihood
+  maximum, and `$loglik` together with every information criterion built
+  on it is the plain log-likelihood evaluated *at that point* — not at
+  the point that maximises the plain log-likelihood. The gap between the
+  two grows with the strength of these constants: at
+  `variances = n_classes` for a collapsed fit, it is on the order of ten
+  log-likelihood units. This is not a defect to correct by lowering the
+  constants — it is a property of penalised estimation worth keeping in
+  mind when comparing `$loglik` across two fits with different
+  `bayes_constants`.
+
   This is not a tuning menu. The defaults are the intended settings.
 
 - se:
@@ -524,6 +575,15 @@ fit_mixture(
   receive a copy of the data, which costs a second or two and some
   memory. For a fit that already takes under a few seconds, leave this
   at `1`.
+
+  `options(mixtureEM.n_cores = 4)` sets it for a whole session, which is
+  usually what a long analysis wants: a value passed to one call is
+  forgotten by the next, and the slowest operations in the package –
+  [`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md),
+  [`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md),
+  [`bivariate_residuals()`](https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.md)
+  – are the ones it is easiest to forget. An argument given here
+  overrides the option.
 
 - X, Y, n_components, structural:
 
@@ -565,9 +625,10 @@ it only differences total log-likelihoods.
 
 The log-likelihood is that of the indicators *given* the group; the
 grouping variable's own distribution is not modelled and its proportions
-are not counted as parameters. Software that treats a known grouping
-variable as a latent class variable observed without error adds both.
-For comparison with such output, a `group` fit also carries
+are not counted as parameters. The other convention – the *known-class*
+formulation, which treats the grouping variable as a latent class
+variable observed without error – adds both. A `group` fit also carries
+the log-likelihood and parameter count on that scale, as
 `metrics$ll_knownclass` and `metrics$n_params_knownclass`; the
 difference is a fixed constant and cancels in
 [`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md).

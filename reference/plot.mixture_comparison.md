@@ -91,11 +91,16 @@ result <- compare_mixtures(X, k_range = 1:4, measurement = "binary",
 #> Fitting 4-class model...
 #> 
 #> === Model Selection Summary ===
-#>   Classes       LL Params     AIC     BIC   SABIC Entropy Unreplicated
-#> 1       1 -342.102      5 694.203 707.229 691.438   1.000        FALSE
-#> 2       2 -340.085     11 702.169 730.826 696.085   0.303        FALSE
-#> 3       3 -337.020     17 708.040 752.328 698.637   0.458        FALSE
-#> 4       4 -334.543     23 715.086 775.005 702.365   0.590        FALSE
+#>   Classes       LL Params     AIC     BIC    CAIC    AIC3     ICL   SABIC
+#> 1       1 -342.102      5 694.203 707.229 712.229 699.203 707.229 691.438
+#> 2       2 -340.085     11 702.170 730.827 741.827 713.170 827.464 696.086
+#> 3       3 -337.019     17 708.039 752.327 769.327 725.039 871.466 698.636
+#> 4       4 -334.543     23 715.086 775.005 798.005 738.086 888.720 702.365
+#>   Entropy Unreplicated
+#> 1   1.000        FALSE
+#> 2   0.303        FALSE
+#> 3   0.458        FALSE
+#> 4   0.590        FALSE
 #> 
 #> -> Best model according to BIC: 1 classes
 plot(result)

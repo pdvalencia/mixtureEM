@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -40,6 +40,7 @@
     <li><a class="dropdown-item" href="articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -85,7 +86,7 @@
 </h2>
 <p>A complete analysis takes three steps: decide how many classes to keep, fit the model and describe the classes it finds, and relate those classes to the variables you actually care about. All three use the bundled <code>ventura_leon</code> data — 16 yes/no infidelity items from 400 young adults (run <code><a href="reference/ventura_leon.html">?ventura_leon</a></code> for dataset details).</p>
 <p><strong>Step 1: How many classes fit best?</strong></p>
-<p><code><a href="reference/compare_mixtures.html">compare_mixtures()</a></code> fits a range of class counts and reports the information criteria and diagnostics side by side. At the package’s default twenty random restarts per class count, six models is real work, so it is shown here rather than run on every render of this page — the <a href="https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.html"><code>class_enumeration</code> vignette</a> walks through reading its output on this exact data:</p>
+<p><code><a href="reference/compare_mixtures.html">compare_mixtures()</a></code> fits a range of class counts and reports the information criteria and diagnostics side by side. At the package’s default twenty random restarts per class count, six models is real work, so it is shown here rather than run on every render of this page — the <a href="https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.html"><code>class_enumeration</code> vignette</a> walks through reading its output in detail on another dataset:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://pdvalencia.github.io/mixtureEM/">mixtureEM</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="va">ventura_leon</span><span class="op">)</span></span>
@@ -100,10 +101,10 @@
 <span>                   n_init <span class="op">=</span> <span class="fl">20</span>, random_state <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="fu"><a href="reference/class_sizes.html">class_sizes</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   class proportion n_expected n_modal</span></span>
-<span><span class="co">#&gt; 1     1  0.4276388  171.05551     173</span></span>
-<span><span class="co">#&gt; 2     2  0.2699044  107.96177     106</span></span>
-<span><span class="co">#&gt; 3     3  0.1581894   63.27577      63</span></span>
-<span><span class="co">#&gt; 4     4  0.1442674   57.70695      58</span></span></code></pre></div>
+<span><span class="co">#&gt; 1     1  0.4277345  171.09382     173</span></span>
+<span><span class="co">#&gt; 2     2  0.2698284  107.93136     106</span></span>
+<span><span class="co">#&gt; 3     3  0.1581316   63.25264      63</span></span>
+<span><span class="co">#&gt; 4     4  0.1443055   57.72219      58</span></span></code></pre></div>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span>, class_labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Fidelity"</span>, <span class="st">"Affective interest"</span>,</span>
 <span>                           <span class="st">"Infidelity"</span>, <span class="st">"Sexual desire"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
@@ -124,25 +125,25 @@
 <span><span class="co">#&gt;                               OR         [95% CI]         P-Value</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 2 ON</span></span>
-<span><span class="co">#&gt;   Intercept                1.178  [    0.234,     5.924]     0.842</span></span>
-<span><span class="co">#&gt;   sex.Female               2.641  [    1.104,     6.318]     0.029</span></span>
+<span><span class="co">#&gt;   Intercept                1.180  [    0.235,     5.935]     0.841</span></span>
+<span><span class="co">#&gt;   sex.Female               2.641  [    1.104,     6.319]     0.029</span></span>
 <span><span class="co">#&gt;   age                      0.942  [    0.884,     1.003]     0.063</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 3 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.315  [    0.104,     0.953]     0.041</span></span>
-<span><span class="co">#&gt;   sex.Female               0.342  [    0.183,     0.641]    &lt; .001</span></span>
+<span><span class="co">#&gt;   Intercept                0.315  [    0.104,     0.952]     0.041</span></span>
+<span><span class="co">#&gt;   sex.Female               0.342  [    0.183,     0.640]    &lt; .001</span></span>
 <span><span class="co">#&gt;   age                      1.033  [    0.997,     1.071]     0.074</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 4 ON</span></span>
 <span><span class="co">#&gt;   Intercept                0.247  [    0.078,     0.779]     0.017</span></span>
-<span><span class="co">#&gt;   sex.Female               0.656  [    0.331,     1.299]     0.226</span></span>
+<span><span class="co">#&gt;   sex.Female               0.655  [    0.331,     1.299]     0.226</span></span>
 <span><span class="co">#&gt;   age                      1.024  [    0.985,     1.065]     0.227</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;                          Wald Chi2   df  P-Value</span></span>
-<span><span class="co">#&gt;   sex                       23.066    3    &lt; .001</span></span>
-<span><span class="co">#&gt;   age                        9.645    3     0.022</span></span>
+<span><span class="co">#&gt;   sex                       23.067    3    &lt; .001</span></span>
+<span><span class="co">#&gt;   age                        9.646    3     0.022</span></span>
 <span><span class="co">#&gt;   Note: a non-significant test beside large coefficients can be the</span></span>
 <span><span class="co">#&gt;         Hauck-Donner effect; confirm with wald_omnibus_test().</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
@@ -204,9 +205,14 @@
 <td><a href="https://pdvalencia.github.io/mixtureEM/articles/rmlca.html"><code>rmlca</code></a></td>
 </tr>
 <tr>
-<td>Latent transition analysis, mover-stayer models: if someone is Depressed at Wave 1, what is the probability they are Not Depressed at Wave 2?</td>
+<td>Latent transition analysis, mover-stayer models: if a child has low alphabet knowledge in the fall, what is the probability they are reading words by spring?</td>
 <td><code><a href="reference/fit_lta.html">fit_lta()</a></code></td>
 <td><a href="https://pdvalencia.github.io/mixtureEM/articles/lta.html"><code>lta</code></a></td>
+</tr>
+<tr>
+<td>Random-intercept LTA: how much of that stability is a stable trait rather than a stage?</td>
+<td><code>fit_lta(random_intercept = )</code></td>
+<td><a href="https://pdvalencia.github.io/mixtureEM/articles/rilta.html"><code>rilta</code></a></td>
 </tr>
 <tr>
 <td>Latent class growth analysis, growth mixture models</td>

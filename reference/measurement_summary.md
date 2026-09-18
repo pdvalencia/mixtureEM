@@ -48,11 +48,10 @@ measurement_summary(object, scale = c("probability", "logit", "effect"), ...)
   reported on. `"probability"` (the default) is unchanged from before
   this argument existed. `"logit"` reports
   [`qlogis()`](https://rdrr.io/r/stats/Logistic.html) of the same table.
-  `"effect"` reports the effect-coded parameterisation several other
-  programs use by default – an item intercept plus one deviation per
-  class, the deviations summing to zero – which is what lets a mixtureEM
-  measurement model be placed beside such a program's printed output;
-  binary indicators only, since a polytomous item's effect coding is a
+  `"effect"` reports the effect-coded parameterisation of the same table
+  – an item intercept plus one deviation per class, the deviations
+  summing to zero – for readers who think in log-linear terms; binary
+  indicators only, since a polytomous item's effect coding is a
   modelling choice (ordinal with fixed scores, giving one class effect
   per class, versus nominal, giving one per category) that the package
   does not make for you, and a polytomous item under `"effect"` is
@@ -97,7 +96,7 @@ measurement_summary(fit)
 #> CATEGORICAL PROBABILITIES
 #> Indicator            | Class 1 | Class 2
 #> ---------------------------------------- 
-#> Item_1               |   0.253 |   0.800
+#> Item_1               |   0.253 |   0.799
 #> Item_2               |   0.574 |   0.492
 #> Item_3               |   0.270 |   0.534
 #> Item_4               |   0.495 |   0.339
@@ -113,7 +112,7 @@ params <- measurement_summary(fit)   # reuse the table programmatically
 #> CATEGORICAL PROBABILITIES
 #> Indicator            | Class 1 | Class 2
 #> ---------------------------------------- 
-#> Item_1               |   0.253 |   0.800
+#> Item_1               |   0.253 |   0.799
 #> Item_2               |   0.574 |   0.492
 #> Item_3               |   0.270 |   0.534
 #> Item_4               |   0.495 |   0.339

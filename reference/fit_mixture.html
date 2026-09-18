@@ -15,7 +15,7 @@ by the classes."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -31,6 +31,7 @@ by the classes."></head><body>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -79,6 +80,7 @@ by the classes.</p>
 <span>  group_invariant_params <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  group_prevalence_equal <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  start_from <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  refine_from <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  variances_equal <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_steps <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  correction <span class="op">=</span> <span class="st">"none"</span>,</span>
@@ -94,7 +96,7 @@ by the classes.</p>
 <span>  refine <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  bayes_constants <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  se <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"corrected"</span>, <span class="st">"robust"</span>, <span class="st">"hessian"</span><span class="op">)</span>,</span>
-<span>  n_cores <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>  n_cores <span class="op">=</span> <span class="fu">.default_n_cores</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  X <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  Y <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_components <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -340,11 +342,24 @@ name. Standard errors are not produced for the restricted prevalences
 either way; compare the two fits with <code><a href="lr_test.html">lr_test()</a></code>.</p></dd>
 
 
+<dt id="arg-refine-from">refine_from<a class="anchor" aria-label="anchor" href="#arg-refine-from"></a></dt>
+<dd><p>A fitted model of the same shape whose solution this fit
+continues from. One EM run is seeded from that model's own converged
+parameters and carried on under this call's <code>max_iter</code>; no random
+restarts are run, because the search that produced the donor already ran
+and this only continues its winner. <code>n_init</code> is not accepted at the
+same time.</p>
+<p>It is not <code>start_from</code>, and the two cannot be combined. <code>start_from</code>
+<em>replaces</em> a search that has not happened, which is safe only under the
+relabelling argument set out there; <code>refine_from</code> sits downstream of a
+search that has, so it skips nothing.</p></dd>
+
+
 <dt id="arg-variances-equal">variances_equal<a class="anchor" aria-label="anchor" href="#arg-variances-equal"></a></dt>
 <dd><p>Logical, for continuous indicators only: hold each
 item's variance equal across the classes, so the classes differ in location
-only. This is the homoscedastic latent profile model and the default
-parameterisation of several commercial programs, and it combines with
+only. This is the homoscedastic latent profile model, the conventional
+LPA parameterisation, and it combines with
 <code>group_invariant_params</code> to give a variance that is free across groups
 but shared by the classes within each. Passed through to the measurement
 model, so it is also available on an ordinary single-group fit.</p>
@@ -394,6 +409,24 @@ class outright). See <code><a href="add_covariates.html">add_covariates</a></cod
 controls: number of random starts (default 20), maximum EM iterations, RNG
 seed, whether to order classes by size, and whether to run L-BFGS
 refinement.</p>
+<p><code>refine</code> does not apply to every model, and where it does not apply it
+is skipped rather than refused. The pass is written for binary and
+continuous indicators with class-varying variances, in flat and
+repeated-measures models. It is skipped for polytomous and count
+indicators, for mixed-measurement models, for <code><a href="fit_lcga.html">fit_lcga()</a></code> and
+<code><a href="fit_gmm.html">fit_gmm()</a></code>, for continuous indicators at
+<code>variances_equal = TRUE</code> (which is the default for continuous
+indicators), for any model carrying covariates or <code>group_effects</code>,
+and for block models holding parameters invariant across blocks. In a
+<code>group_effects</code> model it still reaches the pooled and per-group
+pre-fits that seed the search, but not the group model itself.</p>
+<p>None of those fits is left part-way up the likelihood. EM is given a
+tighter stopping rule instead and is the whole estimator for them. Where
+the pass does run it is worth very little, because EM has already
+converged before it starts: on two models graded against outside
+implementations it moved the log-likelihood by 0 and by 0.0001. Setting
+<code>refine = FALSE</code> is therefore a safe way to save time, and is what
+<code><a href="blrt.html">blrt()</a></code> does for its bootstrap replicates.</p>
 <p>A mixture likelihood usually has several local maxima, so a single start is
 a coin toss rather than an estimate; the fit reports how many of the starts
 reached the solution it kept. If that count is 1, refit with
@@ -469,13 +502,13 @@ thing on a five-point scale and on an income variable: rescaling an
 indicator rescales the prior with it. That invariance is the reason the
 penalised-likelihood literature recommends a data-scaled penalty over a
 constant one (Chen, Tan, &amp; Zhang, 2008, sec. 4).</p>
-<p>Two uses. <strong>Reproducing an unregularized fit:</strong> setting a constant to
+<p>Two uses. <strong>An unregularized fit:</strong> setting a constant to
 <code>0</code> removes that prior and gives plain maximum likelihood for that
-block. This is an escape hatch for matching a reference analysis, not a
-recommended setting — the unpenalised mixture likelihood for a mixture of
-normals is unbounded, so a <em>global</em> maximum likelihood estimate does
-not exist (Day, 1969; Kiefer &amp; Wolfowitz, 1956) and what an unregularized
-program reports is a local maximum.</p>
+block. This is an escape hatch, not a recommended setting — the
+unpenalised mixture likelihood for a mixture of normals is unbounded, so
+a <em>global</em> maximum likelihood estimate does not exist (Day, 1969;
+Kiefer &amp; Wolfowitz, 1956) and what an unregularized fit reports is a
+local maximum.</p>
 <p><strong>Rescuing a collapsed fit:</strong> this situation is now rare, because a
 continuous measurement model holds the variances equal across classes by
 default and that bounds the likelihood; it arises when you have explicitly
@@ -512,6 +545,18 @@ multivariate case, which is what this package fits, they leave open (sec. 5).
 The choice of constant is therefore all the more a finite-sample judgement,
 which is why the default is deliberately weak and the guidance above is a
 rule with a check rather than a magic value.</p>
+<p>Because every M-step, the L-BFGS polish that follows it, and the restart
+search itself all maximise this penalised objective, the model
+<code>fit_mixture()</code> returns sits at the posterior mode, not the
+likelihood maximum, and <code>$loglik</code> together with every information
+criterion built on it is the plain log-likelihood evaluated <em>at that
+point</em> — not at the point that maximises the plain log-likelihood. The
+gap between the two grows with the strength of these constants: at
+<code>variances = n_classes</code> for a collapsed fit, it is on the order of
+ten log-likelihood units. This is not a defect to correct by lowering the
+constants — it is a property of penalised estimation worth keeping in
+mind when comparing <code>$loglik</code> across two fits with different
+<code>bayes_constants</code>.</p>
 <p>This is not a tuning menu. The defaults are the intended settings.</p></dd>
 
 
@@ -536,7 +581,13 @@ handed. Results are therefore identical for every <code>n_cores</code>: a value
 here changes how long a fit takes and nothing it reports.</p>
 <p>Each worker is a fresh R session that must load the package and receive a
 copy of the data, which costs a second or two and some memory. For a fit
-that already takes under a few seconds, leave this at <code>1</code>.</p></dd>
+that already takes under a few seconds, leave this at <code>1</code>.</p>
+<p><code>options(mixtureEM.n_cores = 4)</code> sets it for a whole session, which
+is usually what a long analysis wants: a value passed to one call is
+forgotten by the next, and the slowest operations in the package –
+<code><a href="blrt.html">blrt()</a></code>, <code><a href="compare_mixtures.html">compare_mixtures()</a></code>, <code><a href="bivariate_residuals.html">bivariate_residuals()</a></code>
+– are the ones it is easiest to forget. An argument given here overrides
+the option.</p></dd>
 
 
 <dt id="arg-x-y-n-components-structural">X, Y, n_components, structural<a class="anchor" aria-label="anchor" href="#arg-x-y-n-components-structural"></a></dt>
@@ -581,9 +632,10 @@ likelihood-ratio comparison is unaffected, since it only differences total
 log-likelihoods.</p>
 <p>The log-likelihood is that of the indicators <em>given</em> the group; the
 grouping variable's own distribution is not modelled and its proportions are
-not counted as parameters. Software that treats a known grouping variable as
-a latent class variable observed without error adds both. For
-comparison with such output, a <code>group</code> fit also carries
+not counted as parameters. The other convention – the <em>known-class</em>
+formulation, which treats the grouping variable as a latent class variable
+observed without error – adds both. A <code>group</code> fit also carries the
+log-likelihood and parameter count on that scale, as
 <code>metrics$ll_knownclass</code> and <code>metrics$n_params_knownclass</code>; the
 difference is a fixed constant and cancels in <code><a href="lr_test.html">lr_test()</a></code>.</p>
     </div>

@@ -164,7 +164,7 @@ summary(fit_out)
 #> 
 #> Pairwise class differences:
 #>                     Difference       [95% CI]        P-Value
-#>   Class 2 vs 1        -0.096  [-0.987,  0.794]     0.832
+#>   Class 2 vs 1        -0.096  [-0.986,  0.794]     0.832
 #> =========================================================
 
 # The same outcome named in a formula against its data frame

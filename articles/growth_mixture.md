@@ -115,28 +115,28 @@ fit_gmm2
 #> 
 #> GROWTH FACTOR MEANS
 #>         intercept linear
-#> Class 1     1.897  0.089
-#> Class 2     6.015 -0.724
+#> Class 1     1.898  0.089
+#> Class 2     6.017 -0.724
 #> 
 #> GROWTH FACTOR (CO)VARIANCE (held equal across classes)
 #>           intercept linear
-#> intercept     0.766  0.008
-#> linear        0.008  0.056
+#> intercept     0.766  0.009
+#> linear        0.009  0.056
 #> 
 #> RESIDUAL VARIANCE (held equal across classes)
 #>             T1    T2    T3    T4    T5
-#> Variance 0.676 0.655 0.653 0.579 0.655
+#> Variance 0.677 0.655 0.653 0.579 0.655
 #> 
 #> FITTED TRAJECTORY (mean)
 #>            T1    T2    T3    T4    T5
-#> Class 1 1.897 1.987 2.076 2.165 2.254
-#> Class 2 6.015 5.291 4.567 3.843 3.119
+#> Class 1 1.898 1.988 2.077 2.166 2.255
+#> Class 2 6.017 5.293 4.569 3.845 3.121
 #> =========================================================
 #>                   LATENT MIXTURE MODEL                   
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 39 iterations)
+#> Converged          : TRUE (in 49 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -5570.91
 #>   Parameters     : 13
@@ -147,8 +147,8 @@ fit_gmm2
 #>   Best solution  : found by 4 of 4 starts that ran to convergence (of 15 requested)
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 59.29%
-#>   Class 2: 40.71%
+#>   Class 1: 59.30%
+#>   Class 2: 40.70%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 ```
@@ -206,7 +206,7 @@ results  <- summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.562  [    0.472,     0.671]    < .001
+#>   Intercept                0.562  [    0.471,     0.671]    < .001
 #>   x_member                 1.817  [    1.537,     2.148]    < .001
 #> =========================================================
 ```
@@ -253,14 +253,14 @@ print(fit_gp)
 #> 
 #> FITTED TRAJECTORY (at the mean of the covariates)
 #>            T1    T2    T3    T4    T5
-#> Class 1 1.898 1.988 2.077 2.167 2.256
-#> Class 2 6.012 5.288 4.565 3.842 3.118
+#> Class 1 1.898 1.988 2.077 2.166 2.256
+#> Class 2 6.011 5.288 4.565 3.841 3.118
 #> =========================================================
 #>                   LATENT MIXTURE MODEL                   
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 48 iterations)
+#> Converged          : TRUE (in 51 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -5570.48
 #>   Parameters     : 15
@@ -271,8 +271,8 @@ print(fit_gp)
 #>   Best solution  : found by 4 of 4 starts that ran to convergence (of 15 requested)
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 59.25%
-#>   Class 2: 40.75%
+#>   Class 1: 59.24%
+#>   Class 2: 40.76%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 ```
@@ -295,7 +295,7 @@ params <- measurement_summary(fit_gmm2)
 #> GROWTH FACTOR MEANS
 #> Parameter            | Class 1 | Class 2
 #> ---------------------------------------- 
-#> intercept            |   1.897 |   6.015
+#> intercept            |   1.898 |   6.017
 #> linear               |   0.089 |  -0.724
 #> 
 #> GROWTH FACTOR VARIANCES (held equal across classes)
@@ -307,12 +307,12 @@ params <- measurement_summary(fit_gmm2)
 #> GROWTH FACTOR COVARIANCES (held equal across classes)
 #> Parameter             | Class 1 | Class 2
 #> ----------------------------------------- 
-#> intercept with linear |   0.008 |   0.008
+#> intercept with linear |   0.009 |   0.009
 #> 
 #> RESIDUAL VARIANCE (held equal across classes)
 #> Parameter            | Class 1 | Class 2
 #> ---------------------------------------- 
-#> T1                   |   0.676 |   0.676
+#> T1                   |   0.677 |   0.677
 #> T2                   |   0.655 |   0.655
 #> T3                   |   0.653 |   0.653
 #> T4                   |   0.579 |   0.579
@@ -321,18 +321,18 @@ params <- measurement_summary(fit_gmm2)
 #> FITTED TRAJECTORY
 #> Parameter            | Class 1 | Class 2
 #> ---------------------------------------- 
-#> T1                   |   1.897 |   6.015
-#> T2                   |   1.987 |   5.291
-#> T3                   |   2.076 |   4.567
-#> T4                   |   2.165 |   3.843
-#> T5                   |   2.254 |   3.119
+#> T1                   |   1.898 |   6.017
+#> T2                   |   1.988 |   5.293
+#> T3                   |   2.077 |   4.569
+#> T4                   |   2.166 |   3.845
+#> T5                   |   2.255 |   3.121
 #> =========================================================
 head(params[params$parameter == "growth_mean", ])
 #>   block   parameter      item category class    estimate overall
-#> 1  <NA> growth_mean intercept       NA     1  1.89749427      NA
-#> 2  <NA> growth_mean intercept       NA     2  6.01535071      NA
-#> 3  <NA> growth_mean    linear       NA     1  0.08903508      NA
-#> 4  <NA> growth_mean    linear       NA     2 -0.72405220      NA
+#> 1  <NA> growth_mean intercept       NA     1  1.89849326      NA
+#> 2  <NA> growth_mean intercept       NA     2  6.01658224      NA
+#> 3  <NA> growth_mean    linear       NA     1  0.08913785      NA
+#> 4  <NA> growth_mean    linear       NA     2 -0.72399247      NA
 ```
 
 Class enumeration has its own two functions.
@@ -375,18 +375,18 @@ blrt(k_small = 2, k_large = 3, from_fit = fit_gmm2, n_reps = 100)
   specification rather than about the search (Hipp & Bauer, 2006).
 - **A lower log-likelihood is not always a worse answer.** The
   growth-factor covariance is constrained here to be positive
-  semi-definite, and the residual variances to be positive. Software
-  that does not impose those constraints can report a negative variance,
-  or variances that are each positive while implying a correlation
-  greater than one in absolute value — and the likelihood it prints for
-  such a solution is evaluated outside the parameter space, so it is not
-  comparable with one that is inside it. When mixtureEM reports a lower
-  likelihood than another program on the same model, check the other
-  program’s covariance matrix before concluding anything: an admissible
-  solution with a smaller likelihood is the reportable one. The right
-  response to a model that cannot produce a proper solution is Berlin,
-  Parra and Williams’s (2014): to report that no reasonable and proper
-  solution was found, and to simplify the specification.
+  semi-definite, and the residual variances to be positive. An
+  unconstrained optimiser can reach a negative variance, or variances
+  that are each positive while implying a correlation greater than one
+  in absolute value — and the likelihood at such a solution is evaluated
+  outside the parameter space, so it is not comparable with one that is
+  inside it. When a published analysis of the same model reports a
+  higher likelihood, check its covariance matrix before concluding
+  anything: an admissible solution with a smaller likelihood is the
+  reportable one. The right response to a model that cannot produce a
+  proper solution is Berlin, Parra and Williams’s (2014): to report that
+  no reasonable and proper solution was found, and to simplify the
+  specification.
 - Class enumeration is harder than in cross-sectional LCA: BIC, the
   plotted trajectories against observed means, and substantive
   interpretability should all agree before a solution is reported

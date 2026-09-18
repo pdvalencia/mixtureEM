@@ -46,22 +46,36 @@ under MCAR, `ll_sat` for the saturated model's log-likelihood, and
 
 ## Missing data
 
-With one or more missing values (categorical, plain
+With one or more missing values (categorical
 [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
-models only), the statistics are computed under the missing-at-random
-(MAR) assumption instead: the model is compared not to the raw response
-table, which no longer exists once cases have different items observed,
-but to a saturated model fit to the same partition of the data by which
-items each case observed. `df` is smaller than in the complete-data case
-(\\df = W - 1 - P\\) because the saturated baseline already accounts for
-the missingness pattern. A short block giving the model's fit jointly
-with the stronger missing-completely-at-random (MCAR) assumption is
-printed underneath; use
+or
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+models), the statistics are computed under the missing-at-random (MAR)
+assumption instead: the model is compared not to the raw response table,
+which no longer exists once cases have different items observed, but to
+a saturated model fit to the same partition of the data by which items
+each case observed. `df` is smaller than in the complete-data case (\\df
+= W - 1 - P\\) because the saturated baseline already accounts for the
+missingness pattern. A short block giving the model's fit jointly with
+the stronger missing-completely-at-random (MCAR) assumption is printed
+underneath; use
 [`mcar_test()`](https://pdvalencia.github.io/mixtureEM/reference/mcar_test.md)
 to test that assumption on its own. This can be slow, or refused
 outright, once the number of indicator categories crossed together grows
 large – the same \\W\\ that already makes the complete-data table
 sparse.
+
+**Two statistics called \\L^2\\.** Two different statistics can be
+called "the" \\L^2\\ for a model fitted to incomplete data, and they can
+differ by a factor of two on the very same fit. `$g2` is the test of the
+model alone under MAR; `$g2_mcar` is the model tested *jointly* with
+MCAR, so it also carries every departure from MCAR in the missingness
+itself. Read `$g2` as the model's fit and `$g2_mcar` as the joint
+hypothesis, each with its own degrees of freedom (`$df`, `$df_mcar`);
+`$df_mcar` is reported uncapped. Note also that the \\X^2\\ and
+Cressie-Read columns are far less trustworthy than \\L^2\\ on a sparse
+table: all three test the same hypothesis and they can return p-values
+hundreds of orders of magnitude apart.
 
 ## Multiple-group fits
 
@@ -69,17 +83,13 @@ For a `group_effects = "measurement"` fit, the model is \\P(y \mid
 \mathrm{group})\\, so the saturated comparison is one \\W\\ -cell table
 *per group*, not one \\W\\-cell table for the pooled data: \\df =
 Q(W - 1) - P\\ for \\Q\\ groups, and the statistics are the sum of each
-group's own. The per-group breakdown is returned in `$by_group`. As with
-the missing-data statistics, this is a within-package diagnostic: do not
-compare its level to another program's single-model goodness of fit,
-which under missing data can disagree with this one by more than a
-factor of two on the very same fit even though the two agree on
-everything that can be compared – the log-likelihood and every
-likelihood-ratio test built from it. `group_effects = "both"` instead
-attaches a covariate structural model for the prevalence effect and is
-refused as any conditional model is; refit with
-`group_effects = "measurement"` to check the measurement side on its
-own.
+group's own. The per-group breakdown is returned in `$by_group`. Treat
+its level as a within-package diagnostic: it is the sum of per-group
+tables, not a single pooled table, and is only comparable with figures
+built the same way. `group_effects = "both"` instead attaches a
+covariate structural model for the prevalence effect and is refused as
+any conditional model is; refit with `group_effects = "measurement"` to
+check the measurement side on its own.
 
 ## References
 
@@ -113,9 +123,9 @@ absolute_fit(fit)
 #> 
 #> Statistic               Value    p-value
 #> ---------------------------------------- 
-#> L-squared             62.4171     0.1118
-#> X-squared             50.0325     0.4721
-#> Cressie-Read          51.3465     0.4207
+#> L-squared             62.4163     0.1118
+#> X-squared             50.0307     0.4722
+#> Cressie-Read          51.3451     0.4208
 #> Dissimilarity          0.2819           
 #> =========================================================
 ```

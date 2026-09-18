@@ -41,3 +41,9 @@ transition_matrix(object, occasion = NULL, class = NULL)
 A matrix, or a named list of matrices when `occasion` is omitted and the
 transitions are time-heterogeneous, nested inside a list over classes
 when the model has more than one.
+
+## See also
+
+[`transition_patterns()`](https://pdvalencia.github.io/mixtureEM/reference/transition_patterns.md)
+for the joint distribution across every occasion at once, rather than
+one pair at a time.

@@ -40,7 +40,7 @@ case; refitting `full` with a larger `n_init` is the usual fix.
 ## Usage
 
 ``` r
-lr_test(restricted, full)
+lr_test(restricted, full, scaled = c("auto", "yes", "no"))
 ```
 
 ## Arguments
@@ -52,6 +52,17 @@ lr_test(restricted, full)
 - full:
 
   The less constrained model.
+
+- scaled:
+
+  Whether to apply the Satorra-Bentler/Asparouhov scaling correction.
+  `"auto"` (the default) applies it exactly where it is required for
+  validity — under sampling weights or a complex survey design — and is
+  the historical behaviour. `"yes"` applies it to an unweighted pair as
+  well, giving the robust (MLR-scaled) difference test; `"no"`
+  suppresses it even under weights. A negative scaled statistic means
+  the correction has failed for that pair, and `statistic_raw` should be
+  reported instead.
 
 ## Value
 

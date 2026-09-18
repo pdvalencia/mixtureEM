@@ -96,7 +96,7 @@ classification_diagnostics(fit)
 #> 
 #>                  Prob C 1 Prob C 2
 #> Assigned Class 1    0.823    0.177
-#> Assigned Class 2    0.283    0.717
+#> Assigned Class 2    0.282    0.718
 #> =========================================================
 #> 
 #> =========================================================
@@ -104,11 +104,11 @@ classification_diagnostics(fit)
 #> =========================================================
 #> Rows: model-expected membership | Columns: modal assignment
 #> 
-#>         Modal 1 Modal 2   Total
-#> Class 1  46.094  12.433  58.527
-#> Class 2   9.906  31.567  41.473
-#> Total    56.000  44.000 100.000
+#>         Modal 1 Modal 2    Total
+#> Class 1   46.07 12.4191  58.4892
+#> Class 2    9.93 31.5809  41.5108
+#> Total     56.00 44.0000 100.0000
 #> 
-#> Classification error: 0.2234 (22.34% of 100 cases)
+#> Classification error: 0.2235 (22.35% of 100 cases)
 #> =========================================================
 ```

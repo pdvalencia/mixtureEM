@@ -58,10 +58,10 @@ classification_table(fit)
 #> Rows: model-expected membership | Columns: modal assignment
 #> 
 #>         Modal 1 Modal 2    Total
-#> Class 1 57.8988  7.5058  65.4046
-#> Class 2 11.1012 23.4942  34.5954
-#> Total   69.0000 31.0000 100.0000
+#> Class 1  57.909  7.5106  65.4196
+#> Class 2  11.091 23.4894  34.5804
+#> Total    69.000 31.0000 100.0000
 #> 
-#> Classification error: 0.1861 (18.61% of 100 cases)
+#> Classification error: 0.1860 (18.60% of 100 cases)
 #> =========================================================
 ```

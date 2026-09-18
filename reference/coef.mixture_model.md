@@ -53,9 +53,9 @@ effects are interpreted and published on, and the default here matches
 it. `coef(fit, exponentiate = FALSE)` and
 [`vcov`](https://pdvalencia.github.io/mixtureEM/reference/vcov.mixture_model.md)
 give the log-scale estimates and their standard errors, for anyone who
-needs to compare them against another program or pool them across
-analyses. Both scales are exact — `log(coef(fit))` has always recovered
-the coefficients, since the odds ratios are returned at full double
+needs to report them on that scale or pool them across analyses. Both
+scales are exact — `log(coef(fit))` has always recovered the
+coefficients, since the odds ratios are returned at full double
 precision; the argument makes that discoverable rather than a trick.
 
 ## See also
@@ -77,11 +77,11 @@ fit <- fit_mixture(X, Y = Z, n_components = 2, measurement = "binary",
                    n_steps = 3, correction = "ML", n_init = 5)
 #> Note: `X`, `Y`, `n_components`, and `structural` are the legacy interface. The current arguments are `indicators`, `n_classes`, `predictors`, and `outcome` / `outcome_covariates`.
 coef(fit)
-#>               Intercept      age
-#> Class 1 (Ref) 1.0000000 1.000000
-#> Class 2       0.7390351 0.339548
+#>               Intercept       age
+#> Class 1 (Ref) 1.0000000 1.0000000
+#> Class 2       0.7390687 0.3395133
 coef(fit, exponentiate = FALSE)
-#>                Intercept      age
-#> Class 1 (Ref)  0.0000000  0.00000
-#> Class 2       -0.3024098 -1.08014
+#>                Intercept       age
+#> Class 1 (Ref)  0.0000000  0.000000
+#> Class 2       -0.3023644 -1.080242
 ```

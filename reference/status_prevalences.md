@@ -34,3 +34,9 @@ status_prevalences(object, type = c("model", "posterior"), class = NULL)
 ## Value
 
 An occasions-by-statuses matrix.
+
+## See also
+
+[`transition_patterns()`](https://pdvalencia.github.io/mixtureEM/reference/transition_patterns.md)
+for the joint distribution across every occasion at once, rather than
+one occasion's marginal at a time.

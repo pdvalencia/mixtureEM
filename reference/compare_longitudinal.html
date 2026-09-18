@@ -81,7 +81,7 @@ it would otherwise fire once per K."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -97,6 +97,7 @@ it would otherwise fire once per K."></head><body>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -224,8 +225,9 @@ models that allow for different types of between-class differences".</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>An object of class <code>mixture_comparison</code>, a list with <code>fit_table</code>
-(columns <code>Classes</code>, <code>LL</code>, <code>Params</code>, <code>AIC</code>, <code>BIC</code>, <code>SABIC</code>, <code>Entropy</code> and
-<code>Unreplicated</code>), the fitted <code>models</code> (named <code>"K2"</code>, <code>"K3"</code>, ...) and
+(columns <code>Classes</code>, <code>LL</code>, <code>Params</code>, <code>AIC</code>, <code>BIC</code>, <code>CAIC</code>, <code>AIC3</code>, <code>ICL</code>,
+<code>SABIC</code>, <code>Entropy</code> and <code>Unreplicated</code>), the fitted <code>models</code> (named
+<code>"K2"</code>, <code>"K3"</code>, ...) and
 <code>best_k</code>, the class count with the lowest BIC. It indexes exactly as a
 plain list; <code><a href="plot.mixture_comparison.html">plot()</a></code> draws the criteria
 against K.</p>

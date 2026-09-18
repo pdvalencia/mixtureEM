@@ -13,7 +13,7 @@ transition probabilities
 the chance of moving from each status to
 each other status, as a square table read from row (earlier occasion) to
 column (later occasion). There is one table per pair of adjacent
-occasions unless transition_invariance = "full";
+occasions unless transition_invariance restricts them;
 
 item parameters
 what people in each status tend to answer, which is
@@ -44,7 +44,7 @@ transition probabilities
 the chance of moving from each status to
 each other status, as a square table read from row (earlier occasion) to
 column (later occasion). There is one table per pair of adjacent
-occasions unless transition_invariance = "full";
+occasions unless transition_invariance restricts them;
 
 item parameters
 what people in each status tend to answer, which is
@@ -69,7 +69,7 @@ them with lr_test().'></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -85,6 +85,7 @@ them with lr_test().'></head><body>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -121,7 +122,7 @@ ch. 7).</p>
 <dd><p>the chance of moving from each status to
 each other status, as a square table read from row (earlier occasion) to
 column (later occasion). There is one table per pair of adjacent
-occasions unless <code>transition_invariance = "full"</code>;</p></dd>
+occasions unless <code>transition_invariance</code> restricts them;</p></dd>
 
 <dt>item parameters</dt>
 <dd><p>what people in each status tend to answer, which is
@@ -148,10 +149,14 @@ them with <code><a href="lr_test.html">lr_test()</a></code>.</p>
 <span>  measurement <span class="op">=</span> <span class="st">"binary"</span>,</span>
 <span>  measurement_invariance <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"full"</span>, <span class="st">"none"</span>, <span class="st">"partial"</span><span class="op">)</span>,</span>
 <span>  invariant_items <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  transition_invariance <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"full"</span><span class="op">)</span>,</span>
+<span>  transition_invariance <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"full"</span>, <span class="st">"slopes"</span><span class="op">)</span>,</span>
 <span>  forbidden_transitions <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_classes <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  mover_stayer <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  tie_initial_status <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  random_intercept <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"continuous"</span>, <span class="st">"binary"</span><span class="op">)</span>,</span>
+<span>  n_quadrature <span class="op">=</span> <span class="fl">15</span>,</span>
+<span>  n_ri <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  layout <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"time_major"</span>, <span class="st">"item_major"</span><span class="op">)</span>,</span>
 <span>  id <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  time <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -163,8 +168,10 @@ them with <code><a href="lr_test.html">lr_test()</a></code>.</p>
 <span>  strata <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  cluster <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_init <span class="op">=</span> <span class="fl">20</span>,</span>
+<span>  refine <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  refine_from <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  max_iter <span class="op">=</span> <span class="fl">1000</span>,</span>
-<span>  n_cores <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>  n_cores <span class="op">=</span> <span class="fu">.default_n_cores</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  tol <span class="op">=</span> <span class="fl">1e-08</span>,</span>
 <span>  smoothing <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  random_state <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -172,6 +179,8 @@ them with <code><a href="lr_test.html">lr_test()</a></code>.</p>
 <span>  standard_errors <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  predictors_initial <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  predictors_transition <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  predictors_items <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  predictors_random_intercept <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  transition_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"common"</span>, <span class="st">"by_origin"</span><span class="op">)</span>,</span>
 <span>  group <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  group_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"both"</span>, <span class="st">"initial"</span>, <span class="st">"transitions"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
@@ -200,7 +209,11 @@ frame with <code>id</code> and <code>time</code>.</p></dd>
 
 <dt id="arg-measurement">measurement<a class="anchor" aria-label="anchor" href="#arg-measurement"></a></dt>
 <dd><p>Measurement model for one occasion's items: <code>"binary"</code>,
-<code>"categorical"</code>, <code>"continuous"</code>, or a named list for a mixed block.</p></dd>
+<code>"categorical"</code>, <code>"ordinal"</code>, <code>"continuous"</code>, or a named list for a mixed
+block. <code>"ordinal"</code> fits one cumulative-logit block per item, with its own
+number of ordered categories inferred per item (so a 3/3/2-category block
+needs no mixed specification); without a random intercept it is
+numerically identical to <code>"categorical"</code>.</p></dd>
 
 
 <dt id="arg-measurement-invariance">measurement_invariance<a class="anchor" aria-label="anchor" href="#arg-measurement-invariance"></a></dt>
@@ -221,7 +234,17 @@ equal across occasions. <code>"none"</code> (the default) estimates a separate m
 for each pair of adjacent occasions; <code>"full"</code> shares one matrix throughout.
 Whether change happens at a constant rate is usually a substantive question
 rather than an assumption, and the two models are nested, so
-<code><a href="lr_test.html">lr_test()</a></code> tests it (Collins &amp; Lanza, sec. 7.14).</p></dd>
+<code><a href="lr_test.html">lr_test()</a></code> tests it (Collins &amp; Lanza, sec. 7.14).</p>
+<p><code>"slopes"</code> sits between the two and applies only when something predicts
+the transitions. It shares the covariate slopes across occasions while
+giving each occasion its own intercepts, so the effect of a covariate on
+moving between statuses is held constant over time but the underlying rate
+of movement is not. It costs <code>(n_statuses - 1) * (occasions - 2)</code>
+parameters more than <code>"full"</code> and is nested inside <code>"none"</code>, so
+<code><a href="lr_test.html">lr_test()</a></code> tests both restrictions. It requires
+<code>predictors_transition</code> (or a <code>group</code> acting on the transitions) and
+<code>transition_effects = "common"</code>, and with only two occasions it is
+identical to <code>"full"</code>.</p></dd>
 
 
 <dt id="arg-forbidden-transitions">forbidden_transitions<a class="anchor" aria-label="anchor" href="#arg-forbidden-transitions"></a></dt>
@@ -258,6 +281,97 @@ parameters, so the model is nested in the unrestricted mixture and
 <code><a href="lr_test.html">lr_test()</a></code> tests it.</p></dd>
 
 
+<dt id="arg-tie-initial-status">tie_initial_status<a class="anchor" aria-label="anchor" href="#arg-tie-initial-status"></a></dt>
+<dd><p>For a mover-stayer fit, hold the occasion-1
+status distribution equal across the latent classes instead of
+estimating one per class. Drops the initial-status parameter count from
+<code>(K - 1) * C</code> to <code>K - 1</code>. Default <code>FALSE</code>.</p></dd>
+
+
+<dt id="arg-random-intercept">random_intercept<a class="anchor" aria-label="anchor" href="#arg-random-intercept"></a></dt>
+<dd><p>Add a random intercept to the measurement model
+(Muthen &amp; Asparouhov, 2022): a person-level "how likely to endorse items
+in general" trait that regular LTA has no way to represent, and that can
+otherwise be mistaken for status separation and for stability over time.
+<code>"none"</code> (the default) fits ordinary LTA. <code>"continuous"</code> integrates over a
+normally-distributed factor by Gauss-Hermite quadrature (<code>n_quadrature</code>
+nodes); <code>"binary"</code> instead estimates a small number of discrete intercept
+classes (<code>n_ri</code> of them, 2 by default, the model's own case). Both require
+<code>measurement_invariance = "full"</code> and binary indicators. A random
+intercept combines with <code>mover_stayer</code>, with covariates on the initial
+status or the transitions (<code>predictors_initial</code>/<code>predictors_transition</code>),
+and with <code>group</code> (implemented as covariates on the same two, so this is
+one capability, not two); it still does not support <code>n_classes</code> &gt; 1.</p>
+<p><code>"continuous"</code>'s restart search (<code>options(mixtureEM.lta_ri_search = "wide")</code>, the default) draws wide random starts – perturbed item logits
+and loadings of either sign – ranks them with a one-step generalised-EM
+M-step, and rescores every ranked candidate on the full quadrature grid
+before promoting survivors to the full search. On several published
+benchmark data sets it reaches the same or a better optimum, several
+times faster, than the search this package used before,
+and it escapes the inflated-loading local maximum that search could
+settle in. <code>options(mixtureEM.lta_ri_search = "narrow")</code> restores the earlier search exactly, for reproducing a fit
+made under it.</p>
+<p><strong>Do not test a random intercept against regular LTA with <code><a href="lr_test.html">lr_test()</a></code></strong>:
+the continuous variant puts the null (loading = 0) on the boundary of the
+parameter space, and the binary variant adds a latent class variable, so
+the usual chi-squared reference distribution does not apply either way.
+Compare the two by BIC instead.</p>
+<p>Whether a random intercept is worth adding is a sample-size question more
+than a modelling one. Tseng (2024), for the continuous-indicator analogue
+(RI-LPTA), puts the requirement at upwards of 2,000 cases for 80% power
+and 90% coverage at a between-profile separation of d = 0.75, with more
+items, occasions or separation lowering that bar; the asymmetry that
+makes trying it worthwhile anyway is that
+omitting a random intercept when one belongs costs a lot (inflated
+apparent separation and stability), while including one when it does not
+belong costs almost nothing (a handful of parameters, and BIC will say
+so, as it does on this package's own benchmark replication of the
+article's example).</p>
+<p>Not built in this release: continuous indicators, a random <em>slope</em>,
+correlated residuals across time, or lag-2 dependence - the last of which
+the article itself reports
+as significant in both of its worked examples, so it is a real
+simplification and not a hypothetical one. Standard errors and the
+post-EM L-BFGS refinement are available for both binary and ordinal
+indicators. A random
+intercept crossed with several latent classes or <code>mover_stayer</code> is
+supported for both measurement families.</p>
+<p><code>predictors_random_intercept</code> regresses the factor on covariates. The
+item probabilities the fit reports are integrated over the factor at a
+zero random-intercept mean - the residual grid - not at each case's own
+predicted mean; the per-case means are in
+<code>random_intercept_scores()$predicted_mean</code>.</p></dd>
+
+
+<dt id="arg-n-quadrature">n_quadrature<a class="anchor" aria-label="anchor" href="#arg-n-quadrature"></a></dt>
+<dd><p>Number of Gauss-Hermite nodes for
+<code>random_intercept = "continuous"</code>. The default of 15 is a starting point
+to check, not a settled answer, the same way <code>n_init</code>'s default is a
+floor: raise it (15-30 nodes is the usual working range, more when the
+loadings are large) and confirm the log-likelihood moves by less than
+0.01. Make that check over a wide range
+of node counts rather than one step up. When a fit's thresholds are
+extreme, the item response is almost a step function of the factor, and
+the log-likelihood is then not even monotone in the number of nodes: two
+nearby small settings can differ by several log-likelihood units while
+both sit far from the converged value. One ordinal five-status fit used
+in this package's own validation reads -16047.3 at 15 nodes and -16040.5
+at 20, but settles at -16041.18 only from roughly 80 nodes upward.
+<code>n_quadrature = 1</code> is a valid,
+deliberate special case - a single node at 0 with mass 1 - under which
+the model reduces exactly to regular LTA; it is not a model worth fitting
+on its own, but is how the package's own test suite proves the node
+machinery is wired correctly. The node count matters more once
+<code>predictors_random_intercept</code> is used: the person-specific reweighting is
+exact only up to whatever quadrature error the fixed grid already has.</p></dd>
+
+
+<dt id="arg-n-ri">n_ri<a class="anchor" aria-label="anchor" href="#arg-n-ri"></a></dt>
+<dd><p>Number of discrete intercept classes for
+<code>random_intercept = "binary"</code>. The default of 2 is Muthen &amp; Asparouhov's
+own case.</p></dd>
+
+
 <dt id="arg-layout-id-time-items-item-names-time-labels">layout, id, time, items, item_names, time_labels<a class="anchor" aria-label="anchor" href="#arg-layout-id-time-items-item-names-time-labels"></a></dt>
 <dd><p>Data-shape arguments,
 passed through as in <code><a href="fit_rmlca.html">fit_rmlca()</a></code>.</p></dd>
@@ -291,6 +405,29 @@ does not replicate at 100 starts points at the specification rather than at
 the search. See <code><a href="../articles/estimation.html">vignette("estimation")</a></code>.</p></dd>
 
 
+<dt id="arg-refine">refine<a class="anchor" aria-label="anchor" href="#arg-refine"></a></dt>
+<dd><p>Logical. If <code>TRUE</code> (default), each start that runs to
+convergence is followed by an L-BFGS climb on the same penalised objective
+the EM steps maximise, and the starts are then ranked on the refined
+log-likelihoods. EM converges to a fixed point of its own surrogate, which
+on a near-flat likelihood ridge can sit measurably short of the maximum;
+the climb steps past it, and never returns a fit worse than the one it was
+given. This is the same refinement <code><a href="fit_mixture.html">fit_mixture()</a></code> has always applied.
+It is a no-op - silently, and the fit is unchanged - for models whose free
+parameters it cannot differentiate: covariate models and measurement
+families other than binary and continuous. Mixtures over chains
+(<code>n_classes</code> &gt; 1) are refined like any other supported model.</p></dd>
+
+
+<dt id="arg-refine-from">refine_from<a class="anchor" aria-label="anchor" href="#arg-refine-from"></a></dt>
+<dd><p>A model fitted by <code>fit_lta()</code> on the same data and with
+the same shape, whose solution this fit continues from. No random starts
+are run and <code>n_init</code> is ignored, because the search that produced the donor
+already ran and this only carries its winner further - typically to a
+tighter <code>tol</code> or a larger <code>max_iter</code>. Passing <code>n_init</code> alongside is an
+error rather than a silent override.</p></dd>
+
+
 <dt id="arg-max-iter-tol">max_iter, tol<a class="anchor" aria-label="anchor" href="#arg-max-iter-tol"></a></dt>
 <dd><p>EM iteration limit and relative convergence tolerance.
 A mixture over chains (<code>n_classes</code> &gt; 1) converges much more slowly and
@@ -309,13 +446,15 @@ enough that the fixed rule would not do.)</p></dd>
 starts over. Default <code>1</code> (sequential). These are the slowest fits in the
 package and <code>n_init</code> is high by necessity, so this is where the argument
 earns the most. Starting values are drawn in this session before any
-fitting begins, so the fit is identical at every <code>n_cores</code>.</p></dd>
+fitting begins, so the fit is identical at every <code>n_cores</code>.
+<code>options(mixtureEM.n_cores = )</code> sets the default for a whole session; an
+argument given here overrides it.</p></dd>
 
 
 <dt id="arg-smoothing">smoothing<a class="anchor" aria-label="anchor" href="#arg-smoothing"></a></dt>
 <dd><p>How much smoothing to apply to the status prevalences and to
-each row of the transition matrices, expressed as a number of pseudo-cases
-spread evenly over the possible destinations. Sparse transition tables
+the transition matrices, expressed as a number of pseudo-cases spread
+evenly over each conditional table. Sparse transition tables
 otherwise collapse onto probabilities of exactly zero, which are awkward to
 interpret and to test. The default of <code>1</code> is negligible at any realistic
 sample size; set it to <code>0</code> for unsmoothed maximum likelihood. It governs
@@ -328,22 +467,23 @@ the transitions, each transition matrix is the fitted value of a
 multinomial logit rather than a smoothed table of counts, and <code>smoothing</code>
 has no effect on it. The initial status prevalences behave the same way
 under <code>predictors_initial</code>.</p>
-<p>The mass is one pseudo-case per <em>origin row</em>, which is the prior Chung,
-Lanza and Loken (2008) use for this model, and it is spread evenly rather
-than in proportion to how often each destination is occupied: a rare origin
-row shrunk toward the destination marginal would be asserting that everyone
-moves to the prevalent status, which is a confident claim to make about a
-row the sample says little about, whereas an even spread is uninformative.</p>
+<p>The mass is one pseudo-case per <em>conditional table</em>, so with <code>K</code> statuses
+an origin row of a transition matrix carries a <code>K</code>th of it. It is spread
+evenly rather than in proportion to how often each destination is
+occupied: a rare origin row shrunk toward the destination marginal would
+be asserting that everyone moves to the prevalent status, which is a
+confident claim to make about a row the sample says little about, whereas
+an even spread is uninformative.</p>
 <p>The cost falls on exactly those rows. On a row with few expected cases the
 prior carries a visible share of the estimate - at most
-\([\alpha / (m + \alpha)](1 - 1/K_a)\) of it, for a row with \(m\)
-expected cases and \(K_a\) reachable destinations - and the fit says so
-when that share exceeds five percentage points, naming the worst row. The
-remedy worth reaching for first is <code>transition_invariance = "full"</code>, which
-puts every occasion's cases behind one pseudo-case; <code>smoothing = 0.5</code>
-simply halves the pull. <code>smoothing = 0</code> is not a good answer, since it
-removes the protection against transition probabilities of exactly zero
-that the prior is there to give.</p></dd>
+\([a / (m + a)](1 - 1/K_a)\) of it, where \(a\) is that row's share of
+the mass, \(m\) the cases expected in it and \(K_a\) the reachable
+destinations - and the fit says so when that share exceeds five percentage
+points, naming the worst row. The remedy worth reaching for first is
+<code>transition_invariance = "full"</code>, which puts every occasion's cases behind
+one pseudo-case; <code>smoothing = 0.5</code> simply halves the pull. <code>smoothing = 0</code>
+is not a good answer, since it removes the protection against transition
+probabilities of exactly zero that the prior is there to give.</p></dd>
 
 
 <dt id="arg-random-state">random_state<a class="anchor" aria-label="anchor" href="#arg-random-state"></a></dt>
@@ -359,7 +499,15 @@ covariates index the statuses through their regression coefficients.</p></dd>
 
 <dt id="arg-standard-errors">standard_errors<a class="anchor" aria-label="anchor" href="#arg-standard-errors"></a></dt>
 <dd><p>Compute standard errors for \(\delta\) and
-\(\tau\).</p></dd>
+\(\tau\). <code>TRUE</code> (the default) uses the outer product of the case-level
+scores; <code>FALSE</code> skips them; <code>"robust"</code> returns the sandwich estimator, with
+the observed information as its bread. <code>"robust"</code> costs a
+finite-difference Hessian – \(2p(p + 1)\) likelihood evaluations – and
+so takes minutes rather than seconds on a model of any size. It is
+supported for random-intercept fits. Where the model still cannot be
+packed on an unconstrained scale (covariates, or a measurement family
+whose parameters are not all free) <code>"robust"</code> falls back silently to the
+default estimator, and <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> then does not report robust errors.</p></dd>
 
 
 <dt id="arg-predictors-initial">predictors_initial<a class="anchor" aria-label="anchor" href="#arg-predictors-initial"></a></dt>
@@ -370,6 +518,33 @@ the first occasion (Collins &amp; Lanza, sec. 8.10.1).</p></dd>
 <dt id="arg-predictors-transition">predictors_transition<a class="anchor" aria-label="anchor" href="#arg-predictors-transition"></a></dt>
 <dd><p>Optional covariates predicting the transitions
 between statuses (sec. 8.10.2).</p></dd>
+
+
+<dt id="arg-predictors-items">predictors_items<a class="anchor" aria-label="anchor" href="#arg-predictors-items"></a></dt>
+<dd><p>Optional covariates entering each indicator
+directly, inside each latent status - a test of measurement invariance
+with respect to those covariates. One proportional-odds slope per latent
+status per item per covariate, shared across occasions, so the cost is
+<code>n_statuses * n_items * ncol(predictors_items)</code> parameters. <strong>This is not
+<code>group</code></strong>: <code>group</code> gives every group its own status prevalences and
+transition matrices while the measurement model stays invariant across
+groups, which is the assumption this argument exists to relax. Requires
+<code>measurement = "ordinal"</code> and <code>measurement_invariance = "full"</code>.
+Restricted to covariates taking few distinct values - see
+<code>options(mixtureEM.dif_max_patterns = )</code>. The item probabilities the fit
+reports are those of a case with every one of these covariates at zero.</p></dd>
+
+
+<dt id="arg-predictors-random-intercept">predictors_random_intercept<a class="anchor" aria-label="anchor" href="#arg-predictors-random-intercept"></a></dt>
+<dd><p>Optional covariates predicting the
+continuous random intercept itself (the article's own Step 5). The
+factor's residual variance is fixed at 1 and its residual mean at 0, so no
+intercept is estimated and a constant column is refused: the coefficients
+are the regression of the stable trait on the covariates, and each costs
+one parameter. Requires <code>random_intercept = "continuous"</code>. The factor's
+orientation is arbitrary - the fit pins it by making the largest loading
+positive - so the sign of every coefficient is meaningful only relative to
+the loadings.</p></dd>
 
 
 <dt id="arg-transition-effects">transition_effects<a class="anchor" aria-label="anchor" href="#arg-transition-effects"></a></dt>
@@ -426,6 +601,18 @@ classes-by-statuses matrix, <code>tau</code> a list of per-class lists, and
 its <code>"by_class"</code> attribute; <code><a href="status_prevalences.html">status_prevalences()</a></code> and
 <code><a href="transition_matrix.html">transition_matrix()</a></code> take a <code>class</code> argument to reach them. Standard
 errors are not available for a mixture over chains and <code>se</code> is <code>NULL</code>.</p>
+<p><code>metrics$entropy</code> (the headline number, printed by <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code>) is the
+relative entropy of the joint latent-status path across all occasions at
+once: one classification per case over the <code>K^T</code> possible paths,
+normalised by <code>n * T * log(K)</code>. The per-occasion alternative – the
+relative entropy of each occasion's status posterior on its own,
+normalised by <code>log(K)</code> – is <code>metrics$entropy_by_occasion</code> (printed by
+<code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>). A per-occasion entropy can also be normalised by the
+entropy of that occasion's estimated status proportions instead of by
+<code>log(K)</code>; the two are related by <code>1 - (1 - r2) * log(K) / H(pi_hat)</code>,
+where <code>r2</code> is the package's value, <code>K</code> is <code>n_statuses</code>, and <code>H(pi_hat)</code>
+is the entropy of that occasion's estimated status proportions (from
+<code><a href="status_prevalences.html">status_prevalences()</a></code>).</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -443,6 +630,14 @@ inference and estimation. <em>Statistics in Medicine</em>, <em>27</em>(11),
 multinomial cell probabilities. <em>Journal of the American Statistical
 Association</em>, <em>68</em>(343), 683-691.
 <a href="https://doi.org/10.1080/01621459.1973.10481405" class="external-link">doi:10.1080/01621459.1973.10481405</a></p>
+<p>Muthen, B., &amp; Asparouhov, T. (2022). Latent transition analysis with random
+intercepts (RI-LTA). <em>Psychological Methods</em>, <em>27</em>(1), 1-16.
+<a href="https://doi.org/10.1037/met0000370" class="external-link">doi:10.1037/met0000370</a></p>
+<p>Tseng, M.-C. (2024). Latent profile transition analysis with random
+intercepts (RI-LPTA). <em>Structural Equation Modeling</em>, <em>31</em>(4),
+626-634. <a href="https://doi.org/10.1080/10705511.2023.2284671" class="external-link">doi:10.1080/10705511.2023.2284671</a>
+ - the sample-size analysis
+behind the guidance above.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

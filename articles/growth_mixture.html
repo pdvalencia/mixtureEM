@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -38,6 +38,7 @@
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -181,28 +182,28 @@ default, <code>random_effects = "intercept_slope"</code>):</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; GROWTH FACTOR MEANS</span></span>
 <span><span class="co">#&gt;         intercept linear</span></span>
-<span><span class="co">#&gt; Class 1     1.897  0.089</span></span>
-<span><span class="co">#&gt; Class 2     6.015 -0.724</span></span>
+<span><span class="co">#&gt; Class 1     1.898  0.089</span></span>
+<span><span class="co">#&gt; Class 2     6.017 -0.724</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; GROWTH FACTOR (CO)VARIANCE (held equal across classes)</span></span>
 <span><span class="co">#&gt;           intercept linear</span></span>
-<span><span class="co">#&gt; intercept     0.766  0.008</span></span>
-<span><span class="co">#&gt; linear        0.008  0.056</span></span>
+<span><span class="co">#&gt; intercept     0.766  0.009</span></span>
+<span><span class="co">#&gt; linear        0.009  0.056</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; RESIDUAL VARIANCE (held equal across classes)</span></span>
 <span><span class="co">#&gt;             T1    T2    T3    T4    T5</span></span>
-<span><span class="co">#&gt; Variance 0.676 0.655 0.653 0.579 0.655</span></span>
+<span><span class="co">#&gt; Variance 0.677 0.655 0.653 0.579 0.655</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; FITTED TRAJECTORY (mean)</span></span>
 <span><span class="co">#&gt;            T1    T2    T3    T4    T5</span></span>
-<span><span class="co">#&gt; Class 1 1.897 1.987 2.076 2.165 2.254</span></span>
-<span><span class="co">#&gt; Class 2 6.015 5.291 4.567 3.843 3.119</span></span>
+<span><span class="co">#&gt; Class 1 1.898 1.988 2.077 2.166 2.255</span></span>
+<span><span class="co">#&gt; Class 2 6.017 5.293 4.569 3.845 3.121</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt;                   LATENT MIXTURE MODEL                   </span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Classes Estimated  : 2</span></span>
 <span><span class="co">#&gt; Estimation Method  : 1-step</span></span>
-<span><span class="co">#&gt; Converged          : TRUE (in 39 iterations)</span></span>
+<span><span class="co">#&gt; Converged          : TRUE (in 49 iterations)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Log-Likelihood : -5570.91</span></span>
 <span><span class="co">#&gt;   Parameters     : 13</span></span>
@@ -213,8 +214,8 @@ default, <code>random_effects = "intercept_slope"</code>):</p>
 <span><span class="co">#&gt;   Best solution  : found by 4 of 4 starts that ran to convergence (of 15 requested)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; Class Weights (Sizes):</span></span>
-<span><span class="co">#&gt;   Class 1: 59.29%</span></span>
-<span><span class="co">#&gt;   Class 2: 40.71%</span></span>
+<span><span class="co">#&gt;   Class 1: 59.30%</span></span>
+<span><span class="co">#&gt;   Class 2: 40.70%</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span></code></pre></div>
 <p>Because LCGA is nested in the GMM, the information criteria say
@@ -262,7 +263,7 @@ predictors, through the usual stepwise workflow:</li>
 <span><span class="co">#&gt;                               OR         [95% CI]         P-Value</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 2 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.562  [    0.472,     0.671]    &lt; .001</span></span>
+<span><span class="co">#&gt;   Intercept                0.562  [    0.471,     0.671]    &lt; .001</span></span>
 <span><span class="co">#&gt;   x_member                 1.817  [    1.537,     2.148]    &lt; .001</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
 <ul>
@@ -307,14 +308,14 @@ are part of the measurement model and therefore supplied to
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; FITTED TRAJECTORY (at the mean of the covariates)</span></span>
 <span><span class="co">#&gt;            T1    T2    T3    T4    T5</span></span>
-<span><span class="co">#&gt; Class 1 1.898 1.988 2.077 2.167 2.256</span></span>
-<span><span class="co">#&gt; Class 2 6.012 5.288 4.565 3.842 3.118</span></span>
+<span><span class="co">#&gt; Class 1 1.898 1.988 2.077 2.166 2.256</span></span>
+<span><span class="co">#&gt; Class 2 6.011 5.288 4.565 3.841 3.118</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt;                   LATENT MIXTURE MODEL                   </span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Classes Estimated  : 2</span></span>
 <span><span class="co">#&gt; Estimation Method  : 1-step</span></span>
-<span><span class="co">#&gt; Converged          : TRUE (in 48 iterations)</span></span>
+<span><span class="co">#&gt; Converged          : TRUE (in 51 iterations)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Log-Likelihood : -5570.48</span></span>
 <span><span class="co">#&gt;   Parameters     : 15</span></span>
@@ -325,8 +326,8 @@ are part of the measurement model and therefore supplied to
 <span><span class="co">#&gt;   Best solution  : found by 4 of 4 starts that ran to convergence (of 15 requested)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; Class Weights (Sizes):</span></span>
-<span><span class="co">#&gt;   Class 1: 59.25%</span></span>
-<span><span class="co">#&gt;   Class 2: 40.75%</span></span>
+<span><span class="co">#&gt;   Class 1: 59.24%</span></span>
+<span><span class="co">#&gt;   Class 2: 40.76%</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span></code></pre></div>
 </div>
@@ -347,7 +348,7 @@ being retyped from the printed output:</p>
 <span><span class="co">#&gt; GROWTH FACTOR MEANS</span></span>
 <span><span class="co">#&gt; Parameter            | Class 1 | Class 2</span></span>
 <span><span class="co">#&gt; ---------------------------------------- </span></span>
-<span><span class="co">#&gt; intercept            |   1.897 |   6.015</span></span>
+<span><span class="co">#&gt; intercept            |   1.898 |   6.017</span></span>
 <span><span class="co">#&gt; linear               |   0.089 |  -0.724</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; GROWTH FACTOR VARIANCES (held equal across classes)</span></span>
@@ -359,12 +360,12 @@ being retyped from the printed output:</p>
 <span><span class="co">#&gt; GROWTH FACTOR COVARIANCES (held equal across classes)</span></span>
 <span><span class="co">#&gt; Parameter             | Class 1 | Class 2</span></span>
 <span><span class="co">#&gt; ----------------------------------------- </span></span>
-<span><span class="co">#&gt; intercept with linear |   0.008 |   0.008</span></span>
+<span><span class="co">#&gt; intercept with linear |   0.009 |   0.009</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; RESIDUAL VARIANCE (held equal across classes)</span></span>
 <span><span class="co">#&gt; Parameter            | Class 1 | Class 2</span></span>
 <span><span class="co">#&gt; ---------------------------------------- </span></span>
-<span><span class="co">#&gt; T1                   |   0.676 |   0.676</span></span>
+<span><span class="co">#&gt; T1                   |   0.677 |   0.677</span></span>
 <span><span class="co">#&gt; T2                   |   0.655 |   0.655</span></span>
 <span><span class="co">#&gt; T3                   |   0.653 |   0.653</span></span>
 <span><span class="co">#&gt; T4                   |   0.579 |   0.579</span></span>
@@ -373,18 +374,18 @@ being retyped from the printed output:</p>
 <span><span class="co">#&gt; FITTED TRAJECTORY</span></span>
 <span><span class="co">#&gt; Parameter            | Class 1 | Class 2</span></span>
 <span><span class="co">#&gt; ---------------------------------------- </span></span>
-<span><span class="co">#&gt; T1                   |   1.897 |   6.015</span></span>
-<span><span class="co">#&gt; T2                   |   1.987 |   5.291</span></span>
-<span><span class="co">#&gt; T3                   |   2.076 |   4.567</span></span>
-<span><span class="co">#&gt; T4                   |   2.165 |   3.843</span></span>
-<span><span class="co">#&gt; T5                   |   2.254 |   3.119</span></span>
+<span><span class="co">#&gt; T1                   |   1.898 |   6.017</span></span>
+<span><span class="co">#&gt; T2                   |   1.988 |   5.293</span></span>
+<span><span class="co">#&gt; T3                   |   2.077 |   4.569</span></span>
+<span><span class="co">#&gt; T4                   |   2.166 |   3.845</span></span>
+<span><span class="co">#&gt; T5                   |   2.255 |   3.121</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">params</span><span class="op">[</span><span class="va">params</span><span class="op">$</span><span class="va">parameter</span> <span class="op">==</span> <span class="st">"growth_mean"</span>, <span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   block   parameter      item category class    estimate overall</span></span>
-<span><span class="co">#&gt; 1  &lt;NA&gt; growth_mean intercept       NA     1  1.89749427      NA</span></span>
-<span><span class="co">#&gt; 2  &lt;NA&gt; growth_mean intercept       NA     2  6.01535071      NA</span></span>
-<span><span class="co">#&gt; 3  &lt;NA&gt; growth_mean    linear       NA     1  0.08903508      NA</span></span>
-<span><span class="co">#&gt; 4  &lt;NA&gt; growth_mean    linear       NA     2 -0.72405220      NA</span></span></code></pre></div>
+<span><span class="co">#&gt; 1  &lt;NA&gt; growth_mean intercept       NA     1  1.89849326      NA</span></span>
+<span><span class="co">#&gt; 2  &lt;NA&gt; growth_mean intercept       NA     2  6.01658224      NA</span></span>
+<span><span class="co">#&gt; 3  &lt;NA&gt; growth_mean    linear       NA     1  0.08913785      NA</span></span>
+<span><span class="co">#&gt; 4  &lt;NA&gt; growth_mean    linear       NA     2 -0.72399247      NA</span></span></code></pre></div>
 <p>Class enumeration has its own two functions.
 <code><a href="../reference/compare_longitudinal.html">compare_longitudinal()</a></code> fits a range of class counts with
 one specification and tabulates the criteria, and for a growth model its
@@ -420,14 +421,13 @@ rather than about the search (Hipp &amp; Bauer, 2006).</li>
 <li>
 <strong>A lower log-likelihood is not always a worse
 answer.</strong> The growth-factor covariance is constrained here to be
-positive semi-definite, and the residual variances to be positive.
-Software that does not impose those constraints can report a negative
-variance, or variances that are each positive while implying a
-correlation greater than one in absolute value — and the likelihood it
-prints for such a solution is evaluated outside the parameter space, so
-it is not comparable with one that is inside it. When mixtureEM reports
-a lower likelihood than another program on the same model, check the
-other program’s covariance matrix before concluding anything: an
+positive semi-definite, and the residual variances to be positive. An
+unconstrained optimiser can reach a negative variance, or variances that
+are each positive while implying a correlation greater than one in
+absolute value — and the likelihood at such a solution is evaluated
+outside the parameter space, so it is not comparable with one that is
+inside it. When a published analysis of the same model reports a higher
+likelihood, check its covariance matrix before concluding anything: an
 admissible solution with a smaller likelihood is the reportable one. The
 right response to a model that cannot produce a proper solution is
 Berlin, Parra and Williams’s (2014): to report that no reasonable and

@@ -55,21 +55,21 @@ fit
 #> =========================================================
 #> Classes Estimated  : 5
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 502 iterations)
+#> Converged          : TRUE (in 144 iterations)
 #> Missing Data       : 7186 / 166080 cells (4.3%) in 12 items — FIML (MAR assumption)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -47487.93
 #>   Parameters     : 64
 #>   AIC            : 95103.86
 #>   BIC            : 95586.12
-#>   SABIC          : 95382.73
-#>   Rel. Entropy   : 0.8343
-#>   Best solution  : found by 5 of 20 starts
+#>   SABIC          : 95382.74
+#>   Rel. Entropy   : 0.8340
+#>   Best solution  : found by 10 of 20 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 70.24%
+#>   Class 1: 70.23%
 #>   Class 2: 12.59%
-#>   Class 3: 8.26%
+#>   Class 3: 8.28%
 #>   Class 4: 4.91%
 #>   Class 5: 4.00%
 #> =========================================================
@@ -114,11 +114,11 @@ params <- measurement_summary(fit)
 #> smoked_daily_30d      |   0.134 |   0.026 |   0.301 |   0.252 |   0.558 |   0.734
 #> drove_drinking        |   0.099 |   0.009 |   0.107 |   0.537 |   0.293 |   0.487
 #> first_drink_before_13 |   0.255 |   0.138 |   0.693 |   0.238 |   0.205 |   0.894
-#> binge_drink_30d       |   0.255 |   0.085 |   0.428 |   0.969 |   0.602 |   0.857
+#> binge_drink_30d       |   0.255 |   0.085 |   0.428 |   0.967 |   0.602 |   0.857
 #> marijuana_before_13   |   0.086 |   0.004 |   0.371 |   0.038 |   0.058 |   0.774
-#> cocaine_ever          |   0.076 |   0.003 |   0.042 |   0.056 |   0.644 |   0.843
+#> cocaine_ever          |   0.076 |   0.003 |   0.042 |   0.056 |   0.645 |   0.843
 #> glue_ever             |   0.124 |   0.061 |   0.185 |   0.148 |   0.416 |   0.632
-#> meth_ever             |   0.061 |   0.003 |   0.023 |   0.016 |   0.564 |   0.677
+#> meth_ever             |   0.061 |   0.003 |   0.024 |   0.016 |   0.565 |   0.677
 #> ecstasy_ever          |   0.062 |   0.005 |   0.063 |   0.067 |   0.412 |   0.634
 #> sex_before_13         |   0.062 |   0.020 |   0.243 |   0.011 |   0.035 |   0.364
 #> sex_4plus_partners    |   0.141 |   0.054 |   0.303 |   0.282 |   0.380 |   0.579
@@ -153,8 +153,8 @@ results <- summary(fit_cov)
 #>   sex.Male                 1.876  [    1.561,     2.255]    < .001
 #> 
 #> Class 3 ON
-#>   Intercept                0.106  [    0.081,     0.140]    < .001
-#>   sex.Male                 1.217  [    0.986,     1.502]     0.068
+#>   Intercept                0.107  [    0.081,     0.140]    < .001
+#>   sex.Male                 1.216  [    0.985,     1.501]     0.069
 #> 
 #> Class 4 ON
 #>   Intercept                0.082  [    0.065,     0.104]    < .001
@@ -162,12 +162,12 @@ results <- summary(fit_cov)
 #> 
 #> Class 5 ON
 #>   Intercept                0.037  [    0.029,     0.047]    < .001
-#>   sex.Male                 2.124  [    1.641,     2.748]    < .001
+#>   sex.Male                 2.123  [    1.641,     2.748]    < .001
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   sex                       75.168    4    < .001
+#>   sex                       75.098    4    < .001
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================

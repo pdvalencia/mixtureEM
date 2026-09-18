@@ -11,7 +11,7 @@ that reaching it does not mean indexing into the fitted object's internals."></h
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -27,6 +27,7 @@ that reaching it does not mean indexing into the fitted object's internals."></h
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -60,7 +61,7 @@ that reaching it does not mean indexing into the fitted object's internals.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="co"># S3 method for class 'lta_model'</span></span>
 <span><span class="fu">class_assignments</span><span class="op">(</span></span>
 <span>  <span class="va">object</span>,</span>
-<span>  type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"modal"</span>, <span class="st">"posterior"</span>, <span class="st">"both"</span><span class="op">)</span>,</span>
+<span>  type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"modal"</span>, <span class="st">"posterior"</span>, <span class="st">"both"</span>, <span class="st">"viterbi"</span><span class="op">)</span>,</span>
 <span>  occasion <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span>
@@ -84,7 +85,8 @@ models) or an <code>lta_model</code>.</p></dd>
 <dd><p>What to return. <code>"modal"</code> (default) gives the assigned
 class; <code>"posterior"</code> the full matrix of posterior probabilities;
 <code>"both"</code> a data frame carrying the assignment, its probability, and
-the posterior columns.</p></dd>
+the posterior columns; <code>"viterbi"</code>, for an <code>lta_model</code> only,
+globally decodes the single most probable status sequence (see Details).</p></dd>
 
 
 <dt id="arg-occasion">occasion<a class="anchor" aria-label="anchor" href="#arg-occasion"></a></dt>
@@ -113,6 +115,17 @@ same convention <code><a href="status_prevalences.html">status_prevalences()</a>
 occasion at the shape the mixture methods return; omit it for all of them at
 once. To assign the latent <em>class</em> of a mixture latent Markov model, use
 <code>object$class_posterior</code>.</p>
+<p><code>type = "viterbi"</code> decodes globally instead: it returns the single most
+probable <em>sequence</em> of statuses across all occasions at once, rather than
+the most probable status at each occasion taken separately. The two can
+disagree — the occasion-by-occasion assignment above may string together a
+sequence the model itself gives zero probability, if a locally-favoured
+status at one occasion can only be reached by a transition the model
+forbids or scores as unlikely, while Viterbi decoding can never do that. Its
+<code>occasion</code> argument still selects one occasion's column of that path; it
+does not change which path is decoded. With <code>n_classes</code> &gt; 1 the class and
+the path are decoded jointly, and the class each case was assigned to is
+available as <code>attr(result, "class_assigned")</code>.</p>
 <p>Modal class assignment discards classification error. Do not use the returned
 class as though it were an observed variable in a subsequent regression,
 ANOVA or t-test: doing so attenuates the association, severely when the
@@ -151,12 +164,12 @@ three-step approaches. <em>Sociological Methodology</em>, <em>43</em>(1),
 <span class="r-out co"><span class="r-pr">#&gt;</span> 56 44 </span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="fu">class_assignments</span><span class="op">(</span><span class="va">fit</span>, <span class="st">"both"</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   class probability   Class 1    Class 2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1     1   0.9469587 0.9469587 0.05304134</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2     1   0.8106031 0.8106031 0.18939689</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3     2   0.8447412 0.1552588 0.84474124</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4     2   0.5578654 0.4421346 0.55786544</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5     1   0.9033559 0.9033559 0.09664411</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6     2   0.7401666 0.2598334 0.74016660</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1     1   0.9467880 0.9467880 0.05321203</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2     1   0.8100663 0.8100663 0.18993375</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3     2   0.8449567 0.1550433 0.84495674</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4     2   0.5582606 0.4417394 0.55826060</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5     1   0.9030628 0.9030628 0.09693725</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6     2   0.7404903 0.2595097 0.74049035</span>
 <span class="r-in"><span><span class="co"># To relate the classes to an external variable, do not regress on the</span></span></span>
 <span class="r-in"><span><span class="co"># assigned class - use the bias-adjusted third step instead:</span></span></span>
 <span class="r-in"><span><span class="co"># add_outcome(fit, y)</span></span></span>

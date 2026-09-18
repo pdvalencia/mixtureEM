@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -38,6 +38,7 @@
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -144,12 +145,18 @@ study fitted and what <code><a href="../reference/fit_mixture.html">fit_mixture(
 <span><span class="co">#&gt; Fitting 5-class model...</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; === Model Selection Summary ===</span></span>
-<span><span class="co">#&gt;   Classes        LL Params      AIC      BIC    SABIC Entropy Unreplicated</span></span>
-<span><span class="co">#&gt; 1       1 -2504.138     10 5028.276 5065.314 5033.600   1.000        FALSE</span></span>
-<span><span class="co">#&gt; 2       2 -2218.115     16 4468.230 4527.490 4476.748   0.877        FALSE</span></span>
-<span><span class="co">#&gt; 3       3 -2093.758     22 4231.515 4312.998 4243.227   0.900        FALSE</span></span>
-<span><span class="co">#&gt; 4       4 -2066.064     28 4188.127 4291.833 4203.034   0.871        FALSE</span></span>
-<span><span class="co">#&gt; 5       5 -2029.260     34 4126.519 4252.448 4144.620   0.878        FALSE</span></span>
+<span><span class="co">#&gt;   Classes        LL Params      AIC      BIC     CAIC     AIC3      ICL</span></span>
+<span><span class="co">#&gt; 1       1 -2504.138     10 5028.276 5065.314 5075.314 5038.276 5065.314</span></span>
+<span><span class="co">#&gt; 2       2 -2218.115     16 4468.231 4527.491 4543.491 4484.231 4578.576</span></span>
+<span><span class="co">#&gt; 3       3 -2093.758     22 4231.516 4312.999 4334.999 4253.516 4378.826</span></span>
+<span><span class="co">#&gt; 4       4 -2066.064     28 4188.127 4291.833 4319.833 4216.127 4399.884</span></span>
+<span><span class="co">#&gt; 5       5 -2029.260     34 4126.521 4252.449 4286.449 4160.521 4370.798</span></span>
+<span><span class="co">#&gt;      SABIC Entropy Unreplicated</span></span>
+<span><span class="co">#&gt; 1 5033.600   1.000        FALSE</span></span>
+<span><span class="co">#&gt; 2 4476.749   0.877        FALSE</span></span>
+<span><span class="co">#&gt; 3 4243.228   0.900        FALSE</span></span>
+<span><span class="co">#&gt; 4 4203.034   0.870        FALSE</span></span>
+<span><span class="co">#&gt; 5 4144.621   0.877        FALSE</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; -&gt; Best model according to BIC: 5 classes</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">comp</span><span class="op">)</span></span></code></pre></div>
@@ -167,12 +174,12 @@ profiles, and the section below carries that forward.</p>
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">2</span><span class="op">)</span></span>
 <span><span class="va">free_v</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">ind</span>, n_classes <span class="op">=</span> <span class="fl">3</span>, measurement <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>                      variances_equal <span class="op">=</span> <span class="cn">FALSE</span>, n_init <span class="op">=</span> <span class="fl">30</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning: A class variance has collapsed towards zero: report in class 2</span></span>
+<span><span class="co">#&gt; Warning: A class variance has collapsed towards the boundary: report in class 2</span></span>
 <span><span class="co">#&gt; (variance 0.0101 vs 1.96 for the item overall). These estimates are not</span></span>
-<span><span class="co">#&gt; interpretable, and this fit's BIC cannot be compared with a clean fit's. Three</span></span>
-<span><span class="co">#&gt; ways out, to choose between on substantive grounds: (1) variances_equal = TRUE;</span></span>
-<span><span class="co">#&gt; (2) fewer classes; or (3) a stronger prior, bayes_constants = list(variances =</span></span>
-<span><span class="co">#&gt; 3). See ?fit_mixture for why, and what to check afterwards.</span></span></code></pre></div>
+<span><span class="co">#&gt; interpretable, and this fit's BIC cannot be compared with a clean fit's. Ways</span></span>
+<span><span class="co">#&gt; out, to choose between on substantive grounds: (1) variances_equal = TRUE; (2)</span></span>
+<span><span class="co">#&gt; fewer classes; or (3) a stronger variance prior, bayes_constants =</span></span>
+<span><span class="co">#&gt; list(variances = 3). See ?fit_mixture for why, and what to check afterwards.</span></span></code></pre></div>
 <p>Freeing the residual variances lets a class shrink onto a handful of
 cases and drive its own variance toward zero, which sends the likelihood
 to infinity and makes the solution uninterpretable; the package warns
@@ -189,20 +196,20 @@ strength 1) stops this from happening when set stronger:</p>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Classes Estimated  : 3</span></span>
 <span><span class="co">#&gt; Estimation Method  : 1-step</span></span>
-<span><span class="co">#&gt; Converged          : TRUE (in 64 iterations)</span></span>
+<span><span class="co">#&gt; Converged          : TRUE (in 40 iterations)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt;   Log-Likelihood : -1921.84</span></span>
+<span><span class="co">#&gt;   Log-Likelihood : -1929.58</span></span>
 <span><span class="co">#&gt;   Parameters     : 32</span></span>
-<span><span class="co">#&gt;   AIC            : 3907.69</span></span>
-<span><span class="co">#&gt;   BIC            : 4026.21</span></span>
-<span><span class="co">#&gt;   SABIC          : 3924.72</span></span>
-<span><span class="co">#&gt;   Rel. Entropy   : 0.8758</span></span>
-<span><span class="co">#&gt;   Best solution  : found by 4 of 30 starts</span></span>
+<span><span class="co">#&gt;   AIC            : 3923.17</span></span>
+<span><span class="co">#&gt;   BIC            : 4041.69</span></span>
+<span><span class="co">#&gt;   SABIC          : 3940.20</span></span>
+<span><span class="co">#&gt;   Rel. Entropy   : 0.8733</span></span>
+<span><span class="co">#&gt;   Best solution  : found by 26 of 30 starts</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; Class Weights (Sizes):</span></span>
-<span><span class="co">#&gt;   Class 1: 41.77%</span></span>
-<span><span class="co">#&gt;   Class 2: 31.98%</span></span>
-<span><span class="co">#&gt;   Class 3: 26.26%</span></span>
+<span><span class="co">#&gt;   Class 1: 41.20%</span></span>
+<span><span class="co">#&gt;   Class 2: 30.11%</span></span>
+<span><span class="co">#&gt;   Class 3: 28.70%</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span></code></pre></div>
 <p>Setting the prior’s strength to the number of classes is the setting
@@ -223,7 +230,7 @@ consolation prize for the free model being illegitimate.</p>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Classes Estimated  : 3</span></span>
 <span><span class="co">#&gt; Estimation Method  : 1-step</span></span>
-<span><span class="co">#&gt; Converged          : TRUE (in 19 iterations)</span></span>
+<span><span class="co">#&gt; Converged          : TRUE (in 13 iterations)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Log-Likelihood : -2093.76</span></span>
 <span><span class="co">#&gt;   Parameters     : 22</span></span>
@@ -234,9 +241,9 @@ consolation prize for the free model being illegitimate.</p>
 <span><span class="co">#&gt;   Best solution  : found by 20 of 20 starts</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; Class Weights (Sizes):</span></span>
-<span><span class="co">#&gt;   Class 1: 42.28%</span></span>
-<span><span class="co">#&gt;   Class 2: 29.61%</span></span>
-<span><span class="co">#&gt;   Class 3: 28.11%</span></span>
+<span><span class="co">#&gt;   Class 1: 42.27%</span></span>
+<span><span class="co">#&gt;   Class 2: 29.59%</span></span>
+<span><span class="co">#&gt;   Class 3: 28.14%</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span>
 <span><span class="va">params</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/measurement_summary.html">measurement_summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
@@ -247,11 +254,11 @@ consolation prize for the free model being illegitimate.</p>
 <span><span class="co">#&gt; CONTINUOUS MEANS</span></span>
 <span><span class="co">#&gt; Indicator            | Overall | Class 1 | Class 2 | Class 3</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------------ </span></span>
-<span><span class="co">#&gt; confront             |   2.228 |   1.817 |   1.351 |   3.770</span></span>
-<span><span class="co">#&gt; distract             |   2.524 |   2.327 |   1.707 |   3.682</span></span>
-<span><span class="co">#&gt; support              |   3.615 |   4.218 |   1.673 |   4.753</span></span>
-<span><span class="co">#&gt; report               |   2.330 |   2.015 |   1.228 |   3.965</span></span>
-<span><span class="co">#&gt; discuss              |   2.483 |   2.514 |   1.448 |   3.528</span></span>
+<span><span class="co">#&gt; confront             |   2.228 |   1.816 |   1.350 |   3.770</span></span>
+<span><span class="co">#&gt; distract             |   2.524 |   2.327 |   1.706 |   3.682</span></span>
+<span><span class="co">#&gt; support              |   3.615 |   4.217 |   1.672 |   4.753</span></span>
+<span><span class="co">#&gt; report               |   2.330 |   2.015 |   1.228 |   3.963</span></span>
+<span><span class="co">#&gt; discuss              |   2.483 |   2.514 |   1.448 |   3.527</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
 <p>Classes come out sorted by size. Reading <code>params</code>: class 1
 is high on <code>support</code> and unremarkable elsewhere, class 2 is
@@ -295,38 +302,38 @@ differ. Use theirs when reporting against the paper.</p>
 <span><span class="co">#&gt;                               OR         [95% CI]         P-Value</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 2 ON</span></span>
-<span><span class="co">#&gt;   Intercept               15.294  [    0.461,   507.920]     0.127</span></span>
+<span><span class="co">#&gt;   Intercept               15.245  [    0.459,   506.778]     0.128</span></span>
 <span><span class="co">#&gt;   age                      0.987  [    0.955,     1.020]     0.446</span></span>
-<span><span class="co">#&gt;   male                     4.507  [    2.252,     9.019]    &lt; .001</span></span>
-<span><span class="co">#&gt;   sh_experience            0.538  [    0.239,     1.212]     0.135</span></span>
-<span><span class="co">#&gt;   org_intolerance_sh       1.821  [    1.110,     2.988]     0.018</span></span>
-<span><span class="co">#&gt;   masc_job_context         0.630  [    0.154,     2.574]     0.520</span></span>
+<span><span class="co">#&gt;   male                     4.509  [    2.253,     9.025]    &lt; .001</span></span>
+<span><span class="co">#&gt;   sh_experience            0.538  [    0.239,     1.213]     0.135</span></span>
+<span><span class="co">#&gt;   org_intolerance_sh       1.823  [    1.111,     2.990]     0.017</span></span>
+<span><span class="co">#&gt;   masc_job_context         0.630  [    0.154,     2.577]     0.521</span></span>
 <span><span class="co">#&gt;   anger                    0.577  [    0.333,     1.000]     0.050</span></span>
-<span><span class="co">#&gt;   empathy                  0.874  [    0.489,     1.563]     0.651</span></span>
-<span><span class="co">#&gt;   curb_expectancy          0.608  [    0.386,     0.959]     0.032</span></span>
+<span><span class="co">#&gt;   empathy                  0.874  [    0.489,     1.563]     0.650</span></span>
+<span><span class="co">#&gt;   curb_expectancy          0.608  [    0.385,     0.959]     0.032</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 3 ON</span></span>
 <span><span class="co">#&gt;   Intercept                0.000  [    0.000,     0.059]     0.002</span></span>
 <span><span class="co">#&gt;   age                      0.968  [    0.935,     1.001]     0.059</span></span>
-<span><span class="co">#&gt;   male                     1.414  [    0.660,     3.029]     0.373</span></span>
-<span><span class="co">#&gt;   sh_experience            1.635  [    0.890,     3.004]     0.113</span></span>
-<span><span class="co">#&gt;   org_intolerance_sh       1.575  [    1.052,     2.359]     0.027</span></span>
-<span><span class="co">#&gt;   masc_job_context         0.338  [    0.085,     1.355]     0.126</span></span>
-<span><span class="co">#&gt;   anger                    2.778  [    1.234,     6.254]     0.014</span></span>
-<span><span class="co">#&gt;   empathy                  1.125  [    0.604,     2.093]     0.711</span></span>
-<span><span class="co">#&gt;   curb_expectancy          1.348  [    0.797,     2.278]     0.265</span></span>
+<span><span class="co">#&gt;   male                     1.413  [    0.659,     3.028]     0.374</span></span>
+<span><span class="co">#&gt;   sh_experience            1.637  [    0.891,     3.007]     0.112</span></span>
+<span><span class="co">#&gt;   org_intolerance_sh       1.576  [    1.053,     2.359]     0.027</span></span>
+<span><span class="co">#&gt;   masc_job_context         0.339  [    0.085,     1.356]     0.126</span></span>
+<span><span class="co">#&gt;   anger                    2.778  [    1.234,     6.252]     0.014</span></span>
+<span><span class="co">#&gt;   empathy                  1.125  [    0.605,     2.093]     0.710</span></span>
+<span><span class="co">#&gt;   curb_expectancy          1.346  [    0.797,     2.274]     0.266</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;                          Wald Chi2   df  P-Value</span></span>
-<span><span class="co">#&gt;   age                        3.579    2     0.167</span></span>
-<span><span class="co">#&gt;   male                      18.895    2    &lt; .001</span></span>
-<span><span class="co">#&gt;   sh_experience              6.409    2     0.041</span></span>
-<span><span class="co">#&gt;   org_intolerance_sh         8.647    2     0.013</span></span>
-<span><span class="co">#&gt;   masc_job_context           2.358    2     0.308</span></span>
-<span><span class="co">#&gt;   anger                     14.481    2    &lt; .001</span></span>
-<span><span class="co">#&gt;   empathy                    0.562    2     0.755</span></span>
-<span><span class="co">#&gt;   curb_expectancy            8.457    2     0.015</span></span>
+<span><span class="co">#&gt;   age                        3.583    2     0.167</span></span>
+<span><span class="co">#&gt;   male                      18.906    2    &lt; .001</span></span>
+<span><span class="co">#&gt;   sh_experience              6.416    2     0.040</span></span>
+<span><span class="co">#&gt;   org_intolerance_sh         8.666    2     0.013</span></span>
+<span><span class="co">#&gt;   masc_job_context           2.354    2     0.308</span></span>
+<span><span class="co">#&gt;   anger                     14.485    2    &lt; .001</span></span>
+<span><span class="co">#&gt;   empathy                    0.563    2     0.755</span></span>
+<span><span class="co">#&gt;   curb_expectancy            8.449    2     0.015</span></span>
 <span><span class="co">#&gt;   Note: a non-significant test beside large coefficients can be the</span></span>
 <span><span class="co">#&gt;         Hauck-Donner effect; confirm with wald_omnibus_test().</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
@@ -361,18 +368,18 @@ here are noise.</p>
 <span><span class="co">#&gt; CONTINUOUS DISTAL OUTCOME (MEANS)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Omnibus test (class differences): Wald chi^2(2) = 219.08, p  &lt; .001</span></span>
+<span><span class="co">#&gt; Omnibus test (class differences): Wald chi^2(2) = 218.90, p  &lt; .001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;                  Mean       [95% CI]        SE</span></span>
 <span><span class="co">#&gt;   Class 1        2.622  [ 2.414,  2.831]     0.106</span></span>
 <span><span class="co">#&gt;   Class 2        1.346  [ 1.204,  1.489]     0.073</span></span>
-<span><span class="co">#&gt;   Class 3        3.151  [ 2.932,  3.370]     0.112</span></span>
+<span><span class="co">#&gt;   Class 3        3.150  [ 2.931,  3.369]     0.112</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Pairwise class differences:</span></span>
 <span><span class="co">#&gt;                     Difference       [95% CI]        P-Value</span></span>
 <span><span class="co">#&gt;   Class 2 vs 1        -1.276  [-1.535, -1.017]    &lt; .001</span></span>
-<span><span class="co">#&gt;   Class 3 vs 1         0.528  [ 0.220,  0.837]    &lt; .001</span></span>
-<span><span class="co">#&gt;   Class 3 vs 2         1.804  [ 1.544,  2.065]    &lt; .001</span></span>
+<span><span class="co">#&gt;   Class 3 vs 1         0.528  [ 0.219,  0.836]    &lt; .001</span></span>
+<span><span class="co">#&gt;   Class 3 vs 2         1.804  [ 1.543,  2.065]    &lt; .001</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="fu"><a href="../reference/add_outcome.html">add_outcome</a></span><span class="op">(</span><span class="va">fit</span>, <span class="va">liang_park_sim</span><span class="op">$</span><span class="va">target_gratitude</span>,</span>
 <span>                    outcome_type <span class="op">=</span> <span class="st">"continuous"</span><span class="op">)</span><span class="op">)</span></span>
@@ -384,18 +391,18 @@ here are noise.</p>
 <span><span class="co">#&gt; CONTINUOUS DISTAL OUTCOME (MEANS)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Omnibus test (class differences): Wald chi^2(2) = 94.66, p  &lt; .001</span></span>
+<span><span class="co">#&gt; Omnibus test (class differences): Wald chi^2(2) = 94.62, p  &lt; .001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;                  Mean       [95% CI]        SE</span></span>
 <span><span class="co">#&gt;   Class 1        3.179  [ 2.980,  3.377]     0.101</span></span>
 <span><span class="co">#&gt;   Class 2        1.942  [ 1.696,  2.188]     0.126</span></span>
-<span><span class="co">#&gt;   Class 3        3.592  [ 3.340,  3.844]     0.129</span></span>
+<span><span class="co">#&gt;   Class 3        3.591  [ 3.339,  3.843]     0.129</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Pairwise class differences:</span></span>
 <span><span class="co">#&gt;                     Difference       [95% CI]        P-Value</span></span>
-<span><span class="co">#&gt;   Class 2 vs 1        -1.237  [-1.558, -0.915]    &lt; .001</span></span>
+<span><span class="co">#&gt;   Class 2 vs 1        -1.237  [-1.558, -0.916]    &lt; .001</span></span>
 <span><span class="co">#&gt;   Class 3 vs 1         0.413  [ 0.083,  0.743]     0.014</span></span>
-<span><span class="co">#&gt;   Class 3 vs 2         1.650  [ 1.298,  2.002]    &lt; .001</span></span>
+<span><span class="co">#&gt;   Class 3 vs 2         1.649  [ 1.297,  2.002]    &lt; .001</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="fu"><a href="../reference/add_outcome.html">add_outcome</a></span><span class="op">(</span><span class="va">fit</span>, <span class="va">liang_park_sim</span><span class="op">$</span><span class="va">third_party_elevation</span>,</span>
 <span>                    outcome_type <span class="op">=</span> <span class="st">"continuous"</span><span class="op">)</span><span class="op">)</span></span>
@@ -407,18 +414,18 @@ here are noise.</p>
 <span><span class="co">#&gt; CONTINUOUS DISTAL OUTCOME (MEANS)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Omnibus test (class differences): Wald chi^2(2) = 84.24, p  &lt; .001</span></span>
+<span><span class="co">#&gt; Omnibus test (class differences): Wald chi^2(2) = 84.18, p  &lt; .001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;                  Mean       [95% CI]        SE</span></span>
-<span><span class="co">#&gt;   Class 1        2.386  [ 2.215,  2.556]     0.087</span></span>
-<span><span class="co">#&gt;   Class 2        1.651  [ 1.436,  1.866]     0.110</span></span>
-<span><span class="co">#&gt;   Class 3        3.072  [ 2.858,  3.287]     0.109</span></span>
+<span><span class="co">#&gt;   Class 1        2.385  [ 2.215,  2.556]     0.087</span></span>
+<span><span class="co">#&gt;   Class 2        1.651  [ 1.435,  1.866]     0.110</span></span>
+<span><span class="co">#&gt;   Class 3        3.072  [ 2.857,  3.286]     0.109</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Pairwise class differences:</span></span>
 <span><span class="co">#&gt;                     Difference       [95% CI]        P-Value</span></span>
 <span><span class="co">#&gt;   Class 2 vs 1        -0.735  [-1.014, -0.455]    &lt; .001</span></span>
-<span><span class="co">#&gt;   Class 3 vs 1         0.687  [ 0.404,  0.969]    &lt; .001</span></span>
-<span><span class="co">#&gt;   Class 3 vs 2         1.421  [ 1.118,  1.725]    &lt; .001</span></span>
+<span><span class="co">#&gt;   Class 3 vs 1         0.686  [ 0.404,  0.969]    &lt; .001</span></span>
+<span><span class="co">#&gt;   Class 3 vs 2         1.421  [ 1.117,  1.725]    &lt; .001</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
 <p>Across all three outcomes the pattern is the same shape as the
 profiles themselves: the “Disengaged” class scores lowest and “Broad
@@ -468,12 +475,12 @@ specified model with no overlap. A real analysis has no
 <span><span class="co">#&gt; Rows: model-expected membership | Columns: modal assignment</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;          Modal 1 Modal 2 Modal 3    Total</span></span>
-<span><span class="co">#&gt; Class 1 120.2867  2.9888  3.6374 126.9129</span></span>
-<span><span class="co">#&gt; Class 2   2.4505 85.9894  0.3405  88.7804</span></span>
-<span><span class="co">#&gt; Class 3   4.2628  0.0217 80.0221  84.3067</span></span>
+<span><span class="co">#&gt; Class 1 120.2806  3.0031  3.6092 126.8929</span></span>
+<span><span class="co">#&gt; Class 2   2.4429 85.9750  0.3330  88.7509</span></span>
+<span><span class="co">#&gt; Class 3   4.2765  0.0219 80.0578  84.3562</span></span>
 <span><span class="co">#&gt; Total   127.0000 89.0000 84.0000 300.0000</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Classification error: 0.0457 (4.57% of 300 cases)</span></span>
+<span><span class="co">#&gt; Classification error: 0.0456 (4.56% of 300 cases)</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
 </div>
 <div class="section level2">

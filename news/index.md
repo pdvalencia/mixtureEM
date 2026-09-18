@@ -1,6 +1,1040 @@
 # Changelog
 
-## mixtureEM (development version)
+## mixtureEM 0.4.0
+
+### A worked example of random-intercept LTA, on real data that ships with the package
+
+`ecls_reading` is a new bundled dataset: five binary reading-proficiency
+indicators measured four times, from the fall of kindergarten to the
+spring of first grade, on 3,575 children in the Early Childhood
+Longitudinal Study (ECLS-K, a U.S. public-domain survey), with a
+household poverty indicator. It is the stage-sequential example of
+Kaplan (2008), and the shape – several indicators, four occasions, a few
+thousand cases – is the one at which a random intercept is both
+identifiable and consequential.
+
+The new
+[`vignette("rilta")`](https://pdvalencia.github.io/mixtureEM/articles/rilta.md)
+walks the pipeline an applied analysis needs on it: the ordinary LTA as
+a baseline, the continuous random intercept, the quadrature check, the
+binary alternative and the BIC comparison, then poverty as a predictor
+of the stable trait and of the transitions, with the factor scores at
+the end. It is written for the reader who wants to know what the model
+changes and why, not for the one reproducing the article.
+[`vignette("lta")`](https://pdvalencia.github.io/mixtureEM/articles/lta.md)
+now uses the same data in place of its simulated example, so the
+ordinary model, its stage-sequential restriction and its covariate
+effects are introduced there and the random-intercept vignette can build
+on them. The random-intercept vignette’s fits are plain maximum
+likelihood (both priors off) and reproduce the corresponding published
+log-likelihoods for these data to within a tenth of a unit; the LTA
+vignette keeps the package defaults, which sit about one unit below
+them.
+
+[`random_intercept_loadings()`](https://pdvalencia.github.io/mixtureEM/reference/random_intercept_loadings.md)
+is new: the loading of each indicator on the factor, with its standard
+error, as a data frame. The loadings were previously reachable only as
+`fit$ri$L`. A binary random-intercept fit’s item table now carries the
+item names, where it used to print `Item_1`, `Item_2`, … in
+[`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md),
+and the warning about a loading above 10 is raised once, for the fit
+returned, rather than for every candidate the search discarded on the
+way.
+[`?fit_lta`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)’s
+sample-size guidance now cites Tseng (2024) for what it is – the
+continuous-indicator analogue, at a between-profile separation of d =
+0.75 – rather than as a loading. Nothing numeric changes.
+
+### Printing an unconverged LTA fit no longer crashes
+
+`print.lta_model()` and
+[`print.mixture_model()`](https://pdvalencia.github.io/mixtureEM/reference/print.mixture_model.md)
+both threw “missing value where TRUE/FALSE needed” when every restart in
+the search failed to converge, instead of reporting the fit. The line
+now says so directly (“none of N starts ran to convergence”) rather than
+erroring. No estimate or statistic changes; a converged fit’s printed
+output is unaffected.
+
+### The boundary warning no longer suggests `variances_equal` for a categorical item
+
+The warning raised when a fit reaches a boundary listed
+`variances_equal = TRUE` among its remedies whether the flagged
+parameter was a class variance or a response probability. It is only a
+remedy for the former, and is now offered only then. Message text only;
+no estimate or statistic changes.
+
+### The continuous random-intercept LTA search is faster and reaches better optima
+
+`fit_lta(random_intercept = "continuous")`’s restart search is rebuilt:
+a much wider restart construction (perturbed item logits and loadings of
+either sign), a cheaper one-step generalised-EM update while ranking
+candidates instead of solving each one to convergence, and one accurate
+rescore of every ranked candidate before the best few are promoted to
+the full search. Across several published benchmark data sets the new
+search reaches the same optimum as before or a better one, in a fraction
+of the time – one benchmark that used to land on a spurious boundary
+solution now reaches the interior optimum, three to four times faster
+than before.
+
+This changes what
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+returns for a continuous random intercept: where the old search settled
+for a worse local optimum, the new one usually finds a better one, so a
+log-likelihood, BIC, or set of estimates from a continuous-RI fit made
+under this version can differ from one made under an earlier version of
+this package. Nothing here has been released before this version, so
+there is no previously published number this affects. The old search is
+still available, for reproducing a fit made under it, via
+`options(mixtureEM.lta_ri_search = "narrow")`; the new one is
+`options(mixtureEM.lta_ri_search = "wide")`, now the default. Binary and
+ordinal indicators are both covered. See
+[`?fit_lta`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md),
+under `random_intercept`.
+
+### A degenerate categorical fit under a random intercept is now detected and flagged
+
+A continuous random intercept’s item-response logits (`fit$ri$A` for
+binary indicators, `fit$ri$theta` for ordinal ones) have no bound on
+them once the categorical prior is switched off, and the search could
+reach a solution with a response probability pinned near 0 or 1 – a
+spurious optimum that scores higher than the true one by construction,
+not a better answer. This is now caught the same way collapsed class
+variances already are: the fit’s
+[`print()`](https://rdrr.io/r/base/print.html) and
+[`summary()`](https://rdrr.io/r/base/summary.html) carry a warning,
+`fit$degenerate` records the flagged cells, and every consumer that
+already reads `fit$degenerate` (BIC comparisons,
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md),
+the replication note) treats it the same as a variance collapse.
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)’s
+restart search also no longer lets a flagged candidate win the ranking
+over a clean one purely on likelihood; a clean solution is always
+preferred, and a flagged one is only ever returned when every restart
+reached the boundary.
+
+This does not change any previously reported log-likelihood on a fit
+that was not already at the boundary – proved by an exact no-op check
+across five model shapes before and after. On the one benchmark this was
+found on, every member of the restart pool that reaches full convergence
+is itself a boundary solution (two different ones, in fact), so the fit
+returned is unchanged and still flagged; restoring the interior optimum
+on that benchmark needs a change to which restarts the search promotes,
+not to how the winner among them is picked, and is not part of this
+change.
+
+The check applies only to the random-intercept item parameters, not to a
+plain categorical fit’s response probabilities, which are a bounded
+weighted average with no equivalent failure mode; measured directly, a
+well-behaved fit on real data routinely reaches a class-by-item
+probability of 1e-7 as a stable optimum; the correct instrument is the
+logit scale that random-intercept indicators use.
+
+### EM stops two orders of magnitude tighter
+
+The rule that decides when plain EM has converged (every model that is
+not fitted by
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md),
+which has its own convergence logic) was loosened past where it should
+have stopped: on five benchmark fits taken to full convergence, the old
+rule landed below every one of them, and the tighter rule lands on all
+five, inside a few ten-thousandths.
+
+Published fits move by a few thousandths of a log-likelihood unit or
+less – the fourth decimal, not the second – and the direction is
+*upward*, onto the converged maximum. The cost is real: EM now runs
+one-and-a-half times as many iterations on the median model and up to
+two and a half times on the slowest, so a fit or a
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)
+replicate that used to finish quickly now takes longer in proportion.
+`refine = FALSE` fits and
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)’s
+bootstrap replicates, which never get the optional post-EM polish, feel
+this the most, because for them EM is the whole estimator.
+
+### `refine` now documents which models it actually applies to
+
+`fit_mixture(refine = )` defaults to `TRUE` and its help page promised
+an L-BFGS pass after EM convergence, without saying that most models
+never get one. Five separate conditions turn it off: polytomous and
+count indicators, mixed-measurement models,
+[`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
+and
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md),
+continuous indicators at `variances_equal = TRUE` – which is the default
+for continuous indicators, so an ordinary continuous fit was never
+refined – any model carrying covariates or `group_effects`, and block
+models holding parameters invariant across blocks. In a `group_effects`
+model the pass still reaches the pooled and per-group pre-fits that seed
+the search, but never the group model itself.
+
+None of those fits was ever left part-way up the likelihood: EM is given
+a tighter stopping rule instead and is the whole estimator for them. The
+defect was a documented default that silently did nothing, and it is
+fixed by saying so. Measured across ten models graded against outside
+implementations, the pass turns out to be worth very little even where
+it does run, because EM has already converged before it starts: on the
+two such models it moved the log-likelihood by zero and by one
+ten-thousandth. `refine = FALSE` is a safe way to save time, and is what
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)
+already does for its bootstrap replicates.
+
+A regression test now pins the guard that declines a fit whose class
+probabilities come from a covariate regression. That guard is
+load-bearing – the refinement packs a single pooled vector of class
+weights and has no slot for a regression, so lifting it without changing
+the packing would maximise a different model from the one being fitted.
+
+No fitted value changes. This release note and the help page are the
+whole of it.
+
+### `fit_lta()` can test whether the items mean the same thing to everyone
+
+`predictors_items` lets a covariate act on each indicator directly,
+inside each latent status, instead of only on which status a person is
+in and where they move. A non-zero coefficient means two people in the
+same latent status answer that item differently – measurement
+non-invariance, or differential item functioning. One proportional-odds
+slope per latent status per item per covariate, shared across occasions,
+so the cost is `n_statuses * n_items * ncol(predictors_items)`
+parameters.
+
+This is not what `group` does. A grouping variable gives every group its
+own status prevalences and its own transition matrices while the
+measurement model is held invariant across groups; `predictors_items`
+exists to relax exactly that assumption, and the two answer different
+questions. Fitting the model both ways and comparing them with
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+is the invariance test itself.
+
+[`lta_covariate_summary()`](https://pdvalencia.github.io/mixtureEM/reference/lta_covariate_summary.md)
+prints the coefficients with standard errors and Wald tests, under a
+heading that states what a non-zero value means and that the item
+probabilities reported elsewhere are those of a case with every one of
+these covariates at zero. The estimator covers a five-status,
+three-occasion, three-item ordinal model with a binary covariate: graded
+against an outside program’s published fit of exactly that model, the
+package reproduces its parameter count exactly and its log-likelihood to
+0.03. Combining it with `random_intercept = "continuous"` is estimated
+by the same code but is **not yet graded against an outside number**,
+and neither is any model with more than one latent class.
+
+The argument requires `measurement = "ordinal"`, because a
+proportional-odds slope only exists in the cumulative-logit
+parameterisation – binary indicators can be passed as two-category
+ordinal data to get the same model – and
+`measurement_invariance = "full"`, because the slopes are shared across
+occasions. It is restricted to covariates taking few distinct values:
+each distinct combination costs one extra emission table per quadrature
+node in every E-step, so more than sixteen of them is refused with an
+explanation rather than accepted and left to run for days. Raise the
+limit deliberately with `options(mixtureEM.dif_max_patterns = )` if that
+is really what you want.
+
+No existing fit changes.
+
+### `fit_lta()` can share transition slopes across occasions while leaving the intercepts free
+
+`transition_invariance` gains a third setting, `"slopes"`, between the
+`"none"` and `"full"` it already had. `"none"` estimates a separate
+transition regression for every pair of adjacent occasions; `"full"`
+shares one throughout, intercepts included. `"slopes"` shares the
+covariate slopes across occasions but gives each occasion its own
+intercepts, so a covariate’s effect on moving between statuses is held
+constant over time while the underlying rate of movement is not. It is
+nested inside `"none"` and contains `"full"`, so
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+tests both restrictions, and with only two occasions it is identical to
+`"full"`.
+
+This is the specification a good deal of the published latent-transition
+literature actually fits, and the package could not express it before:
+asking for it with `"full"` also pools the intercepts and reports four
+fewer parameters on a five-status, three-occasion model. Graded against
+a published fit of exactly this model – five statuses, three occasions,
+ordinal indicators, one covariate on both the initial status and the
+transitions – the package now reproduces its parameter count exactly and
+its log-likelihood to 0.012.
+
+`"slopes"` requires `predictors_transition` (or a `group` acting on the
+transitions), since without a transition regression there are no slopes
+to share, and `transition_effects = "common"`; both are refused with an
+explanation rather than silently reinterpreted. No existing fit changes:
+the occasion contrasts are a zero-width addition under every other
+setting, and every log-likelihood the package produced before is
+bit-identical.
+
+### `blrt()` seeds its bootstrap replicates from the observed null fit
+
+Each bootstrap replicate used to refit both the smaller and the larger
+model from `n_init_boot` random restarts apiece. A replicate is
+generated from the observed-data null fit, so that fit’s own parameters
+are already the best available start for the smaller (null) model on the
+replicate, and a random search there can only rediscover the same basin;
+the larger (alternative) model is the one that can land in a wrong basin
+and is where the restart budget belongs. Running a full random search on
+the null replicate wasted computation and inflated its log-likelihood,
+which biases the bootstrap likelihood-ratio statistic down
+(conservative); under-searching the alternative relative to the null
+biases it up (anti-conservative). The two together push the p-value by
+an uncontrolled amount in an unknown direction.
+
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)’s
+null replicate is now seeded from the observed-data null fit with no
+random restarts, and `n_init_boot` now sizes the alternative replicate’s
+search alone, at twice its old value (so the default alternative search
+is 20 restarts, not 10) – spending the search budget the null no longer
+needs on the side that needs it. `n_init_boot`’s meaning therefore
+changes; nothing else about
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)’s
+interface does. Measured against the pre-change behavior on both
+well-separated and weakly-separated simulated fixtures: see the account
+in the package’s internal records for what moved and what did not.
+
+### The continuous random-intercept LTA search no longer pre-fits a simpler model
+
+`fit_lta(..., random_intercept = "continuous")`’s restart pool used to
+build half its restarts by fitting a random-intercept-free model first
+and seeding the intercept’s thresholds from it. It now draws a second,
+independent random start instead.
+
+**A fit of this kind can land on a different solution than it did
+before**, and the change matters most if you have switched the default
+priors off. With the priors in place — the default — a fit of the
+benchmark this package validates against lands where it always did, on a
+solution whose item probabilities are all well inside 0 and 1. With
+`smoothing = 0` and the categorical Bayes constant set to zero, so that
+plain maximum likelihood is what is being maximised, the deeper search
+now finds a higher peak at which two item probabilities are pinned at 0
+and 1 — a boundary solution, which fits better and means less.
+
+That is a property of the likelihood rather than of this change, and it
+is not really a peak: continue the fit and the log-likelihood stops
+moving in the eleventh decimal while those two parameters keep growing
+until the arithmetic runs out of precision. Without a prior there is
+nothing there to converge to, so which values get reported is decided by
+where the algorithm stops rather than by the data. **It is a reason to
+leave the priors on**, which is what they are for, and a reason to read
+the item probabilities of any unpenalised fit before trusting its
+log-likelihood.
+
+No public interface moves, and no other model family is affected.
+
+### `fit_mixture()` now ranks and stops its restart search on the same objective its M-step maximises
+
+Every M-step in the mixture engine, and the L-BFGS polish that follows
+it, maximises a penalised likelihood – the weak priors `bayes_constants`
+controls. Until now,
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)’s
+restart search ranked candidates, and each restart decided when to stop
+iterating, on the *plain* log-likelihood instead: a different quantity
+from the one every other stage was climbing, so the winner returned by
+the search was not guaranteed to be the point EM had actually converged
+to. This is fixed for every measurement family the engine supports,
+including multiple-group and repeated-measures models and
+mixed-indicator models, whose shared class weights are priced once and
+whose per-block or per-item measurement terms are priced individually,
+matching the multiplier each one’s own M-step already applies to an item
+held invariant across occasions or groups.
+
+**Some fitted numbers move.** A restart search that used to stop early
+because the plain log-likelihood looked flat can now keep climbing the
+posterior for longer, so the number of EM iterations on well-separated
+fixtures can rise. `$loglik` and the information criteria built on it
+are unaffected in kind – they still report the plain log-likelihood –
+but the point they are evaluated at can differ from before, by the order
+of magnitude the `bayes_constants` documentation now discloses (about
+ten log-likelihood units at `variances = n_classes`, the package’s own
+recommendation for a collapsed fit).
+
+### Latent transition models fit three to four times faster, with identical results
+
+The forward-backward recursion at the centre of every
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+and
+[`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md)
+fit now runs in the probability domain with a per-occasion scaling
+constant – the standard scaled recursion (Rabiner, 1989, sec. V.A) –
+instead of in log space. It was 78% of an LTA fit’s total time, and the
+work it does per occasion collapses from one log-sum-exp per destination
+status in each direction to a single matrix product. Two representative
+fits went from 33.8 to 9.8 seconds and from 70.3 to 17.5 seconds, and
+the gain grows with the number of statuses: on an eight-status model the
+recursion alone is over eight times faster. Models with a random
+intercept, which run one pass per quadrature node, have the most to
+gain.
+
+**No fitted number moves.** The two forms are the same arithmetic, and
+the log-likelihoods of both fits above agree to every digit printed. A
+regression test asserts that the two recursions agree to `1e-10` on the
+case log-likelihood, the occasion-wise posteriors and the pairwise
+transition counts, across two to five statuses, one to five occasions,
+weighted data, and a forty-item model with response probabilities at
+0.001 – the case a probability-domain recursion is usually said to fail
+on, which it does not here because each occasion’s emission matrix has
+its own row maximum factored out before it is exponentiated. Models
+whose transition probabilities depend on covariates keep the log-space
+recursion, which is the form that expresses them.
+
+### One-step fits with covariates now use the response-pattern economy too
+
+A `fit_mixture(n_steps = 1)` fit with categorical indicators runs its EM
+iterations on the table of distinct response patterns, each carrying the
+number of cases that share it, rather than on all `n` rows. Until now
+that economy switched off entirely as soon as `predictors` were
+supplied, because a case whose class probabilities depend on its own
+covariate values is no longer interchangeable with another case that
+merely gave the same answers. The right answer is to widen the key
+rather than abandon it: cases are now pooled when they give the same
+responses *and* carry the same covariate values, which is exactly when
+two cases are interchangeable under the model. The likelihood is the
+same weighted sum either way. Continuous covariates make almost every
+row distinct, so nothing collapses there and nothing changes; the saving
+is for discrete covariates such as sex, group or treatment arm, where a
+1500-case five-item two-covariate fit collapses to 181 rows. A covariate
+with any missing value is not collapsed, because the imputation those
+cells receive is computed from an unweighted mean that the pattern table
+would change.
+
+**One number moves.** Random starting values are drawn per row, so a fit
+that newly collapses starts its restarts from different points and may
+report a different log-likelihood than it did before – a different
+sample of the same likelihood surface, not a different model. This
+affects only one-step categorical fits with fully observed discrete
+covariates; every other fit, including every fit in the package’s own
+validation set, is unchanged.
+
+### Multi-start and bootstrap loops no longer leave cores idle
+
+Every loop that `n_cores` spreads over workers – the multi-start search,
+the bootstrap likelihood ratio test, the bootstrap standard errors and
+the `K` grids of the `compare_*()` functions – now hands work out one
+piece at a time instead of dividing it into fixed per-worker chunks in
+advance. Random starts can differ several-fold in how long they take to
+converge, and under the old scheme a worker that drew a chunk of cheap
+ones sat idle until the unluckiest chunk finished. It helps most where
+there are many more pieces than workers – a bootstrap likelihood ratio
+test at its defaults is over two thousand fits. No fitted number moves:
+which worker runs a restart was never an input to it, and results are
+still returned in the order they were requested.
+
+### Covariates may now predict the continuous random intercept itself
+
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+gains `predictors_random_intercept`, letting a continuous random
+intercept’s factor be regressed on covariates (`f ON x`, with the
+factor’s residual variance fixed at 1 and no intercept, since a location
+shift of the factor is absorbed exactly by the free per-class thresholds
+and is not identified). The estimator reweights the fixed quadrature
+grid by an exact importance identity rather than shifting the grid per
+case, so the fit costs one closed-form weighted-least-squares step per
+EM iteration and no numerical optimiser. The identity itself is checked
+against [`stats::integrate()`](https://rdrr.io/r/stats/integrate.html)
+and the coefficients are recovered on simulated data with a known
+answer; a check against a published worked example’s own covariate step
+is still open (the search does not yet reliably reach the published
+optimum on that data, tracked internally) and is not yet claimed. No
+number a current user sees changes: this is new capability, not a change
+to any previously available fit.
+
+### `fit_lta()` gains an `"ordinal"` measurement option
+
+Items with more than two ordered response categories can now be declared
+`measurement = "ordinal"`, a cumulative-logit block that lets items with
+different numbers of categories (a 3-category, 3-category and binary set
+of items, for instance) share one measurement block instead of needing a
+mixed specification. Without a random intercept it is numerically
+identical to `measurement = "categorical"` (free per-status category
+probabilities are the same model as free per-status thresholds).
+
+`random_intercept` now accepts ordinal indicators too, in both its
+`"continuous"` and `"binary"` forms, with standard errors, the robust
+sandwich, the MLR scaling factor and the post-EM L-BFGS refinement all
+available exactly as they already were for binary indicators. This was
+checked against a published worked example, with the same estimates and
+log-likelihood. No number a current user sees changes: this is new
+capability, not a change to any previously available fit.
+
+### A random intercept may now be combined with covariates and with `group`
+
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+previously refused to combine `random_intercept` with covariates on the
+initial status or the transitions (`predictors_initial` /
+`predictors_transition`). Because `group` is implemented internally as
+those same covariates, the same refusal also blocked multiple-group
+random-intercept fits. Both are now supported: the expectation step, the
+parameter packing, the score blocks and the parameter count already
+handled this combination correctly, so lifting the one guard that
+refused it was what was missing. Standard errors, the robust sandwich,
+the MLR scaling factor and the post-EM refinement all switch on for
+these fits the same way they already do for a plain random-intercept
+fit. No number a user has already seen moves: every fit that could be
+estimated before this change either has no random intercept or has no
+covariates, so nothing that could change does.
+
+### `fit_lta()`’s post-EM refinement now covers random-intercept fits
+
+The optional post-EM L-BFGS polish (`refine = TRUE`, the default)
+previously declined every random-intercept fit: the penalty term the
+refinement climbs alongside the likelihood had no case for a random
+intercept’s free parameters (the item intercepts, the loadings, and a
+discrete mixing distribution’s node masses), so climbing it would have
+optimised a different objective from the one EM uses. That branch is now
+implemented, mirroring the corresponding random-intercept log-prior term
+for term, and a packing rule that was silently clamping the loadings to
+a `[-25, 25]` box meant for logit-scale parameters is corrected.
+
+Measured before and after on four published random-intercept examples (a
+binary and a continuous random intercept, single-class and
+mover-stayer), the refinement moved no log-likelihood, point estimate or
+reported timing at all: in every case EM’s own restarts had already
+reached the same optimum the refinement finds. No previously-reported
+number changes; this only turns on an optimisation step that was
+previously a documented no-op for these fits.
+
+### `fit_lta()` reports robust standard errors and a scaling factor for random-intercept fits
+
+A random-intercept
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+fit could report only the default (empirical-information) standard
+errors: `standard_errors = "robust"` fell back silently to that same
+default, and the scaling factor
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+needs for a proper likelihood-ratio comparison between two
+random-intercept models was unavailable. Both were blocked on the same
+missing piece – the internal parameter layout, packing and unpacking
+functions had no case for a random intercept’s free parameters (the item
+intercepts, the loadings, and a discrete mixing distribution’s node
+masses), so such a fit could not be reduced to a single vector a
+finite-difference Hessian could be taken of.
+
+That packing now exists, alongside a matching case-level likelihood used
+only for the Hessian (a full E-step computes more than the Hessian needs
+and would make it unaffordably slow at a realistic quadrature grid).
+`standard_errors = "robust"` and the scaling factor now work for every
+random-intercept shape – continuous or discrete, single-class or
+mover-stayer. On a published random-intercept example, the new sandwich
+standard errors land within a few percent of the published robust
+standard errors on every measurement parameter checked, closing a
+scatter an earlier release could not explain. No previously-reported
+point estimate or standard error changes: this only makes a
+previously-unavailable estimator available. The post-EM refinement step
+remains off for random-intercept fits.
+
+### `fit_lta()` reports standard errors for a mover-stayer fit crossed with a random intercept
+
+A
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+fit combining `mover_stayer = TRUE` with
+`random_intercept = "continuous"` or `"binary"` previously fitted and
+reported a log-likelihood but no standard errors at all: the multi-class
+branch of the internal score matrix ran a plain per-class
+forward-backward on the node-marginalised emission, which drops the
+within-case correlation a random intercept induces, so standard errors
+were declined rather than reported against the wrong likelihood.
+
+It now runs the same random-intercept E-step the model itself is fitted
+with, once per class, exactly as the single-class case already did, so
+these fits report standard errors like any other supported fit.
+Separately, a random intercept with a discrete (“binary”) mixing
+distribution was missing a score block for its node masses, so every
+binary-random-intercept fit – including single-class ones, which have
+reported standard errors since an earlier release – silently treated the
+node masses as known instead of estimated. That block is now included,
+which is the one number this change moves for an already-supported fit:
+a single-class binary-random-intercept fit’s other standard errors widen
+slightly, since they are no longer conditional on the node masses. No
+point estimate anywhere moves, and non-random-intercept fits are
+bit-identical. The robust sandwich, the MLR scaling factor,
+`vlmr_test()` and the post-EM L-BFGS refinement remain off for every
+random-intercept fit, unchanged.
+
+### `fit_lta()` reports standard errors for a tied mover-stayer fit
+
+A mover-stayer
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+fitted with `tie_initial_status = TRUE` – one shared starting-point
+distribution across the mover and stayer classes, instead of a separate
+one for each – previously reported a log-likelihood but no standard
+errors at all. The internal parameter layout still described one free
+initial-status block per class regardless of tying, which would have
+silently misreported a tied fit’s uncertainty as though the classes were
+independent, so it declined instead.
+
+It now collapses the tied classes into the one shared block the model
+actually has, in the parameter layout, the packing/unpacking round trip,
+the per-case score matrix and the Bayesian prior alike, and standard
+errors are reported like any other supported fit. This also switches on
+the post-EM L-BFGS refinement for tied non-RI fits, which had never run
+for them before – the refinement never lowers the fitted objective, and
+it left every previously-validated tied-fit log-likelihood on the
+internal Mood benchmark unchanged to five decimals. Untied fits, and
+mover-stayer fits crossed with a random intercept, are unaffected.
+
+### `fit_lta()` polishes and reports standard errors for a mixture over chains
+
+A latent transition model fitted with `n_classes` greater than 1 – a
+mixture of several possible transition “storylines,” each with its own
+initial status prevalences and transition matrices – previously declined
+both the post-EM L-BFGS refinement and standard errors: `refine = TRUE`
+was a silent no-op, and
+[`summary()`](https://rdrr.io/r/base/summary.html) printed a note that
+no standard errors were available. Both were declined because the
+internal score matrix, the object both consumers are built on, did not
+have a term for the class-mixing weights or for the fact that every
+other parameter becomes class-conditional once more than one chain is in
+the mixture.
+
+It now does. The class-mixing proportions get their own
+multinomial-logit score block, anchored on the last class the same way
+the initial status is anchored on the last status; every existing block
+– the initial status and the transitions – is scaled by the case’s
+posterior probability of belonging to that class, licensed by the same
+identity that already lets EM train a mixture at all (Louis, 1982): the
+gradient of a mixture’s observed-data log-likelihood is the
+posterior-weighted sum of the gradients of its complete-data,
+class-conditional log-likelihoods. The shared measurement model’s score
+is unaffected in form – it already read the class-mixed status
+posterior, because the M-step’s own update does – and is simply computed
+alongside the rest instead of being unreachable.
+
+This is the same score matrix the post-EM refinement, the standard
+errors, and the scaled log-likelihood-difference test for nested models
+all read from one place, so all three become available for a mixture
+over chains at once, for the measurement families they were already
+available for (binary and continuous indicators). A covariate-driven
+initial status or transition model is unaffected and still declines
+both, since its free parameters are case-level regression coefficients
+the same score blocks cannot describe.
+
+No previously-reported number moves: every model this affects previously
+returned `NULL` standard errors and an unrefined fit, so there is
+nothing on record to compare against. The analytic gradient this adds is
+checked against central finite differences on a synthetic two-class
+fixture, the same way the single-chain refinement already was.
+
+### The transition prior is one pseudo-case per matrix, not per row
+
+`fit_lta(smoothing = )` is documented as a number of pseudo-cases, and
+it was adding that many to *every origin row* of every transition
+matrix. A K-status model therefore carried K times the mass the number
+implies. The constant is now spread over the whole conditional table: a
+chained latent transition model makes the previous status a predictor of
+the next, so the prior divides by the number of predictor patterns, as
+it already did for the initial status prevalences. Those were already
+right, and so was every model with one occasion; only the transitions
+were affected.
+
+The measurement prior ran the other way. Under measurement invariance
+the occasions are pooled into one update, and
+`bayes_constants$categorical` was applied once to the pooled counts.
+There is one measurement equation per occasion and the constant belongs
+on each of them, so an item held invariant across T occasions now
+carries T times what it carried before.
+
+Numbers move only where a prior is actually switched on. Every fit with
+`smoothing = 0` and `bayes_constants` zeroed is unchanged to the last
+bit, on all four benchmarks checked.
+
+Where the priors are on, the two corrections pull in opposite directions
+and which one dominates depends on the model. A model with many statuses
+and few occasions loses more transition prior than it gains measurement
+prior and ends up closer to unpenalised maximum likelihood: on a
+four-status three-occasion fit the log-likelihood rises by 0.30, and on
+a five-occasion two-status model the gap to the unpenalised maximum
+halves, from 0.73 to 0.35. A model with many occasions and few statuses
+goes the other way, because the measurement prior it gains is the larger
+of the two: a five-occasion two-status fit with an invariant single
+indicator drops by 0.02, and the two-occasion four-status benchmark by
+0.15. Both directions are the documented constants being applied as
+documented; neither is a regression.
+
+`$smoothing_influence` is recalibrated to match, so the reported pull is
+a row’s real share rather than K times it, and the five-percent warning
+now fires on rows that genuinely are that thin.
+
+### `fit_lta()` stops and ranks restarts on the objective it is climbing
+
+The M-step and the L-BFGS refinement maximise the penalised objective –
+the log-likelihood plus the priors above – while the EM convergence test
+and the choice of the best random start compared the plain
+log-likelihood. The plain log-likelihood is not monotone under a
+penalised M-step, so the stopping rule could fire early, late or on
+noise, and the winning restart could be a point the search had not
+converged to: a restart’s penalised value and its plain log-likelihood
+are not monotonically related, so the two rankings disagree. Both now
+use the penalised objective.
+
+`loglik` still reports the plain log-likelihood. Every information
+criterion,
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md),
+[`lta_g2()`](https://pdvalencia.github.io/mixtureEM/reference/lta_g2.md)
+and every published comparison is defined on it, and none of them
+changes meaning. Where the exact penalised objective cannot be written
+down – Gaussian, count and polytomous indicators, whose measurement
+priors are not the marginal-preserving Beta one – the old rule is kept
+rather than an approximate objective used, since an incomplete penalty
+would not be monotone either.
+
+The practical gain is in how often the search agrees with itself. On a
+five-occasion model the number of random starts reaching the reported
+solution went from 2 of 40 to 40 of 40, and on a four-status
+two-occasion benchmark from 1 of 20 to 20 of 20; a four-status
+three-occasion fit converged in 349 EM iterations against 546. And with
+both changes together, one benchmark’s log-posterior moves from
+-5065.089 to -5062.425, a gain of 2.66 on the objective the search is
+now actually climbing.
+
+### `n_cores` can be set once for a session, and the workers are now kept
+
+Every function that spreads work over processes –
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md),
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md),
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md),
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md),
+[`bivariate_residuals()`](https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.md),
+[`bootstrap_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/bootstrap_covariates.md)
+– takes `n_cores`, and each of them defaulted it to one.
+`options(mixtureEM.n_cores = 4)` now supplies that default for a whole
+session. An argument passed to a particular call still wins over it, and
+with the option unset nothing has changed, so an installation that never
+sets it behaves exactly as before. The point is that the slowest things
+in the package are the ones a user is least likely to remember to pass
+an argument to.
+
+More importantly, the pool of worker processes is now built once and
+reused for the rest of the session instead of being started and shut
+down inside every parallel call. Starting one is not cheap: on a
+fourteen-core machine, spawning the workers and loading the package onto
+them took about eleven seconds. Paid once per call, that was longer than
+most single fits, so `n_cores` sped up only the very largest jobs and
+quietly slowed down everything else – a
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+sweep paid it once per K, and a validation run once per fit. Paid once
+per session it disappears: on a 3-class, 7-item binary fit with twenty
+restarts, the second and subsequent parallel fits ran in 1.3 seconds
+against 4.3 sequential.
+
+Nothing about reproducibility changes, and that is the property that
+makes this safe. Starting values are drawn in the calling session, in
+the order the sequential search would have drawn them, and workers never
+draw random numbers; a fit is therefore identical at every `n_cores`,
+down to the last bit. That equality is now asserted directly in the test
+suite, which it had never been.
+
+Two related corrections. The bootstrap loops in
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md),
+[`bivariate_residuals()`](https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.md)
+and
+[`bootstrap_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/bootstrap_covariates.md)
+now fit their replicates with `n_cores = 1` explicitly: a replicate is
+what the workers are already running, and without this a session-wide
+option would have had each of them try to spread its own restarts again.
+And a worker pool that has died between calls is detected and rebuilt
+rather than used.
+
+### A latent transition model is fitted on its response-pattern table
+
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+now collapses the data to one row per distinct response pattern for the
+duration of the search, carrying the number of cases behind each pattern
+as a frequency weight, and puts the fit back on the full sample before
+anything per-case is read off it. The likelihood is a weighted sum over
+cases either way, so this is arithmetic saved rather than a change of
+estimator: the fitted parameters, the log-likelihood, the information
+criteria, the entropy, the posteriors and the standard errors are all
+bit-for-bit what they were.
+
+Categorical panel data repeats itself heavily, which is what makes the
+saving worth having. A benchmark of five binary items measured at each
+of two occasions on 3,092 respondents holds 718 distinct answer
+patterns, so three quarters of every forward-backward pass was the same
+arithmetic done again. On that benchmark, a four-status invariant model
+with six restarts went from a median of 76.5 seconds to 22.1, a speed-up
+of 3.46x, with the log-likelihood, BIC and entropy identical to every
+digit they are stored to.
+
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+has fitted its categorical measurement models this way for some time.
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+runs a separate driver, because it needs the forward-backward recursion,
+and the pattern table never reached it. It is also exactly what
+`weights =` with `weight_type = "frequency"` already let a user do by
+hand.
+
+The collapse is skipped where it would not be the same fit: with
+covariates on the initial status or the transitions, with a grouping
+variable, or under a complex survey design, since all of those are
+defined per case and two people with the same answers but different
+covariates are not one row. It is also skipped for continuous
+indicators, which have no duplicate rows to find, and whenever fewer
+than half the rows are duplicates.
+
+### `print()` on a refined latent transition model reported zero iterations
+
+The L-BFGS refinement added in this development version re-runs the
+E-step to write its posteriors back, and that reset the iteration
+counter, so any
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+fit the refinement improved printed “Converged: TRUE (in 0 iterations)”.
+The count reported is now the one the EM search actually ran. No
+estimate, standard error or fit index was affected.
+
+### A scaled difference test, and robust standard errors, for latent transition models
+
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+gains a `scaled` argument. Its default, `"auto"`, is exactly the
+behaviour of previous versions: the Satorra-Bentler/Asparouhov
+correction is applied where it is needed for validity, under sampling
+weights or a complex survey design, and nowhere else. No number any
+existing call returns has moved. `scaled = "yes"` asks for the
+correction on an unweighted pair as well, which is the robust
+(MLR-scaled) difference test; `scaled = "no"` suppresses it.
+
+The correction was previously available only for cross-sectional
+mixtures, because the scaling factor is computed from the model’s
+parameters on an unconstrained scale and the latent transition models
+had no such packing when that code was written. They have one now, and
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+dispatches to it. A measurement-invariance test across time - the usual
+reason to compare two latent transition models - can therefore be
+reported in its scaled form directly, without assembling it by hand from
+the two fits’ scaling factors.
+
+Two things the correction cannot do, and refuses rather than
+approximates. It needs both models packed on an unconstrained scale, so
+a latent transition model with covariates, with more than one latent
+class, or with a measurement family whose parameters are not all free
+returns an error under `scaled = "yes"` naming which of those applied.
+And the scaled statistic can come out negative, which is a known
+property of the correction rather than a fault in the fit; when it does,
+the unscaled statistic in `statistic_raw` is the one to report.
+
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+gains `standard_errors = "robust"` in the same machinery. The default
+remains the outer product of the case-level scores; `"robust"` returns
+the sandwich estimator with the observed information as its bread, the
+textbook form of the estimator. It is opt-in because it costs a
+finite-difference Hessian - on the order of `2p(p + 1)` likelihood
+evaluations, minutes rather than seconds - and it falls back silently to
+the default estimator for the models it cannot pack, reporting through
+[`summary()`](https://rdrr.io/r/base/summary.html) which of the two was
+used. `standard_errors` previously accepted only `TRUE` and `FALSE`, and
+silently computed nothing at all when handed anything else; it now
+validates its argument.
+
+### `fit_lta()` now refines its solutions the way the other models do
+
+Every start that runs to convergence is followed by an L-BFGS climb on
+the same penalised objective the EM steps maximise, and the starts are
+then ranked on the refined log-likelihoods rather than on EM’s own.
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+has refined its fits this way since the mixture engine was written; the
+latent transition models are fitted by a separate driver, because they
+need the forward-backward recursion, and that driver had no equivalent.
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+was the one estimation path in the package where EM’s last mile was
+walked rather than jumped.
+
+It matters most where it is hardest to see. EM converges to a fixed
+point of its own surrogate function, which on a near-flat stretch of the
+likelihood can sit measurably short of the maximum, and no number of
+extra restarts and no change of seed will move it - the fit reports
+convergence and is simply not at the top. Tightening `tol` gets there
+eventually, at the cost of thousands of further iterations. The climb
+steps across in one move instead.
+
+Log-likelihoods from
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+may therefore differ slightly from previous versions. They will not be
+lower: the climb never returns a fit worse than the one it was handed,
+and the reported parameter count is unchanged. Turn it off with
+`refine = FALSE`. It is a no-op, and the fit is unchanged, for models
+whose free parameters it cannot differentiate - covariate models,
+mixtures over chains, and measurement families other than binary and
+continuous.
+
+The gradient it climbs is the one `.lta_standard_errors()` already
+computed for its own purposes, so the two now share a single
+implementation of the score matrix and cannot drift apart.
+
+### New: `refine_from`, for continuing a fit you have already run
+
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+and
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+gain a `refine_from` argument. Pass a fitted model of the same shape and
+the fit seeds one EM run from that model’s own converged parameters and
+carries it on under this call’s `tol` and `max_iter`, running no random
+restarts. It is the answer to a common and expensive situation: a search
+over many starts has already found the right hill, and all that is
+wanted now is to climb the last of it under a tighter stopping rule.
+Refitting from scratch pays the tight rule on every restart when it is
+needed on one.
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+and
+[`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md)
+inherit it through the arguments they pass to
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md).
+
+This is not `fit_mixture(start_from = )` and the two cannot be combined.
+`start_from` *replaces* a search that has not happened, which is why it
+is available only alongside `group_prevalence_equal`, where every
+solution the search could find is the same one relabelled. `refine_from`
+sits downstream of a search that has already run and only continues its
+winner, so nothing is skipped and no such argument is needed. Passing
+`n_init` alongside `refine_from` is an error rather than a silent
+override, and a refined fit reports one requested start, so the
+replication warning cannot advise raising a restart budget on a fit that
+never ran a pool.
+
+### `absolute_fit()` and `lta_g2()` now work on an LTA with missing data
+
+[`absolute_fit()`](https://pdvalencia.github.io/mixtureEM/reference/absolute_fit.md)
+refused any
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+model whose indicators had missing values, and
+[`lta_g2()`](https://pdvalencia.github.io/mixtureEM/reference/lta_g2.md),
+which is a thin wrapper over it, therefore returned `NULL` for that
+whole class of model with only a message to say why. Since an LTA is
+very often fitted to data where a case is observed at one occasion and
+not another, this was most of the realistic uses of both functions. The
+missing-data (MAR) branch now serves an `lta_model` as well as a
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+one.
+
+Nothing new had to be derived to do it. A `T`-occasion, `K`-status
+latent transition model *is* a `K^T`-class latent class model whose
+components are the status paths, with each indicator loading on its own
+occasion’s status, so the existing machinery runs unchanged once the
+model is handed to it in that form. Note this is a rewrite rather than a
+re-parameterisation: the per-case log-likelihood of the flattened model
+reproduces the LTA’s own to machine precision.
+
+The statistics follow the same conventions as before – `df = W - 1 - P`
+on the full crossing of indicator categories, with the model-plus-MCAR
+block reported underneath – so an LTA’s absolute fit is directly
+comparable with a
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+model’s.
+[`absolute_fit()`](https://pdvalencia.github.io/mixtureEM/reference/absolute_fit.md)
+refuses, with a message naming both quantities, when the `W`-cell table
+crossed against the `K^T` paths is too large to score.
+
+### Fixed: `transition_patterns()`’s size guard could not fire
+
+[`transition_patterns()`](https://pdvalencia.github.io/mixtureEM/reference/transition_patterns.md)
+refuses a model with more than 10,000 status patterns, but the check sat
+inside the `type = "posterior"` branch and ran *after* the `K^T` grid
+had been built – so it was consulted only once the enumeration it exists
+to prevent had already been allocated, and a model genuinely large
+enough to need it exhausted memory before reaching it. The check now
+runs before the grid, and applies to every `type`, which is the honest
+scope: the table has one row per pattern whatever `type` is asked for,
+so no `type` escapes `K^T`. The documentation claimed `"model"` was
+“cheap at any number of occasions” and `"modal"` “scales to any number
+of occasions”; neither was true, and both now say so, pointing at
+[`transition_matrix()`](https://pdvalencia.github.io/mixtureEM/reference/transition_matrix.md),
+[`status_prevalences()`](https://pdvalencia.github.io/mixtureEM/reference/status_prevalences.md)
+and `class_assignments(object, "viterbi")` as the summaries that are
+actually bounded by something other than `K^T`.
+
+### `transition_patterns()`, and CAIC / AIC3 / ICL in the comparison tables
+
+*(These shipped alongside the entropy work below and were left out of
+this file at the time.)*
+
+[`transition_patterns()`](https://pdvalencia.github.io/mixtureEM/reference/transition_patterns.md)
+is a new exported function giving the joint distribution of latent
+status across every occasion at once, which neither
+[`transition_matrix()`](https://pdvalencia.github.io/mixtureEM/reference/transition_matrix.md)
+nor
+[`status_prevalences()`](https://pdvalencia.github.io/mixtureEM/reference/status_prevalences.md)
+can produce since each looks at only one or two occasions at a time. It
+offers a model-implied table, an exact posterior table, and a modal
+table from the Viterbi decoding. The more common classification table
+for a latent transition model is the per-occasion cross-tab rather than
+this joint decode; the documentation says so, and says how to get it.
+
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+and
+[`compare_longitudinal()`](https://pdvalencia.github.io/mixtureEM/reference/compare_longitudinal.md)
+gain `CAIC`, `AIC3` and `ICL` columns in `fit_table`, alongside the
+AIC/BIC/SABIC already there. CAIC and AIC3 apply a heavier per-parameter
+penalty than BIC; ICL is BIC penalised further by classification
+entropy. The `-> Best model` line and `best_k` are unchanged and still
+choose by BIC alone – the new columns are for comparison, not selection.
+[`print()`](https://rdrr.io/r/base/print.html) for a single fit is
+deliberately unchanged, so a printed model and a compared range do not
+show two different sets of numbers for the ordinary case; the fuller set
+stays reachable through `fit_table` and `$metrics`.
+
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+also gains `metrics$entropy_by_occasion`, one relative-entropy number
+per occasion rather than the single number pooled across all of them,
+printed by [`summary()`](https://rdrr.io/r/base/summary.html) and
+documented in
+[`?fit_lta`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md).
+
+### Changed: `fit_lta()`’s headline entropy is now the joint status-path entropy
+
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)’s
+`metrics$entropy` is now the relative entropy of the joint latent-status
+path, rather than the sum of the per-occasion classification entropies.
+The normalising constant is unchanged. The new figure is the entropy of
+one classification – a case’s whole status path – while the previous
+figure was always slightly higher and was not the entropy of any single
+classification. Values move by roughly 0.005 on a two-occasion model.
+
+### Fixed: `fit_ml()`’s written-back posteriors were still wrong after the orientation fix
+
+The orientation fix below removed a stray transpose, but the block that
+wrote `log_resp`/`lower_bound` back after the EM loop was recomputing a
+posterior from scratch – a fresh E-step on the raw indicators recombined
+with the fitted structural model – rather than reading off the
+classification-weight matrix the EM loop was already maximising the
+structural model against every iteration. The two are not the same
+quantity: the recomputation does not correspond to Vermunt’s (2010)
+derivation of the step-3 likelihood, and its “Overall” mean class
+probabilities were not the step-3 posteriors that derivation defines,
+which a benchmark data set made visible. `fit_ml()` now returns that
+internal matrix directly. Coefficients and standard errors are
+unaffected, since they come from the EM loop’s own `m_step()`, not from
+this write-back; only the posterior class probabilities returned by
+[`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md)
+and
+[`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md)
+under `correction = "ML"` change, and so do any diagnostics computed
+from them (entropy, the reported log-likelihood/AIC/BIC/SABIC).
+
+### Add global (Viterbi) decoding for `fit_lta()`
+
+[`class_assignments()`](https://pdvalencia.github.io/mixtureEM/reference/class_assignments.md)
+on an `lta_model` decoded locally only: it read the occasion-by-occasion
+posterior and took the modal status at each occasion separately. That
+can return a status sequence the fitted model itself gives zero
+probability, if the transition between two locally-favoured statuses is
+one `forbidden_transitions` rules out or the fit merely scores as very
+unlikely, and a user reading off “each case’s trajectory through the
+statuses” is the single most common use of this function.
+`type = "viterbi"` adds global decoding: the single most probable status
+*sequence*, via the max-product form of the same forward recursion
+[`class_assignments()`](https://pdvalencia.github.io/mixtureEM/reference/class_assignments.md)
+already runs, with the backward pass a max instead of a traceback
+(Bartolucci, Farcomeni & Pennoni, 2013, sec. 7.5.2). On a fixture with a
+monotone three-stage design and every backward transition forbidden,
+local decoding crosses a structurally zero transition for 1 of 400
+cases; global decoding never can, by construction, and the two decodings
+disagree on the path for 104 of those 400. With `n_classes` \> 1 the
+class and the path are decoded jointly, which is the model’s own MAP and
+not the same question as “the best path within the marginally modal
+class”: on a mover-stayer fixture, 55 of the 301 cases jointly assigned
+to the stayer class had a *locally* decoded path that moved, which
+cannot happen once class and path are decoded together, and the jointly
+decoded class itself differs from the marginal modal class for 27.6% of
+cases. The returned path carries its own posterior probability as
+`attr(, "probability")` and, with more than one class, the decoded class
+as `attr(, "class_assigned")`. No existing return value or fitted number
+changes.
 
 ### Fix `lr_test()`’s and `vlmr_test()`’s scaled statistic for a one-step covariate model
 
@@ -17,10 +1051,9 @@ under sampling weights or a survey design; unweighted comparisons and
 three-step (default) fits used a different, unaffected code path. Fixed
 by recentring the coefficients on the reference row before packing,
 which is mathematically a no-op for the fitted model. On a 3-class,
-2-group weighted comparison checked against external reference output,
-the per-model scaling factors now agree with that reference to within
-0.1% and in the right order, where before the packing error had them
-collapsed and crossed.
+2-group weighted comparison the per-model scaling factors are now in the
+right order and within 0.1% of the values the definition gives, where
+before the packing error had them collapsed and crossed.
 
 ### Documentation: four citations on class enumeration and the three-step design
 
@@ -293,11 +1326,11 @@ its main-effect variables being extracted.
 
 A fit with a grouping variable has always carried
 `metrics$ll_knownclass` and `metrics$n_params_knownclass` – the
-log-likelihood and parameter count on the scale software that treats the
-group as an observed-without-error class would report – but nothing in
-the printed output said so, and the printed `Log-Likelihood` is on the
-other scale. [`print()`](https://rdrr.io/r/base/print.html) now adds one
-line naming both when they are present. No printed or fitted number
+log-likelihood and parameter count on the known-class scale, which
+treats the group as a latent class observed without error – but nothing
+in the printed output said so, and the printed `Log-Likelihood` is on
+the other scale. [`print()`](https://rdrr.io/r/base/print.html) now adds
+one line naming both when they are present. No printed or fitted number
 moves otherwise.
 
 ### Faster: the E-step no longer walks the sample a case at a time
@@ -494,7 +1527,7 @@ where the class assignment is hard, so that each case contributes a
 single record, the estimator reduces exactly to the
 heteroskedasticity-consistent (HC0) covariance of the equivalent
 one-row-per-case regression; and on a published class-moderation
-analysis it now agrees with another program’s standard errors to within
+analysis it now agrees with the published standard errors to within
 about 2%, against the 2- to 4-fold understatement before.
 
 ### `slopes` can now name a subset of covariates for a continuous distal outcome
@@ -523,7 +1556,7 @@ weighted dataset to six decimals, and naming every covariate as
 class-specific reproduces `slopes = "class_specific"`’s point estimates
 to the same tolerance; and against a real class-moderation analysis with
 a mix of moderated and pooled covariates, where every coefficient landed
-within about 6% of the reference program’s, all fifteen non-reference
+within about 6% of the published value, all fifteen non-reference
 coefficients keeping the same sign.
 
 ### `measurement_summary()` gains a `scale` argument for binary indicators
@@ -534,14 +1567,12 @@ argument existed. Two more scales are now available for a binary
 indicator’s item-response probabilities: `scale = "logit"` reports the
 same table on the log-odds scale, and `scale = "effect"` reports the
 effect-coded parameterisation – an item intercept plus one class
-deviation per class, the deviations summing to zero – that several other
-programs print by default. This is what makes it possible to place a
-mixtureEM measurement model next to such a program’s output at all,
-since the two otherwise report different quantities for the same fit;
-verified by hand against a reference item’s printed values, matching to
-three decimals. A polytomous (more-than-two-category) item is refused
-under `scale = "effect"` with a clear error rather than guessed at,
-since whether such an item should be coded as ordinal or nominal is a
+deviation per class, the deviations summing to zero – for readers who
+think of the measurement model in log-linear terms; verified by hand on
+one item, matching the closed-form transform to three decimals. A
+polytomous (more-than-two-category) item is refused under
+`scale = "effect"` with a clear error rather than guessed at, since
+whether such an item should be coded as ordinal or nominal is a
 modelling decision the package does not make on your behalf;
 `scale = "logit"` carries no such restriction. The `overall` column,
 holding the observed sample marginal, is dropped on both alternative
@@ -573,9 +1604,9 @@ a covariate and a `group`-based multiple-group model answer different
 questions and are easy to reach for interchangeably by mistake.
 
 [`?bivariate_residuals`](https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.md)
-now says that, for categorical indicators, its statistic agrees closely
-with what another program reports under the same name, now that the
-expected-count fix above removes the one place they disagreed.
+now states the statistic’s divisor for categorical indicators
+explicitly, now that the expected-count fix above makes it the statistic
+it was documented to be.
 [`?fit_mixture`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)’s
 `n_init` documentation gives a measured runtime figure, so a search of
 200 or 1000 starts can be budgeted for rather than guessed at.
@@ -779,16 +1810,15 @@ the data. `scale = "within"` divides by the model-implied within-class
 standard deviation instead, giving a Cohen’s-d-like reading against
 residual rather than total dispersion.
 
-### Step-3 standard errors: which one to compare against another program
+### Step-3 standard errors: what each `se` setting is
 
 The `se` documentation now records that `"corrected"`, the default, is
-the statistically right answer, while `"robust"` is the *comparability*
-setting. Another program reports the step-3 sandwich alone, so
-reproducing its standard errors requires asking for `"robust"`; under
-the default a user checking mixtureEM against it sees wider intervals,
-and that difference is a difference in estimator — the corrected form
-carries step-1 uncertainty the sandwich omits — rather than a bug in
-either program. No estimates or standard errors change.
+the statistically right answer, while `"robust"` is the step-3 sandwich
+alone – the estimator of an analysis that treats the assigned classes as
+given. Under the default the intervals are wider, and that difference is
+a difference in estimator — the corrected form carries step-1
+uncertainty the sandwich omits — not an error. No estimates or standard
+errors change.
 
 ### `measurement` is now required
 
@@ -1288,10 +2318,9 @@ the same numbers. What changed is what the package tells you about them.
   the M-step and left it on in the polish. The two stages then optimised
   different objectives and the polish pulled the fit off the
   maximum-likelihood optimum it had been asked for. The documented
-  escape hatch for reproducing an unregularized reference analysis now
-  works. The analytical gradient is verified against a finite-difference
-  one to 1e-10 for complete data and under FIML, at three prior
-  settings.
+  escape hatch for an unregularized maximum-likelihood fit now works.
+  The analytical gradient is verified against a finite-difference one to
+  1e-10 for complete data and under FIML, at three prior settings.
 
 - **The L-BFGS refinement no longer runs when class membership is
   modelled by a regression.** Its parameterisation packs a single pooled
@@ -1306,7 +2335,7 @@ the same numbers. What changed is what the package tells you about them.
   4 of 6 — it had been perturbing every restart away from the optimum,
   not just the winner.
 
-Together these close a 3.5-unit gap against an external reference on a
+Together these close a 3.5-unit gap below the converged maximum on a
 three-group latent class model — 5.1 units on the configural model —
 both now matched to within 0.001.
 
@@ -1379,7 +2408,7 @@ both now matched to within 0.001.
   `group_invariant_params = "covariances"` frees the class means across
   groups while holding the indicator variances invariant. This is the
   model Olivera-Aguilar and Rikoon (2018) call *unconstrained* and note
-  is the default most software fits, and it is the one their invariance
+  is the default in applied work, and it is the one their invariance
   test compares against — so it is the comparison an applied analysis
   usually wants, and it is smaller and better identified than the fully
   heterogeneous alternative. `group_invariant_params = "means"` is the
@@ -1390,10 +2419,10 @@ both now matched to within 0.001.
   [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)**,
   also for continuous indicators: hold each item’s variance equal across
   the classes, so the classes differ in location only. This is the
-  homoscedastic latent profile model, and the parameterisation several
-  commercial programs estimate by default. It applies to an ordinary
-  single-group fit as well, and composes with `group_invariant_params`
-  to give a variance shared by the classes but free across groups.
+  homoscedastic latent profile model, and the conventional LPA
+  parameterisation. It applies to an ordinary single-group fit as well,
+  and composes with `group_invariant_params` to give a variance shared
+  by the classes but free across groups.
 
   The constrained variance is still stored once per class, so profiles,
   plots, class alignment and the degeneracy check are unchanged; the
@@ -1477,8 +2506,7 @@ both now matched to within 0.001.
   already hard-coded to. Raising `variances` is one of the remedies the
   collapsed-variance warning offers; setting a constant to `0` removes
   that prior and recovers plain maximum likelihood for that block, which
-  is an escape hatch for reproducing an unregularized reference analysis
-  rather than a recommended setting.
+  is an escape hatch rather than a recommended setting.
 
 - **[`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
   refuses to interpret a degenerate fit.** It warns when either input
@@ -1537,10 +2565,9 @@ that the log-scale quantities behind them can now be got at.
   inside the object it returns.** It rounded the odds ratio and both
   bounds to three decimals *in the data*, not just for display, which
   destroyed precision in a stored result and put a 0.001 floor under any
-  comparison of these numbers against another program’s — larger than
-  the disagreement such a comparison is usually trying to measure.
-  Values are now returned at full precision and rounded only by the
-  print method.
+  comparison of these numbers — larger than the disagreement such a
+  comparison is usually trying to measure. Values are now returned at
+  full precision and rounded only by the print method.
 - **New [`vcov()`](https://rdrr.io/r/stats/vcov.html) method**, so
   `sqrt(diag(vcov(fit)))` gives the standard errors of the
   class-membership coefficients. It returns the `(K - 1) * D` matrix

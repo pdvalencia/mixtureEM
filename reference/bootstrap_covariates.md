@@ -19,7 +19,7 @@ bootstrap_covariates(
   X,
   Y,
   n_reps = 100,
-  n_cores = 1L,
+  n_cores = .default_n_cores(),
   random_state = 123,
   ref_class = 1
 )
@@ -48,7 +48,9 @@ bootstrap_covariates(
 - n_cores:
 
   Positive integer. Number of processes to spread the bootstrap
-  replicates over. Default `1` (sequential).
+  replicates over. Default `1` (sequential), or the value of
+  `options(mixtureEM.n_cores = )` where that has been set; an argument
+  given here overrides the option.
 
 - random_state:
 

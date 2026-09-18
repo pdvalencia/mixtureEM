@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -38,6 +38,7 @@
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -148,12 +149,18 @@ and prints the information criteria side by side:</p>
 <span><span class="co">#&gt; Fitting 5-class model...</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; === Model Selection Summary ===</span></span>
-<span><span class="co">#&gt;   Classes       LL Params      AIC      BIC    SABIC Entropy Unreplicated</span></span>
-<span><span class="co">#&gt; 1       1 -524.465      7 1062.930 1082.324 1060.196   1.000        FALSE</span></span>
-<span><span class="co">#&gt; 2       2 -318.159     15  666.318  707.878  660.459   0.963        FALSE</span></span>
-<span><span class="co">#&gt; 3       3 -294.935     23  635.869  699.595  626.886   0.915        FALSE</span></span>
-<span><span class="co">#&gt; 4       4 -290.739     31  643.478  729.369  631.370   0.852        FALSE</span></span>
-<span><span class="co">#&gt; 5       5 -288.513     39  655.025  763.082  639.793   0.862        FALSE</span></span>
+<span><span class="co">#&gt;   Classes       LL Params      AIC      BIC     CAIC     AIC3      ICL    SABIC</span></span>
+<span><span class="co">#&gt; 1       1 -524.465      7 1062.930 1082.324 1089.324 1069.930 1082.324 1060.196</span></span>
+<span><span class="co">#&gt; 2       2 -318.158     15  666.316  707.877  722.877  681.316  713.922  660.458</span></span>
+<span><span class="co">#&gt; 3       3 -294.935     23  635.869  699.595  722.595  658.869  721.601  626.886</span></span>
+<span><span class="co">#&gt; 4       4 -290.739     31  643.477  729.368  760.368  674.477  777.731  631.370</span></span>
+<span><span class="co">#&gt; 5       5 -288.513     39  655.026  763.083  802.083  694.026  815.444  639.794</span></span>
+<span><span class="co">#&gt;   Entropy Unreplicated</span></span>
+<span><span class="co">#&gt; 1   1.000        FALSE</span></span>
+<span><span class="co">#&gt; 2   0.963        FALSE</span></span>
+<span><span class="co">#&gt; 3   0.915        FALSE</span></span>
+<span><span class="co">#&gt; 4   0.852        FALSE</span></span>
+<span><span class="co">#&gt; 5   0.862        FALSE</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; -&gt; Best model according to BIC: 3 classes</span></span></code></pre></div>
 <p>BIC prefers three classes here — the solution the methodological
@@ -240,12 +247,12 @@ guarantee.</p>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Classes Estimated  : 3</span></span>
 <span><span class="co">#&gt; Estimation Method  : 1-step</span></span>
-<span><span class="co">#&gt; Converged          : TRUE (in 30 iterations)</span></span>
+<span><span class="co">#&gt; Converged          : TRUE (in 21 iterations)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Log-Likelihood : -294.93</span></span>
 <span><span class="co">#&gt;   Parameters     : 23</span></span>
 <span><span class="co">#&gt;   AIC            : 635.87</span></span>
-<span><span class="co">#&gt;   BIC            : 699.59</span></span>
+<span><span class="co">#&gt;   BIC            : 699.60</span></span>
 <span><span class="co">#&gt;   SABIC          : 626.89</span></span>
 <span><span class="co">#&gt;   Rel. Entropy   : 0.9151</span></span>
 <span><span class="co">#&gt;   Best solution  : found by 30 of 30 starts</span></span>
@@ -274,10 +281,10 @@ guarantee.</p>
 <span><span class="co">#&gt; Rows: model-expected membership | Columns: modal assignment</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;         Modal 1 Modal 2 Modal 3    Total</span></span>
-<span><span class="co">#&gt; Class 1 50.7028  0.0000  1.9037  52.6065</span></span>
-<span><span class="co">#&gt; Class 2  0.0000 43.1801  1.1028  44.2829</span></span>
-<span><span class="co">#&gt; Class 3  0.2972  0.8199 19.9935  21.1106</span></span>
-<span><span class="co">#&gt; Total   51.0000 44.0000 23.0000 118.0000</span></span>
+<span><span class="co">#&gt; Class 1 50.7029    0.00  1.9037  52.6066</span></span>
+<span><span class="co">#&gt; Class 2  0.0000   43.18  1.1027  44.2827</span></span>
+<span><span class="co">#&gt; Class 3  0.2971    0.82 19.9936  21.1107</span></span>
+<span><span class="co">#&gt; Total   51.0000   44.00 23.0000 118.0000</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Classification error: 0.0349 (3.49% of 118 cases)</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
@@ -321,9 +328,9 @@ to specific pairs of items:</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Statistic               Value    p-value</span></span>
 <span><span class="co">#&gt; ---------------------------------------- </span></span>
-<span><span class="co">#&gt; L-squared             17.7208     1.0000</span></span>
-<span><span class="co">#&gt; X-squared             21.1127     1.0000</span></span>
-<span><span class="co">#&gt; Cressie-Read          18.5874     1.0000</span></span>
+<span><span class="co">#&gt; L-squared             17.7211     1.0000</span></span>
+<span><span class="co">#&gt; X-squared             21.1151     1.0000</span></span>
+<span><span class="co">#&gt; Cressie-Read          18.5887     1.0000</span></span>
 <span><span class="co">#&gt; Dissimilarity          0.1170           </span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Note: the table is sparse, so the chi-square reference</span></span>
@@ -341,14 +348,14 @@ to specific pairs of items:</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;          A        B        C        D        E        F</span></span>
 <span><span class="co">#&gt; B   0.1035</span></span>
-<span><span class="co">#&gt; C   0.3456   0.0024</span></span>
-<span><span class="co">#&gt; D   0.7983   0.7643   0.0062</span></span>
-<span><span class="co">#&gt; E   0.0937   0.0890   0.3741   0.4804</span></span>
-<span><span class="co">#&gt; F   0.1803   0.6055   0.0076   4.6889   0.2012</span></span>
-<span><span class="co">#&gt; G   0.2487   0.1070   0.3273   0.6427   0.1952   0.1729</span></span>
+<span><span class="co">#&gt; C   0.3456   0.0023</span></span>
+<span><span class="co">#&gt; D   0.7980   0.7643   0.0062</span></span>
+<span><span class="co">#&gt; E   0.0936   0.0890   0.3744   0.4801</span></span>
+<span><span class="co">#&gt; F   0.1803   0.6055   0.0076   4.6885   0.2014</span></span>
+<span><span class="co">#&gt; G   0.2487   0.1070   0.3273   0.6425   0.1952   0.1729</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Largest: F x D = 4.6889</span></span>
-<span><span class="co">#&gt; Total BVR: 10.4345</span></span>
+<span><span class="co">#&gt; Largest: F x D = 4.6885</span></span>
+<span><span class="co">#&gt; Total BVR: 10.4339</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
 <p>Finally, the profile plot is the interpretability check — three
 classes that are well separated <em>and</em> substantively

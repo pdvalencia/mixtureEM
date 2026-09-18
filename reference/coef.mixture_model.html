@@ -13,7 +13,7 @@ structural = "covariate".'></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -29,6 +29,7 @@ structural = "covariate".'></head><body>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -108,8 +109,8 @@ all <code>0</code>.</p>
 effects are interpreted and published on, and the default here matches it.
 <code>coef(fit, exponentiate = FALSE)</code> and
 <code><a href="vcov.mixture_model.html">vcov</a></code> give the log-scale estimates and
-their standard errors, for anyone who needs to compare them against another
-program or pool them across analyses. Both scales are exact —
+their standard errors, for anyone who needs to report them on that scale
+or pool them across analyses. Both scales are exact —
 <code>log(coef(fit))</code> has always recovered the coefficients, since the odds
 ratios are returned at full double precision; the argument makes that
 discoverable rather than a trick.</p>
@@ -132,13 +133,13 @@ log-scale standard errors.</p></div>
 <span class="r-in"><span>                   n_steps <span class="op">=</span> <span class="fl">3</span>, correction <span class="op">=</span> <span class="st">"ML"</span>, n_init <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Note: `X`, `Y`, `n_components`, and `structural` are the legacy interface. The current arguments are `indicators`, `n_classes`, `predictors`, and `outcome` / `outcome_covariates`.</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>               Intercept      age</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Class 1 (Ref) 1.0000000 1.000000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Class 2       0.7390351 0.339548</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>               Intercept       age</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Class 1 (Ref) 1.0000000 1.0000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Class 2       0.7390687 0.3395133</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">fit</span>, exponentiate <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                Intercept      age</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Class 1 (Ref)  0.0000000  0.00000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Class 2       -0.3024098 -1.08014</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>                Intercept       age</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Class 1 (Ref)  0.0000000  0.000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Class 2       -0.3023644 -1.080242</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

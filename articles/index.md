@@ -12,6 +12,8 @@
   Time](https://pdvalencia.github.io/mixtureEM/articles/rmlca.md):
 - [Latent Transition Analysis: Movement Between
   Statuses](https://pdvalencia.github.io/mixtureEM/articles/lta.md):
+- [Random-Intercept LTA: Separating Traits from
+  Transitions](https://pdvalencia.github.io/mixtureEM/articles/rilta.md):
 - [Trajectory Classes: LCGA and Growth Mixture
   Models](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.md):
 - [LCA with Complex Survey

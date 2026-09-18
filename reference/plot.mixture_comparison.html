@@ -25,7 +25,7 @@ alongside class size, interpretability and the substantive question.'></head><bo
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -41,6 +41,7 @@ alongside class size, interpretability and the substantive question.'></head><bo
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -148,11 +149,16 @@ identifying differences in longitudinal change among unobserved groups.
 <span class="r-out co"><span class="r-pr">#&gt;</span> Fitting 4-class model...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> === Model Selection Summary ===</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Classes       LL Params     AIC     BIC   SABIC Entropy Unreplicated</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1       1 -342.102      5 694.203 707.229 691.438   1.000        FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2       2 -340.085     11 702.169 730.826 696.085   0.303        FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3       3 -337.020     17 708.040 752.328 698.637   0.458        FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4       4 -334.543     23 715.086 775.005 702.365   0.590        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Classes       LL Params     AIC     BIC    CAIC    AIC3     ICL   SABIC</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1       1 -342.102      5 694.203 707.229 712.229 699.203 707.229 691.438</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2       2 -340.085     11 702.170 730.827 741.827 713.170 827.464 696.086</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3       3 -337.019     17 708.039 752.327 769.327 725.039 871.466 698.636</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4       4 -334.543     23 715.086 775.005 798.005 738.086 888.720 702.365</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Entropy Unreplicated</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1   1.000        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2   0.303        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3   0.458        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4   0.590        FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> -&gt; Best model according to BIC: 1 classes</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span></span>

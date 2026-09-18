@@ -13,7 +13,7 @@ automatically."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -29,6 +29,7 @@ automatically."></head><body>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -67,7 +68,7 @@ automatically.</p>
 <span>  n_init <span class="op">=</span> <span class="fl">10</span>,</span>
 <span>  n_steps <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  vlmr <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"standard"</span>, <span class="st">"robust"</span>, <span class="st">"both"</span><span class="op">)</span>,</span>
-<span>  n_cores <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>  n_cores <span class="op">=</span> <span class="fu">.default_n_cores</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -110,7 +111,9 @@ covariance, or <code>"both"</code>. See Details for why it is off by default.</p
 
 <dt id="arg-n-cores">n_cores<a class="anchor" aria-label="anchor" href="#arg-n-cores"></a></dt>
 <dd><p>Positive integer. Number of processes to spread the random
-starts over, within each K. Default <code>1</code> (sequential).</p></dd>
+starts over, within each K. Default <code>1</code> (sequential), or the
+value of <code>options(mixtureEM.n_cores = )</code> where that has been set; an
+argument given here overrides the option.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -121,7 +124,12 @@ starts over, within each K. Default <code>1</code> (sequential).</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>An object of class <code>mixture_comparison</code>: a named list with three
 elements, which can be indexed exactly as a plain list.</p><ul><li><p><code>fit_table</code> Data frame with one row per K and columns <code>Classes</code>, <code>LL</code>,
-<code>Params</code>, <code>AIC</code>, <code>BIC</code>, <code>SABIC</code>, <code>Entropy</code> and <code>Unreplicated</code>. With
+<code>Params</code>, <code>AIC</code>, <code>BIC</code>, <code>CAIC</code>, <code>AIC3</code>, <code>ICL</code>, <code>SABIC</code>, <code>Entropy</code> and
+<code>Unreplicated</code>. <code>CAIC</code> and <code>AIC3</code> apply a heavier parameter penalty than
+<code>BIC</code>; <code>ICL</code> is <code>BIC</code> penalised further by classification entropy
+(Baudry). The <code>-&gt; Best model</code> line and <code>best_k</code> below are always chosen
+by <code>BIC</code> alone; the other indices are printed for comparison, not used
+to pick a model. With
 <code>vlmr</code> set it also carries <code>VLMR_LR</code> and one p-value column per
 requested form (<code>VLMR_p</code>, <code>VLMR_p_robust</code>); each row tests its own K
 against the next one in the table, so the last row is <code>NA</code>.</p></li>
@@ -162,9 +170,10 @@ the test does not deserve to be printed as a matter of course. Vermunt (2024)
 concludes that "neither of the two implementations yield uniformly
 distributed p-values under the correct null hypothesis, indicating this test
 is not the best model selection tool in mixture modeling".</p>
-<p>The two implementations differ only in which covariance matrix of the
-parameters enters the reference distribution: one program uses the ordinary
-one, another the robust (sandwich) one (Vermunt, 2024). The difference is not
+<p>The two versions of the test differ only in which covariance matrix of the
+parameters enters the reference distribution: the ordinary one
+(<code>vlmr = "standard"</code>) or the robust sandwich (<code>vlmr = "robust"</code>;
+Vermunt, 2024). The difference is not
 cosmetic: on the same data the two can return p = .00 and p = .15. The robust
 version's reference distribution is much more sensitive to the particular
 sample, especially when the classes are poorly separated. Neither version's
@@ -241,19 +250,29 @@ simulation study. <em>Structural Equation Modeling</em>, <em>33</em>(4),
 <span class="r-out co"><span class="r-pr">#&gt;</span> Fitting 4-class model...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> === Model Selection Summary ===</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Classes       LL Params     AIC     BIC   SABIC Entropy Unreplicated</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1       1 -342.102      5 694.203 707.229 691.438   1.000        FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2       2 -340.085     11 702.169 730.826 696.085   0.303        FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3       3 -337.020     17 708.040 752.328 698.637   0.458        FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4       4 -334.543     23 715.086 775.005 702.365   0.590        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Classes       LL Params     AIC     BIC    CAIC    AIC3     ICL   SABIC</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1       1 -342.102      5 694.203 707.229 712.229 699.203 707.229 691.438</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2       2 -340.085     11 702.170 730.827 741.827 713.170 827.464 696.086</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3       3 -337.019     17 708.039 752.327 769.327 725.039 871.466 698.636</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4       4 -334.543     23 715.086 775.005 798.005 738.086 888.720 702.365</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Entropy Unreplicated</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1   1.000        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2   0.303        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3   0.458        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4   0.590        FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> -&gt; Best model according to BIC: 1 classes</span>
 <span class="r-in"><span><span class="va">result</span><span class="op">$</span><span class="va">fit_table</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Classes        LL Params      AIC      BIC    SABIC   Entropy Unreplicated</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1       1 -342.1016      5 694.2032 707.2290 691.4378 1.0000000        FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2       2 -340.0846     11 702.1692 730.8261 696.0854 0.3033780        FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3       3 -337.0199     17 708.0398 752.3277 698.6374 0.4575710        FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4       4 -334.5428     23 715.0857 775.0046 702.3648 0.5898679        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Classes        LL Params      AIC      BIC     CAIC     AIC3      ICL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1       1 -342.1016      5 694.2032 707.2290 712.2290 699.2032 707.2290</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2       2 -340.0851     11 702.1702 730.8271 741.8271 713.1702 827.4638</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3       3 -337.0194     17 708.0389 752.3268 769.3268 725.0389 871.4656</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4       4 -334.5429     23 715.0857 775.0046 798.0046 738.0857 888.7195</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      SABIC   Entropy Unreplicated</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 691.4378 1.0000000        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 696.0863 0.3029134        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 698.6365 0.4577758        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4 702.3649 0.5898603        FALSE</span>
 <span class="r-in"><span><span class="va">result</span><span class="op">$</span><span class="va">best_k</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1</span>
 <span class="r-in"><span></span></span>

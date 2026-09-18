@@ -6,9 +6,8 @@ coefficients for covariate effects on latent class membership, so that
 log-scale companion to
 [`confint`](https://pdvalencia.github.io/mixtureEM/reference/confint.mixture_model.md),
 which reports intervals on the odds-ratio scale — it exists so that the
-standard errors can be got at directly, for comparing against another
-program or for pooling estimates, rather than reconstructed from an
-interval width.
+standard errors can be got at directly, for reporting or for pooling
+estimates, rather than reconstructed from an interval width.
 
 Which estimator it comes from depends on how the model was fitted: the
 survey-robust or step-3 corrected covariance when one was computed, and
@@ -76,5 +75,5 @@ fit <- fit_mixture(X, Y = Z, n_components = 2, measurement = "binary",
 #> Note: `X`, `Y`, `n_components`, and `structural` are the legacy interface. The current arguments are `indicators`, `n_classes`, `predictors`, and `outcome` / `outcome_covariates`.
 sqrt(diag(vcov(fit)))
 #> Class 2:Intercept       Class 2:age 
-#>         2.3584007         0.6881262 
+#>         2.3585388         0.6877525 
 ```

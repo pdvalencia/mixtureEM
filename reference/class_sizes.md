@@ -75,6 +75,6 @@ X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
 fit <- fit_mixture(X, n_classes = 2, measurement = "binary")
 class_sizes(fit)
 #>   class proportion n_expected n_modal
-#> 1     1  0.5844398   58.44398      56
-#> 2     2  0.4155602   41.55602      44
+#> 1     1  0.5840519   58.40519      56
+#> 2     2  0.4159481   41.59481      44
 ```

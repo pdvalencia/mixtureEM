@@ -37,6 +37,8 @@
   : Confidence Intervals for Odds Ratios in a Mixture Model
 - [`covariate_se`](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md)
   : Standard Errors for Covariate Effects in Three-Step Models
+- [`ecls_reading`](https://pdvalencia.github.io/mixtureEM/reference/ecls_reading.md)
+  : Reading proficiency from kindergarten to first grade (ECLS-K)
 - [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
   : Growth Mixture Modeling
 - [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
@@ -68,6 +70,8 @@
   : Test Whether Data Are Missing Completely at Random
 - [`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
   : Print Measurement Model Parameters
+- [`ordinal_model()`](https://pdvalencia.github.io/mixtureEM/reference/ordinal_model.md)
+  : Constructor for the ordinal emission model
 - [`outcome_contrasts()`](https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.md)
   : Class-vs-Class Contrasts on a Distal Outcome
 - [`plot(`*`<bivariate_residuals>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/plot.bivariate_residuals.md)
@@ -94,6 +98,10 @@
   : Print a Brief Summary of a Fitted Mixture Model
 - [`print(`*`<rmlca>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/print.rmlca.md)
   : Print a Fitted Repeated-Measures Latent Class Model
+- [`random_intercept_loadings()`](https://pdvalencia.github.io/mixtureEM/reference/random_intercept_loadings.md)
+  : Random-intercept loadings
+- [`random_intercept_scores()`](https://pdvalencia.github.io/mixtureEM/reference/random_intercept_scores.md)
+  : Random-intercept factor scores
 - [`status_prevalences()`](https://pdvalencia.github.io/mixtureEM/reference/status_prevalences.md)
   : Latent Status Prevalences by Occasion
 - [`structured_normal_model()`](https://pdvalencia.github.io/mixtureEM/reference/structured_normal_model.md)
@@ -104,6 +112,8 @@
   : Summarise a Fitted Mixture Model
 - [`transition_matrix()`](https://pdvalencia.github.io/mixtureEM/reference/transition_matrix.md)
   : Transition Probability Matrices
+- [`transition_patterns()`](https://pdvalencia.github.io/mixtureEM/reference/transition_patterns.md)
+  : Joint Latent-Status Pattern Table
 - [`vcov(`*`<mixture_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/vcov.mixture_model.md)
   : Covariance Matrix of the Class-Membership Coefficients
 - [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/reference/ventura_leon.md)

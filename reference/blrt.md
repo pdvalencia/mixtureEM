@@ -36,7 +36,7 @@ blrt(
   n_reps = 100,
   n_init_base = 20,
   n_init_boot = 10,
-  n_cores = 1L,
+  n_cores = .default_n_cores(),
   verbose = TRUE,
   ...,
   from_fit = NULL,
@@ -99,13 +99,20 @@ calc_blrt(
 
 - n_init_boot:
 
-  Random restarts per bootstrap replicate. Default `10`. This is a
-  compute compromise rather than a recommended value: the two models are
-  refitted `2 * n_reps` times, so the replicate search is where the cost
-  of the test lives. Dziak et al. (2014) used 50 and note that too few
-  restarts under the alternative can make the likelihood ratio come out
-  negative. `blrt()` counts those draws and warns when there are any; if
-  it does, raise this to `50`.
+  Random restarts for the alternative model on each bootstrap replicate
+  (the null model's replicate fit is seeded from the observed-data null
+  fit's own parameters and runs no random restarts at all – the
+  replicate was generated from that null, so its own parameters are
+  already the best available start; see
+  [`vignette("estimation")`](https://pdvalencia.github.io/mixtureEM/articles/estimation.md)).
+  `blrt()` gives the alternative `2 * n_init_boot` restarts, spending on
+  it what the null no longer needs. Default `10` (so `20` restarts per
+  replicate on the alternative). This is a compute compromise rather
+  than a recommended value: this is where the cost of the test lives.
+  Dziak et al. (2014) used 50 and note that too few restarts under the
+  alternative can make the likelihood ratio come out negative. `blrt()`
+  counts those draws and warns when there are any; if it does, raise
+  this to `50`.
 
 - n_cores:
 
@@ -119,6 +126,9 @@ calc_blrt(
   begins, so the null distribution and the p-value are the same whatever
   `n_cores` is set to. Progress messages are printed only when
   `n_cores = 1`, since a worker cannot report into this session.
+
+  `options(mixtureEM.n_cores = )` sets the default for a whole session;
+  an argument given here overrides it.
 
 - verbose:
 

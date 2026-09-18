@@ -58,7 +58,7 @@ diagnostics side by side. At the package’s default twenty random
 restarts per class count, six models is real work, so it is shown here
 rather than run on every render of this page — the [`class_enumeration`
 vignette](https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.html)
-walks through reading its output on this exact data:
+walks through reading its output in detail on another dataset:
 
 ``` r
 
@@ -80,10 +80,10 @@ fit <- fit_mixture(items, n_classes = 4, measurement = "binary",
                    n_init = 20, random_state = 1)
 class_sizes(fit)
 #>   class proportion n_expected n_modal
-#> 1     1  0.4276388  171.05551     173
-#> 2     2  0.2699044  107.96177     106
-#> 3     3  0.1581894   63.27577      63
-#> 4     4  0.1442674   57.70695      58
+#> 1     1  0.4277345  171.09382     173
+#> 2     2  0.2698284  107.93136     106
+#> 3     3  0.1581316   63.25264      63
+#> 4     4  0.1443055   57.72219      58
 ```
 
 ``` r
@@ -119,25 +119,25 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                1.178  [    0.234,     5.924]     0.842
-#>   sex.Female               2.641  [    1.104,     6.318]     0.029
+#>   Intercept                1.180  [    0.235,     5.935]     0.841
+#>   sex.Female               2.641  [    1.104,     6.319]     0.029
 #>   age                      0.942  [    0.884,     1.003]     0.063
 #> 
 #> Class 3 ON
-#>   Intercept                0.315  [    0.104,     0.953]     0.041
-#>   sex.Female               0.342  [    0.183,     0.641]    < .001
+#>   Intercept                0.315  [    0.104,     0.952]     0.041
+#>   sex.Female               0.342  [    0.183,     0.640]    < .001
 #>   age                      1.033  [    0.997,     1.071]     0.074
 #> 
 #> Class 4 ON
 #>   Intercept                0.247  [    0.078,     0.779]     0.017
-#>   sex.Female               0.656  [    0.331,     1.299]     0.226
+#>   sex.Female               0.655  [    0.331,     1.299]     0.226
 #>   age                      1.024  [    0.985,     1.065]     0.227
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   sex                       23.066    3    < .001
-#>   age                        9.645    3     0.022
+#>   sex                       23.067    3    < .001
+#>   age                        9.646    3     0.022
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================
@@ -162,7 +162,8 @@ summary(fit_cov)
 | Predictors of class membership (3-step ML) | [`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md) | [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html) |
 | Distal outcomes (BCH / ML) | [`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md) | [`liang_park_lpa`](https://pdvalencia.github.io/mixtureEM/articles/liang_park_lpa.html) |
 | Repeated-measures LCA: trajectory classes over time, e.g. “Stable Low”, “Escalating”, “Persistent” | [`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md) | [`rmlca`](https://pdvalencia.github.io/mixtureEM/articles/rmlca.html) |
-| Latent transition analysis, mover-stayer models: if someone is Depressed at Wave 1, what is the probability they are Not Depressed at Wave 2? | [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md) | [`lta`](https://pdvalencia.github.io/mixtureEM/articles/lta.html) |
+| Latent transition analysis, mover-stayer models: if a child has low alphabet knowledge in the fall, what is the probability they are reading words by spring? | [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md) | [`lta`](https://pdvalencia.github.io/mixtureEM/articles/lta.html) |
+| Random-intercept LTA: how much of that stability is a stable trait rather than a stage? | `fit_lta(random_intercept = )` | [`rilta`](https://pdvalencia.github.io/mixtureEM/articles/rilta.html) |
 | Latent class growth analysis, growth mixture models | [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md), [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md) | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |
 | Complex survey designs (weights, strata, clusters) | every model | [`survey_lca`](https://pdvalencia.github.io/mixtureEM/articles/survey_lca.html) |
 

@@ -28,7 +28,7 @@ bivariate_residuals(
   object,
   n_reps = 0,
   n_init_boot = 10,
-  n_cores = 1L,
+  n_cores = .default_n_cores(),
   verbose = FALSE
 )
 ```
@@ -63,7 +63,9 @@ bivariate_residuals(
 - n_cores:
 
   Positive integer. Number of processes to spread the bootstrap
-  replicates over. Default `1` (sequential).
+  replicates over. Default `1` (sequential), or the value of
+  `options(mixtureEM.n_cores = )` where that has been set; an argument
+  given here overrides the option.
 
 - verbose:
 
@@ -139,10 +141,7 @@ that is missing more often for one class than another otherwise makes an
 unrelated pair of items look locally dependent, when what actually
 happened is that missingness changed who is left in the comparison. This
 is a pairwise-complete statistic rather than a full-information one, so
-still read it as descriptive when missingness is heavy. For categorical
-indicators this is the same statistic, with the same divisor, that
-another program reports as a bivariate residual, and the values agree
-closely on the same fit.
+still read it as descriptive when missingness is heavy.
 
 For a `group_effects = "measurement"` fit, each pair's residual is the
 sum of that pair's own chi-square in every group, divided by the number
@@ -162,11 +161,11 @@ within-class residual covariance of that pair, with its variance
 adjusted for the model's other parameters, following Oberski, van
 Kollenburg and Vermunt (2013). It is computed separately in each class,
 because a residual dependence can run in opposite directions in
-different classes and a pooled statistic would average it away. Another
-program's "bivariate residual" for continuous indicators is deliberately
-*not* adjusted for the model's other parameters, so the two do not agree
-numerically; the modification index is preferred here on the evidence of
-Oberski et al.'s simulation, in which a bivariate residual referred to
+different classes and a pooled statistic would average it away. The
+unadjusted bivariate residual, which ignores the model's other
+parameters, is a different statistic and does not agree numerically; the
+modification index is preferred here on the evidence of Oberski et al.'s
+simulation, in which the unadjusted bivariate residual referred to
 chi-square gave below-nominal size and inadequate power, while the
 modification index reproduced its nominal distribution and was the more
 powerful of the two adequate methods. Detection is reliable only when
@@ -226,12 +225,12 @@ bivariate_residuals(fit)
 #> 
 #>          Item1    Item2    Item3    Item4    Item5
 #> Item2   0.0422
-#> Item3   0.0119   0.0004
-#> Item4   0.6329   1.1869   0.4269
-#> Item5   0.0702   0.3651   0.0733   0.0279
-#> Item6   0.0160   0.2685   0.0699   0.5227   0.1115
+#> Item3   0.0116   0.0004
+#> Item4   0.6336   1.1870   0.4262
+#> Item5   0.0704   0.3651   0.0735   0.0278
+#> Item6   0.0159   0.2686   0.0694   0.5225   0.1116
 #> 
-#> Largest: Item4 x Item2 = 1.1869
-#> Total BVR: 3.8263
+#> Largest: Item4 x Item2 = 1.1870
+#> Total BVR: 3.8259
 #> =========================================================
 ```

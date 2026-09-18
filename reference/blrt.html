@@ -47,7 +47,7 @@ construction.'></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -63,6 +63,7 @@ construction.'></head><body>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -119,7 +120,7 @@ construction.</p>
 <span>  n_reps <span class="op">=</span> <span class="fl">100</span>,</span>
 <span>  n_init_base <span class="op">=</span> <span class="fl">20</span>,</span>
 <span>  n_init_boot <span class="op">=</span> <span class="fl">10</span>,</span>
-<span>  n_cores <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>  n_cores <span class="op">=</span> <span class="fu">.default_n_cores</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  <span class="va">...</span>,</span>
 <span>  from_fit <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -181,11 +182,17 @@ Default <code>20</code>, as elsewhere in the package.</p></dd>
 
 
 <dt id="arg-n-init-boot">n_init_boot<a class="anchor" aria-label="anchor" href="#arg-n-init-boot"></a></dt>
-<dd><p>Random restarts per bootstrap replicate. Default
-<code>10</code>. This is a compute compromise rather than a recommended value:
-the two models are refitted <code>2 * n_reps</code> times, so the replicate
-search is where the cost of the test lives. Dziak et al. (2014) used 50
-and note that too few restarts under the alternative can make the
+<dd><p>Random restarts for the alternative model on each
+bootstrap replicate (the null model's replicate fit is seeded from the
+observed-data null fit's own parameters and runs no random restarts at
+all – the replicate was generated from that null, so its own parameters
+are already the best available start; see
+<code><a href="../articles/estimation.html">vignette("estimation")</a></code>). <code>blrt()</code> gives the alternative
+<code>2 * n_init_boot</code> restarts, spending on it what the null no longer
+needs. Default <code>10</code> (so <code>20</code> restarts per replicate on the
+alternative). This is a compute compromise rather than a recommended
+value: this is where the cost of the test lives. Dziak et al. (2014) used
+50 and note that too few restarts under the alternative can make the
 likelihood ratio come out negative. <code>blrt()</code> counts those draws and
 warns when there are any; if it does, raise this to <code>50</code>.</p></dd>
 
@@ -199,7 +206,9 @@ proportion to the cores given.</p>
 <p>Each replicate draws from its own seed, fixed before any fitting begins, so
 the null distribution and the p-value are the same whatever <code>n_cores</code>
 is set to. Progress messages are printed only when <code>n_cores = 1</code>,
-since a worker cannot report into this session.</p></dd>
+since a worker cannot report into this session.</p>
+<p><code>options(mixtureEM.n_cores = )</code> sets the default for a whole
+session; an argument given here overrides it.</p></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>

@@ -79,7 +79,7 @@ m_free
 #> =========================================================
 #> Classes Estimated  : 5
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 74 iterations)
+#> Converged          : TRUE (in 73 iterations)
 #> Missing Data       : 7186 / 166080 cells (4.3%) in 12 items — FIML (MAR assumption)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -48032.87
@@ -89,7 +89,7 @@ m_free
 #>   SABIC          : 96548.90
 #>   Rel. Entropy   : 0.8046
 #>   Best solution  : found by 6 of 20 starts
-#>   (Comparing with software that counts the grouping variable's own proportions? Use metrics$ll_knownclass = -67215.74 and metrics$n_params_knownclass = 79.)
+#>   (Known-class scale, counting the grouping variable's own proportions: metrics$ll_knownclass = -67215.74, metrics$n_params_knownclass = 79.)
 #> ---------------------------------------------------------
 #> Class Weights (Sizes, pooled across groups):
 #>   Class 1: 66.06%
@@ -124,9 +124,9 @@ lr_test(m_free, m_both)
 #> 
 #> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
-#>   Restricted : LL =  -48032.8661   parameters = 76
-#>   Full       : LL =  -47528.9757   parameters = 256
-#>   -2 x diff  : 1007.7807   df = 180   p = < 1e-16
+#>   Restricted : LL =  -48032.8665   parameters = 76
+#>   Full       : LL =  -47528.9777   parameters = 256
+#>   -2 x diff  : 1007.7776   df = 180   p = < 1e-16
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 
@@ -195,9 +195,9 @@ measurement_summary(m_free)
 #> CATEGORICAL PROBABILITIES
 #> Indicator             | Overall | Class 1 | Class 2 | Class 3 | Class 4 | Class 5
 #> --------------------------------------------------------------------------------- 
-#> smoked_before_13      |   0.154 |   0.037 |   0.125 |   0.630 |   0.639 |   0.256
-#> smoked_daily_30d      |   0.120 |   0.018 |   0.282 |   0.246 |   0.653 |   0.169
-#> drove_drinking        |   0.105 |   0.005 |   0.442 |   0.107 |   0.452 |   0.131
+#> smoked_before_13      |   0.154 |   0.037 |   0.125 |   0.631 |   0.639 |   0.256
+#> smoked_daily_30d      |   0.120 |   0.018 |   0.282 |   0.247 |   0.653 |   0.169
+#> drove_drinking        |   0.105 |   0.005 |   0.441 |   0.107 |   0.452 |   0.131
 #> first_drink_before_13 |   0.255 |   0.134 |   0.175 |   0.772 |   0.683 |   0.429
 #> binge_drink_30d       |   0.247 |   0.078 |   0.744 |   0.438 |   0.788 |   0.212
 #> marijuana_before_13   |   0.089 |   0.005 |   0.026 |   0.379 |   0.549 |   0.263
@@ -263,9 +263,9 @@ lr_test(m_none, m_free)
 #> 
 #> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
-#>   Restricted : LL =  -48345.2591   parameters = 64
-#>   Full       : LL =  -48032.8661   parameters = 76
-#>   -2 x diff  : 624.7859   df = 12   p = < 1e-16
+#>   Restricted : LL =  -48345.2597   parameters = 64
+#>   Full       : LL =  -48032.8665   parameters = 76
+#>   -2 x diff  : 624.7864   df = 12   p = < 1e-16
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 
@@ -276,10 +276,10 @@ by grade. This reproduces the “all five latent classes” comparison from
 Collins and Lanza’s prevalence-differences table.
 
 Because `group = grade` is supplied, `m_free` and `m_none` also report a
-log-likelihood on the known-class scale, `metrics$ll_knownclass` — that
-is the number that lines up with what other programs print for this kind
-of model, as opposed to `metrics$ll`, which is on this package’s own
-1-step scale.
+log-likelihood on the known-class scale, `metrics$ll_knownclass` — the
+convention that models the grouping variable as a latent class observed
+without error and so adds its multinomial term — as opposed to
+`metrics$ll`, which conditions on the group.
 
 ``` r
 
@@ -332,11 +332,10 @@ unrestricted solution, where class *k* still means what it means in
 `m_free`. `start_from = m_free` supplies exactly that: it seeds each fit
 at `m_free`’s own item-response probabilities and per-grade class sizes
 and runs no other start. This is the one place in the package where a
-starting value replaces the search rather than joining it, and other
-latent-class software arrives at the same arrangement from the other
-side — the restriction is expressed there by supplying the unrestricted
-solution as starting values, and supplying starting values makes the
-random-start option unavailable in the same call.
+starting value replaces the search rather than joining it, and for a
+reason: the restriction only means something once the classes have been
+anchored by the unrestricted solution, so a random search that could
+land in a differently labelled basin would defeat it.
 
 ``` r
 
@@ -351,11 +350,11 @@ data.frame(class = class_labels,
            df = vapply(per_class, function(t) t$df, numeric(1)),
            p_value = vapply(per_class, function(t) t$p_value, numeric(1)))
 #>                 class         dG2 df       p_value
-#> 1            Low Risk  61.2464552  3  3.183513e-13
-#> 2      Binge Drinkers 468.0697346  3 3.962496e-101
-#> 3 Early Experimenters 176.4318330  3  5.199765e-38
-#> 4           High Risk   0.4150451  3  9.371173e-01
-#> 5  Sexual Risk-Takers   5.6799906  3  1.282609e-01
+#> 1            Low Risk  61.2455464  3  3.184937e-13
+#> 2      Binge Drinkers 468.0644561  3 3.972945e-101
+#> 3 Early Experimenters 176.4350900  3  5.191352e-38
+#> 4           High Risk   0.4155445  3  9.370130e-01
+#> 5  Sexual Risk-Takers   5.6788943  3  1.283218e-01
 ```
 
 Each row matches Collins and Lanza’s Table 5.24 to about one decimal

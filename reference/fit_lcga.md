@@ -217,7 +217,7 @@ fit
 #> GROWTH COEFFICIENTS (link scale)
 #>         intercept linear
 #> Class 1    -0.732 -0.055
-#> Class 2    -0.048  1.124
+#> Class 2    -0.048  1.125
 #> 
 #> FITTED TRAJECTORY (probability)
 #>            T1    T2    T3    T4
@@ -228,19 +228,19 @@ fit
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 73 iterations)
+#> Converged          : TRUE (in 87 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1032.42
 #>   Parameters     : 5
 #>   AIC            : 2074.84
 #>   BIC            : 2094.79
 #>   SABIC          : 2078.93
-#>   Rel. Entropy   : 0.6318
+#>   Rel. Entropy   : 0.6319
 #>   Best solution  : found by 5 of 5 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 58.21%
-#>   Class 2: 41.79%
+#>   Class 1: 58.24%
+#>   Class 2: 41.76%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 # }

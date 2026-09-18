@@ -19,7 +19,7 @@ confint.mixture_model and wald_omnibus_test."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -35,6 +35,7 @@ confint.mixture_model and wald_omnibus_test."></head><body>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -74,7 +75,7 @@ label switching. Results can be passed directly to
 <span>  <span class="va">X</span>,</span>
 <span>  <span class="va">Y</span>,</span>
 <span>  n_reps <span class="op">=</span> <span class="fl">100</span>,</span>
-<span>  n_cores <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>  n_cores <span class="op">=</span> <span class="fu">.default_n_cores</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  random_state <span class="op">=</span> <span class="fl">123</span>,</span>
 <span>  ref_class <span class="op">=</span> <span class="fl">1</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -106,7 +107,9 @@ Default is <code>100</code>.</p></dd>
 
 <dt id="arg-n-cores">n_cores<a class="anchor" aria-label="anchor" href="#arg-n-cores"></a></dt>
 <dd><p>Positive integer. Number of processes to spread the
-bootstrap replicates over. Default <code>1</code> (sequential).</p></dd>
+bootstrap replicates over. Default <code>1</code> (sequential), or the value
+of <code>options(mixtureEM.n_cores = )</code> where that has been set; an
+argument given here overrides the option.</p></dd>
 
 
 <dt id="arg-random-state">random_state<a class="anchor" aria-label="anchor" href="#arg-random-state"></a></dt>

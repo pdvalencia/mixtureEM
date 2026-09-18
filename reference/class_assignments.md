@@ -11,7 +11,7 @@ fitted object's internals.
 # S3 method for class 'lta_model'
 class_assignments(
   object,
-  type = c("modal", "posterior", "both"),
+  type = c("modal", "posterior", "both", "viterbi"),
   occasion = NULL,
   ...
 )
@@ -34,7 +34,8 @@ class_assignments(object, type = c("modal", "posterior", "both"), ...)
   What to return. `"modal"` (default) gives the assigned class;
   `"posterior"` the full matrix of posterior probabilities; `"both"` a
   data frame carrying the assignment, its probability, and the posterior
-  columns.
+  columns; `"viterbi"`, for an `lta_model` only, globally decodes the
+  single most probable status sequence (see Details).
 
 - occasion:
 
@@ -65,6 +66,19 @@ and the entropy in
 the shape the mixture methods return; omit it for all of them at once.
 To assign the latent *class* of a mixture latent Markov model, use
 `object$class_posterior`.
+
+`type = "viterbi"` decodes globally instead: it returns the single most
+probable *sequence* of statuses across all occasions at once, rather
+than the most probable status at each occasion taken separately. The two
+can disagree — the occasion-by-occasion assignment above may string
+together a sequence the model itself gives zero probability, if a
+locally-favoured status at one occasion can only be reached by a
+transition the model forbids or scores as unlikely, while Viterbi
+decoding can never do that. Its `occasion` argument still selects one
+occasion's column of that path; it does not change which path is
+decoded. With `n_classes` \> 1 the class and the path are decoded
+jointly, and the class each case was assigned to is available as
+`attr(result, "class_assigned")`.
 
 Modal class assignment discards classification error. Do not use the
 returned class as though it were an observed variable in a subsequent
@@ -112,12 +126,12 @@ table(class_assignments(fit))
 #> 56 44 
 head(class_assignments(fit, "both"))
 #>   class probability   Class 1    Class 2
-#> 1     1   0.9469587 0.9469587 0.05304134
-#> 2     1   0.8106031 0.8106031 0.18939689
-#> 3     2   0.8447412 0.1552588 0.84474124
-#> 4     2   0.5578654 0.4421346 0.55786544
-#> 5     1   0.9033559 0.9033559 0.09664411
-#> 6     2   0.7401666 0.2598334 0.74016660
+#> 1     1   0.9467880 0.9467880 0.05321203
+#> 2     1   0.8100663 0.8100663 0.18993375
+#> 3     2   0.8449567 0.1550433 0.84495674
+#> 4     2   0.5582606 0.4417394 0.55826060
+#> 5     1   0.9030628 0.9030628 0.09693725
+#> 6     2   0.7404903 0.2595097 0.74049035
 # To relate the classes to an external variable, do not regress on the
 # assigned class - use the bias-adjusted third step instead:
 # add_outcome(fit, y)

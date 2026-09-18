@@ -10,10 +10,10 @@ settings the package intends you to use, and the other vignettes show
 the analyses.
 
 This one exists for the moments when a number does not look the way you
-expected: a log-likelihood that differs from another program’s, a
-warning about a collapsed variance, a probability reported as 0.000.
-Each of those is a deliberate choice with a literature behind it, and
-each is easier to live with once you know which choice it was.
+expected: a log-likelihood that differs from a published one, a warning
+about a collapsed variance, a probability reported as 0.000. Each of
+those is a deliberate choice with a literature behind it, and each is
+easier to live with once you know which choice it was.
 
 ## Mixture likelihoods have more than one maximum
 
@@ -41,7 +41,7 @@ fit
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 18 iterations)
+#> Converged          : TRUE (in 19 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -909.47
 #>   Parameters     : 9
@@ -121,7 +121,7 @@ Set `random_state` to make the search reproducible.
 ## How long EM runs, and when it stops
 
 Each start runs until the log-likelihood stops improving by more than
-`1e-4`, or until it has taken `max_iter = 1000` iterations, whichever
+`1e-6`, or until it has taken `max_iter = 1000` iterations, whichever
 comes first.
 
 The iteration budget has a direct precedent: Biernacki et al. (2003)
@@ -134,14 +134,14 @@ rather than to multiply it by ten. mixtureEM’s non-convergence warning
 names the doubled value.
 
 The tolerance is a different kind of number, and it is worth being plain
-about it: `1e-4` is a pragmatic calibration against this package’s own
-reference fits, not a value taken from the literature. If anything the
-literature argues against relying on a rule of that form at all.
-Biernacki et al. (p. 568): “We do not use stopping criteria based on the
-relative change of the estimates or loglikelihood because the slow
-convergence of the EM makes such criteria hazardous.” Their own short
-runs stop instead on progress relative to progress already made,
-$`(L^q - L^{q-1}) / (L^q - L^0)`$.
+about it: `1e-6` is a pragmatic choice from this package’s own
+accuracy-versus-cost measurements, not a value taken from the
+literature. If anything the literature argues against relying on a rule
+of that form at all. Biernacki et al. (p. 568): “We do not use stopping
+criteria based on the relative change of the estimates or loglikelihood
+because the slow convergence of the EM makes such criteria hazardous.”
+Their own short runs stop instead on progress relative to progress
+already made, $`(L^q - L^{q-1}) / (L^q - L^0)`$.
 
 That objection is exactly why the hard cap exists alongside the
 tolerance rather than instead of it. A slow-converging EM can satisfy an
@@ -183,19 +183,29 @@ region of a fixed-level test has been randomly displaced” (p. 155).
 warns when the result lands within one step of .05 and names
 `n_reps = 999`.
 
-**`n_init_boot = 10` is a compute compromise, not a recommendation.**
-Each draw refits both models, so the replicate search is where the cost
-of the test lives, and 10 restarts per replicate is where this package
-puts the trade-off. No source endorses that number. Dziak et al. (p. 4,
-fn. 3) say the minimum “is not known”, that too few starts under the
-alternative “can lead to invalid results”, and that a local maximum
-there can make “the calculated likelihood ratio … occasionally be
-nonsensical negative value”; they used 50. Lee, Wickrama and O’Neal
-(2023, p. 654) make the same point from the applied side: “If a local
-solution is detected in either the k-1 class or the k-class model (or
-both), the difference between the log-likelihood values will be biased.
-In turn, this leads to biased inference statistics (p-values).” That
-negative statistic is the diagnostic, and
+**Each replicate’s null fit is seeded from the observed data, not
+searched.** A replicate is generated from the observed (*k*-1)-class
+model, so that model’s own converged parameters are already the best
+available start for refitting it; a random search there can only
+rediscover the same basin at a cost.
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)
+therefore starts a replicate’s (*k*-1)-class fit from those parameters
+and runs no random restarts on it.
+
+**`n_init_boot = 10` sizes the *k*-class replicate’s search alone, and
+is a compute compromise, not a recommendation** — the alternative gets
+`2 * n_init_boot` restarts (20 by default), the budget the null no
+longer needs, because the *k*-class side is the one that can land in a
+wrong basin and is where the cost lives. No source endorses the number
+10 itself. Dziak et al. (p. 4, fn. 3) say the minimum “is not known”,
+that too few starts under the alternative “can lead to invalid results”,
+and that a local maximum there can make “the calculated likelihood ratio
+… occasionally be nonsensical negative value”; they used 50. Lee,
+Wickrama and O’Neal (2023, p. 654) make the same point from the applied
+side: “If a local solution is detected in either the k-1 class or the
+k-class model (or both), the difference between the log-likelihood
+values will be biased. In turn, this leads to biased inference
+statistics (p-values).” That negative statistic is the diagnostic, and
 [`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)
 counts it: any negative draw and it warns, naming `n_init_boot = 50`.
 
@@ -246,13 +256,12 @@ Three consequences worth knowing:
 
 - **The reported log-likelihood is the log-likelihood**, evaluated at
   the posterior mode — not the log-posterior. It is the same function a
-  maximum-likelihood program reports, evaluated at slightly different
+  maximum-likelihood fit reports, evaluated at slightly different
   estimates, so it is bounded above by the ML value. The gap grows with
   the number of parameters ML would have placed on the boundary, and it
   keeps AIC and BIC on a defensible scale.
 - **Setting a constant to `0` recovers plain maximum likelihood** for
-  that block. That is an escape hatch for reproducing an unregularized
-  reference analysis, not a recommended setting.
+  that block. That is an escape hatch, not a recommended setting.
 - **[`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
   flags probabilities that reached the boundary anyway.** Those tell you
   something real — a class defined partly by an item every case in it
@@ -353,25 +362,27 @@ never happens, which is rarely what a handful of cases in an origin row
 can support, and it carries the same broken standard errors as any other
 boundary estimate.
 
-What is added is **one pseudo-case per origin row**, spread evenly over
-that row’s reachable destinations. Both halves of that are choices. The
-mass is per row rather than per cell, which is the prior Chung, Lanza
-and Loken (2008) use for exactly this model — they describe it as adding
-one observation to each class at the first occasion — and the boundary
-solutions maximum likelihood produces at *n* = 100 disappear under it.
-The spread is even rather than proportional to how often each
-destination is occupied: shrinking a rare origin row toward the
-destination marginal would assert that everyone in it moves to the
-prevalent status, which is a confident claim about a row the data say
-little about, where an even spread claims nothing (Fienberg & Holland,
-1973, sec. 6).
+What is added is **one pseudo-case per conditional table**, spread
+evenly over its cells. A transition matrix is one such table, so with
+$`K`$ statuses an origin row of it carries $`\alpha / K`$ of the mass.
+Both halves of that are choices. The mass is per table rather than per
+cell, in the spirit of the prior Chung, Lanza and Loken (2008) use for
+exactly this model - they describe it as adding one observation to each
+class at the first occasion - and the boundary solutions maximum
+likelihood produces at *n* = 100 disappear under it. The spread is even
+rather than proportional to how often each destination is occupied:
+shrinking a rare origin row toward the destination marginal would assert
+that everyone in it moves to the prevalent status, which is a confident
+claim about a row the data say little about, where an even spread claims
+nothing (Fienberg & Holland, 1973, sec. 6).
 
-The cost falls on precisely those rows, and it has an exact form. For a
-row with $`m`$ expected cases and $`K_a`$ reachable destinations, the
-prior can move any probability in it by at most
+The cost falls on precisely those rows, and it has an exact form.
+Writing $`a`$ for the share of the mass a row carries, then for a row
+with $`m`$ expected cases and $`K_a`$ reachable destinations the prior
+can move any probability in it by at most
 
 ``` math
-\text{pull} = \frac{\alpha}{m + \alpha}\left(1 - \frac{1}{K_a}\right)
+\text{pull} = \frac{a}{m + a}\left(1 - \frac{1}{K_a}\right)
 ```
 
 A fit reports this per row and tells you when it exceeds five percentage
@@ -404,14 +415,14 @@ With `group =`, mixtureEM maximises the likelihood of the indicators
 **given** the group. The grouping variable’s own distribution is not
 modelled and its proportions are not counted as parameters.
 
-That is a convention, and programs differ. Software that treats a fully
-observed grouping variable as a latent class variable instead adds the
-group’s multinomial term to the log-likelihood and its `G - 1`
-proportions to the parameter count. Both differences are fixed
-constants: they cancel in any likelihood-ratio test and in any
-comparison among models fitted here. For reading numbers off such output
-directly, a `group` fit also carries `metrics$ll_knownclass` and
-`metrics$n_params_knownclass`.
+That is a convention. The other one – the known-class formulation, which
+treats a fully observed grouping variable as a latent class variable
+observed without error – adds the group’s multinomial term to the
+log-likelihood and its `G - 1` proportions to the parameter count. Both
+differences are fixed constants: they cancel in any likelihood-ratio
+test and in any comparison among models fitted here. A `group` fit
+carries both scales: `metrics$ll_knownclass` and
+`metrics$n_params_knownclass` are the known-class figures.
 
 ## References
 

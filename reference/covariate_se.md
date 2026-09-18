@@ -32,21 +32,20 @@ selects among three estimators of the covariate covariance matrix.
 
 - `"hessian"`:
 
-  \\(-H_3)^{-1}\\ alone. Provided for comparison with software that
-  reports it; it ignores the record duplication and is not recommended.
+  \\(-H_3)^{-1}\\ alone. Provided for completeness; it ignores the
+  record duplication and is not recommended.
 
 None of these is the Hessian the package reported previously, which came
 from the M-step and measured the curvature of the *Q function* rather
 than of the step-3 log-likelihood, and so was smaller still.
 
 `"corrected"` is the statistically right answer and is the default for
-that reason. `"robust"` is the *comparability* setting: another program
-reports the step-3 sandwich alone, so reproducing its standard errors
-requires `se = "robust"`. A user checking mixtureEM against it under the
-default will see wider intervals and may report a discrepancy, but the
-difference is a difference in estimator — the corrected form carries
-step-1 uncertainty that the sandwich alone omits — and not a bug in
-either program.
+that reason. `"robust"` is the step-3 sandwich alone, the estimator of
+an analysis that treats the assigned classes as given; use
+`se = "robust"` when that is the analysis being reported. Under the
+default the intervals are wider, and the difference is a difference in
+estimator — the corrected form carries step-1 uncertainty that the
+sandwich alone omits.
 
 How much this matters depends almost entirely on how well separated the
 classes are. A 250-replication coverage study on the design of Bakk et

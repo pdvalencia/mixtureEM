@@ -29,7 +29,7 @@ fit_mixture_internal(
   bayes_constants = NULL,
   warm_start = NULL,
   se = c("corrected", "robust", "hessian"),
-  n_cores = 1L,
+  n_cores = .default_n_cores(),
   ...
 )
 ```
@@ -140,8 +140,24 @@ fit_mixture_internal(
 
 - refine:
 
-  Logical. If `TRUE` (default), applies L-BFGS refinement after EM
-  convergence to optimize the penalized maximum likelihood.
+  Logical. If `TRUE` (default), runs an L-BFGS pass after EM convergence
+  to finish climbing the penalized maximum likelihood.
+
+  **The pass does not cover every model, and where it does not it is
+  skipped rather than refused.** It is written for binary and continuous
+  indicators with class-varying variances, in flat and repeated-measures
+  models. It is skipped for polytomous and count indicators, for
+  mixed-measurement models, for
+  [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
+  and
+  [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md),
+  for continuous indicators at `variances_equal = TRUE`, for any model
+  carrying covariates or `group_effects`, and for block models holding
+  parameters invariant across blocks. Such a fit is not left part-way
+  up: EM is given a tighter stopping rule instead and is the whole
+  estimator for it. See
+  [`fit_mixture`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+  for what that costs, which is measured and small.
 
 - bayes_constants:
 
@@ -171,7 +187,9 @@ fit_mixture_internal(
 - n_cores:
 
   Positive integer. Number of processes to spread the random starts
-  over. Default `1` (sequential).
+  over. Default `1` (sequential), or the value of
+  `options(mixtureEM.n_cores = )` where that has been set; an argument
+  given here overrides the option.
 
 - ...:
 
@@ -217,18 +235,18 @@ print(fit)
 #> =========================================================
 #> Classes Estimated  : 3
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 252 iterations)
+#> Converged          : TRUE (in 208 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -337.02
 #>   Parameters     : 17
 #>   AIC            : 708.04
 #>   BIC            : 752.33
 #>   SABIC          : 698.64
-#>   Rel. Entropy   : 0.4577
+#>   Rel. Entropy   : 0.4578
 #>   Best solution  : found by 5 of 5 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 47.50%
+#>   Class 1: 47.49%
 #>   Class 2: 29.86%
 #>   Class 3: 22.64%
 #> =========================================================
@@ -246,7 +264,7 @@ measurement_summary(fit)
 #> Item_1               |   0.345 |   0.724 |   0.441
 #> Item_2               |   0.737 |   0.462 |   0.229
 #> Item_3               |   0.266 |   0.829 |   0.027
-#> Item_4               |   0.635 |   0.366 |   0.083
+#> Item_4               |   0.635 |   0.367 |   0.083
 #> Item_5               |   0.473 |   0.367 |   0.599
 #> 
 #> The Overall column, holding the observed marginal for each item, is omitted above: this fit either does not store its raw indicators - in which case refitting with the current version enables it - or holds item parameters that cannot be matched to them by name, as a multiple-group measurement model does.
@@ -275,7 +293,7 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.725  [    0.014,    37.579]     0.873
-#>   V1                       0.780  [    0.288,     2.114]     0.625
+#>   Intercept                0.725  [    0.014,    37.630]     0.873
+#>   V1                       0.780  [    0.288,     2.113]     0.625
 #> =========================================================
 ```

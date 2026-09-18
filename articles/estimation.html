@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -38,6 +38,7 @@
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -79,7 +80,7 @@
 settings the package intends you to use, and the other vignettes show
 the analyses.</p>
 <p>This one exists for the moments when a number does not look the way
-you expected: a log-likelihood that differs from another program’s, a
+you expected: a log-likelihood that differs from a published one, a
 warning about a collapsed variance, a probability reported as 0.000.
 Each of those is a deliberate choice with a literature behind it, and
 each is easier to live with once you know which choice it was.</p>
@@ -107,7 +108,7 @@ many of them found that best solution:</p>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Classes Estimated  : 2</span></span>
 <span><span class="co">#&gt; Estimation Method  : 1-step</span></span>
-<span><span class="co">#&gt; Converged          : TRUE (in 18 iterations)</span></span>
+<span><span class="co">#&gt; Converged          : TRUE (in 19 iterations)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Log-Likelihood : -909.47</span></span>
 <span><span class="co">#&gt;   Parameters     : 9</span></span>
@@ -183,7 +184,7 @@ tighter threshold that fit reports “found by 1 of 6”.</p>
 <h2 id="how-long-em-runs-and-when-it-stops">How long EM runs, and when it stops<a class="anchor" aria-label="anchor" href="#how-long-em-runs-and-when-it-stops"></a>
 </h2>
 <p>Each start runs until the log-likelihood stops improving by more than
-<code>1e-4</code>, or until it has taken <code>max_iter = 1000</code>
+<code>1e-6</code>, or until it has taken <code>max_iter = 1000</code>
 iterations, whichever comes first.</p>
 <p>The iteration budget has a direct precedent: Biernacki et al. (2003)
 budget 1,000 iterations in their comparison, and the first
@@ -194,14 +195,14 @@ the advice when a fit stops at the cap is to <strong>double</strong>
 <code>max_iter</code> rather than to multiply it by ten. mixtureEM’s
 non-convergence warning names the doubled value.</p>
 <p>The tolerance is a different kind of number, and it is worth being
-plain about it: <code>1e-4</code> is a pragmatic calibration against
-this package’s own reference fits, not a value taken from the
-literature. If anything the literature argues against relying on a rule
-of that form at all. Biernacki et al. (p. 568): “We do not use stopping
-criteria based on the relative change of the estimates or loglikelihood
-because the slow convergence of the EM makes such criteria hazardous.”
-Their own short runs stop instead on progress relative to progress
-already made,
+plain about it: <code>1e-6</code> is a pragmatic choice from this
+package’s own accuracy-versus-cost measurements, not a value taken from
+the literature. If anything the literature argues against relying on a
+rule of that form at all. Biernacki et al. (p. 568): “We do not use
+stopping criteria based on the relative change of the estimates or
+loglikelihood because the slow convergence of the EM makes such criteria
+hazardous.” Their own short runs stop instead on progress relative to
+progress already made,
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">(</mo><msup><mi>L</mi><mi>q</mi></msup><mo>−</mo><msup><mi>L</mi><mrow><mi>q</mi><mo>−</mo><mn>1</mn></mrow></msup><mo stretchy="false" form="postfix">)</mo><mi>/</mi><mo stretchy="false" form="prefix">(</mo><msup><mi>L</mi><mi>q</mi></msup><mo>−</mo><msup><mi>L</mi><mn>0</mn></msup><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">(L^q - L^{q-1}) / (L^q - L^0)</annotation></semantics></math>.</p>
 <p>That objection is exactly why the hard cap exists alongside the
 tolerance rather than instead of it. A slow-converging EM can satisfy an
@@ -239,21 +240,30 @@ the test cannot separate .04 from .06. Where the decision turns on that,
 “the critical region of a fixed-level test has been randomly displaced”
 (p. 155). <code><a href="../reference/blrt.html">blrt()</a></code> warns when the result lands within one
 step of .05 and names <code>n_reps = 999</code>.</p>
-<p><strong><code>n_init_boot = 10</code> is a compute compromise, not a
-recommendation.</strong> Each draw refits both models, so the replicate
-search is where the cost of the test lives, and 10 restarts per
-replicate is where this package puts the trade-off. No source endorses
-that number. Dziak et al. (p. 4, fn. 3) say the minimum “is not known”,
-that too few starts under the alternative “can lead to invalid results”,
-and that a local maximum there can make “the calculated likelihood ratio
-… occasionally be nonsensical negative value”; they used 50. Lee,
-Wickrama and O’Neal (2023, p. 654) make the same point from the applied
-side: “If a local solution is detected in either the k-1 class or the
-k-class model (or both), the difference between the log-likelihood
-values will be biased. In turn, this leads to biased inference
-statistics (p-values).” That negative statistic is the diagnostic, and
-<code><a href="../reference/blrt.html">blrt()</a></code> counts it: any negative draw and it warns, naming
-<code>n_init_boot = 50</code>.</p>
+<p><strong>Each replicate’s null fit is seeded from the observed data,
+not searched.</strong> A replicate is generated from the observed
+(<em>k</em>-1)-class model, so that model’s own converged parameters are
+already the best available start for refitting it; a random search there
+can only rediscover the same basin at a cost. <code><a href="../reference/blrt.html">blrt()</a></code>
+therefore starts a replicate’s (<em>k</em>-1)-class fit from those
+parameters and runs no random restarts on it.</p>
+<p><strong><code>n_init_boot = 10</code> sizes the <em>k</em>-class
+replicate’s search alone, and is a compute compromise, not a
+recommendation</strong> — the alternative gets
+<code>2 * n_init_boot</code> restarts (20 by default), the budget the
+null no longer needs, because the <em>k</em>-class side is the one that
+can land in a wrong basin and is where the cost lives. No source
+endorses the number 10 itself. Dziak et al. (p. 4, fn. 3) say the
+minimum “is not known”, that too few starts under the alternative “can
+lead to invalid results”, and that a local maximum there can make “the
+calculated likelihood ratio … occasionally be nonsensical negative
+value”; they used 50. Lee, Wickrama and O’Neal (2023, p. 654) make the
+same point from the applied side: “If a local solution is detected in
+either the k-1 class or the k-class model (or both), the difference
+between the log-likelihood values will be biased. In turn, this leads to
+biased inference statistics (p-values).” That negative statistic is the
+diagnostic, and <code><a href="../reference/blrt.html">blrt()</a></code> counts it: any negative draw and it
+warns, naming <code>n_init_boot = 50</code>.</p>
 <p><strong>A non-significant BLRT is not evidence that there is no extra
 class.</strong> Its power turns on class separation far more than on
 sample size. In Tekle, Gudicha and Vermunt’s (2016) Table 2,
@@ -365,15 +375,14 @@ class with real data behind it. All four default to 1.</p>
 <li>
 <strong>The reported log-likelihood is the log-likelihood</strong>,
 evaluated at the posterior mode — not the log-posterior. It is the same
-function a maximum-likelihood program reports, evaluated at slightly
+function a maximum-likelihood fit reports, evaluated at slightly
 different estimates, so it is bounded above by the ML value. The gap
 grows with the number of parameters ML would have placed on the
 boundary, and it keeps AIC and BIC on a defensible scale.</li>
 <li>
 <strong>Setting a constant to <code>0</code> recovers plain maximum
-likelihood</strong> for that block. That is an escape hatch for
-reproducing an unregularized reference analysis, not a recommended
-setting.</li>
+likelihood</strong> for that block. That is an escape hatch, not a
+recommended setting.</li>
 <li>
 <strong><code><a href="../reference/measurement_summary.html">measurement_summary()</a></code> flags probabilities that
 reached the boundary anyway.</strong> Those tell you something real — a
@@ -482,26 +491,33 @@ the reason. A transition probability estimated at exactly zero says the
 move never happens, which is rarely what a handful of cases in an origin
 row can support, and it carries the same broken standard errors as any
 other boundary estimate.</p>
-<p>What is added is <strong>one pseudo-case per origin row</strong>,
-spread evenly over that row’s reachable destinations. Both halves of
-that are choices. The mass is per row rather than per cell, which is the
-prior Chung, Lanza and Loken (2008) use for exactly this model — they
-describe it as adding one observation to each class at the first
-occasion — and the boundary solutions maximum likelihood produces at
-<em>n</em> = 100 disappear under it. The spread is even rather than
-proportional to how often each destination is occupied: shrinking a rare
-origin row toward the destination marginal would assert that everyone in
-it moves to the prevalent status, which is a confident claim about a row
-the data say little about, where an even spread claims nothing (Fienberg
-&amp; Holland, 1973, sec. 6).</p>
-<p>The cost falls on precisely those rows, and it has an exact form. For
-a row with
+<p>What is added is <strong>one pseudo-case per conditional
+table</strong>, spread evenly over its cells. A transition matrix is one
+such table, so with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>K</mi><annotation encoding="application/x-tex">K</annotation></semantics></math>
+statuses an origin row of it carries
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>α</mi><mi>/</mi><mi>K</mi></mrow><annotation encoding="application/x-tex">\alpha / K</annotation></semantics></math>
+of the mass. Both halves of that are choices. The mass is per table
+rather than per cell, in the spirit of the prior Chung, Lanza and Loken
+(2008) use for exactly this model - they describe it as adding one
+observation to each class at the first occasion - and the boundary
+solutions maximum likelihood produces at <em>n</em> = 100 disappear
+under it. The spread is even rather than proportional to how often each
+destination is occupied: shrinking a rare origin row toward the
+destination marginal would assert that everyone in it moves to the
+prevalent status, which is a confident claim about a row the data say
+little about, where an even spread claims nothing (Fienberg &amp;
+Holland, 1973, sec. 6).</p>
+<p>The cost falls on precisely those rows, and it has an exact form.
+Writing
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>a</mi><annotation encoding="application/x-tex">a</annotation></semantics></math>
+for the share of the mass a row carries, then for a row with
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>m</mi><annotation encoding="application/x-tex">m</annotation></semantics></math>
 expected cases and
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>K</mi><mi>a</mi></msub><annotation encoding="application/x-tex">K_a</annotation></semantics></math>
-reachable destinations, the prior can move any probability in it by at
+reachable destinations the prior can move any probability in it by at
 most</p>
-<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mtext mathvariant="normal">pull</mtext><mo>=</mo><mfrac><mi>α</mi><mrow><mi>m</mi><mo>+</mo><mi>α</mi></mrow></mfrac><mrow><mo stretchy="true" form="prefix">(</mo><mn>1</mn><mo>−</mo><mfrac><mn>1</mn><msub><mi>K</mi><mi>a</mi></msub></mfrac><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">\text{pull} = \frac{\alpha}{m + \alpha}\left(1 - \frac{1}{K_a}\right)</annotation></semantics></math></p>
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mtext mathvariant="normal">pull</mtext><mo>=</mo><mfrac><mi>a</mi><mrow><mi>m</mi><mo>+</mo><mi>a</mi></mrow></mfrac><mrow><mo stretchy="true" form="prefix">(</mo><mn>1</mn><mo>−</mo><mfrac><mn>1</mn><msub><mi>K</mi><mi>a</mi></msub></mfrac><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">\text{pull} = \frac{a}{m + a}\left(1 - \frac{1}{K_a}\right)</annotation></semantics></math></p>
 <p>A fit reports this per row and tells you when it exceeds five
 percentage points on any of them, naming the worst. That is a reading
 caution, not a verdict on the model: it says those transitions rest
@@ -536,15 +552,16 @@ BIC.</p>
 indicators <strong>given</strong> the group. The grouping variable’s own
 distribution is not modelled and its proportions are not counted as
 parameters.</p>
-<p>That is a convention, and programs differ. Software that treats a
-fully observed grouping variable as a latent class variable instead adds
-the group’s multinomial term to the log-likelihood and its
-<code>G - 1</code> proportions to the parameter count. Both differences
-are fixed constants: they cancel in any likelihood-ratio test and in any
-comparison among models fitted here. For reading numbers off such output
-directly, a <code>group</code> fit also carries
+<p>That is a convention. The other one – the known-class formulation,
+which treats a fully observed grouping variable as a latent class
+variable observed without error – adds the group’s multinomial term to
+the log-likelihood and its <code>G - 1</code> proportions to the
+parameter count. Both differences are fixed constants: they cancel in
+any likelihood-ratio test and in any comparison among models fitted
+here. A <code>group</code> fit carries both scales:
 <code>metrics$ll_knownclass</code> and
-<code>metrics$n_params_knownclass</code>.</p>
+<code>metrics$n_params_knownclass</code> are the known-class
+figures.</p>
 </div>
 <div class="section level2">
 <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>

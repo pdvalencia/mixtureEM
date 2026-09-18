@@ -4,8 +4,8 @@ for covariate effects on latent class membership, so that
 sqrt(diag(vcov(fit))) gives their standard errors. This is the
 log-scale companion to confint, which
 reports intervals on the odds-ratio scale — it exists so that the standard
-errors can be got at directly, for comparing against another program or for
-pooling estimates, rather than reconstructed from an interval width.
+errors can be got at directly, for reporting or for pooling estimates,
+rather than reconstructed from an interval width.
 Which estimator it comes from depends on how the model was fitted: the
 survey-robust or step-3 corrected covariance when one was computed, and the
 Q-function Hessian otherwise. The estimator is named in the method
@@ -14,8 +14,8 @@ for covariate effects on latent class membership, so that
 sqrt(diag(vcov(fit))) gives their standard errors. This is the
 log-scale companion to confint, which
 reports intervals on the odds-ratio scale — it exists so that the standard
-errors can be got at directly, for comparing against another program or for
-pooling estimates, rather than reconstructed from an interval width.
+errors can be got at directly, for reporting or for pooling estimates,
+rather than reconstructed from an interval width.
 Which estimator it comes from depends on how the model was fitted: the
 survey-robust or step-3 corrected covariance when one was computed, and the
 Q-function Hessian otherwise. The estimator is named in the method
@@ -27,7 +27,7 @@ attribute, exactly as confint() reports it."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,6 +43,7 @@ attribute, exactly as confint() reports it."></head><body>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -71,8 +72,8 @@ for covariate effects on latent class membership, so that
 <code>sqrt(diag(vcov(fit)))</code> gives their standard errors. This is the
 log-scale companion to <code><a href="confint.mixture_model.html">confint</a></code>, which
 reports intervals on the odds-ratio scale — it exists so that the standard
-errors can be got at directly, for comparing against another program or for
-pooling estimates, rather than reconstructed from an interval width.</p>
+errors can be got at directly, for reporting or for pooling estimates,
+rather than reconstructed from an interval width.</p>
 <p>Which estimator it comes from depends on how the model was fitted: the
 survey-robust or step-3 corrected covariance when one was computed, and the
 Q-function Hessian otherwise. The estimator is named in the <code>method</code>
@@ -139,7 +140,7 @@ of, and <code><a href="confint.mixture_model.html">confint</a></code>.</p></div>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Note: `X`, `Y`, `n_components`, and `structural` are the legacy interface. The current arguments are `indicators`, `n_classes`, `predictors`, and `outcome` / `outcome_covariates`.</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/vcov.html" class="external-link">vcov</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Class 2:Intercept       Class 2:age </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         2.3584007         0.6881262 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         2.3585388         0.6877525 </span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

@@ -101,7 +101,7 @@ made on BIC."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -117,6 +117,7 @@ made on BIC."></head><body>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -397,8 +398,8 @@ identifying differences in longitudinal change among unobserved groups.
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> GROWTH FACTOR MEANS</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>         intercept linear</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Class 1     1.026  0.179</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Class 2     2.950  1.003</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Class 1     1.025  0.178</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Class 2     2.946  1.002</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> GROWTH FACTOR (CO)VARIANCE (held equal across classes)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>           intercept linear</span>
@@ -411,26 +412,26 @@ identifying differences in longitudinal change among unobserved groups.
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> FITTED TRAJECTORY (mean)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>            T1    T2    T3    T4</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Class 1 1.026 1.205 1.384 1.563</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Class 2 2.950 3.952 4.955 5.958</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Class 1 1.025 1.203 1.381 1.559</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Class 2 2.946 3.948 4.950 5.951</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                   LATENT MIXTURE MODEL                   </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Classes Estimated  : 2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Estimation Method  : 1-step</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Converged          : TRUE (in 125 iterations)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Converged          : TRUE (in 158 iterations)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> ---------------------------------------------------------</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Log-Likelihood : -2598.50</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Parameters     : 12</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   AIC            : 5221.01</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   AIC            : 5221.00</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   BIC            : 5268.90</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   SABIC          : 5230.83</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Rel. Entropy   : 0.6348</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   SABIC          : 5230.82</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Rel. Entropy   : 0.6344</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Best solution  : found by 2 of 4 starts that ran to convergence (of 10 requested)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> ---------------------------------------------------------</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Class Weights (Sizes):</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 1: 54.71%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 2: 45.29%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 1: 54.62%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 2: 45.38%</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span>
 <span class="r-in"><span><span class="co"># }</span></span></span>

@@ -77,12 +77,18 @@ selection <- compare_mixtures(ratings, k_range = 1:5,
 #> Fitting 5-class model...
 #> 
 #> === Model Selection Summary ===
-#>   Classes       LL Params      AIC      BIC    SABIC Entropy Unreplicated
-#> 1       1 -524.465      7 1062.930 1082.324 1060.196   1.000        FALSE
-#> 2       2 -318.159     15  666.318  707.878  660.459   0.963        FALSE
-#> 3       3 -294.935     23  635.869  699.595  626.886   0.915        FALSE
-#> 4       4 -290.739     31  643.478  729.369  631.370   0.852        FALSE
-#> 5       5 -288.513     39  655.025  763.082  639.793   0.862        FALSE
+#>   Classes       LL Params      AIC      BIC     CAIC     AIC3      ICL    SABIC
+#> 1       1 -524.465      7 1062.930 1082.324 1089.324 1069.930 1082.324 1060.196
+#> 2       2 -318.158     15  666.316  707.877  722.877  681.316  713.922  660.458
+#> 3       3 -294.935     23  635.869  699.595  722.595  658.869  721.601  626.886
+#> 4       4 -290.739     31  643.477  729.368  760.368  674.477  777.731  631.370
+#> 5       5 -288.513     39  655.026  763.083  802.083  694.026  815.444  639.794
+#>   Entropy Unreplicated
+#> 1   1.000        FALSE
+#> 2   0.963        FALSE
+#> 3   0.915        FALSE
+#> 4   0.852        FALSE
+#> 5   0.862        FALSE
 #> 
 #> -> Best model according to BIC: 3 classes
 ```
@@ -172,12 +178,12 @@ fit
 #> =========================================================
 #> Classes Estimated  : 3
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 30 iterations)
+#> Converged          : TRUE (in 21 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -294.93
 #>   Parameters     : 23
 #>   AIC            : 635.87
-#>   BIC            : 699.59
+#>   BIC            : 699.60
 #>   SABIC          : 626.89
 #>   Rel. Entropy   : 0.9151
 #>   Best solution  : found by 30 of 30 starts
@@ -206,10 +212,10 @@ classification_diagnostics(fit)
 #> Rows: model-expected membership | Columns: modal assignment
 #> 
 #>         Modal 1 Modal 2 Modal 3    Total
-#> Class 1 50.7028  0.0000  1.9037  52.6065
-#> Class 2  0.0000 43.1801  1.1028  44.2829
-#> Class 3  0.2972  0.8199 19.9935  21.1106
-#> Total   51.0000 44.0000 23.0000 118.0000
+#> Class 1 50.7029    0.00  1.9037  52.6066
+#> Class 2  0.0000   43.18  1.1027  44.2827
+#> Class 3  0.2971    0.82 19.9936  21.1107
+#> Total   51.0000   44.00 23.0000 118.0000
 #> 
 #> Classification error: 0.0349 (3.49% of 118 cases)
 #> =========================================================
@@ -256,9 +262,9 @@ absolute_fit(fit)
 #> 
 #> Statistic               Value    p-value
 #> ---------------------------------------- 
-#> L-squared             17.7208     1.0000
-#> X-squared             21.1127     1.0000
-#> Cressie-Read          18.5874     1.0000
+#> L-squared             17.7211     1.0000
+#> X-squared             21.1151     1.0000
+#> Cressie-Read          18.5887     1.0000
 #> Dissimilarity          0.1170           
 #> =========================================================
 #> Note: the table is sparse, so the chi-square reference
@@ -276,14 +282,14 @@ bivariate_residuals(fit)
 #> 
 #>          A        B        C        D        E        F
 #> B   0.1035
-#> C   0.3456   0.0024
-#> D   0.7983   0.7643   0.0062
-#> E   0.0937   0.0890   0.3741   0.4804
-#> F   0.1803   0.6055   0.0076   4.6889   0.2012
-#> G   0.2487   0.1070   0.3273   0.6427   0.1952   0.1729
+#> C   0.3456   0.0023
+#> D   0.7980   0.7643   0.0062
+#> E   0.0936   0.0890   0.3744   0.4801
+#> F   0.1803   0.6055   0.0076   4.6885   0.2014
+#> G   0.2487   0.1070   0.3273   0.6425   0.1952   0.1729
 #> 
-#> Largest: F x D = 4.6889
-#> Total BVR: 10.4345
+#> Largest: F x D = 4.6885
+#> Total BVR: 10.4339
 #> =========================================================
 ```
 

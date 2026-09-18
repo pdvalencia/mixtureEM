@@ -31,7 +31,7 @@ that reference distribution."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -47,6 +47,7 @@ that reference distribution."></head><body>
     <li><a class="dropdown-item" href="../articles/class_enumeration.html">Choosing the Number of Classes</a></li>
     <li><a class="dropdown-item" href="../articles/rmlca.html">Repeated-Measures LCA: Patterns of Change Over Time</a></li>
     <li><a class="dropdown-item" href="../articles/lta.html">Latent Transition Analysis: Movement Between Statuses</a></li>
+    <li><a class="dropdown-item" href="../articles/rilta.html">Random-Intercept LTA: Separating Traits from Transitions</a></li>
     <li><a class="dropdown-item" href="../articles/growth_mixture.html">Trajectory Classes: LCGA and Growth Mixture Models</a></li>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
@@ -114,8 +115,9 @@ under MCAR, <code>ll_sat</code> for the saturated model's log-likelihood, and
     <h2 id="missing-data">Missing data<a class="anchor" aria-label="anchor" href="#missing-data"></a></h2>
 
 
-<p>With one or more missing values (categorical, plain <code><a href="fit_mixture.html">fit_mixture()</a></code> models
-only), the statistics are computed under the missing-at-random (MAR)
+<p>With one or more missing values (categorical <code><a href="fit_mixture.html">fit_mixture()</a></code> or
+<code><a href="fit_lta.html">fit_lta()</a></code> models), the statistics are computed under the
+missing-at-random (MAR)
 assumption instead: the model is compared not to the raw response table,
 which no longer exists once cases have different items observed, but to a
 saturated model fit to the same partition of the data by which items each
@@ -127,6 +129,17 @@ underneath; use <code><a href="mcar_test.html">mcar_test()</a></code> to test th
 can be slow, or refused outright, once the number of indicator categories
 crossed together grows large – the same \(W\) that already makes the
 complete-data table sparse.</p>
+<p><strong>Two statistics called \(L^2\).</strong> Two different statistics can be called
+"the" \(L^2\) for a model fitted to incomplete data, and they can differ
+by a factor of two on the very same fit. <code>$g2</code> is the test of the model
+alone under MAR; <code>$g2_mcar</code> is the model tested <em>jointly</em> with MCAR, so it
+also carries every departure from MCAR in the missingness itself. Read
+<code>$g2</code> as the model's fit and <code>$g2_mcar</code> as the joint hypothesis, each with
+its own degrees of freedom (<code>$df</code>, <code>$df_mcar</code>); <code>$df_mcar</code> is reported
+uncapped. Note also that the \(X^2\) and Cressie-Read columns
+are far less trustworthy than \(L^2\) on a sparse table: all three test
+the same hypothesis and they can return p-values hundreds of orders of
+magnitude apart.</p>
     </div>
     <div class="section level2">
     <h2 id="multiple-group-fits">Multiple-group fits<a class="anchor" aria-label="anchor" href="#multiple-group-fits"></a></h2>
@@ -137,12 +150,9 @@ complete-data table sparse.</p>
 -cell table <em>per group</em>, not one \(W\)-cell table for the pooled
 data: \(df = Q(W - 1) - P\) for \(Q\) groups, and the statistics are
 the sum of each group's own. The per-group breakdown is returned in
-<code>$by_group</code>. As with the missing-data statistics, this is a
-within-package diagnostic: do not compare its level to another program's
-single-model goodness of fit, which under missing data can disagree with
-this one by more than a factor of two on the very same fit even though
-the two agree on everything that can be compared – the log-likelihood
-and every likelihood-ratio test built from it.
+<code>$by_group</code>. Treat its level as a within-package diagnostic: it is the sum
+of per-group tables, not a single pooled table, and is only comparable
+with figures built the same way.
 <code>group_effects = "both"</code> instead attaches a covariate structural
 model for the prevalence effect and is refused as any conditional model
 is; refit with <code>group_effects = "measurement"</code> to check the
@@ -177,9 +187,9 @@ missingness mechanism on its own.</p></div>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Statistic               Value    p-value</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> ---------------------------------------- </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> L-squared             62.4171     0.1118</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> X-squared             50.0325     0.4721</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Cressie-Read          51.3465     0.4207</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> L-squared             62.4163     0.1118</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> X-squared             50.0307     0.4722</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Cressie-Read          51.3451     0.4208</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Dissimilarity          0.2819           </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-in"><span></span></span>

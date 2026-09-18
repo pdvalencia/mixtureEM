@@ -61,12 +61,16 @@ selection <- compare_longitudinal(drink, k_range = 2:4, model = "rmlca",
 #>   Fitting 2-class model...
 #>   Fitting 3-class model...
 #>   Fitting 4-class model...
+#> Warning: EM did not converge within max_iter = 1000 iterations. The estimates
+#> are wherever the algorithm had reached, which need not be a maximum. Refit with
+#> `max_iter = 2000`, doubling again if that is still not enough; if doubling does
+#> not help, the model is probably weakly identified at this number of classes.
 #> 
 #> === Model Selection Summary ===
-#>   Classes    LL Params  AIC  BIC SABIC Entropy Unreplicated
-#> 1       2 -2001      9 4021 4064  4035  0.7261        FALSE
-#> 2       3 -1981     14 3991 4058  4013  0.6456        FALSE
-#> 3       4 -1980     19 3998 4089  4028  0.5864        FALSE
+#>   Classes    LL Params  AIC  BIC CAIC AIC3  ICL SABIC Entropy Unreplicated
+#> 1       2 -2001      9 4021 4064 4073 4030 4406  4035  0.7261        FALSE
+#> 2       3 -1981     14 3991 4058 4072 4005 4759  4013  0.6456        FALSE
+#> 3       4 -1980     19 3998 4089 4108 4017 5120  4028  0.5868        FALSE
 #> 
 #> -> Best model according to BIC: 3
 ```
@@ -91,20 +95,20 @@ fit
 #> =========================================================
 #> Classes Estimated  : 3
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 212 iterations)
+#> Converged          : TRUE (in 319 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1981.32
 #>   Parameters     : 14
-#>   AIC            : 3990.64
+#>   AIC            : 3990.65
 #>   BIC            : 4057.88
-#>   SABIC          : 4013.41
-#>   Rel. Entropy   : 0.6457
+#>   SABIC          : 4013.42
+#>   Rel. Entropy   : 0.6455
 #>   Best solution  : found by 20 of 20 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 46.18%
-#>   Class 2: 35.03%
-#>   Class 3: 18.79%
+#>   Class 1: 46.17%
+#>   Class 2: 35.01%
+#>   Class 3: 18.82%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 ```
@@ -129,7 +133,7 @@ params <- measurement_summary(fit)
 #> Categorical Probabilities: T2
 #> Indicator            | Overall | Class 1 | Class 2 | Class 3
 #> ------------------------------------------------------------ 
-#> drink@T2             |   0.308 |   0.074 |   0.339 |   0.823
+#> drink@T2             |   0.308 |   0.074 |   0.339 |   0.822
 #> 
 #> Categorical Probabilities: T3
 #> Indicator            | Overall | Class 1 | Class 2 | Class 3
@@ -180,17 +184,17 @@ results <- summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.606  [    0.286,     1.281]     0.190
-#>   risk                     1.890  [    1.410,     2.534]    < .001
+#>   Intercept                0.604  [    0.285,     1.281]     0.189
+#>   risk                     1.891  [    1.410,     2.535]    < .001
 #> 
 #> Class 3 ON
-#>   Intercept                0.409  [    0.196,     0.854]     0.017
-#>   risk                     0.982  [    0.719,     1.341]     0.907
+#>   Intercept                0.409  [    0.197,     0.852]     0.017
+#>   risk                     0.982  [    0.720,     1.341]     0.910
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   risk                      21.253    2    < .001
+#>   risk                      21.245    2    < .001
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================
