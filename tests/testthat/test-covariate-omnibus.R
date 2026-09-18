@@ -14,7 +14,7 @@
 # can take into the model, and that the test built on it is the same statistic
 # analytical_wald_test() has always computed.
 #
-# The external anchor for the statistic's value and its (K-1) x (levels-1)
+# The check of the statistic's value and its (K-1) x (levels-1)
 # degrees of freedom lives in test-covariate-se.R, against a published run.
 
 .omni_sim <- function(n = 500, seed = 20260805) {
@@ -141,7 +141,7 @@ test_that("a covariate is tested as one term, not one dummy at a time", {
   K   <- 3L
 
   w <- analytical_wald_test(fit, "Marital")
-  expect_equal(w$df, (K - 1L) * 2L)      # (K-1) x (levels-1), LG's convention
+  expect_equal(w$df, (K - 1L) * 2L)      # (K-1) x (levels-1)
   expect_equal(w$Covariate, "Marital")
 
   # Naming one dummy column tests that column alone.

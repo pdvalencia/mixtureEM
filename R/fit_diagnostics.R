@@ -167,16 +167,14 @@
 #' crossed together grows large -- the same \eqn{W} that already makes the
 #' complete-data table sparse.
 #'
-#' **Comparing against other software.** Two different statistics get called
+#' **Two statistics called \eqn{L^2}.** Two different statistics can be called
 #' "the" \eqn{L^2} for a model fitted to incomplete data, and they can differ
 #' by a factor of two on the very same fit. `$g2` is the test of the model
-#' alone under MAR; `$g2_mcar` is the model tested *jointly* with MCAR, which
-#' is what some programs print by default and others print only on request.
-#' Match like with like before concluding anything: a program reporting a much
-#' larger figure than `$g2` is usually reporting `$g2_mcar`'s quantity, not
-#' disagreeing. Compare `$df` rather than `$df_mcar`, since the latter is
-#' capped at the sample size by at least one other implementation and this one
-#' reports it uncapped. Note also that the \eqn{X^2} and Cressie-Read columns
+#' alone under MAR; `$g2_mcar` is the model tested *jointly* with MCAR, so it
+#' also carries every departure from MCAR in the missingness itself. Read
+#' `$g2` as the model's fit and `$g2_mcar` as the joint hypothesis, each with
+#' its own degrees of freedom (`$df`, `$df_mcar`); `$df_mcar` is reported
+#' uncapped. Note also that the \eqn{X^2} and Cressie-Read columns
 #' are far less trustworthy than \eqn{L^2} on a sparse table: all three test
 #' the same hypothesis and they can return p-values hundreds of orders of
 #' magnitude apart.
@@ -187,9 +185,9 @@
 #' -cell table \emph{per group}, not one \eqn{W}-cell table for the pooled
 #' data: \eqn{df = Q(W - 1) - P} for \eqn{Q} groups, and the statistics are
 #' the sum of each group's own. The per-group breakdown is returned in
-#' `$by_group`. Treat its level as a within-package diagnostic rather than a
-#' figure to line up against another program's, which need not use the same
-#' convention.
+#' `$by_group`. Treat its level as a within-package diagnostic: it is the sum
+#' of per-group tables, not a single pooled table, and is only comparable
+#' with figures built the same way.
 #' \code{group_effects = "both"} instead attaches a covariate structural
 #' model for the prevalence effect and is refused as any conditional model
 #' is; refit with \code{group_effects = "measurement"} to check the
@@ -636,9 +634,8 @@ print.absolute_fit <- function(x, ...) {
   if (!is.null(x$n_groups))
     cat(sprintf(paste0(
       "Multiple-group fit: %d groups, %d cells each -- see `$by_group` for ",
-      "the per-group breakdown. This is a within-package diagnostic; do ",
-      "not compare its level to another program's single-model goodness ",
-      "of fit.\n"),
+      "the per-group breakdown. This is a within-package diagnostic, the ",
+      "sum of per-group tables rather than a single pooled table.\n"),
       x$n_groups, x$n_cells / x$n_groups))
   if (isTRUE(x$mar))
     cat("Missing data: statistics computed under MAR, by comparing\n",
@@ -819,9 +816,7 @@ print.mcar_test <- function(x, ...) {
 #' look locally dependent, when what actually happened is that missingness
 #' changed who is left in the comparison. This is a pairwise-complete
 #' statistic rather than a full-information one, so still read it as
-#' descriptive when missingness is heavy. For categorical indicators this is
-#' the same statistic, with the same divisor, that another program reports as
-#' a bivariate residual, and the values agree closely on the same fit.
+#' descriptive when missingness is heavy.
 #'
 #' For a \code{group_effects = "measurement"} fit, each pair's residual is
 #' the sum of that pair's own chi-square in every group, divided by the
@@ -839,11 +834,11 @@ print.mcar_test <- function(x, ...) {
 #' parameters, following Oberski, van Kollenburg and Vermunt (2013). It is
 #' computed separately in each class, because a residual dependence can run in
 #' opposite directions in different classes and a pooled statistic would
-#' average it away. Another program's "bivariate residual" for continuous
-#' indicators is deliberately *not* adjusted for the model's other parameters,
-#' so the two do not agree numerically; the modification index is preferred
-#' here on the evidence of Oberski et al.'s simulation, in which a bivariate
-#' residual referred to chi-square gave below-nominal size and inadequate
+#' average it away. The unadjusted bivariate residual, which ignores the
+#' model's other parameters, is a different statistic and does not agree
+#' numerically; the modification index is preferred here on the evidence of
+#' Oberski et al.'s simulation, in which the unadjusted bivariate residual
+#' referred to chi-square gave below-nominal size and inadequate
 #' power, while the modification index reproduced its nominal distribution and
 #' was the more powerful of the two adequate methods. Detection is reliable
 #' only when the offending effects are few and the measurement model is

@@ -146,8 +146,8 @@ confint.mixture_model <- function(object, parm = NULL, level = 0.95,
 
   # Full precision in the object; rounding is print.mixture_confint()'s job.
   # Rounding here destroyed three decimals of a stored result for no benefit,
-  # and put a 0.001 floor under any comparison of these numbers with another
-  # program's -- larger than the disagreement being measured.
+  # and put a 0.001 floor under any comparison of these numbers -- larger than
+  # the disagreements a test would want to measure.
   for (v in seq_len(D)) {
     df <- data.frame(OR    = OR[, v],
                      Lower = LB[, v],
@@ -173,8 +173,8 @@ confint.mixture_model <- function(object, parm = NULL, level = 0.95,
 #' \code{sqrt(diag(vcov(fit)))} gives their standard errors. This is the
 #' log-scale companion to \code{\link[=confint.mixture_model]{confint}}, which
 #' reports intervals on the odds-ratio scale — it exists so that the standard
-#' errors can be got at directly, for comparing against another program or for
-#' pooling estimates, rather than reconstructed from an interval width.
+#' errors can be got at directly, for reporting or for pooling estimates,
+#' rather than reconstructed from an interval width.
 #'
 #' Which estimator it comes from depends on how the model was fitted: the
 #' survey-robust or step-3 corrected covariance when one was computed, and the

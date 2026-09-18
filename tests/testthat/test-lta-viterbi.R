@@ -3,7 +3,7 @@
 # ==============================================================================
 #
 # The oracle here is exhaustive enumeration of all K^T status sequences, so
-# these tests need no reference program: for the small K and T used below the
+# these tests need no external oracle: for the small K and T used below the
 # brute-force maximum IS the answer the recursion must reproduce.
 
 # Enumerate every status sequence and return the per-case maximiser.

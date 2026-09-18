@@ -2,7 +2,7 @@
 # transition_patterns(), and the fit indices that arrived with it
 # ==============================================================================
 #
-# The oracles here are internal consistency, not a reference program: a joint
+# The oracles here are internal consistency, not an external target: a joint
 # pattern table has to reproduce the one- and two-occasion summaries the
 # package already computes when it is collapsed back down to them, and the
 # model-implied and posterior tables have to agree with each other on a fit
@@ -88,9 +88,9 @@ test_that("collapsing the model table over two occasions gives the transitions",
 test_that("the model-implied and posterior tables agree on a well-fitting model", {
   # Not an identity -- they are different quantities -- but on data generated
   # from a well-separated model of this shape they must be close, and a large
-  # gap is the signature of a path posterior built wrong. This is the check
-  # the reference programs' own agreement (to five decimals on the LTA-FAQ
-  # benchmark) is the external counterpart of.
+  # gap is the signature of a path posterior built wrong. On the LTA-FAQ
+  # benchmark the two agree to five decimals; this is the simulated
+  # counterpart of that check.
   fit <- .tp_fit(n = 1200)
   m <- transition_patterns(fit, type = "model")
   p <- transition_patterns(fit, type = "posterior")

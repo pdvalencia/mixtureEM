@@ -1,0 +1,382 @@
+---
+title: "Random-Intercept LTA: Separating Traits from Transitions"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Random-Intercept LTA: Separating Traits from Transitions}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+```{r setup}
+library(mixtureEM)
+```
+
+## The problem with ordinary LTA
+
+Latent transition analysis puts every person in a latent status at each
+occasion and estimates how they move between statuses. It assumes that,
+within a status, people are exchangeable: two children in the *early word
+reading* stage are equally likely to know their ending sounds, and any
+difference between them is noise.
+
+That assumption is usually false. People differ in stable, trait-like
+ways that are not stages at all: a child with a generally high propensity
+to endorse the items will look "further along" at every occasion, and an
+ordinary LTA has only one way to represent that — as a status. The
+consequences are systematic (Muthén & Asparouhov, 2022):
+
+* **Stability is overstated.** A child who scores high at every occasion
+  because of a stable trait is recorded as *staying* in an advanced
+  status, so the diagonal of the transition matrix inflates.
+* **Statuses absorb the trait.** Item-response probabilities are pushed
+  towards 0 and 1, statuses look more distinct than they are, and BIC can
+  ask for extra statuses that are really levels of the trait.
+* **Covariate effects are misattributed.** A covariate that predicts the
+  trait shows up as predicting transitions.
+
+Random-intercept LTA (RI-LTA) adds a person-level factor to the
+measurement model — a random intercept shared by every indicator at every
+occasion — so that stable between-person differences have somewhere to go
+other than the statuses. What is left in the transition matrices is then
+*within-person* change.
+
+This vignette walks through the pipeline an applied analysis needs:
+ordinary LTA as a baseline, the random intercept, model comparison, and
+covariates. It uses the reading-proficiency data introduced in
+`vignette("lta")`; read that first for what the data are and how the
+ordinary model is interpreted.
+
+## Setup
+
+```{r data}
+data(ecls_reading)
+items <- ecls_reading[, -1]
+```
+
+Two arguments appear on every fit below. `fit_lta()`'s defaults put a
+light prior on the status and transition probabilities (`smoothing = 1`)
+and on the item probabilities (`bayes_constants`), which keeps estimates
+off the boundary and is the right default for exploratory work. Here
+they are switched off so the fits are plain maximum likelihood, which is
+what the published analyses of these data report and what the numbers
+below can be checked against. On a sample this size the difference is
+about one log-likelihood unit and no change in interpretation.
+
+```{r ml}
+ml <- list(smoothing = 0, bayes_constants = list(categorical = 0))
+```
+
+Every fit is also run at `standard_errors = FALSE` until the final model,
+because the standard errors are the slow part and are not needed to
+compare models.
+
+## Step 1: the ordinary LTA
+
+```{r lta, cache = TRUE}
+fit_lta0 <- fit_lta(items, n_statuses = 3, times = 4, n_init = 50,
+                    random_state = 7, standard_errors = FALSE,
+                    smoothing = ml$smoothing, bayes_constants = ml$bayes_constants)
+fit_lta0
+```
+
+Three stages of learning to read — *low alphabet knowledge*, *early word
+reading*, *early reading comprehension* — with 69% of children in the
+first at the start of kindergarten and 81% in the third by the end of
+first grade. (The item probabilities, and the note about the ones at the
+boundary, are in `vignette("lta")`.) Keep the transition matrices in mind:
+
+```{r lta-tau}
+transition_matrix(fit_lta0)
+```
+
+## Step 2: add a continuous random intercept
+
+`random_intercept = "continuous"` adds a normally distributed factor with
+one loading per indicator, held equal across occasions — if the loadings
+changed over time, the factor would not be a stable trait. The factor is
+integrated out numerically, and `n_quadrature` sets how finely: 30 nodes
+is the setting the published analyses of these data used, and is checked
+below.
+
+```{r rilta, cache = TRUE}
+fit_ri <- fit_lta(items, n_statuses = 3, times = 4, n_init = 20,
+                  random_intercept = "continuous", n_quadrature = 30,
+                  random_state = 7, standard_errors = FALSE,
+                  smoothing = ml$smoothing, bayes_constants = ml$bayes_constants)
+fit_ri
+```
+
+Two things before the numbers. The warning is the same substantive zero
+the ordinary model has — nobody in the low-alphabet stage reads words in
+context — now stated on the logit scale the random-intercept model
+works on, where a probability of zero is a logit of minus infinity. It is
+worth reading once; it recurs on every fit below for the same reason and
+is silenced from here on. And `Best solution: found by 3 of 3 starts that
+ran to convergence (of 20 requested)` is how the random-intercept search
+reports: the twenty starts are ranked cheaply and only the best few are
+run to convergence, so replication is counted among those.
+
+```{r quiet}
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+The fit line to read is the log-likelihood: −20,329 against −21,793, for
+five more parameters (the loadings). A BIC drop of almost three thousand
+is not a subtle improvement. **Do not turn this into a likelihood-ratio
+test**: the ordinary LTA is the random-intercept model with every loading
+at zero, which is on the boundary of the parameter space, so the usual
+chi-squared reference does not apply. Compare by BIC.
+
+### The loadings
+
+```{r loadings}
+random_intercept_loadings(fit_ri)
+```
+
+Every loading is large — on the logit scale, a child one standard
+deviation above average on the trait has odds of mastering sight words
+`exp(3.75) ≈ 42` times those of an average child *in the same status*.
+The trait is best read as reading readiness: a stable, time-invariant
+dimension that the ordinary model had been squeezing into the stages.
+
+### What changes in the statuses
+
+```{r measurement}
+measurement_summary(fit_ri)
+```
+
+Compared with the ordinary LTA, the item probabilities move away from 0
+and 1: in the low-alphabet stage 63% now know their letters (not 51%)
+and 30% their beginning sounds (not 7%), and in the comprehension stage
+sight words are at 81% rather than 98%. The statuses are less extreme
+because the extremity was partly the trait. The stages keep their meaning
+and their order.
+
+### What changes in the prevalences and transitions
+
+```{r prevalences}
+round(status_prevalences(fit_lta0), 3)
+round(status_prevalences(fit_ri), 3)
+```
+
+The picture of the cohort changes considerably. Under the random-intercept
+model 95% of children start in the low-alphabet stage (not 69%), 82%
+are in early word reading by the spring of kindergarten (not 64%) and 97%
+reach comprehension by the end of first grade (not 81%). The ordinary
+model had spread children across statuses at every occasion partly on the
+basis of a trait; with the trait removed, nearly all children are found
+to pass through the same sequence, just at different times.
+
+```{r transitions}
+transition_matrix(fit_ri)
+```
+
+The transition matrices now describe a cohort moving almost as one: 82%
+leave the low-alphabet stage over the first half of kindergarten, and
+essentially everyone in early word reading moves up to comprehension over
+the second half of first grade (98%, against 86% in the ordinary model).
+The most common paths through the four occasions make the same point:
+
+```{r paths}
+paths <- function(fit, n = 3)
+  head(transition_patterns(fit)[order(-transition_patterns(fit)$proportion), ], n)
+paths(fit_lta0)
+paths(fit_ri)
+```
+
+In the ordinary LTA the most common path accounts for a third of the
+children; in the random-intercept model the path 1 → 2 → 2 → 3 — low
+alphabet in the fall of kindergarten, early word reading through the
+following year, comprehension by the end of first grade — accounts for
+seven in ten.
+
+### Is the quadrature fine enough?
+
+The factor is integrated numerically, and too coarse a grid biases the
+log-likelihood. `refine_from` continues the converged fit on a finer grid
+without repeating the random-start search, so the check is cheap:
+
+```{r quadrature, cache = TRUE}
+fit_ri60 <- fit_lta(items, n_statuses = 3, times = 4,
+                    random_intercept = "continuous", n_quadrature = 60,
+                    refine_from = fit_ri, standard_errors = FALSE,
+                    smoothing = ml$smoothing, bayes_constants = ml$bayes_constants)
+c(nodes_30 = fit_ri$loglik, nodes_60 = fit_ri60$loglik)
+round(cbind(nodes_30 = random_intercept_loadings(fit_ri)$loading,
+            nodes_60 = random_intercept_loadings(fit_ri60)$loading), 3)
+```
+
+Doubling the grid moves the log-likelihood by less than 0.2 and the
+loadings by less than 0.01 — nothing that touches a conclusion. The
+log-likelihood is not monotone in the node count (see `?fit_lta`), so
+check over a range rather than one step up when the fit's thresholds are
+extreme.
+
+## Step 3: a binary random intercept, and the model comparison
+
+The continuous factor says people vary along a smooth dimension. The
+alternative is two latent *types* of person — a binary random intercept,
+`random_intercept = "binary"` — which asks a different question and is
+compared by BIC like everything else:
+
+```{r rilta-binary, cache = TRUE}
+fit_ri2 <- fit_lta(items, n_statuses = 3, times = 4, n_init = 20,
+                   random_intercept = "binary",
+                   random_state = 7, standard_errors = FALSE,
+                   smoothing = ml$smoothing, bayes_constants = ml$bayes_constants)
+```
+
+```{r comparison}
+fits <- list(`Regular LTA` = fit_lta0,
+             `RI-LTA, binary` = fit_ri2,
+             `RI-LTA, continuous` = fit_ri)
+data.frame(parameters = sapply(fits, `[[`, "n_params"),
+           loglik     = round(sapply(fits, `[[`, "loglik"), 1),
+           BIC        = round(sapply(fits, function(f) f$metrics$bic), 1))
+```
+
+Both random intercepts improve enormously on the ordinary LTA, and the
+continuous one is far better than the binary one. That is the usual result
+with binary indicators (Muthén & Asparouhov find the same on their own
+example): a two-type intercept is a coarse approximation to a trait that
+varies continuously. Write it up as a finding — "in these data the
+continuous random-intercept model fits best" — not as a rule.
+
+## Step 4: covariates
+
+A covariate can act in three places, and RI-LTA is what lets them be told
+apart: on the stable trait (`predictors_random_intercept`), on the status
+children start in (`predictors_initial`) and on the transitions
+(`predictors_transition`). These are different questions. Poverty
+predicting the trait means poor children have lower reading readiness
+throughout; poverty predicting transitions means they advance more slowly
+*given* their readiness.
+
+Random-start searches are slow once the factor is regressed on
+covariates, and unnecessary: the unconditional fit is already the right
+neighbourhood. `refine_from` continues from it in a single run.
+
+```{r pov-ri, cache = TRUE}
+pov <- ecls_reading["poverty"]
+fit_pov_ri <- fit_lta(items, n_statuses = 3, times = 4,
+                      random_intercept = "continuous", n_quadrature = 30,
+                      predictors_random_intercept = pov,
+                      refine_from = fit_ri, standard_errors = FALSE,
+                      smoothing = ml$smoothing, bayes_constants = ml$bayes_constants)
+fit_pov_tr <- fit_lta(items, n_statuses = 3, times = 4,
+                      random_intercept = "continuous", n_quadrature = 30,
+                      predictors_random_intercept = pov,
+                      predictors_transition = pov,
+                      refine_from = fit_pov_ri,
+                      smoothing = ml$smoothing, bayes_constants = ml$bayes_constants)
+```
+
+```{r pov-comparison}
+fits <- list(`RI-LTA` = fit_ri,
+             `+ poverty -> trait` = fit_pov_ri,
+             `+ poverty -> trait and transitions` = fit_pov_tr)
+data.frame(parameters = sapply(fits, `[[`, "n_params"),
+           loglik     = round(sapply(fits, `[[`, "loglik"), 1),
+           BIC        = round(sapply(fits, function(f) f$metrics$bic), 1))
+```
+
+One parameter — poverty on the trait — buys 200 log-likelihood units.
+Letting poverty also shift the transitions (six more parameters) buys
+twenty-one more: a likelihood-ratio test of the two, which is legitimate
+here because both models have the random intercept, rejects the
+restriction decisively, while BIC prefers the smaller model. The two
+criteria disagree because they weigh parsimony differently, and a
+write-up should say so rather than pick the one it likes. Compare either
+with `vignette("lta")`, where poverty on the initial status and the
+transitions of the *ordinary* LTA was worth 210 units: most of that
+effect was the trait all along.
+
+```{r pov-test}
+lr_test(fit_pov_ri, fit_pov_tr)
+```
+
+A fit continued with `refine_from` keeps its donor's status labels, so
+status 1 is still the low-alphabet stage and status 3 comprehension —
+check with `status_prevalences()` when in doubt — and every transition
+contrast below is relative to *reaching comprehension*:
+
+```{r pov-coefs}
+lta_covariate_summary(fit_pov_tr)
+```
+
+Read the sign of the trait coefficient against the loadings, which are
+positive: poverty lowers reading readiness by about 0.9 standard
+deviations of the factor, a large and precisely estimated effect. With
+that in the model the transition effects that remain are the ones
+*given* readiness: over the summer a child in poverty has six times the
+odds of staying in low alphabet rather than reaching comprehension, and
+over first grade three times the odds of stopping at early word reading.
+The `from:` terms are origin-status intercepts, several of them for cells
+almost nobody occupies, which is what their standard errors say.
+
+The final model was fitted with standard errors, so the loadings now
+come with theirs:
+
+```{r loadings-se}
+random_intercept_loadings(fit_pov_tr)
+```
+
+`random_intercept_scores()` returns each child's estimated position on
+the trait, which is the natural quantity to relate to anything else in
+the data:
+
+```{r scores, fig.height = 4}
+scores <- random_intercept_scores(fit_pov_tr)
+boxplot(scores$mean_score ~ ecls_reading$poverty, horizontal = TRUE,
+        names = c("Not in poverty", "In poverty"),
+        xlab = "Reading readiness (posterior mean factor score)", ylab = "")
+```
+
+## Practical notes
+
+* **Sample size.** Muthén & Asparouhov's guidance for binary indicators
+  is that RI-LTA does well from about N = 500 with three or more
+  occasions, but may need N of 4,000 with only two; for the continuous-
+  indicator analogue, Tseng (2024) puts it at upwards of 2,000 cases for
+  80% power at a between-profile separation of d = 0.75. The asymmetry
+  that makes trying it worthwhile anyway: leaving out a random intercept
+  that belongs distorts the statuses and the transitions, while adding one
+  that does not belong costs a few parameters that BIC will identify as
+  wasted.
+* **Starts.** Random-intercept models have a well-known second optimum
+  in which the factor takes over the statuses. `fit_lta()`'s restart
+  search is built for it, but still read the `Best solution` line, and
+  raise `n_init` when it is not replicated.
+* **Quadrature.** Check `n_quadrature` the way it is checked above,
+  over a range of node counts, and expect the node count to matter more
+  once the factor is regressed on covariates.
+* **Testing.** Compare random-intercept and ordinary LTA by BIC, never by
+  `lr_test()`. Nested covariate models *within* the random-intercept
+  family can be tested with `lr_test()` as usual.
+* **Not available.** Continuous indicators, random slopes, correlated
+  residuals across occasions and second-order (lag-2) transitions are not
+  part of this release; the last of these is reported as significant in
+  both of the article's own examples, and is a real simplification.
+
+## References
+
+Muthén, B., & Asparouhov, T. (2022). Latent transition analysis with
+random intercepts (RI-LTA). *Psychological Methods*, *27*(1), 1–16.
+<https://doi.org/10.1037/met0000370>
+
+Kaplan, D. (2008). An overview of Markov chain methods for the study of
+stage-sequential developmental processes. *Developmental Psychology*,
+*44*(2), 457–467. <https://doi.org/10.1037/0012-1649.44.2.457>
+
+Tseng, M.-C. (2024). Latent profile transition analysis with random
+intercepts (RI-LPTA). *Structural Equation Modeling*, *31*(4), 626-634.
+<https://doi.org/10.1080/10705511.2023.2284671>

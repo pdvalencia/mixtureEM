@@ -19,7 +19,7 @@
 # `log P(class | group_i)` -- so `e_step()` needs no change beyond the
 # `.supplies_class_probs()` predicate already covering it (R/em_core.R).
 #
-# Verified against the reference `em_mglca()` implementation
+# Verified against a standalone hand-written EM for this model, `em_mglca()`
 # (`collins_lanza_ch5.R`, `smoke_pipeline.R`), which checks its own
 # unrestricted fit against this package's `covariate` route before trusting
 # the restricted ones; see internal/ROADMAP.md Part 17.4 Item B.
@@ -170,10 +170,9 @@ n_parameters.group_prevalence <- function(model_state, ...) {
 # same basin relabelled.
 #
 # Clogg and Goodman (1985, p. 89) single this restriction out as the one needing
-# "special treatment", and the reference program reaches the same arrangement
-# from the other side: its per-class gamma restriction is written as an
-# equivalence set, and supplying starting values (which is how the restriction
-# is anchored) makes its random-start option unavailable in the same call.
+# "special treatment", and this is that treatment: the restriction is only
+# meaningful once the classes have been anchored by a starting solution, so a
+# random search cannot be combined with it.
 .group_prevalence_warm_start <- function(donor) {
   force(donor)
   gamma0 <- .group_gamma_matrix(donor)

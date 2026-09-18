@@ -26,9 +26,9 @@ alternative. \code{"modal"} cross-tabulates the joint-MAP
 different thing from a cross-tabulation of the per-occasion modal
 statuses, which can put mass on a pattern the model itself gives zero
 probability; see \code{class_assignments()}'s own documentation of the
-distinction. The classification table another program prints for a
-latent transition model is typically the per-occasion one, not this
-joint decode -- reproduce it with
+distinction. A per-occasion modal classification table is the more
+common summary of a latent transition model, not this joint decode --
+get it with
 \code{table(class_assignments(object, "modal"))} rather than \code{type = "modal"} if that is the number being matched against.}
 
 \item{class}{Optional latent class, for a model fitted with \code{n_classes} > 1.

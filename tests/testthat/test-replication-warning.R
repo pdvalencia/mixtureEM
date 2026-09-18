@@ -89,6 +89,16 @@ test_that("the specification reading waits for starts that were run out", {
                fixed = TRUE)
 })
 
+test_that("the printed note survives a fit where nothing converged", {
+  # n_replicated goes NA when every restart in the pool scored NaN (R/lta.R),
+  # while n_starts stays a finite count -- the shape that used to crash
+  # print.lta_model() with "missing value where TRUE/FALSE needed" instead of
+  # reporting anything.
+  fit <- list(metrics = list(n_starts = 3L, n_replicated = NA_real_))
+  expect_no_error(out <- capture.output(.print_replication_note(fit)))
+  expect_match(paste(out, collapse = " "), "none of 3 starts ran to convergence")
+})
+
 test_that("a fit below the threshold stays silent", {
   fit <- list(metrics = list(n_replicated = 1L, n_requested = 5L,
                              n_starts = 5L))

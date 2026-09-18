@@ -12,8 +12,8 @@
 #' @param type Character. The specific variance structure, e.g., "gaussian_diag" or "gaussian_unit".
 #' @param variances_equal Logical. Hold each item's variance equal across the
 #'   classes, so the classes differ in location only (the homoscedastic latent
-#'   profile model, and the default parameterisation of several commercial
-#'   programs). Ignored by the unit-variance types, which have no variances to
+#'   profile model, the conventional LPA parameterisation). Ignored by the
+#'   unit-variance types, which have no variances to
 #'   estimate. The estimated variance is still stored once per class — a
 #'   \code{K x J} matrix with identical rows — so every reader of the parameters
 #'   (likelihood, plotting, alignment, boundary checks) is unchanged; the

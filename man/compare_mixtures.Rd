@@ -105,9 +105,10 @@ concludes that "neither of the two implementations yield uniformly
 distributed p-values under the correct null hypothesis, indicating this test
 is not the best model selection tool in mixture modeling".
 
-The two implementations differ only in which covariance matrix of the
-parameters enters the reference distribution: one program uses the ordinary
-one, another the robust (sandwich) one (Vermunt, 2024). The difference is not
+The two versions of the test differ only in which covariance matrix of the
+parameters enters the reference distribution: the ordinary one
+(\code{vlmr = "standard"}) or the robust sandwich (\code{vlmr = "robust"};
+Vermunt, 2024). The difference is not
 cosmetic: on the same data the two can return p = .00 and p = .15. The robust
 version's reference distribution is much more sensitive to the particular
 sample, especially when the classes are poorly separated. Neither version's

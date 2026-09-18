@@ -13,7 +13,7 @@
 # enough to enumerate, and requires the two to agree to machine precision.
 # These need no external data and run everywhere.
 #
-# Checks that anchor the same statistics against external reference output
+# Checks that pin the same statistics on real benchmark data sets
 # live in the internal validation suite, which is not part of this package.
 
 # ------------------------------------------------------------------------------
@@ -660,8 +660,8 @@ test_that("bivariate_residuals() on a group-varying fit is J x J, in item names,
 #
 # `absolute_fit()` serves an `lta_model` by rewriting it as the K^T-class
 # mixture over status paths that it exactly is (`.lta_flat_mixture()`). These
-# tests check that rewrite two ways that do not depend on any reference
-# program: it must reproduce the LTA's own per-case log-likelihood, and -- run
+# tests check that rewrite two ways that do not depend on any external
+# target: it must reproduce the LTA's own per-case log-likelihood, and -- run
 # on complete data, where the saturated baseline converges to the empirical
 # table and its contribution vanishes -- it must reproduce the complete-data
 # statistics the ordinary branch computes.

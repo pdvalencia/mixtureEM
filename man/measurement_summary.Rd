@@ -24,10 +24,9 @@ measurement_summary(object, ...)
 \item{scale}{For categorical indicators, what scale the item parameters are
 reported on. \code{"probability"} (the default) is unchanged from before
 this argument existed. \code{"logit"} reports \code{qlogis()} of the same
-table. \code{"effect"} reports the effect-coded parameterisation several
-other programs use by default -- an item intercept plus one deviation per
-class, the deviations summing to zero -- which is what lets a mixtureEM
-measurement model be placed beside such a program's printed output;
+table. \code{"effect"} reports the effect-coded parameterisation of the
+same table -- an item intercept plus one deviation per class, the
+deviations summing to zero -- for readers who think in log-linear terms;
 binary indicators only, since a polytomous item's effect coding is a
 modelling choice (ordinal with fixed scores, giving one class effect per
 class, versus nominal, giving one per category) that the package does

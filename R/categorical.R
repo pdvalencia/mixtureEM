@@ -31,18 +31,18 @@ categorical_model <- function(n_components, type = "bernoulli", max_val = NULL, 
 
 # Where a restart starts from, for a binary indicator.
 #
-# The draw looks narrow and uninformed beside what the reference programs do,
-# and replacing it with their own construction was tried, measured and rejected
-# on 2026-09-08 (Part 47's W2, `internal/RECORDS.md`). **Do not re-propose it
-# without reading that entry**, which records three separate reasons, any one of
-# which is enough:
+# The draw looks narrow and uninformed, and replacing it with a start centred
+# on each item's observed marginal (a perturbed-marginal start) was tried,
+# measured and rejected on 2026-09-08 (Part 47's W2, `internal/RECORDS.md`).
+# **Do not re-propose it without reading that entry**, which records three
+# separate reasons, any one of which is enough:
 #
-#   1. It recovers the generating parameters WORSE. Their construction reaches
+#   1. It recovers the generating parameters WORSE. The marginal start reaches
 #      a higher log-likelihood on nearly every seed and lands further from the
 #      truth, which is this package's own recorded lesson about a stronger
 #      search finding more spurious maxima, arriving from a new direction.
 #   2. .lta_random_start() ends at init_params(), so any change here moves every
-#      LTA fit too. Their construction turned a converged binary random-intercept
+#      LTA fit too. The marginal start turned a converged binary random-intercept
 #      fixture into a diverging one: log-likelihood -456.58 to -1956.39 with a
 #      node intercept at 2.8e15.
 #   3. A start centred on the item's marginal is not invariant to response-
@@ -51,8 +51,8 @@ categorical_model <- function(n_components, type = "bernoulli", max_val = NULL, 
 #      four-item table the sample's column means were 0.108/0.200/0.796/0.898
 #      and the pattern table's were 0.467/0.467/0.533/0.533.
 #
-# There is a coherent reason their start does not transfer, and it is about the
-# objective rather than about either search: our M-step already shrinks every
+# There is a coherent reason a marginal start does not help here, and it is
+# about the objective rather than about either search: our M-step already shrinks every
 # response probability toward the item's observed marginal through the
 # `categorical` Bayes constant, so this surface is marginal-anchored in a way a
 # plain-ML one is not. A start that is also marginal-anchored adds little the

@@ -10,7 +10,7 @@
 # McCarthy, 1955).
 
 # ------------------------------------------------------------------------------
-# Structural checks, which need no reference program
+# Structural checks, which need no external oracle
 # ------------------------------------------------------------------------------
 
 test_that("one class reproduces the single-chain model exactly", {

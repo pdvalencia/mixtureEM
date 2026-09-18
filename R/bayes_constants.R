@@ -6,9 +6,9 @@
 # is added to each block of parameters so that a class supported by very little
 # data is pulled towards a conservative null rather than towards a boundary. The
 # strengths of those priors used to be hard-coded at 1. They are now one list,
-# carried on the model state, so that a user reproducing an unregularized
-# reference fit can switch them off and a user whose fit has collapsed can turn
-# the relevant one up.
+# carried on the model state, so that a user who wants an unregularized
+# maximum-likelihood fit can switch them off and a user whose fit has
+# collapsed can turn the relevant one up.
 #
 # The four names, and what each one guards:
 #

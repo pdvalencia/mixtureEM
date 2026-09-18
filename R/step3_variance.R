@@ -70,9 +70,9 @@
 #'     (PSU-level within strata when a survey design is attached). Proportional
 #'     assignment gives each case \eqn{K} weighted records, so this sandwich is
 #'     needed even before any step-1 uncertainty is considered.}
-#'   \item{\code{"hessian"}}{\eqn{(-H_3)^{-1}} alone. Provided for comparison
-#'     with software that reports it; it ignores the record duplication and is
-#'     not recommended.}
+#'   \item{\code{"hessian"}}{\eqn{(-H_3)^{-1}} alone. Provided for
+#'     completeness; it ignores the record duplication and is not
+#'     recommended.}
 #' }
 #'
 #' None of these is the Hessian the package reported previously, which came from
@@ -80,12 +80,12 @@
 #' the step-3 log-likelihood, and so was smaller still.
 #'
 #' \code{"corrected"} is the statistically right answer and is the default for
-#' that reason. \code{"robust"} is the \emph{comparability} setting: another
-#' program reports the step-3 sandwich alone, so reproducing its standard errors
-#' requires \code{se = "robust"}. A user checking mixtureEM against it under the
-#' default will see wider intervals and may report a discrepancy, but the
-#' difference is a difference in estimator — the corrected form carries step-1
-#' uncertainty that the sandwich alone omits — and not a bug in either program.
+#' that reason. \code{"robust"} is the step-3 sandwich alone, the estimator
+#' of an analysis that treats the assigned classes as given; use
+#' \code{se = "robust"} when that is the analysis being reported. Under the
+#' default the intervals are wider, and the difference is a difference in
+#' estimator — the corrected form carries step-1 uncertainty that the
+#' sandwich alone omits.
 #'
 #' How much this matters depends almost entirely on how well separated the
 #' classes are. A 250-replication coverage study on the design of Bakk et al.

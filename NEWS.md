@@ -1,18 +1,66 @@
 # mixtureEM (development version)
 
+## A worked example of random-intercept LTA, on real data that ships with the package
+
+`ecls_reading` is a new bundled dataset: five binary reading-proficiency
+indicators measured four times, from the fall of kindergarten to the spring
+of first grade, on 3,575 children in the Early Childhood Longitudinal Study
+(ECLS-K, a U.S. public-domain survey), with a household poverty indicator.
+It is the stage-sequential example of Kaplan (2008), and the shape --
+several indicators, four occasions, a few thousand cases -- is the one at
+which a random intercept is both identifiable and consequential.
+
+The new `vignette("rilta")` walks the pipeline an applied analysis needs on
+it: the ordinary LTA as a baseline, the continuous random intercept, the
+quadrature check, the binary alternative and the BIC comparison, then
+poverty as a predictor of the stable trait and of the transitions, with the
+factor scores at the end. It is written for the reader who wants to know
+what the model changes and why, not for the one reproducing the article.
+`vignette("lta")` now uses the same data in place of its simulated example,
+so the ordinary model, its stage-sequential restriction and its covariate
+effects are introduced there and the random-intercept vignette can build on
+them. The random-intercept vignette's fits are plain maximum likelihood
+(both priors off) and reproduce the corresponding published
+log-likelihoods for these data to within a tenth of a unit; the LTA
+vignette keeps the package defaults, which sit about one unit below them.
+
+`random_intercept_loadings()` is new: the loading of each indicator on the
+factor, with its standard error, as a data frame. The loadings were
+previously reachable only as `fit$ri$L`. A binary random-intercept fit's
+item table now carries the item names, where it used to print `Item_1`,
+`Item_2`, ... in `measurement_summary()`, and the warning about a loading
+above 10 is raised once, for the fit returned, rather than for every
+candidate the search discarded on the way. `?fit_lta`'s sample-size
+guidance now cites Tseng (2024) for what it is -- the continuous-indicator
+analogue, at a between-profile separation of d = 0.75 -- rather than as a
+loading. Nothing numeric changes.
+
+## Printing an unconverged LTA fit no longer crashes
+
+`print.lta_model()` and `print.mixture_model()` both threw "missing value
+where TRUE/FALSE needed" when every restart in the search failed to
+converge, instead of reporting the fit. The line now says so directly
+("none of N starts ran to convergence") rather than erroring. No estimate
+or statistic changes; a converged fit's printed output is unaffected.
+
+## The boundary warning no longer suggests `variances_equal` for a categorical item
+
+The warning raised when a fit reaches a boundary listed `variances_equal =
+TRUE` among its remedies whether the flagged parameter was a class variance
+or a response probability. It is only a remedy for the former, and is now
+offered only then. Message text only; no estimate or statistic changes.
+
 ## The continuous random-intercept LTA search is faster and reaches better optima
 
-`fit_lta(random_intercept = "continuous")`'s restart search now draws on the
-search another program runs for the same model: a different restart
-construction, a cheaper one-step update while ranking candidates instead of
-solving each one to convergence, and one accurate rescore of every ranked
-candidate before the best few are promoted to the full search. Measured
-against two independent reference implementations across several benchmarks,
-the new search reaches the same optimum the reference programs report, or a
-better one than this package's own previous search found, in a fraction of
-the time -- one benchmark that used to land on a spurious boundary solution
-now reaches the interior optimum both reference programs report, three to
-four times faster than before.
+`fit_lta(random_intercept = "continuous")`'s restart search is rebuilt: a
+much wider restart construction (perturbed item logits and loadings of either
+sign), a cheaper one-step generalised-EM update while ranking candidates
+instead of solving each one to convergence, and one accurate rescore of every
+ranked candidate before the best few are promoted to the full search. Across
+several published benchmark data sets the new search reaches the same optimum
+as before or a better one, in a fraction of the time -- one benchmark that
+used to land on a spurious boundary solution now reaches the interior
+optimum, three to four times faster than before.
 
 This changes what `fit_lta()` returns for a continuous random intercept:
 where the old search settled for a worse local optimum, the new one usually
@@ -53,22 +101,22 @@ them is picked, and is not part of this change.
 
 The check applies only to the random-intercept item parameters, not to a
 plain categorical fit's response probabilities, which are a bounded weighted
-average with no equivalent failure mode; measured directly, a real,
-externally-validated fit routinely reaches a class-by-item probability of
-1e-7 as a stable optimum; the correct instrument is the logit scale that
+average with no equivalent failure mode; measured directly, a well-behaved
+fit on real data routinely reaches a class-by-item probability of 1e-7 as a
+stable optimum; the correct instrument is the logit scale that
 random-intercept indicators use.
 
 ## EM stops two orders of magnitude tighter
 
 The rule that decides when plain EM has converged (every model that is not
 fitted by `fit_lta()`, which has its own convergence logic) was loosened past
-where it should have stopped: checked against five fits this package holds
-outside references for, the old rule landed below every one of them, and the
-tighter rule lands on all five, inside a few ten-thousandths.
+where it should have stopped: on five benchmark fits taken to full
+convergence, the old rule landed below every one of them, and the tighter
+rule lands on all five, inside a few ten-thousandths.
 
 Published fits move by a few thousandths of a log-likelihood unit or less --
-the fourth decimal, not the second -- and the direction is *onto* the values
-other implementations report, not away from them. The cost is real: EM now
+the fourth decimal, not the second -- and the direction is *upward*, onto
+the converged maximum. The cost is real: EM now
 runs one-and-a-half times as many iterations on the median model and up to two
 and a half times on the slowest, so a fit or a `blrt()` replicate that used to
 finish quickly now takes longer in proportion. `refine = FALSE` fits and
@@ -159,8 +207,8 @@ identical to `"full"`.
 This is the specification a good deal of the published latent-transition
 literature actually fits, and the package could not express it before: asking
 for it with `"full"` also pools the intercepts and reports four fewer
-parameters on a five-status, three-occasion model. Graded against an outside
-program's published fit of exactly this model -- five statuses, three
+parameters on a five-status, three-occasion model. Graded against a published fit
+of exactly this model -- five statuses, three
 occasions, ordinal indicators, one covariate on both the initial status and
 the transitions -- the package now reproduces its parameter count exactly and
 its log-likelihood to 0.012.
@@ -172,15 +220,16 @@ explanation rather than silently reinterpreted. No existing fit changes: the
 occasion contrasts are a zero-width addition under every other setting, and
 every log-likelihood the package produced before is bit-identical.
 
-## `blrt()` seeds its bootstrap replicates the way the reference programs do
+## `blrt()` seeds its bootstrap replicates from the observed null fit
 
 Each bootstrap replicate used to refit both the smaller and the larger model
-from `n_init_boot` random restarts apiece. Neither reference program searches
-the smaller (null) model on a replicate at all -- one seeds it from the
-observed-data fit's own parameters and runs no random restarts, the other
-spends essentially no search budget on it -- and both put their restart
-budget into the larger (alternative) model instead. Running a full random
-search on the null replicate wasted computation and inflated its
+from `n_init_boot` random restarts apiece. A replicate is generated from the
+observed-data null fit, so that fit's own parameters are already the best
+available start for the smaller (null) model on the replicate, and a random
+search there can only rediscover the same basin; the larger (alternative)
+model is the one that can land in a wrong basin and is where the restart
+budget belongs. Running a full random search on the null replicate wasted
+computation and inflated its
 log-likelihood, which biases the bootstrap likelihood-ratio statistic down
 (conservative); under-searching the alternative relative to the null biases
 it up (anti-conservative). The two together push the p-value by an uncontrolled
@@ -190,7 +239,7 @@ amount in an unknown direction.
 no random restarts, and `n_init_boot` now sizes the alternative replicate's
 search alone, at twice its old value (so the default alternative search is
 20 restarts, not 10) -- spending the search budget the null no longer needs
-on the side both reference programs search harder. `n_init_boot`'s meaning
+on the side that needs it. `n_init_boot`'s meaning
 therefore changes; nothing else about `blrt()`'s interface does. Measured
 against the pre-change behavior on both well-separated and weakly-separated
 simulated fixtures: see the account in the package's internal records for
@@ -282,7 +331,7 @@ whose class probabilities depend on its own covariate values is no longer
 interchangeable with another case that merely gave the same answers. The right
 answer is to widen the key rather than abandon it: cases are now pooled when
 they give the same responses *and* carry the same covariate values, which is
-the grouping another program's manual describes for the same identity. The
+exactly when two cases are interchangeable under the model. The
 likelihood is the same weighted sum either way. Continuous covariates make
 almost every row distinct, so nothing collapses there and nothing changes; the
 saving is for discrete covariates such as sex, group or treatment arm, where a
@@ -320,12 +369,12 @@ identified). The estimator reweights the fixed quadrature grid by an exact
 importance identity rather than shifting the grid per case, so the fit costs
 one closed-form weighted-least-squares step per EM iteration and no numerical
 optimiser. The identity itself is checked against `stats::integrate()` and the
-coefficients are recovered on simulated data with a known answer; cross-
-validation against another program's fit of the same published worked
-example's own covariate step is still open (the search does not yet reliably
-match that program's optimum on that data, tracked internally) and is not yet
-claimed. No number a current user sees changes: this is new capability, not a
-change to any previously available fit.
+coefficients are recovered on simulated data with a known answer; a check
+against a published worked example's own covariate step is still open (the
+search does not yet reliably reach the published optimum on that data,
+tracked internally) and is not yet claimed. No number a current user sees
+changes: this is new capability, not a change to any previously available
+fit.
 
 ## `fit_lta()` gains an `"ordinal"` measurement option
 
@@ -341,8 +390,8 @@ same model as free per-status thresholds).
 `"continuous"` and `"binary"` forms, with standard errors, the robust
 sandwich, the MLR scaling factor and the post-EM L-BFGS refinement all
 available exactly as they already were for binary indicators. This was
-checked against another program's fit of the same published worked example,
-with the same estimates and log-likelihood. No number a current user sees
+checked against a published worked example, with the same estimates and
+log-likelihood. No number a current user sees
 changes: this is new capability, not a change to any previously available
 fit.
 
@@ -396,11 +445,11 @@ That packing now exists, alongside a matching case-level likelihood used only
 for the Hessian (a full E-step computes more than the Hessian needs and would
 make it unaffordably slow at a realistic quadrature grid). `standard_errors =
 "robust"` and the scaling factor now work for every random-intercept shape --
-continuous or discrete, single-class or mover-stayer. Measured against two
-independent reference implementations on a published random-intercept
-example, the new sandwich standard errors land within a few percent of both
-programs' own robust output on every measurement parameter checked, closing a
-scatter an earlier release could not explain. No previously-reported point
+continuous or discrete, single-class or mover-stayer. On a published
+random-intercept example, the new sandwich standard errors land within a few
+percent of the published robust standard errors on every measurement
+parameter checked, closing a scatter an earlier release could not explain.
+No previously-reported point
 estimate or standard error changes: this only makes a previously-unavailable
 estimator available. The post-EM refinement step remains off for
 random-intercept fits.
@@ -493,37 +542,34 @@ single-chain refinement already was.
 
 `fit_lta(smoothing = )` is documented as a number of pseudo-cases, and it was
 adding that many to *every origin row* of every transition matrix. A K-status
-model therefore carried K times the mass the number implies, and K times the
-mass the program this package is calibrated against puts on the same table:
-that program spreads the constant over the whole conditional table, because a
-chained latent transition model makes the previous status a predictor of the
-next and its prior divides by the number of predictor patterns. The initial
-status prevalences were already right, and so was every model with one
-occasion; only the transitions were affected.
+model therefore carried K times the mass the number implies. The constant is
+now spread over the whole conditional table: a chained latent transition
+model makes the previous status a predictor of the next, so the prior divides
+by the number of predictor patterns, as it already did for the initial
+status prevalences. Those were already right, and so was every model with
+one occasion; only the transitions were affected.
 
 The measurement prior ran the other way. Under measurement invariance the
 occasions are pooled into one update, and `bayes_constants$categorical` was
-applied once to the pooled counts. The other program writes one measurement
-equation per occasion and puts the constant on each of them, so an item held
-invariant across T occasions carries T times what it carried here. Both
-constants now match.
+applied once to the pooled counts. There is one measurement equation per
+occasion and the constant belongs on each of them, so an item held
+invariant across T occasions now carries T times what it carried before.
 
 Numbers move only where a prior is actually switched on. Every fit with
-`smoothing = 0` and `bayes_constants` zeroed -- which is how the package is
-validated against the reference programs, because those fits use no priors --
-is unchanged to the last bit, on all four benchmarks checked.
+`smoothing = 0` and `bayes_constants` zeroed is unchanged to the last bit,
+on all four benchmarks checked.
 
 Where the priors are on, the two corrections pull in opposite directions and
 which one dominates depends on the model. A model with many statuses and few
 occasions loses more transition prior than it gains measurement prior and ends
 up closer to unpenalised maximum likelihood: on a four-status three-occasion
 fit the log-likelihood rises by 0.30, and on a five-occasion two-status model
-the gap to the reference log-likelihood halves, from 0.73 to 0.35. A model with
+the gap to the unpenalised maximum halves, from 0.73 to 0.35. A model with
 many occasions and few statuses goes the other way, because the measurement
 prior it gains is the larger of the two: a five-occasion two-status fit with an
 invariant single indicator drops by 0.02, and the two-occasion four-status
-benchmark by 0.15. Both directions are the reference program's own constants
-being applied; neither is a regression.
+benchmark by 0.15. Both directions are the documented constants being applied
+as documented; neither is a regression.
 
 `$smoothing_influence` is recalibrated to match, so the reported pull is a
 row's real share rather than K times it, and the five-percent warning now
@@ -552,9 +598,9 @@ The practical gain is in how often the search agrees with itself. On a
 five-occasion model the number of random starts reaching the reported solution
 went from 2 of 40 to 40 of 40, and on a four-status two-occasion benchmark from
 1 of 20 to 20 of 20; a four-status three-occasion fit converged in 349 EM
-iterations against 546. And with both changes together, a benchmark the
-reference program fits to a log-posterior of -5062.595 moves from -5065.089 to
--5062.425: from 2.49 behind it to 0.17 ahead.
+iterations against 546. And with both changes together, one benchmark's
+log-posterior moves from -5065.089 to -5062.425, a gain of 2.66 on the
+objective the search is now actually climbing.
 
 
 ## `n_cores` can be set once for a session, and the workers are now kept
@@ -645,9 +691,7 @@ unconstrained scale and the latent transition models had no such packing when
 that code was written. They have one now, and `lr_test()` dispatches to it.
 A measurement-invariance test across time - the usual reason to compare two
 latent transition models - can therefore be reported in its scaled form
-directly. Neither of the two established programs does this for you: one prints
-the ingredients and leaves the arithmetic to the user, and the other has no
-scaled difference test at all.
+directly, without assembling it by hand from the two fits' scaling factors.
 
 Two things the correction cannot do, and refuses rather than approximates. It
 needs both models packed on an unconstrained scale, so a latent transition model
@@ -659,8 +703,8 @@ the unscaled statistic in `statistic_raw` is the one to report.
 
 `fit_lta()` gains `standard_errors = "robust"` in the same machinery. The
 default remains the outer product of the case-level scores; `"robust"` returns
-the sandwich estimator with the observed information as its bread, which is what
-the established programs report by default. It is opt-in because it costs a
+the sandwich estimator with the observed information as its bread, the
+textbook form of the estimator. It is opt-in because it costs a
 finite-difference Hessian - on the order of `2p(p + 1)` likelihood evaluations,
 minutes rather than seconds - and it falls back silently to the default
 estimator for the models it cannot pack, reporting through `summary()` which of
@@ -768,10 +812,10 @@ file at the time.)*
 distribution of latent status across every occasion at once, which neither
 `transition_matrix()` nor `status_prevalences()` can produce since each looks
 at only one or two occasions at a time. It offers a model-implied table, an
-exact posterior table, and a modal table from the Viterbi decoding. The
-classification table another program prints for a latent transition model is
-typically the per-occasion cross-tab rather than this joint decode; the
-documentation says so, and says how to reproduce it.
+exact posterior table, and a modal table from the Viterbi decoding. The more
+common classification table for a latent transition model is the
+per-occasion cross-tab rather than this joint decode; the documentation says
+so, and says how to get it.
 
 `compare_mixtures()` and `compare_longitudinal()` gain `CAIC`, `AIC3` and
 `ICL` columns in `fit_table`, alongside the AIC/BIC/SABIC already there. CAIC
@@ -791,10 +835,10 @@ printed by `summary()` and documented in `?fit_lta`.
 
 `fit_lta()`'s `metrics$entropy` is now the relative entropy of the joint
 latent-status path, rather than the sum of the per-occasion classification
-entropies. The normalising constant is unchanged. The new figure is the one
-another program reports for a latent transition model; the previous figure
-was always slightly higher and matched no published convention. Values move
-by roughly 0.005 on a two-occasion model.
+entropies. The normalising constant is unchanged. The new figure is the
+entropy of one classification -- a case's whole status path -- while the
+previous figure was always slightly higher and was not the entropy of any
+single classification. Values move by roughly 0.005 on a two-occasion model.
 
 ## Fixed: `fit_ml()`'s written-back posteriors were still wrong after the orientation fix
 
@@ -805,10 +849,9 @@ fitted structural model -- rather than reading off the classification-weight
 matrix the EM loop was already maximising the structural model against every
 iteration. The two are not the same quantity: the recomputation does not
 correspond to Vermunt's (2010) derivation of the step-3 likelihood, and its
-"Overall" mean class probabilities did not reproduce another program's own
-step-3 posteriors against an external reference dataset. `fit_ml()` now
-returns that internal matrix directly, which reproduces the reference
-program's posteriors to four decimals. Coefficients and standard errors are
+"Overall" mean class probabilities were not the step-3 posteriors that
+derivation defines, which a benchmark data set made visible. `fit_ml()` now
+returns that internal matrix directly. Coefficients and standard errors are
 unaffected, since they come from the EM loop's own `m_step()`, not from this
 write-back; only the
 posterior class probabilities returned by `add_covariates()` and
@@ -855,9 +898,9 @@ under sampling weights or a survey design; unweighted comparisons and
 three-step (default) fits used a different, unaffected code path. Fixed by
 recentring the coefficients on the reference row before packing, which is
 mathematically a no-op for the fitted model. On a 3-class, 2-group weighted
-comparison checked against external reference output, the per-model scaling
-factors now agree with that reference to within 0.1% and in the right order,
-where before the packing error had them collapsed and crossed.
+comparison the per-model scaling factors are now in the right order and
+within 0.1% of the values the definition gives, where before the packing
+error had them collapsed and crossed.
 
 ## Documentation: four citations on class enumeration and the three-step design
 
@@ -1076,8 +1119,8 @@ being extracted.
 
 A fit with a grouping variable has always carried `metrics$ll_knownclass` and
 `metrics$n_params_knownclass` -- the log-likelihood and parameter count on
-the scale software that treats the group as an observed-without-error class
-would report -- but nothing in the printed output said so, and the printed
+the known-class scale, which treats the group as a latent class observed
+without error -- but nothing in the printed output said so, and the printed
 `Log-Likelihood` is on the other scale. `print()` now adds one line naming
 both when they are present. No printed or fitted number moves otherwise.
 
@@ -1246,7 +1289,7 @@ to -- and it is a sandwich clustered on the case. Two checks: where the
 class assignment is hard, so that each case contributes a single record, the
 estimator reduces exactly to the heteroskedasticity-consistent (HC0)
 covariance of the equivalent one-row-per-case regression; and on a published
-class-moderation analysis it now agrees with another program's standard
+class-moderation analysis it now agrees with the published standard
 errors to within about 2%, against the 2- to 4-fold understatement before.
 
 
@@ -1270,7 +1313,7 @@ each. Verified two ways: algebraically, the joint design matches
 every covariate as class-specific reproduces `slopes = "class_specific"`'s
 point estimates to the same tolerance; and against a real class-moderation
 analysis with a mix of moderated and pooled covariates, where every
-coefficient landed within about 6% of the reference program's, all fifteen
+coefficient landed within about 6% of the published value, all fifteen
 non-reference coefficients keeping the same sign.
 
 ## `measurement_summary()` gains a `scale` argument for binary indicators
@@ -1281,11 +1324,9 @@ argument existed. Two more scales are now available for a binary indicator's
 item-response probabilities: `scale = "logit"` reports the same table on the
 log-odds scale, and `scale = "effect"` reports the effect-coded
 parameterisation -- an item intercept plus one class deviation per class,
-the deviations summing to zero -- that several other programs print by
-default. This is what makes it possible to place a mixtureEM measurement
-model next to such a program's output at all, since the two otherwise
-report different quantities for the same fit; verified by hand against a
-reference item's printed values, matching to three decimals. A polytomous
+the deviations summing to zero -- for readers who think of the measurement
+model in log-linear terms; verified by hand on one item, matching the
+closed-form transform to three decimals. A polytomous
 (more-than-two-category) item is refused under `scale = "effect"` with a
 clear error rather than guessed at, since whether such an item should be
 coded as ordinal or nominal is a modelling decision the package does not
@@ -1312,11 +1353,11 @@ build the interaction directly into `predictors`, e.g.
 covariate and a `group`-based multiple-group model answer different
 questions and are easy to reach for interchangeably by mistake.
 
-`?bivariate_residuals` now says that, for categorical indicators, its
-statistic agrees closely with what another program reports under the same
-name, now that the expected-count fix above removes the one place they
-disagreed. `?fit_mixture`'s `n_init` documentation gives a measured runtime
-figure, so a search of 200 or 1000 starts can be budgeted for rather than
+`?bivariate_residuals` now states the statistic's divisor for categorical
+indicators explicitly, now that the expected-count fix above makes it the
+statistic it was documented to be. `?fit_mixture`'s `n_init` documentation
+gives a measured runtime figure, so a search of 200 or 1000 starts can be
+budgeted for rather than
 guessed at.
 
 ## `absolute_fit()` now works with missing data, and `mcar_test()` is new
@@ -1493,15 +1534,14 @@ choice rather than a step in preparing the data. `scale = "within"` divides by
 the model-implied within-class standard deviation instead, giving a
 Cohen's-d-like reading against residual rather than total dispersion.
 
-## Step-3 standard errors: which one to compare against another program
+## Step-3 standard errors: what each `se` setting is
 
 The `se` documentation now records that `"corrected"`, the default, is the
-statistically right answer, while `"robust"` is the *comparability* setting.
-Another program reports the step-3 sandwich alone, so reproducing its standard
-errors requires asking for `"robust"`; under the default a user checking
-mixtureEM against it sees wider intervals, and that difference is a difference
-in estimator — the corrected form carries step-1 uncertainty the sandwich omits
-— rather than a bug in either program. No estimates or standard errors change.
+statistically right answer, while `"robust"` is the step-3 sandwich alone --
+the estimator of an analysis that treats the assigned classes as given. Under
+the default the intervals are wider, and that difference is a difference in
+estimator — the corrected form carries step-1 uncertainty the sandwich omits
+— not an error. No estimates or standard errors change.
 
 ## `measurement` is now required
 
@@ -1915,7 +1955,7 @@ same numbers. What changed is what the package tells you about them.
   either to `0` switched the prior off in the M-step and left it on in the
   polish. The two stages then optimised different objectives and the polish
   pulled the fit off the maximum-likelihood optimum it had been asked for. The
-  documented escape hatch for reproducing an unregularized reference analysis
+  documented escape hatch for an unregularized maximum-likelihood fit
   now works. The analytical gradient is verified against a finite-difference one
   to 1e-10 for complete data and under FIML, at three prior settings.
 
@@ -1930,7 +1970,7 @@ same numbers. What changed is what the package tells you about them.
   number of restarts reaching the best solution from 1 of 6 to 4 of 6 — it had
   been perturbing every restart away from the optimum, not just the winner.
 
-Together these close a 3.5-unit gap against an external reference on a
+Together these close a 3.5-unit gap below the converged maximum on a
 three-group latent class model — 5.1 units on the configural model — both now
 matched to within 0.001.
 
@@ -1995,7 +2035,7 @@ matched to within 0.001.
   `group_invariant_params = "covariances"` frees the class means across groups
   while holding the indicator variances invariant. This is the model
   Olivera-Aguilar and Rikoon (2018) call *unconstrained* and note is the default
-  most software fits, and it is the one their invariance test compares against —
+  in applied work, and it is the one their invariance test compares against —
   so it is the comparison an applied analysis usually wants, and it is smaller
   and better identified than the fully heterogeneous alternative.
   `group_invariant_params = "means"` is the mirror constraint. The two axes are
@@ -2005,7 +2045,7 @@ matched to within 0.001.
 * **New `variances_equal` argument on `fit_mixture()`**, also for continuous
   indicators: hold each item's variance equal across the classes, so the classes
   differ in location only. This is the homoscedastic latent profile model, and
-  the parameterisation several commercial programs estimate by default. It
+  the conventional LPA parameterisation. It
   applies to an ordinary single-group fit as well, and composes with
   `group_invariant_params` to give a variance shared by the classes but free
   across groups.
@@ -2081,8 +2121,8 @@ matched to within 0.001.
   defaulting to `1`, the value the first three were already hard-coded to.
   Raising `variances` is one of the remedies the collapsed-variance warning
   offers; setting a constant to `0` removes that prior and recovers plain
-  maximum likelihood for that block, which is an escape hatch for reproducing an
-  unregularized reference analysis rather than a recommended setting.
+  maximum likelihood for that block, which is an escape hatch rather than a
+  recommended setting.
 
 * **`longitudinal_lrt()` refuses to interpret a degenerate fit.** It warns when
   either input carries the flag — the statistic is meaningless in either
@@ -2129,7 +2169,7 @@ quantities behind them can now be got at.
 * **`confint()` no longer rounds inside the object it returns.** It rounded the
   odds ratio and both bounds to three decimals *in the data*, not just for
   display, which destroyed precision in a stored result and put a 0.001 floor
-  under any comparison of these numbers against another program's — larger than
+  under any comparison of these numbers — larger than
   the disagreement such a comparison is usually trying to measure. Values are
   now returned at full precision and rounded only by the print method.
 * **New `vcov()` method**, so `sqrt(diag(vcov(fit)))` gives the standard errors

@@ -201,8 +201,7 @@ status_prevalences <- function(object, type = c("model", "posterior"),
 }
 
 # Every possible sequence of statuses, one row per pattern, sorted by occasion
-# 1, then occasion 2, and so on (the order both `transition_matrix()` and the
-# reference programs use).
+# 1, then occasion 2, and so on (the order `transition_matrix()` uses).
 .transition_pattern_grid <- function(K, Tn, labs) {
   grid <- expand.grid(rep(list(seq_len(K)), Tn))[, Tn:1, drop = FALSE]
   colnames(grid) <- labs
@@ -297,9 +296,9 @@ status_prevalences <- function(object, type = c("model", "posterior"),
 #'   different thing from a cross-tabulation of the per-occasion modal
 #'   statuses, which can put mass on a pattern the model itself gives zero
 #'   probability; see `class_assignments()`'s own documentation of the
-#'   distinction. The classification table another program prints for a
-#'   latent transition model is typically the per-occasion one, not this
-#'   joint decode -- reproduce it with
+#'   distinction. A per-occasion modal classification table is the more
+#'   common summary of a latent transition model, not this joint decode --
+#'   get it with
 #'   `table(class_assignments(object, "modal"))` rather than `type =
 #'   "modal"` if that is the number being matched against.
 #' @param class Optional latent class, for a model fitted with `n_classes` > 1.

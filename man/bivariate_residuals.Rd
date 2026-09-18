@@ -124,9 +124,7 @@ often for one class than another otherwise makes an unrelated pair of items
 look locally dependent, when what actually happened is that missingness
 changed who is left in the comparison. This is a pairwise-complete
 statistic rather than a full-information one, so still read it as
-descriptive when missingness is heavy. For categorical indicators this is
-the same statistic, with the same divisor, that another program reports as
-a bivariate residual, and the values agree closely on the same fit.
+descriptive when missingness is heavy.
 
 For a \code{group_effects = "measurement"} fit, each pair's residual is
 the sum of that pair's own chi-square in every group, divided by the
@@ -144,11 +142,11 @@ covariance of that pair, with its variance adjusted for the model's other
 parameters, following Oberski, van Kollenburg and Vermunt (2013). It is
 computed separately in each class, because a residual dependence can run in
 opposite directions in different classes and a pooled statistic would
-average it away. Another program's "bivariate residual" for continuous
-indicators is deliberately \emph{not} adjusted for the model's other parameters,
-so the two do not agree numerically; the modification index is preferred
-here on the evidence of Oberski et al.'s simulation, in which a bivariate
-residual referred to chi-square gave below-nominal size and inadequate
+average it away. The unadjusted bivariate residual, which ignores the
+model's other parameters, is a different statistic and does not agree
+numerically; the modification index is preferred here on the evidence of
+Oberski et al.'s simulation, in which the unadjusted bivariate residual
+referred to chi-square gave below-nominal size and inadequate
 power, while the modification index reproduced its nominal distribution and
 was the more powerful of the two adequate methods. Detection is reliable
 only when the offending effects are few and the measurement model is

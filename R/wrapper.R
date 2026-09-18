@@ -210,10 +210,9 @@ sort_model_classes <- function(model_state) {
 #' @param scale For categorical indicators, what scale the item parameters are
 #'   reported on. \code{"probability"} (the default) is unchanged from before
 #'   this argument existed. \code{"logit"} reports \code{qlogis()} of the same
-#'   table. \code{"effect"} reports the effect-coded parameterisation several
-#'   other programs use by default -- an item intercept plus one deviation per
-#'   class, the deviations summing to zero -- which is what lets a mixtureEM
-#'   measurement model be placed beside such a program's printed output;
+#'   table. \code{"effect"} reports the effect-coded parameterisation of the
+#'   same table -- an item intercept plus one deviation per class, the
+#'   deviations summing to zero -- for readers who think in log-linear terms;
 #'   binary indicators only, since a polytomous item's effect coding is a
 #'   modelling choice (ordinal with fixed scores, giving one class effect per
 #'   class, versus nominal, giving one per category) that the package does
@@ -443,15 +442,12 @@ measurement_summary.default <- function(object,
 # Rescale a K x J block of binary item-response probabilities for
 # measurement_summary()'s `scale` argument. "probability" is a no-op.
 # "logit" is qlogis() elementwise and needs no restriction on the item type.
-# "effect" recovers another program's effect coding for a binary item: an
-# item intercept -- half the negative mean logit across classes, matching the
-# reported category's intercept row of an equivalent two-category coding,
-# whose other category's intercept is this value's negative -- plus one class
-# deviation per class, the deviations summing to zero by construction. The
-# caller has already refused a polytomous block under "effect" before this is
-# reached. Verified against another program's printed output on a reference
-# fit: matches to three decimals on both the intercept and the four class
-# deviations of a boundary-adjacent item.
+# "effect" is the effect coding of a binary item: an item intercept -- half
+# the negative mean logit across classes, i.e. the reported category's
+# intercept in the equivalent two-category coding, whose other category's
+# intercept is this value's negative -- plus one class deviation per class,
+# the deviations summing to zero by construction. The caller has already
+# refused a polytomous block under "effect" before this is reached.
 .scale_categorical_block <- function(mat, scale) {
   if (identical(scale, "probability")) return(list(mat = mat, intercept = NULL))
   logit <- stats::qlogis(mat)
@@ -2710,9 +2706,10 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'
 #' The log-likelihood is that of the indicators \emph{given} the group; the
 #' grouping variable's own distribution is not modelled and its proportions are
-#' not counted as parameters. Software that treats a known grouping variable as
-#' a latent class variable observed without error adds both. For
-#' comparison with such output, a \code{group} fit also carries
+#' not counted as parameters. The other convention -- the \emph{known-class}
+#' formulation, which treats the grouping variable as a latent class variable
+#' observed without error -- adds both. A \code{group} fit also carries the
+#' log-likelihood and parameter count on that scale, as
 #' \code{metrics$ll_knownclass} and \code{metrics$n_params_knownclass}; the
 #' difference is a fixed constant and cancels in [`lr_test()`].
 #' @param group_invariant_items Item indices or names held equal across
@@ -2789,8 +2786,8 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   search that has, so it skips nothing.
 #' @param variances_equal Logical, for continuous indicators only: hold each
 #'   item's variance equal across the classes, so the classes differ in location
-#'   only. This is the homoscedastic latent profile model and the default
-#'   parameterisation of several commercial programs, and it combines with
+#'   only. This is the homoscedastic latent profile model, the conventional
+#'   LPA parameterisation, and it combines with
 #'   \code{group_invariant_params} to give a variance that is free across groups
 #'   but shared by the classes within each. Passed through to the measurement
 #'   model, so it is also available on an ordinary single-group fit.
@@ -2923,13 +2920,13 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   penalised-likelihood literature recommends a data-scaled penalty over a
 #'   constant one (Chen, Tan, & Zhang, 2008, sec. 4).
 #'
-#'   Two uses. \strong{Reproducing an unregularized fit:} setting a constant to
+#'   Two uses. \strong{An unregularized fit:} setting a constant to
 #'   \code{0} removes that prior and gives plain maximum likelihood for that
-#'   block. This is an escape hatch for matching a reference analysis, not a
-#'   recommended setting — the unpenalised mixture likelihood for a mixture of
-#'   normals is unbounded, so a \emph{global} maximum likelihood estimate does
-#'   not exist (Day, 1969; Kiefer & Wolfowitz, 1956) and what an unregularized
-#'   program reports is a local maximum.
+#'   block. This is an escape hatch, not a recommended setting — the
+#'   unpenalised mixture likelihood for a mixture of normals is unbounded, so
+#'   a \emph{global} maximum likelihood estimate does not exist (Day, 1969;
+#'   Kiefer & Wolfowitz, 1956) and what an unregularized fit reports is a
+#'   local maximum.
 #'
 #'   \strong{Rescuing a collapsed fit:} this situation is now rare, because a
 #'   continuous measurement model holds the variances equal across classes by
@@ -3625,13 +3622,13 @@ print.mixture_model <- function(x, ...) {
                        length(x$growth$boundary) > 0L)
   .print_replication_note(x)
   # The printed log-likelihood conditions on the grouping variable and does not
-  # count its own proportions. Software that treats the group as a latent class
-  # observed without error is on a different scale by a fixed constant, and a
-  # user comparing the two numbers has no way to know that from this block.
+  # count its own proportions. The known-class formulation, which treats the
+  # group as a latent class observed without error, is on a different scale
+  # by a fixed constant, and a user reading the block has no way to know that.
   if (!is.null(x$metrics$ll_knownclass))
-    cat(sprintf(paste0("  (Comparing with software that counts the grouping ",
-                       "variable's own proportions? Use metrics$ll_knownclass ",
-                       "= %.2f and metrics$n_params_knownclass = %d.)\n"),
+    cat(sprintf(paste0("  (Known-class scale, counting the grouping ",
+                       "variable's own proportions: metrics$ll_knownclass ",
+                       "= %.2f, metrics$n_params_knownclass = %d.)\n"),
                 x$metrics$ll_knownclass,
                 as.integer(x$metrics$n_params_knownclass)))
   cat("---------------------------------------------------------\n")
@@ -3687,9 +3684,10 @@ print.mixture_model <- function(x, ...) {
 #' distributed p-values under the correct null hypothesis, indicating this test
 #' is not the best model selection tool in mixture modeling".
 #'
-#' The two implementations differ only in which covariance matrix of the
-#' parameters enters the reference distribution: one program uses the ordinary
-#' one, another the robust (sandwich) one (Vermunt, 2024). The difference is not
+#' The two versions of the test differ only in which covariance matrix of the
+#' parameters enters the reference distribution: the ordinary one
+#' (`vlmr = "standard"`) or the robust sandwich (`vlmr = "robust"`;
+#' Vermunt, 2024). The difference is not
 #' cosmetic: on the same data the two can return p = .00 and p = .15. The robust
 #' version's reference distribution is much more sensitive to the particular
 #' sample, especially when the classes are poorly separated. Neither version's
@@ -3934,8 +3932,8 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
 #' effects are interpreted and published on, and the default here matches it.
 #' \code{coef(fit, exponentiate = FALSE)} and
 #' \code{\link[=vcov.mixture_model]{vcov}} give the log-scale estimates and
-#' their standard errors, for anyone who needs to compare them against another
-#' program or pool them across analyses. Both scales are exact —
+#' their standard errors, for anyone who needs to report them on that scale
+#' or pool them across analyses. Both scales are exact —
 #' \code{log(coef(fit))} has always recovered the coefficients, since the odds
 #' ratios are returned at full double precision; the argument makes that
 #' discoverable rather than a trick.

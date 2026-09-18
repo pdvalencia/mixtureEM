@@ -211,7 +211,7 @@ test_that("ordinal RI parameter counts match the W5 table (### 14.18.8)", {
 # W6(a) -- binary-as-ordinal regression under a random intercept: a 2-category
 # ordinal item is algebraically Bernoulli (### 14.18.2), so refitting the same
 # data under "binary" and under "ordinal" (1/2-coded) must give the same
-# log-likelihood and parameter count. Needs no reference program.
+# log-likelihood and parameter count. Needs no external oracle.
 # ------------------------------------------------------------------------------
 
 test_that("binary-as-ordinal RI regression: identical loglik and n_params (W6a)", {

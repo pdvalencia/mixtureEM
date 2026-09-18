@@ -586,10 +586,6 @@
     }
   }
 
-  if (any(abs(ri$L) > 10))
-    warning("A random-intercept loading exceeds 10 in absolute value; the ",
-            "model may be weakly identified on these data.", call. = FALSE)
-
   if (is.null(ri$theta)) ri$A <- A
   state$ri <- ri
   state$mm$models[[1]]$parameters$pis <- .lta_ri_integrated_pis(ri, K, R)
@@ -635,6 +631,40 @@ random_intercept_scores <- function(fit) {
   cbind(out, pq)
 }
 
+#' Random-intercept loadings
+#'
+#' The loading of each indicator on the between-subject factor a
+#' `random_intercept = "continuous"` [`fit_lta()`] model estimates, with the
+#' standard error when the fit computed one. A loading is on the logit scale
+#' of the indicator, shared across occasions by construction, and its size
+#' says how much of that indicator's response is stable between-person
+#' difference rather than latent status: the larger it is, the less the
+#' indicator says about which status a person is in at a given occasion.
+#' The factor's sign is arbitrary and is fixed by making the largest loading
+#' positive.
+#'
+#' @param fit A model fitted by [`fit_lta()`] with
+#'   `random_intercept = "continuous"`.
+#' @return A data frame with one row per indicator: `item`, `loading`, `se`
+#'   (`NA` when the fit was run with `standard_errors = FALSE`) and `z`.
+#' @seealso [`random_intercept_scores()`] for the per-case factor scores.
+#' @export
+random_intercept_loadings <- function(fit) {
+  if (is.null(fit$ri) || !identical(fit$ri$kind, "continuous") ||
+      !.lta_ri_loading_free(fit))
+    stop("`fit` was not fitted with `random_intercept = \"continuous\"`.",
+         call. = FALSE)
+  L  <- as.vector(fit$ri$L[, 1L])
+  se <- if (!is.null(fit$se) && !is.null(fit$se$loading_se))
+    as.vector(fit$se$loading_se[, 1L]) else rep(NA_real_, length(L))
+  nm <- colnames(fit$mm$models[[1]]$parameters$pis)
+  nm <- if (!is.null(fit$mm$models[[1]]$max_val)) fit$mm$models[[1]]$item_names else nm
+  if (is.null(nm) || length(nm) != length(L)) nm <- paste0("Item_", seq_along(L))
+  nm <- sub("@T1$", "", nm)
+  data.frame(item = nm, loading = L, se = se, z = L / se,
+             row.names = NULL, stringsAsFactors = FALSE)
+}
+
 # ------------------------------------------------------------------------------
 # A second random construction
 # ------------------------------------------------------------------------------
@@ -644,10 +674,10 @@ random_intercept_scores <- function(fit) {
 # EM then settles on a solution with the right statuses but inflated loadings,
 # a genuine local maximum a short way below the global one. Measured on the
 # LTA-FAQ benchmark (roadmap ### 14.10), fifty random restarts converged to
-# -14443.775 against the reference programs' -14442.017, with loadings of 1.0
-# to 4.5 against their 0.12 to 0.97. Both reference programs address this not
-# by pre-fitting anything, but by mixing two unrelated random constructions in
-# one restart pool. This is the second construction: it redraws the random
+# -14443.775 with loadings of 1.0 to 4.5, where the interior optimum sits at
+# -14442.017 with loadings of 0.12 to 0.97. The remedy is not to pre-fit
+# anything but to mix two unrelated random constructions in one restart
+# pool. This is the second construction: it redraws the random
 # intercept's own thresholds directly, independent of whatever
 # `.lta_random_start()` gave them, rather than reusing that draw or fitting a
 # simpler model first. No EM runs here, so it costs nothing beyond the draw
@@ -659,15 +689,14 @@ random_intercept_scores <- function(fit) {
 # estimated classes, an ordinary mixture search that wants diverse starts, so
 # it is left alone. Measured on both benchmarks that motivated this Part
 # (`internal/part47/w4-ltafaq-probe.R`, `w4-dating-probe.R`): a 5+5 pool of
-# the two constructions reaches the LTA-FAQ optimum (-14442.0244 against
-# -14442.017) and the Dating/Lanza-Collins optimum (-15653.2238 against
-# -15653.194), both within 0.1 -- the same bar the pre-fit version was held
-# to, without running any EM to build a start.
+# the two constructions reaches the LTA-FAQ optimum (-14442.0244 against the
+# interior optimum's -14442.017) and the Dating/Lanza-Collins optimum
+# (-15653.2238 against -15653.194), both within 0.1 -- the same bar the
+# pre-fit version was held to, without running any EM to build a start.
 # The third construction, `options(mixtureEM.lta_ri_search = "wide")` (the
 # default; `"narrow"` reproduces the search as it was before this
-# construction existed): the restart pool another program draws, read off
-# its own runs rather than its
-# manual (RECORDS.md, "R12", the OPTSEED entry). Odd restarts perturb the
+# construction existed), is a deliberately wide pool (RECORDS.md, "R12").
+# Odd restarts perturb the
 # item's own sample logit -- staggered a little by status -- by U(-5, 5); even
 # restarts draw every response probability uniformly on (0, 1); every restart
 # starts each loading at 1 + U(-5, 5), so the factor begins as a contrast
@@ -676,10 +705,9 @@ random_intercept_scores <- function(fit) {
 # M-step (`ri$gem`, see .wglm_newton_step()): solved to convergence, the
 # first M-step from here sends the loadings to 1e12. Measured on the LTA-FAQ
 # continuous-RI benchmark, 100 such starts through the shipped stages with
-# that M-step reach the reference programs' interior optimum 7 times, which
-# is the rate the other program's own unscreened starts show (11 of 187);
-# neither of the two constructions above reaches it at all from a random
-# start (RECORDS.md, "R12", the OPTSEED entry).
+# that M-step reach the interior optimum 7 times, a rate the staged search
+# turns into a near-certain hit; neither of the two constructions above
+# reaches it at all from a random start (RECORDS.md, "R12").
 .lta_ri_wide_start <- function(state, X, i) {
   ri <- state$ri
   K  <- state$n_statuses

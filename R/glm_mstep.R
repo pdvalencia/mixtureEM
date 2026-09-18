@@ -126,15 +126,14 @@
 }
 
 # One safeguarded Newton step of the weighted binomial GLM from `start`,
-# instead of the full IRLS solve above: the generalised-EM M-step both
-# reference programs run ("Number of M step iterations 1" in every output
-# header of one; the M step "involves finding new theta improving log Lc" in
-# the other's technical guide). Used by the random-intercept search when
-# `state$ri$gem` is set. The difference matters from a wide random start:
-# solving each item's GLM to convergence there drives the loadings to 1e12
-# within three iterations (RECORDS.md, "R12", the OPTSEED entry), while one
-# step follows the damped path the reference programs follow. Step-halving on
-# the aggregated log-likelihood keeps the EM guarantee that the objective
+# instead of the full IRLS solve above: a generalised-EM M-step in the sense
+# of Dempster, Laird and Rubin (1977), which only has to *improve* the
+# complete-data log-likelihood, not maximise it. Used by the random-intercept
+# search when `state$ri$gem` is set. The difference matters from a wide random
+# start: solving each item's GLM to convergence there drives the loadings to
+# 1e12 within three iterations (RECORDS.md, "R12"), while one step follows a
+# damped path that the E-step can correct on the next iteration. Step-halving
+# on the aggregated log-likelihood keeps the EM guarantee that the objective
 # never falls.
 .wglm_newton_step <- function(D, y, w, start) {
   ok <- is.finite(y) & is.finite(w) & w > 0

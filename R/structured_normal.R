@@ -145,8 +145,9 @@ structured_normal_model <- function(n_components, design,
     #
     # It is enabled only where it was measured to be free. With Psi and Theta
     # held equal across classes, a 20-iteration first stage ranks the start that
-    # wins *first* out of 30 on the ex8.1 data, so the staged search returns the
-    # same optimum as running everything to convergence, six times faster. With
+    # wins *first* out of 30 on a growth-mixture benchmark, so the staged
+    # search returns the same optimum as running everything to convergence,
+    # six times faster. With
     # them free across classes it ranks that start *last* — and lengthening the
     # first stage to 50, 100 or 200 iterations makes it 27th, then 30th, then
     # 30th. The ranking is anti-correlated there rather than merely noisy,

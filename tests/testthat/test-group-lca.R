@@ -1,5 +1,5 @@
 # Multiple-group LCA (`group=`/`group_effects=` on fit_mixture()), Collins &
-# Lanza (2010) sec. 5.7-5.12. Validated against synthetic data with a known
+# Lanza (2010) sec. 5.7-5.12. Checked on synthetic data with a known
 # per-group generating model: two groups with different item-response
 # probabilities AND different class prevalences.
 

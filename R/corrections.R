@@ -446,11 +446,9 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   # maximises is P(a_i | z_i), not a product of the indicators' own
   # measurement-model density and the classification-error term, so that
   # recombination does not correspond to any quantity Vermunt's derivation
-  # defines. It was also never validated against another program's own
-  # step-3 output: `internal/validation-tests/test-step3-prior-validation.R`
-  # confirms colMeans(W) reproduces that program's overall posterior class
-  # probabilities (0.4419 / 0.2954 / 0.2627) to four decimals, which the old
-  # recombination did not.
+  # defines. `internal/validation-tests/test-step3-prior-validation.R`
+  # pins colMeans(W) on its benchmark (0.4419 / 0.2954 / 0.2627, to four
+  # decimals); the old recombination did not reach those figures.
   model_state$log_resp    <- log(pmax(W, 1e-300))
   model_state$lower_bound <- ll_case
 

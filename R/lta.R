@@ -112,13 +112,15 @@
 #'   and with `group` (implemented as covariates on the same two, so this is
 #'   one capability, not two); it still does not support `n_classes` > 1.
 #'
-#'   `"continuous"`'s restart search draws on the search another program runs
-#'   for the same model (`options(mixtureEM.lta_ri_search = "wide")`, the
-#'   default): its own restart construction, a cheaper one-step M-step while
-#'   ranking candidates, and one full-grid rescore before promoting
-#'   survivors. Measured on several benchmarks external to this package, it
-#'   reaches the same or a better optimum, several times faster, than the
-#'   search this package used before. `options(mixtureEM.lta_ri_search =
+#'   `"continuous"`'s restart search (`options(mixtureEM.lta_ri_search =
+#'   "wide")`, the default) draws wide random starts -- perturbed item logits
+#'   and loadings of either sign -- ranks them with a one-step generalised-EM
+#'   M-step, and rescores every ranked candidate on the full quadrature grid
+#'   before promoting survivors to the full search. On several published
+#'   benchmark data sets it reaches the same or a better optimum, several
+#'   times faster, than the search this package used before,
+#'   and it escapes the inflated-loading local maximum that search could
+#'   settle in. `options(mixtureEM.lta_ri_search =
 #'   "narrow")` restores the earlier search exactly, for reproducing a fit
 #'   made under it.
 #'
@@ -129,10 +131,11 @@
 #'   Compare the two by BIC instead.
 #'
 #'   Whether a random intercept is worth adding is a sample-size question more
-#'   than a modelling one. Tseng (2024) puts the continuous variant's own power
-#'   analysis at upwards of 2,000 cases for 80% power and 90% coverage at a
-#'   loading of 0.75, with more items, occasions or class separation lowering
-#'   that bar; the asymmetry that makes trying it worthwhile anyway is that
+#'   than a modelling one. Tseng (2024), for the continuous-indicator analogue
+#'   (RI-LPTA), puts the requirement at upwards of 2,000 cases for 80% power
+#'   and 90% coverage at a between-profile separation of d = 0.75, with more
+#'   items, occasions or separation lowering that bar; the asymmetry that
+#'   makes trying it worthwhile anyway is that
 #'   omitting a random intercept when one belongs costs a lot (inflated
 #'   apparent separation and stability), while including one when it does not
 #'   belong costs almost nothing (a handful of parameters, and BIC will say
@@ -157,9 +160,9 @@
 #' @param n_quadrature Number of Gauss-Hermite nodes for
 #'   `random_intercept = "continuous"`. The default of 15 is a starting point
 #'   to check, not a settled answer, the same way `n_init`'s default is a
-#'   floor: raise it (the two reference implementations behind this package's
-#'   own validation use 15-30 depending on the model) and confirm the
-#'   log-likelihood moves by less than 0.01. Make that check over a wide range
+#'   floor: raise it (15-30 nodes is the usual working range, more when the
+#'   loadings are large) and confirm the log-likelihood moves by less than
+#'   0.01. Make that check over a wide range
 #'   of node counts rather than one step up. When a fit's thresholds are
 #'   extreme, the item response is almost a step function of the factor, and
 #'   the log-likelihood is then not even monotone in the number of nodes: two
@@ -347,16 +350,15 @@
 #'
 #'   `metrics$entropy` (the headline number, printed by `print()`) is the
 #'   relative entropy of the joint latent-status path across all occasions at
-#'   once. This matches the single LTA entropy figure reported by one widely
-#'   used program. The other reports an entropy per latent variable instead;
-#'   the occasion-weighted average of that quantity, on this package's
-#'   normalising convention, is `metrics$entropy_by_occasion` (printed by
-#'   `summary()`). The two programs' own entropy figures use different
-#'   normalising conventions for the per-latent-variable quantity, so to
-#'   compare `entropy_by_occasion` against the other program's figures,
-#'   convert with `1 - (1 - r2) * log(K) / H(pi_hat)`, where `r2` is the
-#'   package's value, `K` is `n_statuses`, and `H(pi_hat)` is the entropy of
-#'   that occasion's estimated status proportions (from
+#'   once: one classification per case over the `K^T` possible paths,
+#'   normalised by `n * T * log(K)`. The per-occasion alternative -- the
+#'   relative entropy of each occasion's status posterior on its own,
+#'   normalised by `log(K)` -- is `metrics$entropy_by_occasion` (printed by
+#'   `summary()`). A per-occasion entropy can also be normalised by the
+#'   entropy of that occasion's estimated status proportions instead of by
+#'   `log(K)`; the two are related by `1 - (1 - r2) * log(K) / H(pi_hat)`,
+#'   where `r2` is the package's value, `K` is `n_statuses`, and `H(pi_hat)`
+#'   is the entropy of that occasion's estimated status proportions (from
 #'   [`status_prevalences()`]).
 #'
 #' @references
@@ -382,8 +384,10 @@
 #' intercepts (RI-LTA). \emph{Psychological Methods}, \emph{27}(1), 1-16.
 #' \doi{10.1037/met0000370}
 #'
-#' Tseng (2024). \emph{Structural Equation Modeling}, \emph{31}(4), 626-634 -
-#' the power and sample-size analysis behind the guidance above.
+#' Tseng, M.-C. (2024). Latent profile transition analysis with random
+#' intercepts (RI-LPTA). \emph{Structural Equation Modeling}, \emph{31}(4),
+#' 626-634. \doi{10.1080/10705511.2023.2284671} - the sample-size analysis
+#' behind the guidance above.
 #'
 #' @seealso [`transition_matrix()`], [`status_prevalences()`],
 #'   [`lr_test()`], [`lta_g2()`], [`fit_rmlca()`].
@@ -745,8 +749,8 @@ fit_lta <- function(indicators,
   # emissions their own `em_max_iter` instead of raising the package default.
   #
   # Running *every* restart to that tolerance is what it cannot afford: on
-  # ex8.15 that is 20 restarts x 5000 iterations, and most of them are climbing
-  # a hill they will lose anyway. The search is therefore staged, as the growth
+  # one LTA benchmark that is 20 restarts x 5000 iterations, and most of them
+  # are climbing a hill they will lose anyway. The search is therefore staged, as the growth
   # mixture models' `em_stage1` stages theirs - a short first pass ranks the
   # restarts, and only the survivors are run on to convergence, resuming from
   # where they stopped. Three survivors rather than one because a short first
@@ -793,7 +797,7 @@ fit_lta <- function(indicators,
   # the `C > 1` test alone left it running every one of its (at least fifty)
   # restarts to `tol = 1e-11`: the tightening without the staging that was
   # written to pay for it. Nothing else about a single-chain fit changes here;
-  # plain LTA keeps the unstaged search every locked reference target was
+  # plain LTA keeps the unstaged search every locked benchmark figure was
   # measured on.
   # The predicate, not `!is.null(state$ri)`: the degenerate one-node factor a
   # `predictors_items` fit borrows integrates over nothing and converges at
@@ -812,8 +816,8 @@ fit_lta <- function(indicators,
   # apply: they are about how slowly a chain mixture converges, not about how
   # the search is organised.
   if (!is.null(refine_from)) staged <- FALSE
-  # A tenth of the pool, rounded up, is another program's own documented
-  # default -- not invented here. The floor of 3 means every fit at
+  # A tenth of the pool, rounded up, is a common staged-search convention.
+  # The floor of 3 means every fit at
   # `n_init <= 30` promotes exactly as many survivors as before (bit-for-bit
   # unchanged); only `n_init >= 40` moves, and only upward, because taking
   # more of the top-ranked candidates can never lower the winner's score.
@@ -869,11 +873,11 @@ fit_lta <- function(indicators,
   # alongside its `L`; overwriting `Dnode` with the unflipped full grid is
   # still the same model, because a Gauss-Hermite grid is symmetric in both its
   # nodes and its weights, so negating it only permutes the terms of a sum.
-  # `options(mixtureEM.lta_ri_search = "wide")` (the default): the search
-  # another program runs, on the continuous-RI staged path only -- its
-  # restart construction, its one-Newton-step M-step during the ranking
+  # `options(mixtureEM.lta_ri_search = "wide")` (the default), on the
+  # continuous-RI staged path only: the wide restart construction
+  # (.lta_ri_wide_start()), a one-Newton-step M-step during the ranking
   # stage, and one full-grid E-step per ranked candidate before promotion.
-  # Measured on the LTA-FAQ benchmark (RECORDS.md, "R12", the OPTSEED entry):
+  # Measured on the LTA-FAQ benchmark (RECORDS.md, "R12"):
   # the interior-bound candidates rank 1-3 of 100 on the full grid at 250
   # iterations and 7-12 on the five-node ladder, which mis-ranks
   # boundary-bound candidates upward. `"narrow"` leaves every fit bit-for-bit
@@ -1058,6 +1062,23 @@ fit_lta <- function(indicators,
   )
   class(best) <- "lta_model"
 
+  # A binary random-intercept fit's item table is rebuilt from the factor
+  # (`.lta_ri_integrated_pis()`) every time the factor moves, and that rebuild
+  # carries no dimnames, so the table reached print(), measurement_summary()
+  # and random_intercept_loadings() as `Item_1`, `Item_2`, ... Name it the way
+  # a regular fit's table is named, which is also what lets
+  # measurement_summary() match the columns to the data for its Overall column.
+  if (!is.null(best$ri) && is.null(best$ri$theta)) {
+    nm <- .longitudinal_colnames(prep$item_names, prep$time_labels[1L])
+    for (t in seq_len(Tn)) {
+      p <- best$mm$models[[t]]$parameters$pis
+      if (is.matrix(p) && ncol(p) == length(nm)) {
+        colnames(p) <- nm
+        best$mm$models[[t]]$parameters$pis <- p
+      }
+    }
+  }
+
   # Reordering by prevalence is only safe when the status labels are arbitrary.
   # They are not when the user has forbidden particular moves, since that
   # declares an ordering of stages, and not when covariates are present, where
@@ -1107,6 +1128,14 @@ fit_lta <- function(indicators,
       if (nrow(collapsed) == 1L) "" else "es",
       paste(apply(collapsed, 1, paste, collapse = " and "), collapse = "; ")),
       call. = FALSE)
+
+  # Raised once, on the fit returned, rather than inside the sign
+  # normalisation every ranked candidate passes through: a search discards
+  # most of its candidates, and a warning about one of those is noise.
+  if (!is.null(best$ri) && .lta_ri_loading_free(best) &&
+      any(abs(best$ri$L) > 10))
+    warning("A random-intercept loading exceeds 10 in absolute value; the ",
+            "model may be weakly identified on these data.", call. = FALSE)
 
   # A small origin row, not a bad fit: the prior is doing what it is there to do
   # and the only question is how much of the estimate is left over for the data.
@@ -1357,16 +1386,16 @@ fit_lta <- function(indicators,
   P
 }
 
-# Transition cells that have collapsed onto the boundary. Logit-scale software
-# reports these as a logit fixed at a large negative value; here the cell is
-# simply zero, and it
-# is worth flagging because it costs a degree of freedom the count above still
-# charges for.
+# Transition cells that have collapsed onto the boundary. On the logit scale
+# this is a logit at a large negative value; here the cell is simply zero, and
+# it is worth flagging because it costs a degree of freedom the count above
+# still charges for.
 #
 # The threshold is 1e-4 rather than something nearer machine zero because EM
 # stops when the *likelihood* stops moving, not when a cell reaches zero, and by
-# then the cell is merely negligible: a transition a reference run reports as
-# 0.000 is 3.2e-06 here, which a 1e-6 threshold missed entirely. Anything below
+# then the cell is merely negligible: a transition that is structurally
+# zero came out as 3.2e-06 on one benchmark, which a 1e-6 threshold missed
+# entirely. Anything below
 # 1e-4 is also well under one expected case in any sample this model is
 # identified on, so there is nothing there to distinguish from zero.
 .lta_boundary_cells <- function(state, tol = 1e-4) {
@@ -1512,14 +1541,13 @@ fit_lta <- function(indicators,
   # the K^T possible paths, so the normalising constant is n * log(K^T) =
   # n * T * log K. The numerator is the path entropy accumulated in
   # .lta_em(), not the sum of the per-occasion marginal entropies -- the
-  # latter is always larger and matches no reference program.
+  # latter is always larger and is not the entropy of any single
+  # classification.
   ent <- relative_entropy(state$abs_ent_path %||% abs_ent, n * Tn,
                           state$n_statuses)
-  # Per-occasion relative entropy, normalised by n rather than n * T. This is
-  # the same quantity another program reports per latent variable, but on
-  # this package's normaliser (log K) rather than that program's (the
-  # entropy of the estimated class proportions); `?fit_lta` gives the
-  # conversion.
+  # Per-occasion relative entropy, normalised by n rather than n * T, on the
+  # log K normaliser; `?fit_lta` gives the conversion to the
+  # estimated-proportions normaliser.
   entropy_by_occasion <- vapply(abs_ent_by_occasion, relative_entropy,
                                 numeric(1), n_samples = n,
                                 n_classes = state$n_statuses)
@@ -1672,8 +1700,8 @@ fit_lta <- function(indicators,
     }
   }
 
-  # Opt-in sandwich with the observed-information bread, which is what the
-  # established programs report by default. The outer-product bread above is the
+  # Opt-in sandwich with the observed-information bread, the textbook form of
+  # the estimator. The outer-product bread above is the
   # cheaper estimator and stays the default here: the finite-difference Hessian
   # this needs is 2p(p+1) forward-backward passes. The fallback is silent by
   # design -- a model the packing cannot describe gets the existing estimator

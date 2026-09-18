@@ -53,16 +53,14 @@ can be slow, or refused outright, once the number of indicator categories
 crossed together grows large -- the same \eqn{W} that already makes the
 complete-data table sparse.
 
-\strong{Comparing against other software.} Two different statistics get called
+\strong{Two statistics called \eqn{L^2}.} Two different statistics can be called
 "the" \eqn{L^2} for a model fitted to incomplete data, and they can differ
 by a factor of two on the very same fit. \verb{$g2} is the test of the model
-alone under MAR; \verb{$g2_mcar} is the model tested \emph{jointly} with MCAR, which
-is what some programs print by default and others print only on request.
-Match like with like before concluding anything: a program reporting a much
-larger figure than \verb{$g2} is usually reporting \verb{$g2_mcar}'s quantity, not
-disagreeing. Compare \verb{$df} rather than \verb{$df_mcar}, since the latter is
-capped at the sample size by at least one other implementation and this one
-reports it uncapped. Note also that the \eqn{X^2} and Cressie-Read columns
+alone under MAR; \verb{$g2_mcar} is the model tested \emph{jointly} with MCAR, so it
+also carries every departure from MCAR in the missingness itself. Read
+\verb{$g2} as the model's fit and \verb{$g2_mcar} as the joint hypothesis, each with
+its own degrees of freedom (\verb{$df}, \verb{$df_mcar}); \verb{$df_mcar} is reported
+uncapped. Note also that the \eqn{X^2} and Cressie-Read columns
 are far less trustworthy than \eqn{L^2} on a sparse table: all three test
 the same hypothesis and they can return p-values hundreds of orders of
 magnitude apart.
@@ -75,9 +73,9 @@ For a \code{group_effects = "measurement"} fit, the model is
 -cell table \emph{per group}, not one \eqn{W}-cell table for the pooled
 data: \eqn{df = Q(W - 1) - P} for \eqn{Q} groups, and the statistics are
 the sum of each group's own. The per-group breakdown is returned in
-\verb{$by_group}. Treat its level as a within-package diagnostic rather than a
-figure to line up against another program's, which need not use the same
-convention.
+\verb{$by_group}. Treat its level as a within-package diagnostic: it is the sum
+of per-group tables, not a single pooled table, and is only comparable
+with figures built the same way.
 \code{group_effects = "both"} instead attaches a covariate structural
 model for the prevalence effect and is refused as any conditional model
 is; refit with \code{group_effects = "measurement"} to check the

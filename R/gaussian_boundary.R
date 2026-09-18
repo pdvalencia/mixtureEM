@@ -189,13 +189,12 @@
   # The prior remedy is stated as one artificial observation per class, and
   # printed as the number that means for *this* model. A bare constant does not
   # transfer: the constant is spread over the classes, so the same value is a
-  # different amount of prior at every K. Calibrated against a reference
-  # implementation on five-point scales, one observation per class was the
-  # weakest setting that both lifted the flagged variance into the range of the
-  # model's genuinely small variances and moved its class mean off the scale
-  # ceiling. See the `bayes_constants` section of ?fit_mixture. The categorical
-  # remedy is the reference programs' own device, named in their manual as
-  # existing "to prevent boundary solutions".
+  # different amount of prior at every K. On five-point scales, one observation
+  # per class was the weakest setting that both lifted the flagged variance
+  # into the range of the model's genuinely small variances and moved its
+  # class mean off the scale ceiling. See the `bayes_constants` section of
+  # ?fit_mixture. The categorical remedy is the Dirichlet prior on the response
+  # probabilities, whose whole purpose is to keep them off the boundary.
   K <- .degeneracy_n_classes(fit)
   has_var  <- any(flagged$kind == "variance")
   has_prob <- any(flagged$kind == "probability")
@@ -203,9 +202,17 @@
                else sprintf("bayes_constants = list(variances = %d)", K)
   prob_hint <- if (is.na(K)) "bayes_constants = list(categorical = <n_classes>)"
                else sprintf("bayes_constants = list(categorical = %d)", K)
-  remedies <- c(
+  prior_hints <- c(
     if (has_var)  sprintf("a stronger variance prior, %s", var_hint),
     if (has_prob) sprintf("a stronger categorical prior, %s", prob_hint))
+  # `variances_equal` only bears on a collapsed variance; a response probability
+  # at the boundary has nothing to gain from it, so it is not offered then.
+  remedies <- c(if (has_var) "variances_equal = TRUE",
+                "fewer classes",
+                paste(prior_hints, collapse = ", or "))
+  remedies <- sprintf("(%d) %s", seq_along(remedies), remedies)
+  remedies[length(remedies)] <- paste("or", remedies[length(remedies)])
+  remedies <- paste(remedies, collapse = "; ")
   what <- if (has_var && has_prob) "A class variance and a response probability have"
           else if (has_prob) "A response probability has"
           else "A class variance has"
@@ -224,11 +231,9 @@
     paste0("%s collapsed towards the boundary: %s. ",
            "These estimates are not interpretable, and this fit's BIC cannot ",
            "be compared with a clean fit's. Ways out, to choose between on ",
-           "substantive grounds: (1) variances_equal = TRUE; (2) fewer ",
-           "classes; or (3) %s. ",
+           "substantive grounds: %s. ",
            "See ?fit_mixture for why, and what to check afterwards."),
-    what, paste(.degeneracy_lines(flagged), collapse = "; "),
-    paste(remedies, collapse = ", or ")),
+    what, paste(.degeneracy_lines(flagged), collapse = "; "), remedies),
     call. = FALSE)
   fit
 }

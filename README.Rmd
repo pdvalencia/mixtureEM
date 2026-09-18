@@ -68,7 +68,7 @@ twenty random restarts per class count, six models is real work, so it is
 shown here rather than run on every render of this page — the
 [`class_enumeration`
 vignette](https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.html)
-walks through reading its output on this exact data:
+walks through reading its output in detail on another dataset:
 
 ```r
 library(mixtureEM)
@@ -123,7 +123,8 @@ summary(fit_cov)
 | Predictors of class membership (3-step ML) | `add_covariates()` | [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html) |
 | Distal outcomes (BCH / ML) | `add_outcome()` | [`liang_park_lpa`](https://pdvalencia.github.io/mixtureEM/articles/liang_park_lpa.html) |
 | Repeated-measures LCA: trajectory classes over time, e.g. "Stable Low", "Escalating", "Persistent" | `fit_rmlca()` | [`rmlca`](https://pdvalencia.github.io/mixtureEM/articles/rmlca.html) |
-| Latent transition analysis, mover-stayer models: if someone is Depressed at Wave 1, what is the probability they are Not Depressed at Wave 2? | `fit_lta()` | [`lta`](https://pdvalencia.github.io/mixtureEM/articles/lta.html) |
+| Latent transition analysis, mover-stayer models: if a child has low alphabet knowledge in the fall, what is the probability they are reading words by spring? | `fit_lta()` | [`lta`](https://pdvalencia.github.io/mixtureEM/articles/lta.html) |
+| Random-intercept LTA: how much of that stability is a stable trait rather than a stage? | `fit_lta(random_intercept = )` | [`rilta`](https://pdvalencia.github.io/mixtureEM/articles/rilta.html) |
 | Latent class growth analysis, growth mixture models | `fit_lcga()`, `fit_gmm()` | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |
 | Complex survey designs (weights, strata, clusters) | every model | [`survey_lca`](https://pdvalencia.github.io/mixtureEM/articles/survey_lca.html) |
 

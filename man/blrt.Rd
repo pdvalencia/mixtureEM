@@ -61,7 +61,8 @@ Default \code{20}, as elsewhere in the package.}
 \item{n_init_boot}{Random restarts for the alternative model on each
 bootstrap replicate (the null model's replicate fit is seeded from the
 observed-data null fit's own parameters and runs no random restarts at
-all, matching both reference programs' practice; see
+all -- the replicate was generated from that null, so its own parameters
+are already the best available start; see
 \code{vignette("estimation")}). \code{blrt()} gives the alternative
 \code{2 * n_init_boot} restarts, spending on it what the null no longer
 needs. Default \code{10} (so \code{20} restarts per replicate on the

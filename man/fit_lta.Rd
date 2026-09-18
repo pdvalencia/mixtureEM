@@ -140,13 +140,14 @@ status or the transitions (\code{predictors_initial}/\code{predictors_transition
 and with \code{group} (implemented as covariates on the same two, so this is
 one capability, not two); it still does not support \code{n_classes} > 1.
 
-\code{"continuous"}'s restart search draws on the search another program runs
-for the same model (\code{options(mixtureEM.lta_ri_search = "wide")}, the
-default): its own restart construction, a cheaper one-step M-step while
-ranking candidates, and one full-grid rescore before promoting
-survivors. Measured on several benchmarks external to this package, it
-reaches the same or a better optimum, several times faster, than the
-search this package used before. \code{options(mixtureEM.lta_ri_search = "narrow")} restores the earlier search exactly, for reproducing a fit
+\code{"continuous"}'s restart search (\code{options(mixtureEM.lta_ri_search = "wide")}, the default) draws wide random starts -- perturbed item logits
+and loadings of either sign -- ranks them with a one-step generalised-EM
+M-step, and rescores every ranked candidate on the full quadrature grid
+before promoting survivors to the full search. On several published
+benchmark data sets it reaches the same or a better optimum, several
+times faster, than the search this package used before,
+and it escapes the inflated-loading local maximum that search could
+settle in. \code{options(mixtureEM.lta_ri_search = "narrow")} restores the earlier search exactly, for reproducing a fit
 made under it.
 
 \strong{Do not test a random intercept against regular LTA with \code{\link[=lr_test]{lr_test()}}}:
@@ -156,10 +157,11 @@ the usual chi-squared reference distribution does not apply either way.
 Compare the two by BIC instead.
 
 Whether a random intercept is worth adding is a sample-size question more
-than a modelling one. Tseng (2024) puts the continuous variant's own power
-analysis at upwards of 2,000 cases for 80\% power and 90\% coverage at a
-loading of 0.75, with more items, occasions or class separation lowering
-that bar; the asymmetry that makes trying it worthwhile anyway is that
+than a modelling one. Tseng (2024), for the continuous-indicator analogue
+(RI-LPTA), puts the requirement at upwards of 2,000 cases for 80\% power
+and 90\% coverage at a between-profile separation of d = 0.75, with more
+items, occasions or separation lowering that bar; the asymmetry that
+makes trying it worthwhile anyway is that
 omitting a random intercept when one belongs costs a lot (inflated
 apparent separation and stability), while including one when it does not
 belong costs almost nothing (a handful of parameters, and BIC will say
@@ -185,9 +187,9 @@ predicted mean; the per-case means are in
 \item{n_quadrature}{Number of Gauss-Hermite nodes for
 \code{random_intercept = "continuous"}. The default of 15 is a starting point
 to check, not a settled answer, the same way \code{n_init}'s default is a
-floor: raise it (the two reference implementations behind this package's
-own validation use 15-30 depending on the model) and confirm the
-log-likelihood moves by less than 0.01. Make that check over a wide range
+floor: raise it (15-30 nodes is the usual working range, more when the
+loadings are large) and confirm the log-likelihood moves by less than
+0.01. Make that check over a wide range
 of node counts rather than one step up. When a fit's thresholds are
 extreme, the item response is almost a step function of the factor, and
 the log-likelihood is then not even monotone in the number of nodes: two
@@ -399,16 +401,15 @@ errors are not available for a mixture over chains and \code{se} is \code{NULL}.
 
 \code{metrics$entropy} (the headline number, printed by \code{print()}) is the
 relative entropy of the joint latent-status path across all occasions at
-once. This matches the single LTA entropy figure reported by one widely
-used program. The other reports an entropy per latent variable instead;
-the occasion-weighted average of that quantity, on this package's
-normalising convention, is \code{metrics$entropy_by_occasion} (printed by
-\code{summary()}). The two programs' own entropy figures use different
-normalising conventions for the per-latent-variable quantity, so to
-compare \code{entropy_by_occasion} against the other program's figures,
-convert with \code{1 - (1 - r2) * log(K) / H(pi_hat)}, where \code{r2} is the
-package's value, \code{K} is \code{n_statuses}, and \code{H(pi_hat)} is the entropy of
-that occasion's estimated status proportions (from
+once: one classification per case over the \code{K^T} possible paths,
+normalised by \code{n * T * log(K)}. The per-occasion alternative -- the
+relative entropy of each occasion's status posterior on its own,
+normalised by \code{log(K)} -- is \code{metrics$entropy_by_occasion} (printed by
+\code{summary()}). A per-occasion entropy can also be normalised by the
+entropy of that occasion's estimated status proportions instead of by
+\code{log(K)}; the two are related by \code{1 - (1 - r2) * log(K) / H(pi_hat)},
+where \code{r2} is the package's value, \code{K} is \code{n_statuses}, and \code{H(pi_hat)}
+is the entropy of that occasion's estimated status proportions (from
 \code{\link[=status_prevalences]{status_prevalences()}}).
 }
 \description{
@@ -464,8 +465,10 @@ Muthen, B., & Asparouhov, T. (2022). Latent transition analysis with random
 intercepts (RI-LTA). \emph{Psychological Methods}, \emph{27}(1), 1-16.
 \doi{10.1037/met0000370}
 
-Tseng (2024). \emph{Structural Equation Modeling}, \emph{31}(4), 626-634 -
-the power and sample-size analysis behind the guidance above.
+Tseng, M.-C. (2024). Latent profile transition analysis with random
+intercepts (RI-LPTA). \emph{Structural Equation Modeling}, \emph{31}(4),
+626-634. \doi{10.1080/10705511.2023.2284671} - the sample-size analysis
+behind the guidance above.
 }
 \seealso{
 \code{\link[=transition_matrix]{transition_matrix()}}, \code{\link[=status_prevalences]{status_prevalences()}},

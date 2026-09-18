@@ -13,15 +13,14 @@
 #
 #     Lambda = [1, t, t^2, ...]      (T x p, p = degree + 1)
 #
-# so the class trajectory on the link scale is Lambda %*% beta_k. Threshold-parameterised
-# software writes the same model with a threshold held equal across classes and the intercept
-# growth factor fixed at zero in the last class; that is a reparameterisation of
-# free per-class intercepts, not a restriction, and both forms have p*K free
-# growth parameters. Estimates therefore translate as
+# so the class trajectory on the link scale is Lambda %*% beta_k. The
+# threshold parameterisation writes the same model with a threshold held equal
+# across classes and the intercept growth factor fixed at zero in the last
+# class; that is a reparameterisation of free per-class intercepts, not a
+# restriction, and both forms have p*K free growth parameters. Estimates
+# translate as
 #
 #     intercept_k = mean(I)_k - threshold,     slope_k = mean(S)_k
-#
-# which is how the ex8.9 validation compares the two.
 
 # Polynomial design matrix in the time scores.
 #

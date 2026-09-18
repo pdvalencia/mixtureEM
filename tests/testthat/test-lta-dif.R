@@ -67,7 +67,7 @@ test_that("zero DIF slopes reproduce the no-DIF likelihood exactly", {
 # 2. The degenerate factor is regular LTA, in both the likelihood and the count
 # ------------------------------------------------------------------------------
 #
-# This is what proves the parameter count of the reference program's
+# This is what proves the parameter count of the benchmark's
 # 76-parameter model before any expensive fit is run: a `predictors_items` fit
 # borrows the random-intercept machinery at one node with the loading fixed at
 # zero, and that borrowing must cost exactly nothing.

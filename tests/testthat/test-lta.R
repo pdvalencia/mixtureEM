@@ -2,11 +2,11 @@
 # Latent transition analysis - the single-chain forward-backward engine
 # ==============================================================================
 #
-# Structural checks that need no reference program: internal consistency of
+# Structural checks that need no external oracle: internal consistency of
 # the forward-backward recursions, weighting, and restriction arithmetic.
 
 # ------------------------------------------------------------------------------
-# Structural checks, which need no reference program
+# Structural checks, which need no external oracle
 # ------------------------------------------------------------------------------
 
 test_that("frequency weights agree with the expanded case-level data", {

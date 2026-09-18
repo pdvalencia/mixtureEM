@@ -268,8 +268,8 @@ search that has, so it skips nothing.}
 
 \item{variances_equal}{Logical, for continuous indicators only: hold each
 item's variance equal across the classes, so the classes differ in location
-only. This is the homoscedastic latent profile model and the default
-parameterisation of several commercial programs, and it combines with
+only. This is the homoscedastic latent profile model, the conventional
+LPA parameterisation, and it combines with
 \code{group_invariant_params} to give a variance that is free across groups
 but shared by the classes within each. Passed through to the measurement
 model, so it is also available on an ordinary single-group fit.
@@ -409,13 +409,13 @@ indicator rescales the prior with it. That invariance is the reason the
 penalised-likelihood literature recommends a data-scaled penalty over a
 constant one (Chen, Tan, & Zhang, 2008, sec. 4).
 
-Two uses. \strong{Reproducing an unregularized fit:} setting a constant to
+Two uses. \strong{An unregularized fit:} setting a constant to
 \code{0} removes that prior and gives plain maximum likelihood for that
-block. This is an escape hatch for matching a reference analysis, not a
-recommended setting — the unpenalised mixture likelihood for a mixture of
-normals is unbounded, so a \emph{global} maximum likelihood estimate does
-not exist (Day, 1969; Kiefer & Wolfowitz, 1956) and what an unregularized
-program reports is a local maximum.
+block. This is an escape hatch, not a recommended setting — the
+unpenalised mixture likelihood for a mixture of normals is unbounded, so
+a \emph{global} maximum likelihood estimate does not exist (Day, 1969;
+Kiefer & Wolfowitz, 1956) and what an unregularized fit reports is a
+local maximum.
 
 \strong{Rescuing a collapsed fit:} this situation is now rare, because a
 continuous measurement model holds the variances equal across classes by
@@ -542,9 +542,10 @@ log-likelihoods.
 
 The log-likelihood is that of the indicators \emph{given} the group; the
 grouping variable's own distribution is not modelled and its proportions are
-not counted as parameters. Software that treats a known grouping variable as
-a latent class variable observed without error adds both. For
-comparison with such output, a \code{group} fit also carries
+not counted as parameters. The other convention -- the \emph{known-class}
+formulation, which treats the grouping variable as a latent class variable
+observed without error -- adds both. A \code{group} fit also carries the
+log-likelihood and parameter count on that scale, as
 \code{metrics$ll_knownclass} and \code{metrics$n_params_knownclass}; the
 difference is a fixed constant and cancels in \code{\link[=lr_test]{lr_test()}}.
 }

@@ -257,6 +257,15 @@
   n  <- x$metrics$n_starts
   nr <- x$metrics$n_replicated
   if (is.null(n) || is.null(nr) || !is.finite(n) || n < 2L) return(invisible(NULL))
+  # `nr` goes non-finite when every restart scores NaN (R/lta.R's
+  # `max(final_lls)` is NaN if even one candidate is), which is exactly the
+  # case where nothing ran to convergence. `n` stays a finite count, so this
+  # needs its own check rather than folding into the guard above -- without
+  # it, `if (nr == 1L)` below throws "missing value where TRUE/FALSE needed".
+  if (!is.finite(nr)) {
+    cat(sprintf("  Best solution  : none of %d starts ran to convergence\n", n))
+    return(invisible(NULL))
+  }
   # Both counts where they differ. Reporting only the converged one understates
   # what was asked for - a checklist item in its own right - and reporting only
   # the requested one overstates what the replication count is out of.

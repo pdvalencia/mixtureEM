@@ -159,11 +159,11 @@ against that reference:
   related to class membership.
 * **Sexual orientation.** One row looks like a discovery the paper's
   classify-and-analyze approach missed: non-heterosexual respondents have
-  higher odds of Sexual desire relative to Fidelity (OR = 2.75,
+  higher odds of Sexual desire relative to Fidelity (OR = 2.74,
   p = .022). But the omnibus test for sexual orientation — the one built
   to ask whether the covariate distinguishes *any* pair of classes at all
-  — is not significant here either (Wald chi-square = 6.44, df = 3,
-  p = .092), matching the paper's own null result. With three pairwise
+  — is not significant here either (Wald chi-square = 6.40, df = 3,
+  p = .094), matching the paper's own null result. With three pairwise
   contrasts tested, a single row below .05 is not strong evidence on its
   own; read the omnibus row first, and treat an isolated significant
   contrast beside a non-significant omnibus test as a hypothesis worth a

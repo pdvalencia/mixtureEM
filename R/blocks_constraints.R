@@ -10,8 +10,8 @@
 # where the applied literature routinely frees one kind and holds the other.
 #
 # Olivera-Aguilar & Rikoon (2018) is the case in point. Their "unconstrained"
-# multiple-group latent profile model — which they note is also what most
-# software fits by default — frees the class *means* across groups while holding
+# multiple-group latent profile model — the conventional default in the
+# applied literature — frees the class *means* across groups while holding
 # the indicator *variances* invariant, and it is that model, not the fully
 # heterogeneous one, that the invariance literature compares against. An
 # item-wise constraint cannot express it: an item is either wholly free or

@@ -4,9 +4,9 @@
 #
 # Not a data-preparation script (this directory is build-ignored, so it is
 # simply where reproducible off-line studies live). It answers the one question
-# the reference comparisons in the internal validation suite cannot: a standard
-# error can agree with another implementation's and still be the wrong number.
-# Only repeated sampling says whether an interval covers.
+# a single-fit check cannot: a standard error can be computed exactly as
+# specified and still be the wrong number. Only repeated sampling says whether
+# an interval covers.
 #
 # The design is that of Bakk, Oberski & Vermunt (2014, sec. 4.1), so the results
 # are comparable with their Tables 3 and 4: three classes measured by six

@@ -199,9 +199,10 @@ reproduces the "all five latent classes" comparison from Collins and Lanza's
 prevalence-differences table.
 
 Because `group = grade` is supplied, `m_free` and `m_none` also report a
-log-likelihood on the known-class scale, `metrics$ll_knownclass` — that is the
-number that lines up with what other programs print for this kind of model, as
-opposed to `metrics$ll`, which is on this package's own 1-step scale.
+log-likelihood on the known-class scale, `metrics$ll_knownclass` — the
+convention that models the grouping variable as a latent class observed
+without error and so adds its multinomial term — as opposed to `metrics$ll`,
+which conditions on the group.
 
 ```{r ll-knownclass}
 m_free$metrics$ll_knownclass
@@ -244,10 +245,9 @@ unrestricted solution, where class *k* still means what it means in `m_free`.
 `start_from = m_free` supplies exactly that: it seeds each fit at `m_free`'s own
 item-response probabilities and per-grade class sizes and runs no other start.
 This is the one place in the package where a starting value replaces the search
-rather than joining it, and other latent-class software arrives at the same
-arrangement from the other side — the restriction is expressed there by supplying
-the unrestricted solution as starting values, and supplying starting values makes
-the random-start option unavailable in the same call.
+rather than joining it, and for a reason: the restriction only means something
+once the classes have been anchored by the unrestricted solution, so a random
+search that could land in a differently labelled basin would defeat it.
 
 ```{r per-class, cache = TRUE}
 per_class <- lapply(1:5, function(k)

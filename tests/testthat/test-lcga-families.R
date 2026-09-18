@@ -2,7 +2,7 @@
 # LCGA families beyond the binomial: gaussian and Poisson
 # ==============================================================================
 #
-# Checks that need no reference program: the likelihood against closed-form
+# Checks that need no external oracle: the likelihood against closed-form
 # densities, corroboration against flexmix on simulated data, and wrapper
 # behaviour for the two families.
 

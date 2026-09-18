@@ -144,7 +144,7 @@ m_step.distal_continuous_pooled <- function(model_state, X, resp, weights = NULL
   #    each person K times over. The answer is to cluster the meat on the
   #    person -- sum each person's K record scores into one score before
   #    squaring -- not to abandon the sandwich, which is what this code did
-  #    until the BCH standard errors were traced against another program's.
+  #    until the BCH standard errors were traced through by hand.
   #
   #    Dropping the meat is not conservative. B = U'WU is built from the
   #    *signed* BCH weights, and the whole point of inverting the

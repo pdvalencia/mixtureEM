@@ -4,7 +4,7 @@
 # The core algebraic claim is that the joint design .distal_U() builds is
 # exactly the expanded weighted-least-squares problem it is meant to be, so
 # the primary check is against lm.wfit() on that same design -- not against
-# any reference program's output.
+# any external target.
 
 .sim_moderation_data <- function(n = 400, seed = 11) {
   set.seed(seed)

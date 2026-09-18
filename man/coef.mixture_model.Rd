@@ -41,8 +41,8 @@ The printed summary reports odds ratios because that is the scale these
 effects are interpreted and published on, and the default here matches it.
 \code{coef(fit, exponentiate = FALSE)} and
 \code{\link[=vcov.mixture_model]{vcov}} give the log-scale estimates and
-their standard errors, for anyone who needs to compare them against another
-program or pool them across analyses. Both scales are exact —
+their standard errors, for anyone who needs to report them on that scale
+or pool them across analyses. Both scales are exact —
 \code{log(coef(fit))} has always recovered the coefficients, since the odds
 ratios are returned at full double precision; the argument makes that
 discoverable rather than a trick.

@@ -151,10 +151,9 @@
 # the ones the theorem describes.
 .vlmr_eigen <- function(a0, a1, version) {
   # "standard" is Vuong's own form, on the ordinary covariance; "robust"
-  # substitutes the sandwich, a modification another program makes and for which
-  # Vermunt (2024) reports having found no theoretical justification in the
-  # literature. It is a documented difference between implementations, not a bug
-  # in either.
+  # substitutes the sandwich, a modification for which Vermunt (2024) reports
+  # having found no theoretical justification in the literature. Both are
+  # offered because both are in use; neither is a bug.
   B0  <- crossprod(a0$s)
   B1  <- crossprod(a1$s)
   B10 <- crossprod(a1$s, a0$s)

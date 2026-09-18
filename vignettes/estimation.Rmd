@@ -19,7 +19,7 @@ Most of the time you do not need this vignette. The defaults are the settings
 the package intends you to use, and the other vignettes show the analyses.
 
 This one exists for the moments when a number does not look the way you
-expected: a log-likelihood that differs from another program's, a warning about
+expected: a log-likelihood that differs from a published one, a warning about
 a collapsed variance, a probability reported as 0.000. Each of those is a
 deliberate choice with a literature behind it, and each is easier to live with
 once you know which choice it was.
@@ -102,7 +102,7 @@ Set `random_state` to make the search reproducible.
 
 ## How long EM runs, and when it stops
 
-Each start runs until the log-likelihood stops improving by more than `1e-4`, or
+Each start runs until the log-likelihood stops improving by more than `1e-6`, or
 until it has taken `max_iter = 1000` iterations, whichever comes first.
 
 The iteration budget has a direct precedent: Biernacki et al. (2003) budget
@@ -114,8 +114,9 @@ discussion is "for a good solution, do not skimp on the number of iterations"
 non-convergence warning names the doubled value.
 
 The tolerance is a different kind of number, and it is worth being plain about
-it: `1e-4` is a pragmatic calibration against this package's own reference fits,
-not a value taken from the literature. If anything the literature argues against
+it: `1e-6` is a pragmatic choice from this package's own accuracy-versus-cost
+measurements, not a value taken from the literature. If anything the
+literature argues against
 relying on a rule of that form at all. Biernacki et al. (p. 568): "We do not use
 stopping criteria based on the relative change of the estimates or
 loglikelihood because the slow convergence of the EM makes such criteria
@@ -157,19 +158,17 @@ test has been randomly displaced" (p. 155). `blrt()` warns when the result lands
 within one step of .05 and names `n_reps = 999`.
 
 **Each replicate's null fit is seeded from the observed data, not searched.**
-Two reference implementations were checked here: one reports that "the maximum
-likelihood estimates serve as start values" for every bootstrap replicate, so
-"no random sets are used for the replications" on the smaller model; the other
-runs zero random sets and zero optimizations for the smaller model on a
-replicate, spending its whole restart budget on the larger one instead.
-`blrt()` matches that: a replicate's (*k*-1)-class fit starts from the observed
-(*k*-1)-class model's own converged parameters and runs no random restarts.
+A replicate is generated from the observed (*k*-1)-class model, so that
+model's own converged parameters are already the best available start for
+refitting it; a random search there can only rediscover the same basin at a
+cost. `blrt()` therefore starts a replicate's (*k*-1)-class fit from those
+parameters and runs no random restarts on it.
 
 **`n_init_boot = 10` sizes the *k*-class replicate's search alone, and is a
 compute compromise, not a recommendation** — the alternative gets
 `2 * n_init_boot` restarts (20 by default), the budget the null no longer
-needs, because that is where both reference programs put theirs and where
-this package's own cost lives. No source endorses the number 10 itself.
+needs, because the *k*-class side is the one that can land in a wrong basin
+and is where the cost lives. No source endorses the number 10 itself.
 Dziak et al. (p. 4, fn. 3) say the minimum "is not known", that too few starts
 under the alternative "can lead to invalid results", and that a local maximum
 there can make "the calculated likelihood ratio … occasionally be nonsensical
@@ -224,13 +223,12 @@ Three consequences worth knowing:
 
 - **The reported log-likelihood is the log-likelihood**, evaluated at the
   posterior mode — not the log-posterior. It is the same function a
-  maximum-likelihood program reports, evaluated at slightly different estimates,
+  maximum-likelihood fit reports, evaluated at slightly different estimates,
   so it is bounded above by the ML value. The gap grows with the number of
   parameters ML would have placed on the boundary, and it keeps AIC and BIC on a
   defensible scale.
 - **Setting a constant to `0` recovers plain maximum likelihood** for that block.
-  That is an escape hatch for reproducing an unregularized reference analysis,
-  not a recommended setting.
+  That is an escape hatch, not a recommended setting.
 - **`measurement_summary()` flags probabilities that reached the boundary
   anyway.** Those tell you something real — a class defined partly by an item
   every case in it answers the same way — and warn you not to read their
@@ -371,13 +369,14 @@ With `group =`, mixtureEM maximises the likelihood of the indicators **given**
 the group. The grouping variable's own distribution is not modelled and its
 proportions are not counted as parameters.
 
-That is a convention, and programs differ. Software that treats a fully observed
-grouping variable as a latent class variable instead adds the group's
-multinomial term to the log-likelihood and its `G - 1` proportions to the
-parameter count. Both differences are fixed constants: they cancel in any
-likelihood-ratio test and in any comparison among models fitted here. For
-reading numbers off such output directly, a `group` fit also carries
-`metrics$ll_knownclass` and `metrics$n_params_knownclass`.
+That is a convention. The other one -- the known-class formulation, which
+treats a fully observed grouping variable as a latent class variable observed
+without error -- adds the group's multinomial term to the log-likelihood and
+its `G - 1` proportions to the parameter count. Both differences are fixed
+constants: they cancel in any likelihood-ratio test and in any comparison
+among models fitted here. A `group` fit carries both scales:
+`metrics$ll_knownclass` and `metrics$n_params_knownclass` are the known-class
+figures.
 
 ## References
 

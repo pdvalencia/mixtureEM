@@ -73,7 +73,7 @@ coefficients with a published set.
 \code{se = "corrected"} (the default) is the Bakk, Oberski and Vermunt (2014)
 estimator, which propagates the uncertainty in the step-1 estimates as well as
 the step-3 sampling variability. \code{se = "robust"} reports only the latter; use
-it when reproducing an analysis whose standard errors were computed that way.
+it when the assigned classes are to be treated as given.
 
 \strong{Why a three-step function at all, when the measurement model could just be
 refit with \code{predictors} supplied to \code{fit_mixture()} directly.} Jiang,

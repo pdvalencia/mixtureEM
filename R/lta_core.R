@@ -77,8 +77,6 @@
 # logsumexp() calls per pass, one per destination status per occasion in each
 # direction, plus one exp() of an n x K block per (occasion, origin) in the
 # pairwise accumulation. Here each of those becomes a single matrix product.
-# Another program's own account of a large release-to-release speed-up says it
-# went to the same place for the same reason.
 #
 # Underflow, which is the thing a probability-domain recursion is usually
 # accused of, is handled where it arises rather than by staying in logs: each
@@ -238,10 +236,10 @@
 # add-one-per-cell family (Jeffreys, Laplace, Goodman's add-2) is markedly worse
 # on sparse transition structures, which is Fienberg & Holland's (1973) own
 # finding about adding 2 to every cell of a large sparse table. Until 2026-08-31
-# the mass here was one pseudo-case per *row*, which is K times what the program
-# this package calibrates against puts on a transition matrix; `patterns` below
-# is what fixes that, and `### 41.1 re-opened` in internal/ROADMAP.md records
-# the reconciliation that measured it.
+# the mass here was one pseudo-case per *row*, which is K times the mass a
+# transition matrix should receive when `alpha` is the mass for the whole
+# conditional table; `patterns` below is what fixes that, and `### 41.1
+# re-opened` in internal/ROADMAP.md records the measurement.
 #
 # The spread is even, not proportional to the destinations' marginal. That is
 # the opposite of the measurement model's prior (m_step.bernoulli(), which
@@ -262,13 +260,11 @@
 # distribution, K for a transition matrix's rows, K * C when a latent class sits
 # above the chain as well. `alpha` is the mass for the WHOLE conditional table,
 # so a row of it receives `alpha / patterns` and a cell of that row
-# `alpha / (patterns * sum(allowed))`. This is the other program's constant: its
-# prior on a latent variable is `alpha / (K * U0)` per cell, with U0 the count of
-# unique covariate and predictor patterns, and in a chained LTA the previous
-# status is a predictor. Until 2026-08-31 `patterns` was effectively 1 here, so a
-# transition matrix received K times the mass it should have -- see
-# `### 41.1 re-opened` in internal/ROADMAP.md, which pins the constant by
-# evaluating the kernel at that program's own converged solution.
+# `alpha / (patterns * sum(allowed))`, so `alpha` is spread over every cell of
+# every row the conditional table has, and in a chained LTA the previous
+# status is one of the predictors. Until 2026-08-31 `patterns` was effectively
+# 1 here, so a transition matrix received K times the mass it should have --
+# see `### 41.1 re-opened` in internal/ROADMAP.md.
 .lta_normalise <- function(counts, alpha, allowed = NULL, patterns = 1L) {
   if (is.null(allowed)) allowed <- rep(TRUE, length(counts))
   if (!any(allowed)) return(rep(1 / length(counts), length(counts)))
@@ -1254,10 +1250,11 @@
       p  <- pmin(pmax(state$mm$models[[b$grp[1]]]$parameters$pis[, b$j],
                       1e-300), 1 - 1e-300)
       mj <- .lta_rho_prior_marginal(state, X, b)
-      # The other program writes one measurement equation per occasion and puts
-      # a_cat/K on each, so an item held invariant over the occasions in `grp`
-      # carries that mass once per occasion, not once in total. m_step.blocks()
-      # applies the same multiplier when it pools the occasions.
+      # The prior is one term per measurement equation, and there is one
+      # equation per occasion with a_cat/K on each, so an item held invariant
+      # over the occasions in `grp` carries that mass once per occasion, not
+      # once in total. m_step.blocks() applies the same multiplier when it
+      # pools the occasions.
       a_rho <- length(b$grp) * a_cat / K
       val <- val + a_rho * sum(mj * log(p) + (1 - mj) * log1p(-p))
       # On the logit scale the derivative collapses to a_rho * (m_j - rho).

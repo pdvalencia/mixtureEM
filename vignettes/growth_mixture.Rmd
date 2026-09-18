@@ -172,15 +172,14 @@ blrt(k_small = 2, k_large = 3, from_fit = fit_gmm2, n_reps = 100)
   specification rather than about the search (Hipp & Bauer, 2006).
 * **A lower log-likelihood is not always a worse answer.** The
   growth-factor covariance is constrained here to be positive
-  semi-definite, and the residual variances to be positive. Software that
-  does not impose those constraints can report a negative variance, or
-  variances that are each positive while implying a correlation greater
-  than one in absolute value — and the likelihood it prints for such a
-  solution is evaluated outside the parameter space, so it is not
-  comparable with one that is inside it. When mixtureEM reports a lower
-  likelihood than another program on the same model, check the other
-  program's covariance matrix before concluding anything: an admissible
-  solution with a smaller likelihood is the reportable one. The right
+  semi-definite, and the residual variances to be positive. An unconstrained
+  optimiser can reach a negative variance, or variances that are each
+  positive while implying a correlation greater than one in absolute value
+  — and the likelihood at such a solution is evaluated outside the parameter
+  space, so it is not comparable with one that is inside it. When a published
+  analysis of the same model reports a higher likelihood, check its covariance
+  matrix before concluding anything: an admissible solution with a smaller
+  likelihood is the reportable one. The right
   response to a model that cannot produce a proper solution is Berlin,
   Parra and Williams's (2014): to report that no reasonable and proper
   solution was found, and to simplify the specification.

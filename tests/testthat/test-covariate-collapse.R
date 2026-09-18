@@ -1,8 +1,8 @@
 # A one-step fit with covariates on class membership used to refuse the
 # response-pattern economy outright. It no longer does: the key widens to
-# (response pattern, covariate values), which is the grouping another program's
-# manual describes. The claim is again a saving and not a change, and these
-# tests are what stands behind it.
+# (response pattern, covariate values): two cases are interchangeable only
+# when responses and covariates both agree. The claim is again a saving and
+# not a change, and these tests are what stands behind it.
 
 .cc_sim <- function(seed = 11, n = 1500) {
   set.seed(seed)

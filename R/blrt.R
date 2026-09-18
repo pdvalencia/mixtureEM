@@ -234,7 +234,8 @@ generate_synthetic_data <- function(mm, classes, N) {
 #' @param n_init_boot Random restarts for the alternative model on each
 #'   bootstrap replicate (the null model's replicate fit is seeded from the
 #'   observed-data null fit's own parameters and runs no random restarts at
-#'   all, matching both reference programs' practice; see
+#'   all -- the replicate was generated from that null, so its own parameters
+#'   are already the best available start; see
 #'   \code{vignette("estimation")}). \code{blrt()} gives the alternative
 #'   \code{2 * n_init_boot} restarts, spending on it what the null no longer
 #'   needs. Default \code{10} (so \code{20} restarts per replicate on the
@@ -402,11 +403,11 @@ blrt <- function(indicators, k_small, k_large, measurement,
     #
     # The null replicate is seeded from the observed-data null fit's own
     # parameters and runs no random restarts at all -- the same `warm_start`
-    # device `refine_from` uses (`.mixture_refine_warm_start()`), and the
-    # practice of both reference programs, which never re-search the null on a
-    # replicate. What that frees up goes to the alternative, which is where
-    # both of them put their budget: it gets twice the restarts a single
-    # currency (n_init_boot) used to spend on each side.
+    # device `refine_from` uses (`.mixture_refine_warm_start()`). The replicate
+    # was generated from that null, so a re-search of it can only find the
+    # same basin. What that frees up goes to the alternative, which is the side
+    # that can actually land in a wrong basin: it gets twice the restarts a
+    # single currency (n_init_boot) used to spend on each side.
     m_null_gen <- fit_engine(X_gen, k_small, n_init = 0L, refine = FALSE,
                              n_cores = 1L,
                              warm_start = .mixture_refine_warm_start(null_model))

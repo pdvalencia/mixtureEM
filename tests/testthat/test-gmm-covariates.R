@@ -2,7 +2,7 @@
 # Covariates on the growth factors in growth mixture models
 # ==============================================================================
 #
-# Checks that need no reference program: the conditional-mean algebra of the
+# Checks that need no external oracle: the conditional-mean algebra of the
 # emission, recovery of known regressions from simulated data, M-step
 # monotonicity, and wrapper behaviour (naming, alignment, FIML, sorting).
 

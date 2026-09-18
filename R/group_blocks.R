@@ -106,16 +106,16 @@ group_blocks_model <- function(n_components, n_items, n_groups,
   fit
 }
 
-# Report the fit on the scale a known-class program uses, alongside its own.
+# Report the fit on the known-class scale, alongside its own.
 #
 # mixtureEM maximises the likelihood of the items *given* the group, and it does
-# not count the group's own G-1 proportions as parameters. Software that instead
-# treats the grouping variable as a latent class variable observed without error
-# adds the group's multinomial term to the
+# not count the group's own G-1 proportions as parameters. The known-class
+# formulation, which treats the grouping variable as a latent class variable
+# observed without error, adds the group's multinomial term to the
 # log-likelihood and its proportions to the parameter count. Both differences are
 # fixed constants that cancel in any likelihood-ratio test and in any comparison
-# between models fitted here, so they change no inference; they are supplied so a
-# number read off such a program's output can be compared directly.
+# between models fitted here, so they change no inference; they are supplied so
+# the fit can be read on either scale.
 .add_knownclass_scale <- function(fit, group_info) {
   g <- group_info$factor
   n <- table(g)

@@ -2,7 +2,7 @@
 # Growth mixture models (the structured multivariate-normal emission)
 # ==============================================================================
 #
-# Checks that need no reference program: the likelihood against closed-form
+# Checks that need no external oracle: the likelihood against closed-form
 # densities, boundary reporting, parameter-count arithmetic, and estimation
 # on simulated data with known structure.
 

@@ -2,7 +2,7 @@ test_that("the scaled recursion returns exactly what the log-space one returns",
   # The scaled forward-backward is the same arithmetic in the probability
   # domain, so this is an equality check, not a tolerance-shopping exercise: any
   # disagreement above floating-point noise is a defect in one of them. The
-  # log-space form is the reference because it is the one every locked target in
+  # log-space form is the oracle because it is the one every locked benchmark in
   # the package was measured on.
   set.seed(202)
 

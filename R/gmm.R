@@ -392,8 +392,8 @@ fit_gmm <- function(indicator,
 # the numerical floor.
 #
 # A growth mixture model whose covariance structure the data do not support does
-# not fail; it produces a variance that wants to be negative. Some programs let
-# it go negative and print it. This package floors instead, which keeps the
+# not fail; it produces a variance that wants to be negative. An unconstrained
+# optimiser would let it go negative. This package floors instead, which keeps the
 # likelihood a likelihood, but a floored estimate is the same diagnosis and
 # would otherwise be reported as though it were an ordinary small variance.
 #

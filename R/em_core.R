@@ -97,10 +97,9 @@ e_step <- function(model_state, X, Y = NULL) {
 # Collapse X to unique response patterns, summing the case weights within each
 # pattern, so the EM iterations run on the pattern table instead of the full
 # n rows. Where a class-membership regression is active the key widens to
-# (response pattern, covariate values) rather than switching the economy off,
-# which is the grouping another program's manual describes, for the same
-# reason: two cases are interchangeable when they give the same responses AND
-# carry the same covariate values. Returns NULL when the fit is not eligible
+# (response pattern, covariate values) rather than switching the economy off:
+# two cases are interchangeable when they give the same responses AND carry
+# the same covariate values, and only then. Returns NULL when the fit is not eligible
 # for collapsing: some other structural model is active, a covariate value is
 # missing, the measurement model is not one of the plain
 # categorical families (continuous data has no duplicate rows, and collapsing
@@ -269,9 +268,9 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 #
 # The value above was chosen from the accuracy/cost curve on simulated data,
 # but that curve only bounds how far a fit sits from its own optimum, and
-# "the optimum" is not the same target as an external anchor. Checked against
-# five reference fits this package owns, abs = 1e-4 sat below every one of
-# them; abs = 1e-6 lands on all five, inside 2e-4. Full ladder and settings:
+# "the optimum" is not the same target as the fully converged maximum. On
+# five benchmark fits taken to full convergence, abs = 1e-4 sat below every one
+# of them; abs = 1e-6 lands on all five, inside 2e-4. Full ladder and settings:
 # RECORDS.md, "R3's W1"; the reasoning that ruled out chasing the gap with a
 # gradient fix instead: DECISIONS.md, "R3 — the polish was never the gap".
 # Median cost across the ten models measured is 1.5x the iterations, worst
@@ -741,7 +740,7 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
   # All three priors are read off the emission, which carries the whole
   # `bayes_constants` list. They used to be hard-coded at 1 here while only
   # `variances` was read, so `bayes_constants = list(categorical = 0, latent = 0)`
-  # — the documented escape hatch for reproducing an unregularized reference fit
+  # — the documented escape hatch for an unregularized maximum-likelihood fit
   # — switched the priors off in the M-step and left them on in the polish. The
   # two stages then optimised different objectives, and the polish pulled the fit
   # back off the maximum-likelihood optimum it had been asked for: on a 4-class
@@ -1058,7 +1057,7 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
   #
   # The polish made up a ninth of what stopping early gave away, and the loss
   # scaled with the model: the same shortfall, three times over, was the whole
-  # of a 3.5-unit gap against the reference on a three-group configural fit.
+  # of a 3.5-unit gap below the converged maximum on a three-group configural fit.
   # A relative tolerance of 1e-3 also stops EM at an absolute change of about 2.4
   # units on a log-likelihood of -2354, which is far too coarse to *rank*
   # restarts, so it was quietly degrading the multi-start search as well.
@@ -1280,8 +1279,8 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
   # a different object from one reached nineteen times: the first says the search
   # may simply have been lucky and a different seed could beat it, the second
   # that the surface has been mapped. This is the standard multi-start report in
-  # the latent class literature and in the programs applied researchers compare
-  # against, and it costs nothing here because the values are computed anyway.
+  # the latent class literature, and it costs nothing here because the values
+  # are computed anyway.
   # Attached to the winning state at the end.
   final_lls <- numeric(0)
   record <- function(ll) { final_lls <<- c(final_lls, ll); invisible(NULL) }

@@ -66,8 +66,8 @@ test_that("`random_intercept` refuses continuous measurement", {
 # shared across classes, only `delta`/`tau`/`class_weights` are class-
 # specific, mirroring how the measurement model is already pooled across
 # classes for a non-RI mover-stayer fit. This is a cheap smoke test only --
-# n_init = 1, max_iter tiny, made-up data -- not a match against real-data
-# reference targets, which stays a separate, more expensive follow-up.
+# n_init = 1, max_iter tiny, made-up data -- not a check against real-data
+# benchmark figures, which stays a separate, more expensive follow-up.
 test_that("mover-stayer combines with a random intercept (continuous)", {
   X <- .lta_refine_sim(n = 30, K = 2, Tn = 4, J = 3, seed = 1)
   fit0 <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
@@ -417,6 +417,25 @@ test_that("standard_errors = TRUE returns finite loading SEs (continuous)", {
                              "alpha[item 1]")]]
   alpha_se <- sqrt(diag(fit$se$vcov))[b$cols]
   expect_true(all(is.finite(alpha_se)) && all(alpha_se > 0))
+
+  # The user-facing view of the same numbers: one row per item, in item
+  # order, the loading and its SE agreeing with the raw slots they come from.
+  L <- random_intercept_loadings(fit)
+  expect_s3_class(L, "data.frame")
+  expect_equal(nrow(L), 3L)
+  expect_equal(L$loading, as.vector(fit$ri$L[, 1]))
+  expect_equal(L$se, as.vector(fit$se$loading_se[, 1]))
+  expect_equal(L$z, L$loading / L$se)
+  expect_false(any(grepl("@T1$", L$item)))
+  no_se <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", random_intercept = "continuous",
+    n_quadrature = 10, n_init = 1, max_iter = 25, random_state = 1,
+    standard_errors = FALSE))
+  expect_true(all(is.na(random_intercept_loadings(no_se)$se)))
+  plain <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", n_init = 1, max_iter = 5, random_state = 1,
+    standard_errors = FALSE))
+  expect_error(random_intercept_loadings(plain), "random_intercept")
 })
 
 test_that("standard_errors = TRUE returns finite loading SEs (binary)", {

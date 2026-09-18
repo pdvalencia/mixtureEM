@@ -345,15 +345,15 @@ test_that("a survey design still reaches the meat of the sandwich", {
 #
 # The printed output reports odds ratios, which is the scale these effects are
 # published on. What these two check is that the log-scale quantities behind it
-# can still be got at, at full precision, by anyone comparing against another
-# program.
+# can still be got at, at full precision, by anyone who needs them on that
+# scale.
 
 test_that("confint() returns full precision and still prints to three decimals", {
   fit <- .cse_fit(.cse_sim())
   ci  <- confint(fit)
 
   # The defect this replaced rounded inside the returned object, which put a
-  # 0.001 floor under any comparison of these numbers with another program's.
+  # 0.001 floor under any comparison of these numbers.
   or <- ci$z$OR
   expect_false(isTRUE(all.equal(or, round(or, 3), tolerance = 0)))
 
