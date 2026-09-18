@@ -277,7 +277,7 @@ results <- summary(fit_cov)
 #> ---------------------------------------------------------
 #>                           Wald Chi2   df  P-Value
 #>   sex                        23.156    3    < .001
-#>   age                        10.871    3     0.012
+#>   age                        10.872    3     0.012
 #>   sexual_orientation          6.880    3     0.076
 #>   relationship_duration       1.868    3     0.600
 #>   Note: a non-significant test beside large coefficients can be the
@@ -298,20 +298,20 @@ tables invisibly, so the odds ratios are available as a data frame:
 ``` r
 
 head(results$coefficients)
-#>   class                                term    estimate        se          z
-#> 1     2                           Intercept  0.33278381 0.8960366  0.3713953
-#> 2     2                          sex.Female  1.01243684 0.4588430  2.2064995
-#> 3     2                                 age -0.06924191 0.0371221 -1.8652478
-#> 4     2 sexual_orientation.Not heterosexual -0.11398139 0.4598215 -0.2478818
-#> 5     2          relationship_duration.Long  0.13359774 0.3909234  0.3417492
-#> 6     3                           Intercept -1.42967713 0.6047376 -2.3641279
-#>            p        OR  OR_lower  OR_upper
-#> 1 0.71034311 1.3948457 0.2408820 8.0769602
-#> 2 0.02734905 2.7522998 1.1197490 6.7650464
-#> 3 0.06214668 0.9331009 0.8676202 1.0035236
-#> 4 0.80422585 0.8922746 0.3623185 2.1973866
-#> 5 0.73253966 1.1429330 0.5312025 2.4591297
-#> 6 0.01807257 0.2393862 0.0731705 0.7831811
+#>   class                                term    estimate         se          z
+#> 1     2                           Intercept  0.33278381 0.89603470  0.3713961
+#> 2     2                          sex.Female  1.01243684 0.45884245  2.2065021
+#> 3     2                                 age -0.06924191 0.03712189 -1.8652584
+#> 4     2 sexual_orientation.Not heterosexual -0.11398139 0.45982205 -0.2478815
+#> 5     2          relationship_duration.Long  0.13359774 0.39091636  0.3417553
+#> 6     3                           Intercept -1.42967713 0.60473704 -2.3641302
+#>            p        OR   OR_lower  OR_upper
+#> 1 0.71034252 1.3948457 0.24088294 8.0769297
+#> 2 0.02734886 2.7522998 1.11975020 6.7650391
+#> 3 0.06214520 0.9331009 0.86762056 1.0035232
+#> 4 0.80422608 0.8922746 0.36231814 2.1973890
+#> 5 0.73253505 1.1429330 0.53120975 2.4590960
+#> 6 0.01807246 0.2393862 0.07317059 0.7831802
 ```
 
 Reference class 1 is Fidelity (the largest class). Reading the odds

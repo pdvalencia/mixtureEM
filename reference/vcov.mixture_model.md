@@ -75,5 +75,5 @@ fit <- fit_mixture(X, Y = Z, n_components = 2, measurement = "binary",
 #> Note: `X`, `Y`, `n_components`, and `structural` are the legacy interface. The current arguments are `indicators`, `n_classes`, `predictors`, and `outcome` / `outcome_covariates`.
 sqrt(diag(vcov(fit)))
 #> Class 2:Intercept       Class 2:age 
-#>         2.3585388         0.6877525 
+#>         2.3609274         0.6879454 
 ```

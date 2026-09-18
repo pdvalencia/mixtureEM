@@ -346,7 +346,7 @@ lta_covariate_summary(fit_pov)
 #>   [occasion 1 -> 2]
 #>       Status      Term Estimate     SE      z        p          OR
 #>  to Status 1 Intercept   -3.069  0.194 -15.86  < 1e-16       0.046
-#>  to Status 1    from:1   14.142 27.479   0.51 0.606807 1386050.219
+#>  to Status 1    from:1   14.142 27.479   0.51 0.606807 1386050.213
 #>  to Status 1    from:2    9.379  1.204   7.79 6.68e-15   11834.170
 #>  to Status 1   poverty   -0.772  0.231  -3.34 0.000824       0.462
 #>  to Status 2 Intercept    0.979  0.052  18.73  < 1e-16       2.663

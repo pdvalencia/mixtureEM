@@ -184,7 +184,7 @@ results <- summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.604  [    0.285,     1.281]     0.189
+#>   Intercept                0.604  [    0.285,     1.282]     0.189
 #>   risk                     1.891  [    1.410,     2.535]    < .001
 #> 
 #> Class 3 ON

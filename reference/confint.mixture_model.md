@@ -98,7 +98,7 @@ confint(fit)
 #> 
 #> Intercept
 #>   Class 1 (Ref)       1.000        -        -
-#>   Class 2             0.739    0.007   75.210
+#>   Class 2             0.739    0.007   75.563
 #> 
 #> age
 #>   Class 1 (Ref)       1.000        -        -

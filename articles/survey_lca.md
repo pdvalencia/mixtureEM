@@ -167,7 +167,7 @@ results <- summary(fit_cov)
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   sex                       75.098    4    < .001
+#>   sex                       75.097    4    < .001
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================

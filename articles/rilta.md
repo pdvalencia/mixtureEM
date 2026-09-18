@@ -480,8 +480,8 @@ lr_test(fit_pov_ri, fit_pov_tr)
 #> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
 #>   Restricted : LL =  -20127.6888   parameters = 41
-#>   Full       : LL =  -20106.2427   parameters = 47
-#>   -2 x diff  : 42.8922   df = 6   p = 1.225e-07
+#>   Full       : LL =  -20106.2426   parameters = 47
+#>   -2 x diff  : 42.8924   df = 6   p = 1.225e-07
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 
@@ -506,36 +506,36 @@ lta_covariate_summary(fit_pov_tr)
 #> 
 #>   [occasion 1 -> 2]
 #>       Status      Term Estimate     SE     z      p          OR
-#>  to Status 1 Intercept   -8.603 15.543 -0.55 0.5799       0.000
-#>  to Status 1    from:1   11.475 15.544  0.74 0.4604   96260.647
-#>  to Status 1    from:2   -1.878 33.175 -0.06 0.9549       0.153
-#>  to Status 1   poverty    0.006  0.303  0.02 0.9838       1.006
-#>  to Status 2 Intercept  -10.488 41.506 -0.25 0.8005       0.000
-#>  to Status 2    from:1   15.007 41.506  0.36 0.7177 3292968.570
-#>  to Status 2    from:2   11.748 41.506  0.28 0.7772  126441.836
-#>  to Status 2   poverty   -0.648  0.290 -2.23 0.0256       0.523
+#>  to Status 1 Intercept   -8.602 15.539 -0.55 0.5799       0.000
+#>  to Status 1    from:1   11.474 15.540  0.74 0.4603   96199.286
+#>  to Status 1    from:2   -1.875 33.144 -0.06 0.9549       0.153
+#>  to Status 1   poverty    0.005  0.303  0.02 0.9857       1.005
+#>  to Status 2 Intercept  -10.487 41.486 -0.25 0.8004       0.000
+#>  to Status 2    from:1   15.006 41.486  0.36 0.7176 3289186.085
+#>  to Status 2    from:2   11.748 41.486  0.28 0.7770  126502.204
+#>  to Status 2   poverty   -0.648  0.290 -2.23 0.0255       0.523
 #> 
 #>   [occasion 2 -> 3]
 #>       Status      Term Estimate     SE     z        p          OR
-#>  to Status 1 Intercept   -5.122  0.905 -5.66 1.51e-08       0.006
-#>  to Status 1    from:1    7.345  0.949  7.74 9.91e-15    1547.738
-#>  to Status 1    from:2   -0.015  1.128 -0.01    0.989       0.985
-#>  to Status 1   poverty    1.870  0.271  6.90 5.33e-12       6.487
-#>  to Status 2 Intercept  -11.128 26.122 -0.43    0.670       0.000
-#>  to Status 2    from:1   14.776 26.123  0.57    0.572 2614241.328
-#>  to Status 2    from:2   13.727 26.122  0.53    0.599  915697.122
-#>  to Status 2   poverty    0.109  0.197  0.55    0.580       1.115
+#>  to Status 1 Intercept   -5.124  0.906 -5.66 1.53e-08       0.006
+#>  to Status 1    from:1    7.346  0.949  7.74 1.02e-14    1549.762
+#>  to Status 1    from:2   -0.011  1.128 -0.01    0.992       0.989
+#>  to Status 1   poverty    1.870  0.271  6.90 5.34e-12       6.488
+#>  to Status 2 Intercept  -11.129 26.139 -0.43    0.670       0.000
+#>  to Status 2    from:1   14.778 26.140  0.57    0.572 2617054.928
+#>  to Status 2    from:2   13.728 26.139  0.53    0.599  916596.076
+#>  to Status 2   poverty    0.109  0.197  0.55    0.579       1.116
 #> 
 #>   [occasion 3 -> 4]
 #>       Status      Term Estimate     SE     z        p      OR
-#>  to Status 1 Intercept   -4.814  0.635 -7.58 3.55e-14   0.008
-#>  to Status 1    from:1    3.824  0.661  5.78 7.36e-09  45.779
-#>  to Status 1    from:2   -0.776  0.697 -1.11 0.265881   0.460
-#>  to Status 1   poverty    0.181  0.293  0.62 0.535289   1.199
-#>  to Status 2 Intercept  -10.923 11.648 -0.94 0.348376   0.000
-#>  to Status 2    from:1    2.435 12.381  0.20 0.844084  11.416
-#>  to Status 2    from:2    6.537 11.648  0.56 0.574661 690.107
-#>  to Status 2   poverty    1.105  0.294  3.75 0.000174   3.019
+#>  to Status 1 Intercept   -4.814  0.635 -7.58 3.51e-14   0.008
+#>  to Status 1    from:1    3.823  0.661  5.78 7.35e-09  45.728
+#>  to Status 1    from:2   -0.777  0.697 -1.11 0.265169   0.460
+#>  to Status 1   poverty    0.181  0.293  0.62 0.535262   1.199
+#>  to Status 2 Intercept  -10.946 11.783 -0.93 0.352909   0.000
+#>  to Status 2    from:1    2.471 12.499  0.20 0.843314  11.829
+#>  to Status 2    from:2    6.560 11.783  0.56 0.577702 706.285
+#>  to Status 2   poverty    1.105  0.294  3.75 0.000174   3.018
 #> 
 #> PREDICTING THE RANDOM INTERCEPT (linear regression, residual variance fixed at 1)
 #> The factor's sign is fixed by making the largest loading positive;
@@ -563,11 +563,11 @@ come with theirs:
 
 random_intercept_loadings(fit_pov_tr)
 #>        item  loading         se        z
-#> 1   letters 3.099356 0.11866587 26.11835
-#> 2 beginning 2.440123 0.07678405 31.77903
-#> 3    ending 2.308457 0.06589962 35.02990
-#> 4     sight 3.412622 0.14177734 24.07029
-#> 5   context 3.469210 0.15731196 22.05306
+#> 1   letters 3.099459 0.11866953 26.11841
+#> 2 beginning 2.440210 0.07678495 31.77980
+#> 3    ending 2.308522 0.06589985 35.03076
+#> 4     sight 3.412716 0.14178025 24.07046
+#> 5   context 3.469310 0.15731501 22.05326
 ```
 
 [`random_intercept_scores()`](https://pdvalencia.github.io/mixtureEM/reference/random_intercept_scores.md)

@@ -35,19 +35,19 @@ on.
 
   Letter recognition mastered (0/1).
 
-- beginning_t1, ..., beginning_t4:
+- beginning_t1, beginning_t2, beginning_t3, beginning_t4:
 
   Beginning sounds mastered (0/1).
 
-- ending_t1, ..., ending_t4:
+- ending_t1, ending_t2, ending_t3, ending_t4:
 
   Ending sounds mastered (0/1).
 
-- sight_t1, ..., sight_t4:
+- sight_t1, sight_t2, sight_t3, sight_t4:
 
   Sight words mastered (0/1).
 
-- context_t1, ..., context_t4:
+- context_t1, context_t2, context_t3, context_t4:
 
   Words in context mastered (0/1).
 
