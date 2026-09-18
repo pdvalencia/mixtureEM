@@ -1,6 +1,6 @@
 Package: mixtureEM
 Title: Latent Class and Profile Analysis via Mixture Modelling
-Version: 0.4.0
+Version: 0.4.1
 Authors@R:
     person("Pablo D.", "Valencia",
            role = c("aut", "cre"),
