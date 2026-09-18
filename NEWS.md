@@ -1,4 +1,4 @@
-# mixtureEM (development version)
+# mixtureEM 0.4.0
 
 ## A worked example of random-intercept LTA, on real data that ships with the package
 
