@@ -242,10 +242,13 @@
 #'     19% are 1).}
 #'   \item{letters_t1, letters_t2, letters_t3, letters_t4}{Letter recognition
 #'     mastered (0/1).}
-#'   \item{beginning_t1, ..., beginning_t4}{Beginning sounds mastered (0/1).}
-#'   \item{ending_t1, ..., ending_t4}{Ending sounds mastered (0/1).}
-#'   \item{sight_t1, ..., sight_t4}{Sight words mastered (0/1).}
-#'   \item{context_t1, ..., context_t4}{Words in context mastered (0/1).}
+#'   \item{beginning_t1, beginning_t2, beginning_t3, beginning_t4}{Beginning
+#'     sounds mastered (0/1).}
+#'   \item{ending_t1, ending_t2, ending_t3, ending_t4}{Ending sounds mastered
+#'     (0/1).}
+#'   \item{sight_t1, sight_t2, sight_t3, sight_t4}{Sight words mastered (0/1).}
+#'   \item{context_t1, context_t2, context_t3, context_t4}{Words in context
+#'     mastered (0/1).}
 #' }
 #' Occasions: `t1` = fall of kindergarten, `t2` = spring of kindergarten,
 #' `t3` = fall of first grade, `t4` = spring of first grade. There are no

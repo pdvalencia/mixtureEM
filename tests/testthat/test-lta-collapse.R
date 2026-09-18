@@ -116,15 +116,20 @@ test_that("the collapsed search returns the fit the pattern table returns", {
     do.call(fit_lta, c(list(Xc), args,
                        list(weights = wc, weight_type = "frequency")))))
 
-  # Bit-for-bit, not "close": the two arms see identical starting values and
-  # identical weighted sufficient statistics.
-  expect_identical(full$loglik,  hand$loglik)
+  # The two arms see identical starting values and identical weighted
+  # sufficient statistics, so they climb the same likelihood -- but not
+  # necessarily in bit-identical arithmetic: summing the same values in a
+  # different order (one row per case vs. one weighted row per pattern) can
+  # differ in the last bit or two depending on the BLAS behind it, which
+  # varies by platform. Compared to machine precision, not required to match
+  # beyond it.
+  expect_equal(full$loglik,  hand$loglik)
   expect_identical(full$delta_c, hand$delta_c)
   expect_identical(full$tau_c,   hand$tau_c)
   expect_identical(full$mm$models, hand$mm$models)
   expect_identical(full$n_iter,  hand$n_iter)
-  expect_identical(full$metrics$bic, hand$metrics$bic)
-  expect_identical(full$metrics$entropy, hand$metrics$entropy)
+  expect_equal(full$metrics$bic, hand$metrics$bic)
+  expect_equal(full$metrics$entropy, hand$metrics$entropy)
 })
 
 test_that("everything per case comes back on the full sample", {
