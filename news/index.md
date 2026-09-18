@@ -1,5 +1,17 @@
 # Changelog
 
+## mixtureEM 0.4.1
+
+`ecls_reading.Rd` documented four of its five indicator groups with an
+abbreviated `beginning_t1, ..., beginning_t4` range, which the
+documentation checker does not expand; the two middle occasions are now
+spelled out, like the fifth group already was. `withr`, used only by a
+test, is now declared in `Suggests`. And a test that compared two
+arithmetically equivalent LTA fits for bit-identical floating point now
+allows for ordinary machine-precision disagreement between BLAS
+implementations, which was failing on one platform. No estimator code
+changed and no previously reported number is affected.
+
 ## mixtureEM 0.4.0
 
 ### A worked example of random-intercept LTA, on real data that ships with the package
