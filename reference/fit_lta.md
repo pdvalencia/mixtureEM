@@ -349,10 +349,10 @@ fit_lta(
   chains (`n_classes` \> 1) converges much more slowly and defaults to a
   tighter `tol` of 1e-11 and 5000 iterations, since the shared rule is a
   relative one and would otherwise stop the fit mid-climb. The restarts
-  are then staged - a short first pass ranks them and only the best
-  three run on to convergence - so the tighter rule does not multiply
-  the cost of the search. Supplying either argument overrides all of
-  this. (Unlike
+  are then staged - a short first pass ranks them and only the top tenth
+  (floor of 3) run on to convergence - so the tighter rule does not
+  multiply the cost of the search. Supplying either argument overrides
+  all of this. (Unlike
   [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md),
   whose EM tolerance is fixed and not user-adjustable, `tol` here is a
   real, respected argument, because a chain mixture converges slowly

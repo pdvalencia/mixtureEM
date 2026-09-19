@@ -601,7 +601,7 @@ A fitted `mixture_model` object.
 ## Details
 
 **The EM convergence rule is fixed and not user-adjustable.** Each
-random start stops once the log-likelihood improves by less than `1e-4`
+random start stops once the log-likelihood improves by less than `1e-6`
 in absolute terms or a relative `1e-8`, whichever is looser, and there
 is no argument that changes this. A looser rule was tried and measured
 to cost real log-likelihood — on a validated 4-class binary example,
