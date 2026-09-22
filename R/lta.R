@@ -514,6 +514,16 @@ fit_lta <- function(indicators,
   # a restart budget, and "the user did not ask for one" is only knowable here.
   n_init_default <- missing(n_init)
 
+  # The transition-free measurement model: every transition row within an
+  # occasion is the same vector, so the statuses are independent across
+  # occasions and each occasion carries its own free prevalences. It is the
+  # step-1 model of the bias-adjusted three-step estimator and exists for that
+  # one caller, so it rides `...` rather than the signature -- an argument on
+  # the signature is a promise to a user, and the only combinations this model
+  # has been reasoned about in are the ones .lta_threestep_step12() asks for.
+  # Everything else is refused below rather than silently accepted.
+  tau_independent <- isTRUE(list(...)[[".transition_free"]])
+
   measurement_invariance <- match.arg(measurement_invariance)
   transition_invariance  <- match.arg(transition_invariance)
   random_intercept       <- match.arg(random_intercept)
@@ -764,6 +774,30 @@ fit_lta <- function(indicators,
   }
 
   allowed <- .lta_tau_allowed(tau_zeros, K, Tn, C, mover_stayer)
+  # The transition-free model exists for one caller and is graded in one
+  # configuration. Every combination below either has no meaning once the
+  # transition rows are tied together (`forbidden_transitions`,
+  # `transition_invariance`) or is a design question the three-step's own
+  # specification has not answered yet (a second latent variable above the
+  # chain, a random intercept, groups, structural predictors). Refusing is
+  # what keeps an unanswered question from becoming an accepted argument
+  # combination -- see part-r5-three-step-lta.md, "Tier 4".
+  if (tau_independent) {
+    bad <- c(
+      "predictors_initial"          = !is.null(Z_delta),
+      "predictors_transition"       = !is.null(Z_tau),
+      "predictors_random_intercept" = !is.null(Z_ri),
+      "predictors_items"            = !is.null(predictors_items),
+      "random_intercept"            = random_intercept != "none",
+      "group"                       = !is.null(group),
+      "n_classes > 1"               = C > 1L,
+      "mover_stayer"                = isTRUE(mover_stayer),
+      "forbidden_transitions"       = !is.null(tau_zeros),
+      "tie_initial_status"          = isTRUE(tie_initial_status))
+    if (any(bad))
+      stop("The transition-free measurement model does not accept ",
+           paste(names(bad)[bad], collapse = ", "), ".", call. = FALSE)
+  }
 
   state <- list(
     n_statuses      = K,
@@ -776,6 +810,7 @@ fit_lta <- function(indicators,
     tau_c           = rep(list(rep(list(matrix(1 / K, K, K)), Tn - 1L)), C),
     tau_allowed_c   = allowed,
     tau_homogeneous = isTRUE(tau_homogeneous),
+    tau_independent = isTRUE(tau_independent),
     tau_occasion_free_intercepts = isTRUE(tau_occasion_free_intercepts),
     tie_initial_status = isTRUE(tie_initial_status),
     weights_vec     = w,
@@ -1479,6 +1514,12 @@ fit_lta <- function(indicators,
   if (Tn > 1L) {
     if (!is.null(state$tau_beta)) {
       n_tau <- state$tau_n_params
+    } else if (isTRUE(state$tau_independent)) {
+      # Every row of an occasion's matrix is the same (K-1)-vector, so the
+      # occasion contributes one free prevalence vector and not K rows of
+      # them. This is the difference between 35 parameters and 23 on the
+      # four-occasion, three-status reading panel.
+      n_tau <- (Tn - 1L) * (K - 1L) * C
     } else {
       idx <- if (isTRUE(state$tau_homogeneous)) 1L else seq_len(Tn - 1L)
       for (c in seq_len(C)) for (i in idx)
@@ -1603,7 +1644,11 @@ fit_lta <- function(indicators,
 # are compared against is not applied, and the message would send the reader
 # after a `smoothing` that is doing nothing.
 .lta_smoothing_influence <- function(state, alpha) {
-  if (state$n_times < 2L || !isTRUE(alpha > 0) || !is.null(state$Z_tau))
+  # The transition-free model has no origin rows to report a pull for: its
+  # prior is one Dirichlet on each occasion's prevalence vector, which is the
+  # initial-status block's shape and not a transition table's.
+  if (state$n_times < 2L || !isTRUE(alpha > 0) || !is.null(state$Z_tau) ||
+      isTRUE(state$tau_independent))
     return(NULL)
   C <- state$n_classes %||% 1L
   K <- state$n_statuses
@@ -1982,6 +2027,14 @@ fit_lta <- function(indicators,
 
 .lta_scores_supported <- function(state) {
   if (state$n_statuses < 2L || state$n_times < 2L) return(FALSE)
+  # The transition-free model ties every row of an occasion's matrix to one
+  # shared vector, and the packed vector below still describes K free rows, so
+  # a Jacobian read off it would describe a model that was not fitted. Refusing
+  # here is the single gate on the score matrix, the L-BFGS polish,
+  # .lta_par_layout() and everything built on it, so this fit reports no
+  # standard errors at all rather than wrong ones. Teaching the packing a
+  # shared-row block is R5's W6, which is where step-1 uncertainty is needed.
+  if (isTRUE(state$tau_independent)) return(FALSE)
   # The multi-class branch of `.lta_score_matrix()` now runs
   # `.lta_ri_e_step()` per the RI arm above, populating `ri_G` / `ri_pq` for
   # the measurement blocks, so a multi-class RI fit needs no guard here.

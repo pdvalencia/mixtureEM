@@ -540,7 +540,19 @@
         # (times C, when a latent class conditions it too), so `alpha` is its
         # mass in total rather than each row's. See .lta_normalise().
         n_pat <- K * C
-        if (isTRUE(state$tau_homogeneous)) {
+        if (isTRUE(state$tau_independent)) {
+          # No transition structure: the status at t+1 does not depend on the
+          # status at t, so every origin row of an occasion is the same
+          # destination distribution. Pooling the pair counts OVER ORIGINS is
+          # that constraint's M-step, and the pooled vector is this occasion's
+          # status prevalence. One conditional distribution per occasion, so
+          # the prior carries one vector's mass -- `patterns = C`, as the
+          # initial-status block above uses, and not `K * C`.
+          for (t in seq_len(Tn - 1L)) {
+            row <- .lta_normalise(colSums(Xi[[t]]), alpha, patterns = C)
+            state$tau_c[[c]][[t]] <- matrix(row, K, K, byrow = TRUE)
+          }
+        } else if (isTRUE(state$tau_homogeneous)) {
           pooled <- Reduce(`+`, Xi)
           tau1 <- matrix(0, K, K)
           for (k in seq_len(K))
@@ -1576,6 +1588,15 @@
       }
       state$tau_c[[c]][[t]] <- m
     }
+    # The transition-free model has to START at the model being fitted, not
+    # at a diagonally dominant neighbour of it: collapse each drawn matrix
+    # onto its own column means, which is one destination distribution shared
+    # by every origin. The M-step would impose it at the first iteration
+    # anyway; doing it here means the first E-step is not taken under a
+    # different model from the one the restart is ranked as.
+    if (isTRUE(state$tau_independent) && Tn > 1L)
+      state$tau_c[[c]] <- lapply(state$tau_c[[c]], function(m)
+        matrix(colMeans(m), K, K, byrow = TRUE))
     if (isTRUE(state$tau_homogeneous) && Tn > 1L)
       state$tau_c[[c]] <- rep(state$tau_c[[c]][1], Tn - 1L)
   }
