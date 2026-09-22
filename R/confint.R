@@ -98,7 +98,9 @@ confint.mixture_model <- function(object, parm = NULL, level = 0.95,
       method <- object$sm$parameters$V_method %||% "Q-function Hessian"
       H <- object$sm$parameters$hessian
       if (is.null(H)) stop("Hessian missing. Refit model.")
-      Sigma <- pinv(-H)
+      # Free block inverted on its own; the padded K*D matrix never meets
+      # pinv() (see .covariate_sigma_full() for the failure that avoids).
+      Sigma <- .covariate_sigma_full(betas, H)
     }
     se      <- matrix(0, nrow = K, ncol = D)
     clamped <- 0L
@@ -227,23 +229,6 @@ vcov.mixture_model <- function(object, ...) {
   p     <- (K - 1L) * D
   if (p < 1L) stop("No free covariate coefficients.")
 
-  # Same preference order as confint(): a computed covariance beats an inverted
-  # Hessian, so the two accessors can never disagree about which estimator the
-  # fit carries.
-  V_robust <- object$sm$parameters$V_robust
-  if (!is.null(V_robust)) {
-    method <- object$sm$parameters$V_method %||% "Survey-robust (linearization)"
-    V      <- V_robust
-  } else {
-    method <- object$sm$parameters$V_method %||% "Q-function Hessian"
-    H      <- object$sm$parameters$hessian
-    if (is.null(H)) stop("Hessian missing. Refit model.")
-    V <- pinv(-H)
-  }
-
-  if (nrow(V) < K * D)
-    stop("Stored covariance is smaller than the coefficient vector. Refit model.")
-
   # Everything upstream stores the K*D layout with the anchor class's block
   # padded out -- zeros in V_robust, a large negative diagonal in the Hessian.
   # That padding is not a variance, so it is dropped rather than returned as a
@@ -261,7 +246,26 @@ vcov.mixture_model <- function(object, ...) {
   free <- setdiff(seq_len(K), anchor)
   idx  <- as.vector(vapply(free, function(k) ((k - 1L) * D + 1L):(k * D),
                            integer(D)))
-  V <- V[idx, idx, drop = FALSE]
+
+  # Same preference order as confint(): a computed covariance beats an inverted
+  # Hessian, so the two accessors can never disagree about which estimator the
+  # fit carries.
+  V_robust <- object$sm$parameters$V_robust
+  if (!is.null(V_robust)) {
+    method <- object$sm$parameters$V_method %||% "Survey-robust (linearization)"
+    if (nrow(V_robust) < K * D)
+      stop("Stored covariance is smaller than the coefficient vector. Refit model.")
+    V <- V_robust[idx, idx, drop = FALSE]
+  } else {
+    method <- object$sm$parameters$V_method %||% "Q-function Hessian"
+    H      <- object$sm$parameters$hessian
+    if (is.null(H)) stop("Hessian missing. Refit model.")
+    if (nrow(H) < K * D)
+      stop("Stored covariance is smaller than the coefficient vector. Refit model.")
+    # The free block inverted on its own, never the padded K*D matrix -- see
+    # .covariate_sigma_full() for the failure that avoids.
+    V <- .covariate_sigma_full(betas, H, anchor)[idx, idx, drop = FALSE]
+  }
 
   cov_names <- colnames(betas) %||% paste0("V", seq_len(D))
   nms <- paste(rep(paste("Class", free), each = D), cov_names, sep = ":")

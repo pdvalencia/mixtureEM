@@ -134,7 +134,9 @@ analytical_wald_test <- function(model, term_name, ref_class = 1) {
   } else {
     H <- params$hessian
     if (is.null(H) || all(H == 0)) stop("Hessian matrix is missing. Refit the model.")
-    Sigma_full  <- pinv(-H)
+    # Free block inverted on its own; the padded K*D matrix never meets
+    # pinv() (see .covariate_sigma_full() for the failure that avoids).
+    Sigma_full  <- .covariate_sigma_full(params$beta, H)
     test_method <- params$V_method %||% "Q-function Hessian"
   }
 

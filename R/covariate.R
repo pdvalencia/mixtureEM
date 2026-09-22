@@ -243,6 +243,123 @@ m_step.covariate <- function(model_state, X, resp, weights = NULL, ...) {
   return(model_state)
 }
 
+# ==============================================================================
+# The coefficient covariance from the padded Hessian
+# ==============================================================================
+#
+# m_step.covariate() stores the K*D Hessian with the anchor class's block
+# padded by a -1e8 diagonal, its marker for "fixed, zero variance". That
+# padding must never reach pinv(): pinv()'s cutoff is relative to the largest
+# singular value, and the -1e8 inflates that value by orders of magnitude, so
+# genuinely nonzero but much smaller real curvature directions fall below the
+# relative threshold and get silently zeroed, understating every variance.
+# Measured on a real fit: standard errors ~2.3x too small this way, confirmed
+# against an independent finite-difference Hessian on the same Q-function.
+#
+# So the free (K-1)*D block is extracted first and inverted on its own -- it
+# has no padding anywhere in it -- and placed inside an otherwise-exact-zero
+# K*D matrix. Exact zeros, not approximate: the anchor class's coefficients
+# are fixed constants with no variance and no covariance with anything. Every
+# reader of the covariate Hessian (confint(), vcov(), analytical_wald_test(),
+# summary()'s printed table, and the re-anchoring below) goes through here.
+.covariate_sigma_full <- function(beta, H, anchor = NULL) {
+  K <- nrow(beta); D <- ncol(beta)
+  if (is.null(anchor)) {
+    anchor <- which(apply(beta, 1, function(r) all(r == 0)))
+    if (length(anchor) != 1L) anchor <- K
+  }
+  ref_idx  <- ((anchor - 1L) * D + 1L):(anchor * D)
+  free_idx <- setdiff(seq_len(K * D), ref_idx)
+  Sigma <- matrix(0, K * D, K * D)
+  Sigma[free_idx, free_idx] <- pinv(-H[free_idx, free_idx, drop = FALSE])
+  Sigma
+}
+
+# ==============================================================================
+# Re-anchoring on a chosen reference class
+# ==============================================================================
+#
+# `beta`'s zero row is always the LAST class during estimation (init_params.
+# covariate() starts every row at 0 and .fit_mnl() only ever moves rows
+# 1:(K-1)), but sort_model_classes() then permutes every class-indexed array,
+# including this one, by descending class weight -- so the anchor can land on
+# any row after sorting, not just the last one. This is invisible to the log-
+# likelihood, the fit, and every class assignment (softmax is invariant to
+# adding the same vector to every row), but it makes the STORED beta/hessian/
+# V_robust arbitrary from one fit to the next, which is confusing to read and
+# fragile to test against (tests/testthat/test-covariate-se.R's `.cse_pieces()`
+# carried a re-anchor workaround for beta alone; this generalises it to beta +
+# hessian + V_robust together).
+#
+# Re-anchors `sm`'s covariate parameters on `new_ref`, returning `sm`
+# unchanged if it already is. `beta`, `hessian` and `V_robust` are moved
+# TOGETHER or not at all -- moving beta without the covariance blocks would
+# leave them describing different reference classes, silently wrong for
+# anything read from them afterwards (vcov(), confint(), Wald tests).
+#
+# The transform is a linear reparameterisation, not a re-fit: for every class
+# k, new_beta[k, ] = beta[k, ] - beta[new_ref, ], the same shift applied to
+# every row, which leaves every fitted probability exactly as it was (adding
+# a constant vector to every class's logits cancels in the softmax). The
+# covariance blocks transform by the corresponding Jacobian L (an identity
+# matrix, D-block by D-block, with the new_ref column-block of I_D subtracted
+# from every row-block): Sigma_new = L %*% Sigma %*% t(L), computed from the
+# K*D-square Sigma that .covariate_sigma_full() builds (the same object
+# confint() uses for its own ref_class-based contrasts), in which the OLD
+# anchor's block is exactly zero. `hessian` is then rebuilt from the free (K-1)*D
+# block of the transformed Sigma so downstream code (confint(), vcov(),
+# analytical_wald_test()) keeps reading a hessian in the same padded-K*D
+# convention m_step.covariate() always produces, just centred on `new_ref`.
+.recenter_covariate_beta <- function(sm, new_ref) {
+  beta <- sm$parameters[["beta"]]
+  if (is.null(beta)) return(sm)
+
+  K <- nrow(beta); D <- ncol(beta)
+  if (new_ref < 1L || new_ref > K) return(sm)
+
+  anchor <- which(apply(beta, 1, function(r) all(r == 0)))
+  if (length(anchor) != 1L || anchor == new_ref) return(sm)
+
+  sm$parameters$beta <- sweep(beta, 2, beta[new_ref, ], "-")
+
+  H <- sm$parameters[["hessian"]]
+  if (is.null(H)) return(sm)
+
+  ref_idx  <- ((new_ref - 1L) * D + 1L):(new_ref * D)
+  free_idx <- setdiff(seq_len(K * D), ref_idx)
+
+  L <- diag(K * D)
+  for (k in seq_len(K)) {
+    blk <- ((k - 1L) * D + 1L):(k * D)
+    L[blk, ref_idx] <- L[blk, ref_idx] - diag(D)
+  }
+
+  recenter_full <- function(M_full) {
+    M_new <- L %*% M_full %*% t(L)
+    (M_new + t(M_new)) / 2   # symmetric up to floating-point noise only
+  }
+
+  # The covariance centred on the OLD anchor, free block inverted on its own
+  # (see .covariate_sigma_full() for why the padded matrix never meets pinv()).
+  Sigma_new_full <- recenter_full(.covariate_sigma_full(beta, H, anchor))
+
+  H_new <- matrix(0, K * D, K * D)
+  H_new[free_idx, free_idx] <-
+    -pinv(Sigma_new_full[free_idx, free_idx, drop = FALSE])
+  diag(H_new)[ref_idx] <- -1e8
+  sm$parameters$hessian <- H_new
+
+  V_robust <- sm$parameters[["V_robust"]]
+  if (!is.null(V_robust)) {
+    V_new <- recenter_full(V_robust)
+    V_new[ref_idx, ] <- 0
+    V_new[, ref_idx] <- 0
+    sm$parameters$V_robust <- V_new
+  }
+
+  sm
+}
+
 #' @exportS3Method
 init_params.covariate <- function(model_state, X, resp, ...) {
   D <- ncol(X) + as.integer(model_state$intercept)

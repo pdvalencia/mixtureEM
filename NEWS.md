@@ -1,3 +1,35 @@
+# mixtureEM (development version)
+
+## Covariate standard errors on the Hessian-based paths were too small
+
+Standard errors, confidence intervals and Wald p-values for class-predictor
+coefficients change on every covariate fit whose standard errors come from
+the Q-function Hessian: one-step fits (`n_steps = 1`), BCH-corrected
+three-step fits, and models that combine class predictors with a distal
+outcome. They were understated, by a factor that depends on the covariates'
+scale and was about 2.3 on the fit that exposed it. The default path --
+`n_steps = 3` with `correction = "ML"`, and any fit with `se = "robust"` or
+`se = "corrected"` -- is unaffected: those store a covariance computed
+separately and never read the Hessian for it.
+
+The cause was in the inversion. The stored Hessian keeps the reference
+class's block padded with a very large fixed-parameter marker, and the
+pseudo-inverse's cutoff is relative to the largest singular value, so the
+marker set a cutoff below which every genuinely nonzero but small direction
+of curvature was dropped as if it were zero. A covariate on a small scale
+has exactly that kind of curvature. `confint()`, `vcov()`,
+`analytical_wald_test()` and the table printed by `summary()` now invert the
+free block on its own, and a test checks the result against a plain
+`solve()` of the same block, which has no relative cutoff.
+
+Separately, a fitted covariate model's reference class is now always the
+last class. The estimation always anchored on the last class, but the size
+ordering applied at the end of the fit carried that anchor to whichever rank
+its class landed on, so `fit$sm$parameters$beta`'s zero row could sit
+anywhere from one fit to the next. The re-anchoring is a reparameterisation:
+no log-likelihood, class probability, assignment or reported standard error
+changes because of it.
+
 # mixtureEM 0.4.1
 
 `ecls_reading.Rd` documented four of its five indicator groups with an

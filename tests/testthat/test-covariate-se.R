@@ -310,6 +310,97 @@ test_that("BCH and one-step fits say they are using the uncorrected Hessian", {
   }
 })
 
+test_that("the Hessian-based standard errors invert the free block, never the padded matrix", {
+  # m_step.covariate() stores the K*D Hessian with the anchor class's block
+  # padded by a -1e8 diagonal. pinv()'s cutoff is relative to the largest
+  # singular value, so inverting the padded matrix zeroes every direction of
+  # real curvature below 1e8 * sqrt(eps) = 1.5 -- and reports a variance that
+  # is too small, silently. A covariate on a small scale has exactly that kind
+  # of curvature, which is what this fixture sets up: the same classes as
+  # .cse_sim(), with z in units twenty times smaller.
+  d <- .cse_sim()
+  d$Z$z <- d$Z$z / 20
+  one <- suppressMessages(fit_mixture(
+    d$X, n_classes = 2, measurement = "binary", predictors = d$Z,
+    n_steps = 1, n_init = 3, random_state = 1))
+
+  H <- one$sm$parameters$hessian
+  V <- vcov(one)
+  K <- one$n_components
+  D <- ncol(one$sm$parameters$beta)
+  ref <- attr(V, "ref_class")
+  idx <- as.vector(vapply(setdiff(seq_len(K), ref),
+                          function(k) ((k - 1L) * D + 1L):(k * D), integer(D)))
+
+  # The fixture has the property the test needs: the free block carries a
+  # singular value under the padded cutoff, so the two computations differ.
+  expect_lt(min(svd(-H[idx, idx])$d), 1.5)
+
+  # solve() has no relative cutoff, so it is an independent oracle for the
+  # free block's inverse.
+  expect_equal(matrix(as.numeric(V), nrow(V)), solve(-H[idx, idx]),
+               tolerance = 1e-8)
+
+  # And the padded inverse is not what vcov() returns: at least one standard
+  # error is understated by half or more the old way.
+  old_se <- sqrt(pmax(diag(pinv(-H)[idx, idx]), 0))
+  expect_gt(max(1 - old_se / sqrt(diag(V))), 0.5)
+
+  # confint(), analytical_wald_test() and summary()'s table all read the
+  # same covariance, so they must agree with vcov() on this fit.
+  se <- sqrt(diag(V))
+  ci <- suppressWarnings(confint(one, ref_class = ref))
+  half <- unlist(lapply(names(ci), function(nm) {
+    free <- setdiff(seq_len(K), ref)
+    log(ci[[nm]]$Upper[free]) - log(ci[[nm]]$OR[free])
+  }))
+  expect_equal(sort(half), sort(unname(qnorm(0.975) * se)), tolerance = 1e-8)
+
+  b <- coef(one, exponentiate = FALSE, ref_class = ref)
+  free <- setdiff(seq_len(K), ref)
+  w <- analytical_wald_test(one, "z", ref_class = ref)
+  expect_equal(w$df, K - 1L)
+  # analytical_wald_test() rounds the statistic it returns to three decimals.
+  expect_equal(w$Wald_Chi2, round((b[free, "z"] / se[["Class 1:z"]])^2, 3))
+
+  s <- capture.output(tab <- summary(one, ref_class = ref)$coefficients)
+  expect_equal(sort(tab$se), sort(unname(se)), tolerance = 1e-8)
+})
+
+test_that("a fitted covariate model is always anchored on its last class", {
+  # .fit_mnl() pins the last class while estimating, but the size sort at the
+  # end of fit_mixture() permutes the rows and used to carry the anchor to
+  # whatever rank its class's weight happened to land on. The re-anchoring is a
+  # reparameterisation, so nothing a user reads from the fit may move.
+  d <- .cse_sim()
+  for (seed in 1:4) {
+    fit <- suppressMessages(fit_mixture(
+      d$X, n_classes = 3, measurement = "binary", predictors = d$Z,
+      n_steps = 1, n_init = 3, random_state = seed))
+    B <- fit$sm$parameters$beta
+    expect_equal(which(rowSums(abs(B)) == 0), nrow(B), info = seed)
+  }
+
+  # Applied by hand to an arbitrary anchor, the recentring leaves every fitted
+  # class probability where it was and gives vcov() the same free-block
+  # standard errors as the original parameterisation implies.
+  fit  <- suppressMessages(fit_mixture(
+    d$X, n_classes = 3, measurement = "binary", predictors = d$Z,
+    n_steps = 1, n_init = 3, random_state = 1))
+  Zmat <- .covariate_design(fit$sm, prepare_covariates(d$Z))
+  P_of <- function(sm) softmax_rows(Zmat %*% t(sm$parameters$beta))
+  moved <- .recenter_covariate_beta(fit$sm, 1L)
+  expect_equal(which(rowSums(abs(moved$parameters$beta)) == 0), 1L)
+  expect_equal(P_of(moved), P_of(fit$sm), tolerance = 1e-12)
+  back <- .recenter_covariate_beta(moved, 3L)
+  expect_equal(back$parameters$beta, fit$sm$parameters$beta, tolerance = 1e-10)
+  # Only the free block is compared: the anchor's padded -1e8 diagonal would
+  # swamp a relative comparison of the whole matrix.
+  fidx <- seq_len(2L * ncol(fit$sm$parameters$beta))
+  expect_equal(back$parameters$hessian[fidx, fidx],
+               fit$sm$parameters$hessian[fidx, fidx], tolerance = 1e-6)
+})
+
 test_that("a measurement model without an unconstrained packing falls back cleanly", {
   set.seed(5)
   n   <- 300

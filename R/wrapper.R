@@ -93,6 +93,13 @@ sort_model_classes <- function(model_state) {
           idx_map <- as.vector(sapply(new_order, function(k) ((k-1)*D + 1):(k*D)))
           sm$parameters$V_robust <- Vr[idx_map, idx_map, drop = FALSE]
         }
+        # The permutation above moves the anchor class (wherever its all-zero
+        # row landed) but does not choose it -- .fit_mnl()/m_step.covariate()
+        # only ever guarantee it is the LAST row before this sort. Re-anchor
+        # on the last row again so a fitted object's reference class is a
+        # documented invariant, not whatever this particular fit's initial
+        # class labels and this permutation happened to produce.
+        sm <- .recenter_covariate_beta(sm, K)
       }
       # The group-prevalence emission stores a G x K matrix of per-group class
       # probabilities: its *columns* are the classes, not its rows, so it is the
@@ -1134,8 +1141,12 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     # the table. The data frame returned by summary() keeps the full names.
     disp      <- .shorten_labels(var_names)
     label_w   <- .label_width(disp, min = 20L)
+    # The same covariance confint() uses: the stored one when there is one,
+    # else the free block of the Hessian inverted on its own -- never the
+    # padded K*D matrix (see .covariate_sigma_full()).
     Sigma     <- if (!is.null(sm_sub$parameters$V_robust))
-      sm_sub$parameters$V_robust else pinv(-sm_sub$parameters$hessian)
+      sm_sub$parameters$V_robust else
+      .covariate_sigma_full(betas, sm_sub$parameters$hessian)
 
     cat(sprintf("  %-*s %9s  %s  %s\n", label_w,
                 "", "OR", "       [95% CI]       ", "P-Value"))
