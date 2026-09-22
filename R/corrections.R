@@ -13,6 +13,86 @@ get_modal_resp <- function(resp) {
   return(modal)
 }
 
+# The step-two classification-error matrix of a three-step estimator.
+#
+# Step one fits a measurement model and step two turns its posteriors into an
+# assigned-class variable W. That assignment is imperfect, and the third step
+# needs to know how imperfect: `D[r, c] = P(W = r | true class = c)`, estimated
+# as the posterior mass of class `c` that sits in cases assigned to `r`,
+#
+#     D[r, c] = sum_i A[i, r] resp[i, c] w_i / sum_i resp[i, c] w_i ,
+#
+# with `A` the assignment indicator -- the modal one-hot under
+# `assignment = "modal"`, the posterior itself under "proportional". As in
+# fit_bch() and fit_ml(), the *true* class is never observed, so its column
+# weights are always the posteriors; only `A` changes with the rule. Rows are
+# the assigned class and COLUMNS ARE THE TRUE CLASS, so columns sum to one.
+#
+#   ORIENTATION. This is the transpose of fit_ml()'s `C_row_norm` below, whose
+#   rows are the true class. The two matrices are built from the same numbers
+#   and neither is symmetric, so handing one where the other is wanted is
+#   silent and wrong. Transpose deliberately at any point where they meet.
+#
+# The third step wants `D` as fixed multinomial logits with the last assigned
+# category as the reference, `log(D[r, c] / D[K, c])`. A cell that is exactly
+# zero makes that logit undefined, so `zero_floor` regularises it. Any value
+# is arbitrary: the default 1e-6 is small enough to leave every other cell
+# unchanged at the precision classification probabilities are reported to,
+# while Nylund-Gibson, Grimm, Quirk and Furlong (2014) state 1e-4 in print.
+# The argument is exposed rather than buried so that the choice, and the fact
+# that it is a choice, is visible in the fitted object.
+#
+# Returns `D` (K x K) and `logits` (K x K, last row zero by construction).
+#
+# Reference
+#   Nylund-Gibson, K., Grimm, R., Quirk, M., & Furlong, M. (2014). A latent
+#     transition mixture model using the three-step specification. Structural
+#     Equation Modeling, 21(3), 439-454.
+.classification_error <- function(resp,
+                                  assignment = c("proportional", "modal"),
+                                  weights    = NULL,
+                                  zero_floor = 1e-6) {
+
+  assignment <- match.arg(assignment)
+  resp <- as.matrix(resp)
+  K    <- ncol(resp)
+
+  if (nrow(resp) == 0L) stop("`resp` has no rows.")
+  if (!is.finite(zero_floor) || zero_floor <= 0 || zero_floor >= 1 / K) {
+    stop("`zero_floor` must be a small positive probability.")
+  }
+
+  if (is.null(weights)) weights <- rep(1, nrow(resp))
+  if (length(weights) != nrow(resp)) {
+    stop("`weights` must have one entry per row of `resp`.")
+  }
+
+  A  <- if (assignment == "modal") get_modal_resp(resp) else resp
+  RW <- resp * weights
+
+  # Rows the assigned class, columns the true class. See ORIENTATION above.
+  D  <- t(A) %*% RW
+  Nk <- colSums(RW)
+
+  # A class carrying no posterior mass at all leaves its column 0/0. It cannot
+  # be estimated from these data, so say nothing about it rather than emit NaN.
+  empty <- Nk <= 0
+  D[, !empty] <- sweep(D[, !empty, drop = FALSE], 2, Nk[!empty], "/")
+  D[, empty]  <- 1 / K
+
+  # Floor, then restore the column sums the floor disturbed. Every column sums
+  # to one before this line, so a column with no floored cell is unchanged.
+  D <- pmax(D, zero_floor)
+  D <- sweep(D, 2, colSums(D), "/")
+
+  dimnames(D) <- list(assigned = seq_len(K), class = seq_len(K))
+
+  logits <- log(sweep(D, 2, D[K, ], "/"))
+  dimnames(logits) <- dimnames(D)
+
+  list(D = D, logits = logits)
+}
+
 # Apply the BCH Correction
 #
 # Implementation follows the proportional BCH correction of Vermunt (2010)
@@ -204,6 +284,11 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   # 1 per row, so t(A1) %*% A1 is diagonal and C_row_norm would come out as the
   # identity, leaving the correction with nothing to invert. Under proportional
   # assignment A1 is `resp_step1` and this is the same matrix as before.
+  #
+  # ORIENTATION. `C_row_norm` is the TRANSPOSE of .classification_error()'s
+  # `D`, which is the same table written with the assigned class down the rows
+  # and columns summing to one. Neither is symmetric. Whichever way round a
+  # caller wants it, transpose on purpose rather than by assumption.
   C_prop     <- t(resp_step1 * w_clean) %*% A1            # K x K
   Nk         <- colSums(resp_step1 * w_clean)
   C_row_norm <- sweep(C_prop, 1, Nk, "/")                 # K x K, row-normalised
