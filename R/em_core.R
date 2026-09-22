@@ -201,14 +201,27 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
   w <- model_state$sample_weights
   weighted <- !is.null(w) && length(w) == nrow(resp) && any(w != 1)
 
+  # `frozen` names the blocks this M-step must leave exactly as it found them:
+  # "mm" (the measurement model) and/or "weights" (the pooled class sizes).
+  # It is what the two-step estimator (R/stepwise.R, `n_steps == 2`) runs on:
+  # the measurement block stays at its step-1 estimate while the structural
+  # model is maximised on the full likelihood, every E-step still on the joint
+  # model. NULL everywhere else, so an ordinary fit is untouched. This is a
+  # field of the model state, not of `sm`: `group_prevalence_model$frozen`
+  # (R/group_prevalence.R) is an unrelated vector of class indices.
+  frozen <- model_state$frozen
+
   nk <- if (weighted) colSums(sweep(resp, 1, w, "*")) else colSums(resp)
   nk_prior <- nk + prior_obs
-  model_state$weights <- nk_prior / sum(nk_prior)
+  if (!"weights" %in% frozen)
+    model_state$weights <- nk_prior / sum(nk_prior)
 
-  if (weighted) {
-    model_state$mm <- m_step(model_state$mm, X, resp, weights = w)
-  } else {
-    model_state$mm <- m_step(model_state$mm, X, resp)
+  if (!"mm" %in% frozen) {
+    if (weighted) {
+      model_state$mm <- m_step(model_state$mm, X, resp, weights = w)
+    } else {
+      model_state$mm <- m_step(model_state$mm, X, resp)
+    }
   }
 
   if (!is.null(Y) && !is.null(model_state$sm)) {
@@ -679,6 +692,10 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
   # best solution from 19 of 21 to 1 of 21, because it perturbed each restart
   # differently. EM alone is the whole estimator for these models.
   if (!is.null(Y) && .supplies_class_probs(model_state$sm)) return(model_state)
+  # A state with a frozen block (the two-step estimator, see m_step_core())
+  # has nothing this polish may move: it packs exactly the measurement
+  # parameters and class weights that are being held fixed.
+  if (length(model_state$frozen)) return(model_state)
   # K=1 has no weight parameters; the M-step already gives the exact analytic
   # solution (item marginals), so L-BFGS is a no-op and the K-2 index arithmetic
   # below produces an out-of-bounds sequence that triggers a sweep() warning.

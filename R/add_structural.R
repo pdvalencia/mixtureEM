@@ -179,10 +179,26 @@
   invisible(NULL)
 }
 
+# `steps` on add_covariates()/add_outcome(): 3 is the bias-adjusted three-step,
+# 2 the two-step of Bakk and Kuha (2018). `correction` is a property of the
+# third step only, so naming one under `steps = 2` is refused rather than
+# ignored.
+.check_steps <- function(steps, corr_set) {
+  if (length(steps) > 1L) steps <- steps[1L]
+  if (!steps %in% c(2, 3))
+    stop("`steps` must be 3 (bias-adjusted three-step) or 2 (two-step).",
+         call. = FALSE)
+  if (steps == 2 && corr_set)
+    stop("`correction` applies to the three-step only; a two-step fit has no ",
+         "classification step to correct. Drop `correction` or set ",
+         "`steps = 3`.", call. = FALSE)
+  as.integer(steps)
+}
+
 # Shared execution: attach the structural model and run steps 2-3 only.
 .add_structural <- function(fit, Y_use, engine, correction, se, max_iter,
                             assignment = "proportional",
-                            moderated = integer(0)) {
+                            moderated = integer(0), steps = 3L) {
   fit$sm         <- build_emission(engine, n_components = fit$n_components,
                                    moderated = moderated)
   # The structural model is built here rather than in fit_mixture_internal(), so
@@ -192,13 +208,15 @@
   fit$sm         <- .attach_bayes_constants(
     fit$sm, .resolve_bayes_constants(fit$bayes_constants))
   fit            <- .mirror_design_onto_sm(fit)
-  fit$n_steps    <- 3L
-  fit$correction <- correction
+  fit$n_steps    <- steps
+  fit$correction <- if (steps == 2L) "none" else correction
   # Kept on the fit so a saved object still says which assignment rule produced
   # the correction it reports.
   fit$assignment <- assignment
+  # The structural data, as fit_mixture() keeps it on a one-call fit.
+  fit$Y          <- Y_use
 
-  fit <- .apply_structural_steps(fit, X = fit$data, Y = Y_use, n_steps = 3L,
+  fit <- .apply_structural_steps(fit, X = fit$data, Y = Y_use, n_steps = steps,
                                  correction = correction, max_iter = max_iter,
                                  se = se, assignment = assignment)
   # order_by_size = FALSE: re-sorting here could relabel classes relative to
@@ -222,9 +240,20 @@
 #'   level as reference. Must have one row per case of the data the model was
 #'   fit to.
 #' @param correction Bias correction for the third step: `"ML"` (default;
-#'   Vermunt, 2010), `"BCH"`, or `"none"`.
+#'   Vermunt, 2010), `"BCH"`, or `"none"`. Three-step only; an error with
+#'   `steps = 2`.
+#' @param steps `3` (default) for the bias-adjusted three-step, or `2` for
+#'   the two-step estimator of Bakk and Kuha (2018): `fit`'s measurement
+#'   model is held fixed and the class-membership regression is estimated by
+#'   maximising the full likelihood, with every case's class probabilities
+#'   recomputed under the joint model at each iteration. No classification
+#'   step, no correction. `fit` is exactly the step-1 estimate the two-step
+#'   starts from. See `n_steps` in [fit_mixture()] for what the two-step is
+#'   and is not; in this version its standard errors do not yet carry the
+#'   step-1 uncertainty, and the printed output says so.
 #' @param se Standard-error estimator passed on to the third step:
-#'   `"corrected"` (default), `"robust"`, or `"hessian"`.
+#'   `"corrected"` (default), `"robust"`, or `"hessian"`. Ignored with
+#'   `steps = 2`.
 #' @param assignment How step 1's posteriors are turned into the assigned-class
 #'   variable whose classification error the correction inverts.
 #'   `"proportional"` (default) gives every case a weight in every class equal
@@ -233,8 +262,8 @@
 #'   who compared the two rules across 54 simulation conditions and found
 #'   proportional at least as accurate everywhere and clearly better when the
 #'   classes are poorly separated. Use `"modal"` when reproducing an analysis
-#'   whose classes were assigned that way.
-#' @param max_iter Maximum iterations for the step-3 estimation.
+#'   whose classes were assigned that way. Three-step only.
+#' @param max_iter Maximum iterations for the structural estimation.
 #' @param data Optional data frame to take the covariates from, in which case
 #'   `predictors` may be a one-sided formula (`~ age + sex`, or `~ age * sex`
 #'   for an interaction) or a vector of column names instead of the columns
@@ -293,6 +322,10 @@
 #' three-step approaches. \emph{Sociological Methodology}, \emph{43}(1),
 #' 272–311. \doi{10.1177/0081175012470644}
 #'
+#' Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between latent
+#' classes and external variables. \emph{Psychometrika}, \emph{83}(4),
+#' 871–892. \doi{10.1007/s11336-017-9592-7}
+#'
 #' Jiang, Y., Elliott, M. R., Sammel, M. D., & Wang, N. (2016). Joint modeling
 #' of cross-sectional health outcomes and longitudinal predictors via mixtures
 #' of latent classes. \emph{Statistics and Its Interface}, \emph{9}, 183–201.
@@ -315,11 +348,13 @@
 #' @export
 add_covariates <- function(fit, predictors,
                            correction = c("ML", "BCH", "none"),
+                           steps = c(3, 2),
                            se = c("corrected", "robust", "hessian"),
                            assignment = c("proportional", "modal"),
                            max_iter = 1000, data = NULL, ...) {
   corr_set        <- !missing(correction)
   correction      <- match.arg(correction)
+  steps           <- .check_steps(steps, corr_set)
   se              <- match.arg(se)
   assignment      <- match.arg(assignment)
   predictors_expr <- substitute(predictors)
@@ -332,7 +367,7 @@ add_covariates <- function(fit, predictors,
 
   fit <- .check_stepwise_fit(fit, "add_covariates")
 
-  if (!corr_set)
+  if (!corr_set && steps == 3L)
     message(sprintf("Using '%s' bias correction (set `correction` to override).",
                     correction))
 
@@ -351,7 +386,7 @@ add_covariates <- function(fit, predictors,
   Y_use <- .align_structural_rows(Y_use, fit, "predictors")
 
   .add_structural(fit, Y_use, "predict_class", correction, se, max_iter,
-                  assignment = assignment)
+                  assignment = assignment, steps = steps)
 }
 
 #' Examine a Distal Outcome on a Fitted Model
@@ -380,6 +415,14 @@ add_covariates <- function(fit, predictors,
 #' @param correction Bias correction for the third step: `"auto"` (default)
 #'   picks `"BCH"` for continuous outcomes (Bakk & Vermunt, 2016) and `"ML"`
 #'   for categorical outcomes; or set `"BCH"`, `"ML"`, `"none"` directly.
+#'   Three-step only; an error with `steps = 2`.
+#' @param steps `3` (default) for the bias-adjusted three-step, or `2` for
+#'   the two-step estimator of Bakk and Kuha (2018): `fit`'s measurement
+#'   model and class sizes are held fixed and the outcome model is estimated
+#'   by maximising the full likelihood, every case's class probabilities
+#'   recomputed under the joint model at each iteration. No classification
+#'   step, no correction. See `n_steps` in [fit_mixture()]; in this version
+#'   the two-step's standard errors do not yet carry the step-1 uncertainty.
 #' @param se Standard-error estimator passed on to the third step:
 #'   `"corrected"` (default), `"robust"`, or `"hessian"`. It governs the
 #'   covariate part of the third step. A continuous distal outcome under
@@ -451,11 +494,14 @@ add_outcome <- function(fit, outcome, covariates = NULL,
                         outcome_type = c("auto", "continuous", "categorical"),
                         slopes = "pooled",
                         correction = c("auto", "BCH", "ML", "none"),
+                        steps = c(3, 2),
                         se = c("corrected", "robust", "hessian"),
                         assignment = c("proportional", "modal"),
                         max_iter = 1000, data = NULL, ...) {
   outcome_type <- match.arg(outcome_type)
+  corr_set     <- !missing(correction)
   correction   <- match.arg(correction)
+  steps        <- .check_steps(steps, corr_set)
   se           <- match.arg(se)
   assignment   <- match.arg(assignment)
   cov_expr     <- substitute(covariates)
@@ -492,7 +538,9 @@ add_outcome <- function(fit, outcome, covariates = NULL,
   spec <- .build_outcome_spec(outcome, covariates, outcome_type, slopes,
                               cov_expr)
 
-  if (correction == "auto") {
+  if (steps == 2L) {
+    correction <- "none"
+  } else if (correction == "auto") {
     correction <- if (startsWith(spec$engine, "categorical")) "ML" else "BCH"
     message(sprintf("Using '%s' bias correction (set `correction` to override).",
                     correction))
@@ -501,5 +549,6 @@ add_outcome <- function(fit, outcome, covariates = NULL,
   Y_use <- .align_structural_rows(spec$Y, fit, "outcome")
 
   .add_structural(fit, Y_use, spec$engine, correction, se, max_iter,
-                  assignment = assignment, moderated = spec$moderated)
+                  assignment = assignment, moderated = spec$moderated,
+                  steps = steps)
 }

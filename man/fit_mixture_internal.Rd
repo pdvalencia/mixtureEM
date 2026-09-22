@@ -68,7 +68,9 @@ One of \code{"covariate"}, \code{"distal_regression"},
 \code{NULL} (measurement model only).}
 
 \item{n_steps}{Integer. Estimation approach: \code{1} for simultaneous
-1-step, \code{2} for 2-step, or \code{3} for bias-corrected 3-step.
+1-step, \code{2} for the two-step estimator of Bakk and Kuha (2018;
+measurement model fixed at its step-1 estimate, structural model
+maximised on the full likelihood), or \code{3} for bias-corrected 3-step.
 Default is \code{1}.}
 
 \item{correction}{Character. Bias correction for 3-step estimation.
@@ -128,14 +130,14 @@ group-varying measurement search to seed each fit from the pooled solution.
 \code{NULL} (default) uses only the usual random initializations.}
 
 \item{se}{Character. How standard errors for a covariate (class-prediction)
-structural model are computed when \code{n_steps} is \code{2} or \code{3}.
+structural model are computed when \code{n_steps} is \code{3}.
 \code{"corrected"} (default) is the first-order corrected estimator of
 Bakk et al. (2014): the step-3 sandwich plus the variance
 propagated from step 1. \code{"robust"} keeps only the sandwich.
 \code{"hessian"} inverts the
 step-3 observed information alone. See \code{\link{covariate_se}} for the
 differences and when they matter. Ignored for other structural models and
-for \code{n_steps = 1}.}
+for \code{n_steps = 1} and \code{2}.}
 
 \item{n_cores}{Positive integer. Number of processes to spread the random
 starts over. Default \code{1} (sequential), or the value of

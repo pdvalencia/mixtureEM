@@ -79,14 +79,16 @@ produced the numbers they show.
 \section{Scope}{
 
 The corrected and robust estimators cover a covariate (class-prediction)
-structural model estimated with \code{n_steps = 2}, or with
-\code{n_steps = 3} and \code{correction = "none"} or \code{"ML"}. Three cases
-fall back to the uncorrected Hessian, and say so in the printed output:
+structural model estimated with \code{n_steps = 3} and
+\code{correction = "none"} or \code{"ML"}. Four cases fall back to the
+uncorrected Hessian, and say so in the printed output:
 \code{correction = "BCH"} (whose weights need their own variance treatment,
 and which is not recommended for covariates in any case);
 \code{n_steps = 1}, where measurement and structural parameters are estimated
-jointly and no carry-over correction applies; and a covariate combined with a
-distal outcome in one nested structural model. The step-1 term additionally
+jointly and no carry-over correction applies; \code{n_steps = 2}, whose
+step-1 term is a different formula (Bakk and Kuha, 2018, eq. 5) that this
+version does not yet compute; and a covariate combined with a distal
+outcome in one nested structural model. The step-1 term additionally
 requires a measurement model whose parameters this package can put on an
 unconstrained scale — binary, polytomous, Gaussian, count, mixed, and
 repeated-measures models qualify; growth models do not, and there the robust
@@ -103,6 +105,10 @@ three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450-469.
 
 Gong, G., & Samaniego, F. J. (1981). Pseudo maximum likelihood estimation:
 Theory and applications. \emph{The Annals of Statistics}, \emph{9}(4), 861-869.
+
+Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between latent
+classes and external variables. \emph{Psychometrika}, \emph{83}(4), 871-892.
+\doi{10.1007/s11336-017-9592-7}
 }
 \seealso{
 \code{\link{fit_mixture}}, \code{\link{bootstrap_covariates}},

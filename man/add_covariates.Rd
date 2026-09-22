@@ -8,6 +8,7 @@ add_covariates(
   fit,
   predictors,
   correction = c("ML", "BCH", "none"),
+  steps = c(3, 2),
   se = c("corrected", "robust", "hessian"),
   assignment = c("proportional", "modal"),
   max_iter = 1000,
@@ -25,10 +26,22 @@ level as reference. Must have one row per case of the data the model was
 fit to.}
 
 \item{correction}{Bias correction for the third step: \code{"ML"} (default;
-Vermunt, 2010), \code{"BCH"}, or \code{"none"}.}
+Vermunt, 2010), \code{"BCH"}, or \code{"none"}. Three-step only; an error with
+\code{steps = 2}.}
+
+\item{steps}{\code{3} (default) for the bias-adjusted three-step, or \code{2} for
+the two-step estimator of Bakk and Kuha (2018): \code{fit}'s measurement
+model is held fixed and the class-membership regression is estimated by
+maximising the full likelihood, with every case's class probabilities
+recomputed under the joint model at each iteration. No classification
+step, no correction. \code{fit} is exactly the step-1 estimate the two-step
+starts from. See \code{n_steps} in \code{\link[=fit_mixture]{fit_mixture()}} for what the two-step is
+and is not; in this version its standard errors do not yet carry the
+step-1 uncertainty, and the printed output says so.}
 
 \item{se}{Standard-error estimator passed on to the third step:
-\code{"corrected"} (default), \code{"robust"}, or \code{"hessian"}.}
+\code{"corrected"} (default), \code{"robust"}, or \code{"hessian"}. Ignored with
+\code{steps = 2}.}
 
 \item{assignment}{How step 1's posteriors are turned into the assigned-class
 variable whose classification error the correction inverts.
@@ -38,9 +51,9 @@ likely class outright. The default follows Bakk, Tekle and Vermunt (2013),
 who compared the two rules across 54 simulation conditions and found
 proportional at least as accurate everywhere and clearly better when the
 classes are poorly separated. Use \code{"modal"} when reproducing an analysis
-whose classes were assigned that way.}
+whose classes were assigned that way. Three-step only.}
 
-\item{max_iter}{Maximum iterations for the step-3 estimation.}
+\item{max_iter}{Maximum iterations for the structural estimation.}
 
 \item{data}{Optional data frame to take the covariates from, in which case
 \code{predictors} may be a one-sided formula (\code{~ age + sex}, or \code{~ age * sex}
@@ -120,6 +133,10 @@ Bakk, Z., Tekle, F. B., & Vermunt, J. K. (2013). Estimating the association
 between latent class membership and external variables using bias-adjusted
 three-step approaches. \emph{Sociological Methodology}, \emph{43}(1),
 272–311. \doi{10.1177/0081175012470644}
+
+Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between latent
+classes and external variables. \emph{Psychometrika}, \emph{83}(4),
+871–892. \doi{10.1007/s11336-017-9592-7}
 
 Jiang, Y., Elliott, M. R., Sammel, M. D., & Wang, N. (2016). Joint modeling
 of cross-sectional health outcomes and longitudinal predictors via mixtures

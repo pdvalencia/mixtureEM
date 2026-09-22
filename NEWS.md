@@ -1,5 +1,46 @@
 # mixtureEM (development version)
 
+## `n_steps = 2` is now the two-step estimator, and its numbers change
+
+Every fit made with `n_steps = 2` returns different coefficients from
+before. What that setting used to run was not a two-step estimator: it took
+the step-1 class posteriors as fixed weights and fitted the structural model
+on them once, which is the uncorrected third step, the same code that
+`n_steps = 3, correction = "none"` runs and the estimator the literature
+describes as severely biased. `n_steps = 2` now runs the two-step of Bakk
+and Kuha (2018): the measurement model is fitted alone and then held fixed
+at that estimate, and the class predictors or the distal outcome are
+estimated by maximising the full likelihood with the measurement parameters
+as constants, so each case's class probabilities are recomputed under the
+joint model at every iteration. There is no classification step and no
+classification table. The measurement parameters and class sizes of a
+two-step fit are bit-identical to its step-1 fit, and a test holds that for
+binary, continuous and polytomous indicators with the priors on and off.
+The uncorrected third step remains available where it always was,
+`n_steps = 3, correction = "none"`. Defaults do not move: the bias-adjusted
+three-step is still what a structural model gets when `n_steps` is left
+unset.
+
+`add_covariates()` and `add_outcome()` gain `steps = 2` for the same
+estimator on an already-fitted model, which is exactly the shape the
+two-step wants: the fitted object is the step-1 estimate. `correction` is a
+property of the third step and is an error alongside `steps = 2`.
+
+Three exact properties of the estimator are tested. With no class
+predictors the two-step reproduces the step-1 class sizes to machine
+precision, which is what Bakk and Kuha's definition requires. Freeing the
+measurement block from the two-step solution and continuing EM lands on the
+one-step maximum, so the freeze is the only difference between the two.
+And when the classes are almost perfectly separated the one-step, two-step
+and ML three-step coefficients agree, as they must when a covariate can move
+no class probability.
+
+Standard errors for a two-step fit are, in this version, the Q-function
+Hessian of the structural model and do not yet carry the uncertainty of the
+step-1 estimates; `summary()`, `confint()` and `vcov()` print that label.
+The pseudo-maximum-likelihood variance that adds the step-1 term is the
+next item. Nothing changes numerically for `n_steps = 1` or `3`.
+
 ## Covariate standard errors on the Hessian-based paths were too small
 
 Standard errors, confidence intervals and Wald p-values for class-predictor

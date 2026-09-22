@@ -11,6 +11,7 @@ add_outcome(
   outcome_type = c("auto", "continuous", "categorical"),
   slopes = "pooled",
   correction = c("auto", "BCH", "ML", "none"),
+  steps = c(3, 2),
   se = c("corrected", "robust", "hessian"),
   assignment = c("proportional", "modal"),
   max_iter = 1000,
@@ -40,7 +41,16 @@ while adjusting for others -- is continuous-outcome only.}
 
 \item{correction}{Bias correction for the third step: \code{"auto"} (default)
 picks \code{"BCH"} for continuous outcomes (Bakk & Vermunt, 2016) and \code{"ML"}
-for categorical outcomes; or set \code{"BCH"}, \code{"ML"}, \code{"none"} directly.}
+for categorical outcomes; or set \code{"BCH"}, \code{"ML"}, \code{"none"} directly.
+Three-step only; an error with \code{steps = 2}.}
+
+\item{steps}{\code{3} (default) for the bias-adjusted three-step, or \code{2} for
+the two-step estimator of Bakk and Kuha (2018): \code{fit}'s measurement
+model and class sizes are held fixed and the outcome model is estimated
+by maximising the full likelihood, every case's class probabilities
+recomputed under the joint model at each iteration. No classification
+step, no correction. See \code{n_steps} in \code{\link[=fit_mixture]{fit_mixture()}}; in this version
+the two-step's standard errors do not yet carry the step-1 uncertainty.}
 
 \item{se}{Standard-error estimator passed on to the third step:
 \code{"corrected"} (default), \code{"robust"}, or \code{"hessian"}. It governs the

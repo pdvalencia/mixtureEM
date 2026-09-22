@@ -56,23 +56,44 @@
 }
 
 # Fit the structural model on top of a completed step-1 state. The measurement
-# model is frozen at this point; only $sm (and, for the ML correction, the
-# joint posteriors) change. Callers are responsible for having run fit_em()
-# with Y = NULL first so $log_resp holds measurement-only posteriors.
+# model is frozen at this point; only $sm (and, for the two-step and the ML
+# correction, the joint posteriors) change. Callers are responsible for having
+# run fit_em() with Y = NULL first so $log_resp holds measurement-only
+# posteriors.
 .apply_structural_steps <- function(model_state, X, Y, n_steps, correction,
                                     max_iter, se,
                                     assignment = "proportional") {
   if (is.null(Y) || is.null(model_state$sm)) return(model_state)
 
   if (n_steps == 2) {
+    # The two-step estimator of Bakk and Kuha (2018): the measurement model is
+    # held at its step-1 estimate and the structural parameters maximise the
+    # full joint log-likelihood, sum_i log sum_k P(k | z_i) P(y_i | k). That is
+    # one-step estimation with the measurement block fixed -- no class
+    # assignment and no classification table. The step-1 posteriors are only
+    # the starting point for `sm`; from there the ordinary EM loop runs with
+    # `Y` supplied, so every E-step re-scores each case under the joint model
+    # as the structural parameters move. Reusing the step-1 posteriors for
+    # the whole fit instead would be the uncorrected third step, which lives
+    # under `n_steps = 3, correction = "none"` below.
+    #
+    # The pooled class weights are frozen too, whatever the structural model.
+    # With class predictors they never enter the joint likelihood (see
+    # `covariate_active` in e_step()), so updating them would only replace the
+    # step-1 vector that .check_stepwise_fit() later rebuilds the
+    # measurement-only posteriors from; with a distal outcome they are part of
+    # the fixed step-1 block by definition (Bakk and Kuha, sec. 2.3).
+    #
+    # No covariance is attached here: the step-3 sandwich is the three-step's
+    # formula, and this fit is not a third step. confint()/vcov()/summary()
+    # fall back to the Q-function Hessian and say so.
     resp <- exp(model_state$log_resp)
     model_state$sm <- init_params(model_state$sm, Y, resp)
     model_state$sm <- m_step(model_state$sm, Y, resp)
-    # Two-step estimation is an unadjusted third step: the posteriors act as
-    # K weighted records per case, so the variance needs the same treatment
-    # as the ML-adjusted path, with no classification table to correct for.
-    model_state <- .attach_step3_covariate_vcov(
-      model_state, X, Y, resp, NULL, model_state$sample_weights, se = se)
+    model_state$frozen <- c("mm", "weights")
+    model_state <- fit_single_init(model_state, X, Y, max_iter = max_iter,
+                                   refine = FALSE, init_state = model_state)
+    model_state$frozen <- NULL
 
   } else if (n_steps == 3) {
     if (correction == "ML") {

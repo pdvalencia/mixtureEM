@@ -1820,7 +1820,9 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   \code{"distal_continuous_regression"}. Requires \code{Y}. Default is
 #'   \code{NULL} (measurement model only).
 #' @param n_steps Integer. Estimation approach: \code{1} for simultaneous
-#'   1-step, \code{2} for 2-step, or \code{3} for bias-corrected 3-step.
+#'   1-step, \code{2} for the two-step estimator of Bakk and Kuha (2018;
+#'   measurement model fixed at its step-1 estimate, structural model
+#'   maximised on the full likelihood), or \code{3} for bias-corrected 3-step.
 #'   Default is \code{1}.
 #' @param correction Character. Bias correction for 3-step estimation.
 #'   One of \code{"none"}, \code{"BCH"}, or \code{"ML"}. Ignored when
@@ -1866,14 +1868,14 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   group-varying measurement search to seed each fit from the pooled solution.
 #'   \code{NULL} (default) uses only the usual random initializations.
 #' @param se Character. How standard errors for a covariate (class-prediction)
-#'   structural model are computed when \code{n_steps} is \code{2} or \code{3}.
+#'   structural model are computed when \code{n_steps} is \code{3}.
 #'   \code{"corrected"} (default) is the first-order corrected estimator of
 #'   Bakk et al. (2014): the step-3 sandwich plus the variance
 #'   propagated from step 1. \code{"robust"} keeps only the sandwich.
 #'   \code{"hessian"} inverts the
 #'   step-3 observed information alone. See \code{\link{covariate_se}} for the
 #'   differences and when they matter. Ignored for other structural models and
-#'   for \code{n_steps = 1}.
+#'   for \code{n_steps = 1} and \code{2}.
 #' @param n_cores Positive integer. Number of processes to spread the random
 #'   starts over. Default \code{1} (sequential), or the value of
 #'   \code{options(mixtureEM.n_cores = )} where that has been set; an argument
@@ -2204,7 +2206,7 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
     model_state <- .expand_patterns(model_state, coll, X, NULL)
 
     # Step 1 metrics (measurement model only)
-    if (n_steps == 3)
+    if (n_steps %in% c(2L, 3L))
       model_state$step1_metrics <- .step1_metrics(model_state)
 
     model_state <- .apply_structural_steps(model_state, X, Y, n_steps,
@@ -2822,9 +2824,26 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   into two, and the comparison against the free model says so. When the free
 #'   model is wrong it fails silently, as a boundary solution that gets written
 #'   up as a finding.
-#' @param n_steps Estimation strategy: 1 (simultaneous), 2, or 3 (recommended
-#'   when a structural model is present). Defaults to 3 when \code{predictors}
-#'   or \code{outcome} is supplied and left unset, otherwise 1.
+#' @param n_steps Estimation strategy: 1 (simultaneous), 2 (two-step), or 3
+#'   (bias-adjusted three-step; recommended when a structural model is
+#'   present). Defaults to 3 when \code{predictors} or \code{outcome} is
+#'   supplied and left unset, otherwise 1.
+#'
+#'   \code{n_steps = 2} is the two-step estimator of Bakk and Kuha (2018). The
+#'   measurement model is fitted alone and then held fixed at that estimate;
+#'   the structural model is estimated by maximising the full likelihood with
+#'   the measurement parameters as constants, so each case's class
+#'   probabilities are recomputed under the joint model at every iteration.
+#'   There is no classification step and no classification table: the
+#'   covariates or outcome cannot redefine the classes, and several structural
+#'   models can be compared on one fixed measurement model. Like every
+#'   stepwise estimator it is biased toward zero when the classes are poorly
+#'   separated and the sample is small (Bakk and Kuha, 2018, Tables 1 and 3).
+#'   In this version its standard errors come from the Q-function Hessian of
+#'   the structural model and do not yet carry the uncertainty of the step-1
+#'   estimates, which the printed output states. The uncorrected third step
+#'   that \code{n_steps = 2} used to run is \code{n_steps = 3,
+#'   correction = "none"}.
 #' @param correction Bias correction for 3-step estimation: \code{"none"},
 #'   \code{"ML"}, or \code{"BCH"}. When left unset for a 3-step structural
 #'   model, a recommended default is chosen (ML for predictors and categorical
@@ -3032,6 +3051,11 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #' mixture models. \emph{Computational Statistics & Data Analysis},
 #' \emph{41}(3-4), 561-575. \doi{10.1016/S0167-9473(02)00163-9}
 #' (the iteration budget behind \code{max_iter}).
+#'
+#' Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between latent
+#' classes and external variables. \emph{Psychometrika}, \emph{83}(4),
+#' 871-892. \doi{10.1007/s11336-017-9592-7} (the estimator behind
+#' \code{n_steps = 2}).
 #'
 #' Hipp, J. R., & Bauer, D. J. (2006). Local solutions in the estimation of
 #' growth mixture models. \emph{Psychological Methods}, \emph{11}(1), 36-53.

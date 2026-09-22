@@ -294,9 +294,26 @@ into two, and the comparison against the free model says so. When the free
 model is wrong it fails silently, as a boundary solution that gets written
 up as a finding.}
 
-\item{n_steps}{Estimation strategy: 1 (simultaneous), 2, or 3 (recommended
-when a structural model is present). Defaults to 3 when \code{predictors}
-or \code{outcome} is supplied and left unset, otherwise 1.}
+\item{n_steps}{Estimation strategy: 1 (simultaneous), 2 (two-step), or 3
+(bias-adjusted three-step; recommended when a structural model is
+present). Defaults to 3 when \code{predictors} or \code{outcome} is
+supplied and left unset, otherwise 1.
+
+\code{n_steps = 2} is the two-step estimator of Bakk and Kuha (2018). The
+measurement model is fitted alone and then held fixed at that estimate;
+the structural model is estimated by maximising the full likelihood with
+the measurement parameters as constants, so each case's class
+probabilities are recomputed under the joint model at every iteration.
+There is no classification step and no classification table: the
+covariates or outcome cannot redefine the classes, and several structural
+models can be compared on one fixed measurement model. Like every
+stepwise estimator it is biased toward zero when the classes are poorly
+separated and the sample is small (Bakk and Kuha, 2018, Tables 1 and 3).
+In this version its standard errors come from the Q-function Hessian of
+the structural model and do not yet carry the uncertainty of the step-1
+estimates, which the printed output states. The uncorrected third step
+that \code{n_steps = 2} used to run is \code{n_steps = 3,
+  correction = "none"}.}
 
 \item{correction}{Bias correction for 3-step estimation: \code{"none"},
 \code{"ML"}, or \code{"BCH"}. When left unset for a 3-step structural
@@ -581,6 +598,11 @@ the EM algorithm for getting the highest likelihood in multivariate Gaussian
 mixture models. \emph{Computational Statistics & Data Analysis},
 \emph{41}(3-4), 561-575. \doi{10.1016/S0167-9473(02)00163-9}
 (the iteration budget behind \code{max_iter}).
+
+Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between latent
+classes and external variables. \emph{Psychometrika}, \emph{83}(4),
+871-892. \doi{10.1007/s11336-017-9592-7} (the estimator behind
+\code{n_steps = 2}).
 
 Hipp, J. R., & Bauer, D. J. (2006). Local solutions in the estimation of
 growth mixture models. \emph{Psychological Methods}, \emph{11}(1), 36-53.

@@ -129,7 +129,7 @@ test_that("with no classification error the step-3 Hessian is the multinomial-lo
   d   <- .cse_sim()
   fit <- suppressMessages(fit_mixture(
     d$X, n_classes = 3, measurement = "binary", predictors = d$Z,
-    n_steps = 2, n_init = 5, random_state = 1))
+    n_steps = 3, correction = "none", n_init = 5, random_state = 1))
 
   p   <- .cse_pieces(fit, d, adjusted = FALSE)
   pcs <- .step3_pieces(p$beta, p$Zmat, p$resp1, NULL)
