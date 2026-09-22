@@ -203,3 +203,129 @@
   model_state$sm$parameters$V_method <- res$method
   model_state
 }
+
+# ==============================================================================
+# The same variance for a latent transition model
+# ==============================================================================
+#
+# fit_lta(n_steps = 2) (R/lta.R) freezes the measurement block at its step-one
+# estimate and maximises the initial-status and transition regressions on the
+# full likelihood, so it is the estimator above in a different model and it
+# takes the same variance. What changes is the packing: an lta_model is not
+# covered by .step1_pack(), and does not need to be -- .lta_par_layout() /
+# .lta_par_pack() / .lta_ll_case() (R/lta_core.R) already describe the whole
+# free parameter vector and give a case-level log-likelihood on it, and every
+# block of that layout carries a `kind`, so the (theta1, theta2) partition is
+# .lta_par_split()'s filter on that tag rather than a second packing.
+#
+# One difference from the cross-sectional case is worth stating. There the
+# joint log-likelihood factors into a measurement piece and a structural piece
+# that can be perturbed separately and recombined, which is why
+# .twostep_information() re-evaluates only one of them at a time. The forward-
+# backward recursion does not factor that way: a latent transition model's
+# case-level log-likelihood mixes the two blocks at every occasion, so each
+# perturbed value costs a full pass. The blocks are therefore differenced
+# directly, and only the two that equation 5 uses: I22 (p2 x p2) and I12
+# (p1 x p2). I11 is never formed. On a real model p1 is several times p2 and
+# that corner is most of the cost of a full Hessian, which the robust branch of
+# .lta_standard_errors() pays because a sandwich needs it and this does not.
+
+# I22 and I12 of the joint log-likelihood at the fitted point, by the same
+# four-point central difference on the same relative step .step1_fd_hessian()
+# uses. Returned as second derivatives of the log-likelihood; negate for
+# information.
+.lta_twostep_information <- function(state, X, w, layout, par, idx1, idx2) {
+  ll <- function(v) sum(w * .lta_ll_case(state, X, v, layout))
+  h  <- .step1_fd_step * pmax(1, abs(par))
+  bump <- function(i, s) { v <- par; v[i] <- v[i] + s * h[i]; v }
+  two  <- function(i, si, j, sj) {
+    v <- par; v[i] <- v[i] + si * h[i]; v[j] <- v[j] + sj * h[j]; ll(v)
+  }
+  cross <- function(i, j)
+    (two(i, 1, j, 1) - two(i, 1, j, -1) - two(i, -1, j, 1) + two(i, -1, j, -1)) /
+      (4 * h[i] * h[j])
+
+  p2  <- length(idx2)
+  H22 <- matrix(0, p2, p2)
+  for (a in seq_len(p2)) for (b in a:p2) {
+    if (a == b) {
+      # The diagonal is the same four-point formula with i = j, which collapses
+      # to the ordinary second difference; writing it out avoids evaluating the
+      # unperturbed point twice as a mixed term.
+      H22[a, a] <- (ll(bump(idx2[a], 2)) - 2 * ll(par) + ll(bump(idx2[a], -2))) /
+        (4 * h[idx2[a]]^2)
+    } else {
+      H22[a, b] <- H22[b, a] <- cross(idx2[a], idx2[b])
+    }
+  }
+
+  p1  <- length(idx1)
+  H12 <- matrix(0, p1, p2)
+  for (a in seq_len(p1)) for (b in seq_len(p2))
+    H12[a, b] <- cross(idx1[a], idx2[b])
+
+  list(H22 = H22, H12 = H12)
+}
+
+# Pseudo-maximum-likelihood variance of a two-step latent transition fit.
+#
+# @param state The step-two fit: measurement block at its step-one values,
+#   structural block at the joint maximum.
+# @param X Indicator matrix both steps were fitted to.
+# @param step1 The step-one fit, as carried on the object as `$step1`.
+#
+# @return NULL when the model is outside the packing, or a list of `V` (the
+#   structural block's covariance matrix), `V2` (its step-two-only part), `S11`
+#   (the step-one variance actually used), the two index vectors and a `method`
+#   label. Returning NULL rather than signalling is deliberate: a model the
+#   packing cannot describe keeps the estimator it already had, the way
+#   .lta_standard_errors()'s robust branch declines.
+.lta_twostep_vcov <- function(state, X, step1) {
+  if (is.null(step1) || !inherits(step1, "lta_model")) return(NULL)
+  if (!.lta_par_packable(state) || !.lta_par_packable(step1)) return(NULL)
+
+  layout <- .lta_par_layout(state)
+  par    <- .lta_par_pack(state, layout)
+  split  <- .lta_par_split(layout)
+  idx1   <- split$measurement
+  idx2   <- split$structural
+  if (!length(idx1) || !length(idx2)) return(NULL)
+
+  layout1 <- .lta_par_layout(step1)
+  par1    <- .lta_par_pack(step1, layout1)
+  idx1_s1 <- .lta_par_split(layout1)$measurement
+
+  # The freeze invariant, used here as an alignment proof. Both vectors come
+  # from the same layout code on the same model shape, so their measurement
+  # halves are the same blocks in the same order; if step two really did leave
+  # the measurement block alone, the two halves are also numerically identical.
+  # Anything else -- a status relabelling between the two fits, a layout that
+  # does not correspond -- shows up here, and the honest response is to decline
+  # rather than to propagate a variance read off the wrong coordinates.
+  if (length(idx1_s1) != length(idx1)) return(NULL)
+  if (max(abs(par[idx1] - par1[idx1_s1])) > 1e-6) return(NULL)
+
+  # Sigma_11, the sampling variance of the step-one estimate, restricted to the
+  # measurement parameters: the corresponding block of the INVERSE step-one
+  # information, not the inverse of the block. The step-one fit carries it
+  # already when it was asked for standard errors; otherwise it is computed
+  # here, once.
+  se1 <- step1$se
+  if (is.null(se1) || is.null(se1$vcov))
+    se1 <- tryCatch(.lta_standard_errors(step1, X), error = function(e) NULL)
+  if (is.null(se1) || is.null(se1$vcov)) return(NULL)
+  if (nrow(se1$vcov) != length(par1)) return(NULL)
+  S11 <- se1$vcov[idx1_s1, idx1_s1, drop = FALSE]
+
+  info <- .lta_twostep_information(state, X, state$weights_vec, layout, par,
+                                  idx1, idx2)
+  V2 <- .psd_pinv(-info$H22)
+  V2 <- (V2 + t(V2)) / 2
+  V1 <- V2 %*% t(info$H12) %*% S11 %*% info$H12 %*% V2
+  V  <- V2 + V1
+  V  <- (V + t(V)) / 2
+  if (!all(is.finite(V))) return(NULL)
+
+  list(V = V, V2 = V2, S11 = S11, idx1 = idx1, idx2 = idx2,
+       method = "Two-step pseudo-ML (Bakk and Kuha, 2018)")
+}

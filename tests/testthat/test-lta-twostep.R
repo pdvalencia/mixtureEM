@@ -73,8 +73,10 @@
   args <- list(sim$X, n_statuses = 2, times = 3, measurement = "binary",
                n_cores = 1, random_state = 5, refine = FALSE,
                standard_errors = FALSE, order_by_size = FALSE)
+  # modifyList rather than c(): the standard-error block below overrides one of
+  # the defaults above, and a duplicated argument name is an error in do.call.
   .ts_cache[[key]] <- suppressMessages(suppressWarnings(
-    do.call(fit_lta, c(args, list(...)))))
+    do.call(fit_lta, utils::modifyList(args, list(...)))))
   .ts_cache[[key]]
 }
 
@@ -225,4 +227,91 @@ test_that("an ordinary fit is untouched by the freeze machinery", {
   expect_equal(plain$n_steps, 1L)
   expect_null(plain$step1)
   expect_null(plain$frozen)
+})
+
+# --- (e) the standard errors --------------------------------------------------
+#
+# Step 2 holds the measurement block at an ESTIMATE, not at a known constant,
+# and the uncertainty in that estimate belongs in the standard errors of the
+# coefficients built on top of it. The pseudo-maximum-likelihood variance
+# (Bakk & Kuha, 2018, eq. 5) is V = V2 + V1: V2 the inverse observed
+# information of the full likelihood in the structural coefficients, V1 the
+# step-one sampling variance carried across by the cross-curvature between the
+# two blocks. Two checks, and neither needs anything outside the package:
+#
+#   V2 against an independent numerical Hessian of a from-scratch joint
+#   likelihood, which shares no code with the differencing that produced it;
+#   and V1 against what it is for -- it is most of the variance when the
+#   statuses are poorly separated and nearly none of it when they are not.
+
+.ts_se <- function(key, sim, ...)
+  .ts_fit(key, sim, ..., standard_errors = TRUE)
+
+.ts_two_se <- function()
+  .ts_se("two_se", .ts_sim(), predictors_initial = .ts_sim()$Z,
+         predictors_transition = .ts_sim()$Z, n_steps = 2, n_init = 6)
+.ts_two_s_se <- function()
+  .ts_se("two_s_se", .ts_sep(), predictors_initial = .ts_sep()$Z,
+         predictors_transition = .ts_sep()$Z, n_steps = 2, n_init = 4)
+
+# sqrt of the diagonals of V2 and of V, structural block only, in packing
+# order, plus the vector of standard errors an independent Hessian gives.
+.ts_se_pieces <- function(fit, X) {
+  layout <- mixtureEM:::.lta_par_layout(fit)
+  par    <- mixtureEM:::.lta_par_pack(fit, layout)
+  idx    <- mixtureEM:::.lta_par_split(layout)$structural
+  w      <- fit$weights_vec
+  ll     <- function(v) {
+    p <- par; p[idx] <- v
+    sum(w * mixtureEM:::.lta_ll_case(fit, X, p, layout))
+  }
+  list(sd2   = sqrt(diag(fit$se$twostep_V2)),
+       sd    = sqrt(diag(fit$se$vcov[idx, idx, drop = FALSE])),
+       sd_oh = sqrt(diag(solve(-stats::optimHess(par[idx], ll)))))
+}
+
+test_that("the two-step variance is V2 plus the step-one term", {
+  fit <- .ts_two_se()
+  expect_true(isTRUE(fit$se$twostep))
+  expect_match(fit$se$method, "Bakk and Kuha")
+
+  p <- .ts_se_pieces(fit, .ts_sim()$X)
+
+  # V2 is the step-two-only variance, and optimHess() reaches it by a
+  # different route: a Hessian of the whole structural vector at once against
+  # the block-by-block central differences .lta_twostep_information() takes.
+  # Measured 2026-09-22: 3.7e-5 relative, worst coordinate.
+  expect_lt(max(abs(p$sd2 - p$sd_oh) / p$sd_oh), 1e-3)
+
+  # V1 is positive semi-definite, so every standard error grows.
+  expect_true(all(p$sd >= p$sd2 - 1e-10))
+
+  # And it is not a rounding correction. This fixture's statuses are weakly
+  # separated on purpose (item probabilities uniform on 0.25-0.75), which is
+  # the regime Bakk & Kuha's Table 2 is about: measured 2026-09-22, the
+  # step-two-only standard error of the initial-status intercept is 0.18 of
+  # the whole. A ratio of 1 everywhere would mean the cross-curvature block is
+  # wrong, not that it is small.
+  expect_lt(min(p$sd2 / p$sd), 0.5)
+})
+
+test_that("the step-one term vanishes as the statuses separate", {
+  fit <- .ts_two_s_se()
+  p   <- .ts_se_pieces(fit, .ts_sep()$X)
+
+  expect_lt(max(abs(p$sd2 - p$sd_oh) / p$sd_oh), 1e-3)
+  # Same estimator, same formula, statuses well separated: with almost no
+  # classification uncertainty left there is almost nothing for step one to
+  # contribute. Measured 2026-09-22: the worst coordinate is 0.986.
+  expect_gt(min(p$sd2 / p$sd), 0.95)
+  expect_true(all(p$sd >= p$sd2 - 1e-10))
+})
+
+test_that("an ordinary fit reports no two-step variance", {
+  plain <- .ts_fit("plain_se", .ts_sep(), n_init = 2, standard_errors = TRUE)
+  expect_false(isTRUE(plain$se$twostep))
+  expect_null(plain$se$twostep_V2)
+  # The measurement block is still described, so the fit did not lose its
+  # ordinary standard errors on the way past the new branch.
+  expect_true(length(plain$se$prob_se) > 0L)
 })

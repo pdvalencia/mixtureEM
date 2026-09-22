@@ -276,10 +276,26 @@ lta_covariate_summary <- function(object, digits = 3) {
 
   # Coefficient table with Wald tests from the multinomial-logit information.
   # The Hessian covers the free classes only, packed row-major by class.
-  show_block <- function(beta, hessian, cov_names, row_lab) {
+  # A two-step fit's structural coefficients do not get their standard errors
+  # from the Hessian stored by the M-step: that is the curvature of the
+  # structural block alone, and it omits the uncertainty in the measurement
+  # parameters the second step held fixed. The two-step variance computed in
+  # R/twostep_variance.R carries both, and is stored on `se$vcov` in the
+  # packing order, one contiguous slice per block. Looked up by the block's own
+  # name so that the two descriptions of the vector -- the one the scores use
+  # and the one printed here -- cannot be matched up by position and drift.
+  ts_block <- function(name) {
+    if (!isTRUE(object$se$twostep) || is.null(object$se$vcov)) return(NULL)
+    blk <- Find(function(b) identical(b$name, name), object$se$blocks)
+    if (is.null(blk)) return(NULL)
+    object$se$vcov[blk$cols, blk$cols, drop = FALSE]
+  }
+
+  show_block <- function(beta, hessian, cov_names, row_lab, V = NULL) {
     free <- K - 1L
     D    <- ncol(beta)
-    V    <- if (is.null(hessian)) NULL else tryCatch(pinv(-hessian),
+    if (is.null(V))
+      V  <- if (is.null(hessian)) NULL else tryCatch(pinv(-hessian),
                                                     error = function(e) NULL)
     se   <- if (is.null(V)) rep(NA_real_, free * D) else
       sqrt(pmax(diag(V), 0))
@@ -301,7 +317,8 @@ lta_covariate_summary <- function(object, digits = 3) {
     cat("\nPREDICTING LATENT STATUS AT THE FIRST OCCASION\n")
     show_block(object$delta_beta, object$delta_hessian,
                colnames(object$Z_delta),
-               paste0("Status ", seq_len(K - 1L)))
+               paste0("Status ", seq_len(K - 1L)),
+               V = ts_block("delta_beta"))
   }
 
   if (!is.null(object$tau_beta)) {
@@ -316,17 +333,22 @@ lta_covariate_summary <- function(object, digits = 3) {
       tag <- if (length(object$tau_beta) == 1L) "all occasions" else
         sprintf("occasion %d -> %d", m, m + 1L)
       cat(sprintf("\n  [%s]\n", tag))
+      # The block names are .lta_score_matrix()'s own (R/lta.R): the occasion
+      # index is dropped when one transition matrix covers every interval.
+      occ <- if (isTRUE(object$tau_homogeneous)) "" else sprintf("(%d)", m)
       if (by_origin) {
         for (k in seq_len(K)) {
           cat(sprintf("\n    from Status %d:\n", k))
           show_block(object$tau_beta[[m]][[k]], object$tau_hessian[[m]][[k]],
                      colnames(object$Z_tau),
-                     paste0("to Status ", seq_len(K - 1L)))
+                     paste0("to Status ", seq_len(K - 1L)),
+                     V = ts_block(sprintf("tau_beta%s[from %d]", occ, k)))
         }
       } else {
         show_block(object$tau_beta[[m]], object$tau_hessian[[m]],
                    colnames(.lta_tau_design(object, 1L)),
-                   paste0("to Status ", seq_len(K - 1L)))
+                   paste0("to Status ", seq_len(K - 1L)),
+                   V = ts_block(sprintf("tau_beta%s", occ)))
       }
     }
   }
@@ -391,6 +413,11 @@ lta_covariate_summary <- function(object, digits = 3) {
     ), row.names = FALSE)
   }
 
+  if (isTRUE(object$se$twostep))
+    cat("\nStandard errors are the two-step (pseudo-maximum-likelihood) ones:\n",
+        "the curvature of the full likelihood in these coefficients, plus the\n",
+        "sampling uncertainty of the measurement parameters held fixed in\n",
+        "step 2. See `?fit_lta`.\n", sep = "")
   cat("\n=========================================================\n")
   invisible(object)
 }

@@ -80,11 +80,35 @@ between its own starting point and the one-step maximum, and freeing the
 measurement block from the two-step solution climbs to the one-step maximum,
 so the freeze is the only difference between them.
 
-Standard errors under `n_steps = 2` do not yet carry the step-1 uncertainty
-and are therefore too small; `?fit_lta` says so and says to read them as a
-lower bound. `n_steps = 3` for latent transition models is refused with a
-message naming itself. Nothing changes numerically for `n_steps = 1`, which
-is every `fit_lta()` fit made before this release.
+Standard errors under `n_steps = 2` are the pseudo-maximum-likelihood ones of
+Bakk and Kuha (2018, eq. 5), the same variance the cross-sectional two-step
+reports: the inverse observed information of the full likelihood in the
+structural coefficients, plus the sampling variance of the measurement
+parameters step 2 held fixed, carried across by the cross-curvature between
+the two blocks. Both blocks are differenced numerically from the joint
+likelihood, and the (measurement, structural) partition is read off the tag
+each block of the parameter layout already carries, so it cannot drift from
+the layout that defines it. The measurement parameters themselves report the
+step-1 fit's own standard errors, which is the fit that estimated them.
+`lta_covariate_summary()` prints the corrected standard errors and says
+which they are.
+
+The step-2-only part is checked against an independent numerical Hessian of a
+from-scratch joint likelihood, to 4e-5 on both fixtures. The step-1 part is
+what an analysis that treats the measurement model as known omits, and how
+much it matters depends entirely on separation: on a deliberately weakly
+separated two-status fixture the step-2-only standard error of the
+initial-status intercept is 0.18 of the whole, and on a well-separated one
+every coordinate is within 1.5 percent of it. The numerical Hessian is the
+one real cost, a few thousand likelihood evaluations; `standard_errors =
+FALSE` skips it and `standard_errors = "robust"` is the sandwich on the
+case-level scores, which is a step-2-only estimator.
+
+`n_steps = 3` for latent transition models is refused with a message naming
+itself. Nothing changes numerically for `n_steps = 1`, which is every
+`fit_lta()` fit made before this release. A two-step fit no longer reorders
+its statuses by size: its measurement block is step 1's and the two have to
+stay in the same order.
 
 ## Covariate standard errors on the Hessian-based paths were too small
 

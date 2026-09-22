@@ -481,12 +481,26 @@ parameters of the returned fit are identical to its. Step 2 runs no
 restarts of its own -- with the measurement block fixed there is nothing
 left for a restart to search.
 
-\strong{Standard errors under \code{n_steps = 2} do not yet carry the step-1
-uncertainty} and are therefore too small: they are the curvature of the
-structural block alone, not the pseudo-maximum-likelihood variance of
-Bakk & Kuha's equation 5, which adds a term for the measurement
-parameters having been estimated rather than known. Read them as a lower
-bound until that term is available. \code{n_steps = 1} is unaffected.
+Standard errors for the structural coefficients carry the step-1
+uncertainty. Step 2 holds the measurement parameters fixed, but they were
+estimated rather than known, and their sampling error propagates into
+everything built on top of them. What is reported is therefore the
+pseudo-maximum-likelihood variance of Bakk & Kuha's equation 5,
+\eqn{V = V_2 + V_1}: \eqn{V_2} is the inverse observed information of the
+full likelihood in the structural coefficients, and \eqn{V_1} carries the
+step-1 variance across through the cross-curvature between the two
+blocks. \eqn{V_1} is negligible when the statuses are well separated and
+is most of the variance when they are not, which is the same condition
+that governs the attenuation above. The measurement parameters of a
+two-step fit report the step-1 fit's own standard errors, since that is
+the fit that estimated them.
+
+Two costs come with it. The information matrices are differenced
+numerically, which is a few thousand likelihood evaluations and can take
+minutes on a large model; pass \code{standard_errors = FALSE} to skip it.
+And \code{standard_errors = "robust"} is the sandwich on the case-level
+scores, which is a step-2-only estimator and does not include
+\eqn{V_1}. \code{n_steps = 1} is unaffected by any of this.
 
 \code{n_steps = 3} -- the bias-adjusted three-step estimator -- is not
 implemented for latent transition models and is refused with a message

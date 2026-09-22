@@ -397,12 +397,26 @@
 #'   restarts of its own -- with the measurement block fixed there is nothing
 #'   left for a restart to search.
 #'
-#'   **Standard errors under `n_steps = 2` do not yet carry the step-1
-#'   uncertainty** and are therefore too small: they are the curvature of the
-#'   structural block alone, not the pseudo-maximum-likelihood variance of
-#'   Bakk & Kuha's equation 5, which adds a term for the measurement
-#'   parameters having been estimated rather than known. Read them as a lower
-#'   bound until that term is available. `n_steps = 1` is unaffected.
+#'   Standard errors for the structural coefficients carry the step-1
+#'   uncertainty. Step 2 holds the measurement parameters fixed, but they were
+#'   estimated rather than known, and their sampling error propagates into
+#'   everything built on top of them. What is reported is therefore the
+#'   pseudo-maximum-likelihood variance of Bakk & Kuha's equation 5,
+#'   \eqn{V = V_2 + V_1}: \eqn{V_2} is the inverse observed information of the
+#'   full likelihood in the structural coefficients, and \eqn{V_1} carries the
+#'   step-1 variance across through the cross-curvature between the two
+#'   blocks. \eqn{V_1} is negligible when the statuses are well separated and
+#'   is most of the variance when they are not, which is the same condition
+#'   that governs the attenuation above. The measurement parameters of a
+#'   two-step fit report the step-1 fit's own standard errors, since that is
+#'   the fit that estimated them.
+#'
+#'   Two costs come with it. The information matrices are differenced
+#'   numerically, which is a few thousand likelihood evaluations and can take
+#'   minutes on a large model; pass `standard_errors = FALSE` to skip it.
+#'   And `standard_errors = "robust"` is the sandwich on the case-level
+#'   scores, which is a step-2-only estimator and does not include
+#'   \eqn{V_1}. `n_steps = 1` is unaffected by any of this.
 #'
 #'   `n_steps = 3` -- the bias-adjusted three-step estimator -- is not
 #'   implemented for latent transition models and is refused with a message
@@ -1208,8 +1222,15 @@ fit_lta <- function(indicators,
   # declares an ordering of stages, and not when covariates are present, where
   # the statuses are also indexed by the regression coefficients and by the
   # origin dummies in the transition design.
+  #
+  # A two-step fit keeps its labels whatever else is true: its measurement
+  # block is step one's, and the two-step variance below reads the two fits'
+  # measurement parameters as one vector in one order. Sorting step two by
+  # prevalence would permute that order away from step one's on the one shape
+  # where nothing else pins it -- a random-intercept regression with no
+  # initial-status or transition covariate.
   keep_labels <- !is.null(forbidden_transitions) ||
-    !is.null(Z_delta) || !is.null(Z_tau)
+    !is.null(Z_delta) || !is.null(Z_tau) || n_steps == 2L
   if (order_by_size && !keep_labels)
     best <- .sort_lta_statuses(best)
 
@@ -1235,9 +1256,15 @@ fit_lta <- function(indicators,
   # from for anyone reading the fit later.
   best$metrics$n_requested <- if (is.null(refine_from)) max(1L, n_init) else 1L
   best$refined_from <- !is.null(refine_from)
+  # The step-one fit is handed over for the two-step estimator's variance: its
+  # measurement parameters were estimated rather than known, and the standard
+  # errors of the structural block have to carry that (Bakk & Kuha, 2018,
+  # eq. 5). `step1` exists only on the n_steps = 2 path, so every other fit
+  # passes NULL and is untouched.
   if (!identical(standard_errors, FALSE))
     best$se <- .lta_standard_errors(
-      best, X, robust = identical(standard_errors, "robust"))
+      best, X, robust = identical(standard_errors, "robust"),
+      step1 = if (n_steps == 2L) step1 else NULL)
 
   # Recorded on the object as well as warned about: a warning is transient, and
   # someone reading a saved fit months later should still be able to see it.
@@ -1799,7 +1826,7 @@ fit_lta <- function(indicators,
 # taken on their multinomial-logit scale (last category anchored), which is where
 # the normal approximation behaves; standard errors for the probabilities
 # themselves follow by the delta method.
-.lta_standard_errors <- function(state, X, robust = FALSE) {
+.lta_standard_errors <- function(state, X, robust = FALSE, step1 = NULL) {
   sc <- .lta_score_matrix(state, X)
   if (is.null(sc)) return(NULL)
   S <- sc$S; blocks <- sc$blocks; conditional <- sc$conditional
@@ -1855,6 +1882,37 @@ fit_lta <- function(indicators,
     }
   }
 
+  # The two-step estimator's own variance, when this is a two-step fit and the
+  # step-one fit it froze is in hand. The structural block gets the pseudo-
+  # maximum-likelihood variance of Bakk and Kuha (2018, eq. 5); the measurement
+  # block gets the step-one fit's own sampling variance, which is what the
+  # uncertainty in those parameters actually is under this estimator, since
+  # step two never moved them. The two blocks were estimated in sequence and
+  # the covariance between them is not estimated here, so it is reported as
+  # zero rather than left at a number describing a joint fit that was not made.
+  # This runs before the delta method below, so the probability-scale standard
+  # errors and the loading standard errors are read off the same matrix.
+  #
+  # `robust` is left alone: there the caller has asked for the sandwich on the
+  # case-level scores, which is the step-two-only estimator with a different
+  # bread, and the cross-sectional two-step's `se = "robust"` makes the same
+  # choice for the same reason.
+  twostep_used <- FALSE
+  twostep_V2 <- NULL
+  v_method <- NULL
+  if (!is.null(step1) && !isTRUE(robust)) {
+    ts <- tryCatch(.lta_twostep_vcov(state, X, step1), error = function(e) NULL)
+    if (!is.null(ts) && nrow(V) == length(ts$idx1) + length(ts$idx2)) {
+      Vt <- matrix(0, nrow(V), ncol(V))
+      Vt[ts$idx2, ts$idx2] <- ts$V
+      Vt[ts$idx1, ts$idx1] <- ts$S11
+      V <- Vt
+      twostep_used <- TRUE
+      twostep_V2   <- ts$V2
+      v_method     <- ts$method
+    }
+  }
+
   # The paper's headline estimate is the RI loading with its standard error
   # (`### 14.5`); surface it as a plain R x M matrix keyed the same way
   # `state$ri$L` already is, rather than making a caller parse block-name
@@ -1889,7 +1947,8 @@ fit_lta <- function(indicators,
 
   list(vcov = V, blocks = blocks, prob_se = prob_se, loading_se = loading_se,
        conditional = conditional, design_based = design_based,
-       robust = robust_used)
+       robust = robust_used, twostep = twostep_used, twostep_V2 = twostep_V2,
+       method = v_method)
 }
 
 # Where the score blocks below are the right ones. Both `.lta_standard_errors()`

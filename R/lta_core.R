@@ -853,6 +853,34 @@
   out
 }
 
+# Which of the layout's blocks are structural, and which are measurement.
+#
+# Every block .lta_par_layout() writes carries a `kind`, so the two-step
+# estimator's (theta1, theta2) partition is a filter on that tag rather than a
+# second description of the same vector: the measurement block is what
+# fit_lta(n_steps = 2) freezes at its step-one estimate, the structural block
+# is what step two maximises over. Written here, next to the layout, so the
+# partition cannot drift away from the thing it partitions -- a new `kind` that
+# nobody classifies lands in the measurement set, which is the safe side, since
+# the measurement half is only ever held fixed or read off the step-one fit.
+.lta_structural_kinds <- c("class", "delta", "delta_beta", "tau", "tau_beta",
+                           "ri_beta")
+
+# layout -> the coordinates of each half in the packed vector.
+.lta_par_split <- function(layout) {
+  len  <- vapply(layout, function(b) as.integer(b$len), integer(1))
+  kind <- vapply(layout, function(b) b$kind, character(1))
+  end  <- cumsum(len)
+  beg  <- end - len + 1L
+  pick <- function(keep) {
+    keep <- keep & len > 0L
+    if (!any(keep)) return(integer(0))
+    unlist(Map(seq.int, beg[keep], end[keep]), use.names = FALSE)
+  }
+  str <- kind %in% .lta_structural_kinds
+  list(measurement = pick(!str), structural = pick(str))
+}
+
 # state -> vector. Multinomial logits anchored on the last (admissible)
 # category, logit for rho, identity for Gaussian means. The class-mixing
 # block, where present, is anchored on the last class the same way delta is
