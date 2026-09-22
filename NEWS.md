@@ -55,6 +55,37 @@ and the two limits. A two-step fit with a distal outcome still reports the
 Q-function Hessian, labelled as such. Nothing changes numerically for
 `n_steps = 1` or `3`.
 
+## `fit_lta()` gains the two-step estimator
+
+`fit_lta(n_steps = 2)` fits the measurement model on the indicators alone,
+holds it there, and estimates `predictors_initial`, `predictors_transition`
+and `predictors_random_intercept` by maximising the full likelihood with the
+item parameters as constants. Every E-step still runs on the joint model, so
+this is one-step estimation with one block pinned rather than any kind of
+class assignment: there is no classification table in it. The estimator is
+Bakk and Kuha's (2018), in the form Bartolucci, Montanari and Pandolfi
+(2015) give it for latent Markov models. Step 1 is the same call with the
+structural predictors dropped, so it inherits the restart budget, the seed,
+the invariance constraints and the priors; it is returned as `$step1`, and
+the item parameters of the returned fit are identical to its.
+
+What this is for: with the statuses fixed before any covariate is looked at,
+adding or dropping a predictor cannot redefine what the statuses mean, and
+several structural models can be compared on one measurement model. The
+price is the one every stepwise estimator pays, attenuation towards zero
+when the statuses are poorly separated or the sample is small. A test holds
+the three properties that define the estimator: the item parameters after
+step 2 are step 1's to machine precision, the two-step log-likelihood sits
+between its own starting point and the one-step maximum, and freeing the
+measurement block from the two-step solution climbs to the one-step maximum,
+so the freeze is the only difference between them.
+
+Standard errors under `n_steps = 2` do not yet carry the step-1 uncertainty
+and are therefore too small; `?fit_lta` says so and says to read them as a
+lower bound. `n_steps = 3` for latent transition models is refused with a
+message naming itself. Nothing changes numerically for `n_steps = 1`, which
+is every `fit_lta()` fit made before this release.
+
 ## Covariate standard errors on the Hessian-based paths were too small
 
 Standard errors, confidence intervals and Wald p-values for class-predictor

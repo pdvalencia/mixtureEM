@@ -311,6 +311,15 @@
 #'   orientation is arbitrary - the fit pins it by making the largest loading
 #'   positive - so the sign of every coefficient is meaningful only relative to
 #'   the loadings.
+#' @param n_steps How the measurement model and the structural model are
+#'   estimated relative to each other. `1` (default) fits both at once: the
+#'   covariates and the latent statuses are estimated in one likelihood, so the
+#'   covariates help decide what the statuses are. `2` is the two-step
+#'   estimator (Bakk & Kuha, 2018; Bartolucci, Montanari & Pandolfi, 2015): the
+#'   measurement model is fitted first on the indicators alone, held fixed, and
+#'   `predictors_initial` / `predictors_transition` /
+#'   `predictors_random_intercept` are then fitted on the full likelihood with
+#'   the statuses no longer free to move. See the section below.
 #' @param transition_effects How covariates act on the transitions.
 #'   `"common"` (default) gives each origin status its own intercepts but one
 #'   slope per covariate shared across origins, which is the specification in
@@ -361,6 +370,44 @@
 #'   is the entropy of that occasion's estimated status proportions (from
 #'   [`status_prevalences()`]).
 #'
+#' @section The two-step estimator (`n_steps = 2`):
+#'
+#'   A latent transition model is two models stacked: a measurement model
+#'   saying what the statuses are, and a structural model saying who starts in
+#'   which one and who moves. Fitting both at once (`n_steps = 1`) lets the
+#'   covariates take part in defining the statuses, so adding or dropping a
+#'   covariate can change what the statuses mean. The two-step estimator
+#'   removes that: step 1 fits the measurement model on the indicators alone,
+#'   step 2 holds it fixed and maximises the same full likelihood over the
+#'   structural coefficients only. Each E-step still runs on the joint model,
+#'   so this is one-step estimation with one block pinned -- there is no class
+#'   assignment and no classification table anywhere in it.
+#'
+#'   What that buys: the statuses are fixed before any covariate is looked at,
+#'   so several structural models can be compared on one measurement model and
+#'   none of them can redefine it. What it costs: like every stepwise
+#'   estimator, the coefficients are biased towards zero when the statuses are
+#'   poorly separated or the sample is small (Bakk & Kuha, 2018, Tables 1 and
+#'   3). With well-separated statuses the two estimators agree closely.
+#'
+#'   Step 1 is this same call with the structural predictors dropped, so it
+#'   takes the same `n_init`, `random_state`, invariance constraints and
+#'   priors; it is returned on the fitted object as `$step1`, and the item
+#'   parameters of the returned fit are identical to its. Step 2 runs no
+#'   restarts of its own -- with the measurement block fixed there is nothing
+#'   left for a restart to search.
+#'
+#'   **Standard errors under `n_steps = 2` do not yet carry the step-1
+#'   uncertainty** and are therefore too small: they are the curvature of the
+#'   structural block alone, not the pseudo-maximum-likelihood variance of
+#'   Bakk & Kuha's equation 5, which adds a term for the measurement
+#'   parameters having been estimated rather than known. Read them as a lower
+#'   bound until that term is available. `n_steps = 1` is unaffected.
+#'
+#'   `n_steps = 3` -- the bias-adjusted three-step estimator -- is not
+#'   implemented for latent transition models and is refused with a message
+#'   saying so.
+#'
 #' @references
 #' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
 #' Transition Analysis: With Applications in the Social, Behavioral, and Health
@@ -383,6 +430,21 @@
 #' Muthen, B., & Asparouhov, T. (2022). Latent transition analysis with random
 #' intercepts (RI-LTA). \emph{Psychological Methods}, \emph{27}(1), 1-16.
 #' \doi{10.1037/met0000370}
+#'
+#' Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between latent
+#' classes and external variables. \emph{Psychometrika}, \emph{83}(4),
+#' 871-892. \doi{10.1007/s11336-017-9592-7} - the estimator behind
+#' `n_steps = 2`.
+#'
+#' Bartolucci, F., Montanari, G. E., & Pandolfi, S. (2015). Three-step
+#' estimation of latent Markov models with covariates. \emph{Computational
+#' Statistics & Data Analysis}, \emph{83}, 287-301.
+#' \doi{10.1016/j.csda.2014.10.017} - the longitudinal case. Their step 1
+#' pools the occasions into one cross-sectional latent class model; the step 1
+#' here is the latent transition model's own measurement block, which already
+#' carries whatever invariance constraints the fit asks for. Both hold the
+#' measurement parameters fixed and maximise the full likelihood over the
+#' structural ones.
 #'
 #' Tseng, M.-C. (2024). Latent profile transition analysis with random
 #' intercepts (RI-LPTA). \emph{Structural Equation Modeling}, \emph{31}(4),
@@ -427,6 +489,7 @@ fit_lta <- function(indicators,
                     predictors_transition = NULL,
                     predictors_items = NULL,
                     predictors_random_intercept = NULL,
+                    n_steps = 1,
                     transition_effects = c("common", "by_origin"),
                     group = NULL,
                     group_effects = c("both", "initial", "transitions", "none"),
@@ -447,6 +510,15 @@ fit_lta <- function(indicators,
   if (!(isTRUE(standard_errors) || identical(standard_errors, FALSE) ||
         identical(standard_errors, "robust")))
     stop("`standard_errors` must be TRUE, FALSE or \"robust\".", call. = FALSE)
+
+  n_steps <- as.integer(n_steps)[1L]
+  if (identical(n_steps, 3L))
+    stop("`n_steps = 3` -- the bias-adjusted three-step estimator -- is not ",
+         "implemented for latent transition models. Use `n_steps = 2` for the ",
+         "two-step estimator, or `n_steps = 1` to fit everything at once.",
+         call. = FALSE)
+  if (is.na(n_steps) || !(n_steps %in% c(1L, 2L)))
+    stop("`n_steps` must be 1 or 2.", call. = FALSE)
 
   # `latent` is the one bayes_constants name fit_lta() does not read: the
   # status and transition priors are `smoothing`'s job. Resolving it silently
@@ -760,6 +832,58 @@ fit_lta <- function(indicators,
   # stopping rule. It is not `fit_mixture(start_from = )`, which *replaces* a
   # search that has not happened; here the pool ran already and this is its
   # winner, so nothing is being skipped. See the argument's documentation.
+  # --- the two-step estimator ------------------------------------------------
+  # `n_steps = 2` fits the measurement block on its own first, then holds it
+  # there while the initial-status and transition regressions are maximised on
+  # the full likelihood (Bakk & Kuha, 2018; Bartolucci, Montanari & Pandolfi,
+  # 2015, for the longitudinal case). Step 1 is this same call with the
+  # structural predictors dropped, so it takes the identical model, data,
+  # restart budget and seed -- one recursive call rather than a second copy of
+  # the argument handling, which would drift. Step 2 is the run this frame goes
+  # on to make: it seeds from step 1 through the ordinary `refine_from` path,
+  # runs no restarts of its own (there is nothing left to search: the
+  # measurement block is fixed and the regressions are fitted from it), and
+  # carries `frozen` into .lta_em(), which skips the measurement M-step and
+  # nothing else. Every E-step is still on the joint model, which is what makes
+  # this the two-step and not an uncorrected assignment step.
+  if (n_steps == 2L) {
+    if (is.null(predictors_initial) && is.null(predictors_transition) &&
+        is.null(predictors_random_intercept))
+      stop("`n_steps = 2` holds the measurement model fixed and fits the ",
+           "structural model on top of it, so it needs a structural model: ",
+           "give `predictors_initial`, `predictors_transition` or ",
+           "`predictors_random_intercept`.", call. = FALSE)
+    if (!is.null(refine_from))
+      stop("`n_steps = 2` fits its own step 1 and starts step 2 from it, so ",
+           "`refine_from` has nothing to hand over. Drop one of them.",
+           call. = FALSE)
+
+    # `match.call()` names every argument, so dropping one is an assignment.
+    # The arguments stay as the *expressions* the caller wrote, which is what
+    # makes step 1 see the same weights, strata and groups this frame saw:
+    # several of them are rewritten in place further up when empty rows are
+    # removed, and step 1 has to do its own removal on the originals rather
+    # than inherit half-filtered ones. `indicators` is the exception and is
+    # pinned to the value already in hand, because it is the data: an
+    # expression that draws or simulates would otherwise hand step 1 a
+    # different sample from step 2, silently.
+    cl  <- match.call()
+    env <- new.env(parent = parent.frame())
+    assign(".lta_step1_indicators", indicators, envir = env)
+    cl$indicators <- quote(.lta_step1_indicators)
+    cl$n_steps <- 1L
+    cl$predictors_initial <- NULL
+    cl$predictors_transition <- NULL
+    cl$predictors_random_intercept <- NULL
+    step1 <- eval(cl, env)
+
+    refine_from    <- step1
+    n_init         <- 1L
+    n_init_default <- TRUE
+    refine         <- FALSE
+    state$frozen   <- "mm"
+  }
+
   if (!is.null(refine_from)) {
     if (!inherits(refine_from, "lta_model"))
       stop("`refine_from` must be a model fitted by fit_lta().", call. = FALSE)
@@ -1155,6 +1279,14 @@ fit_lta <- function(indicators,
   # never sees.
   if (isFALSE(best$converged)) .warn_non_convergence(max_iter)
   .check_replication(best)
+
+  # `frozen` is a working flag for the M-step, not part of the fit: cleared
+  # here so nothing downstream -- a later refine_from, a bootstrap replicate --
+  # inherits a freeze the user did not ask for. The step-1 fit is kept instead,
+  # so what was held fixed can be read off the object it came from.
+  best$frozen  <- NULL
+  best$n_steps <- n_steps
+  if (n_steps == 2L) best$step1 <- step1
 
   best
 }

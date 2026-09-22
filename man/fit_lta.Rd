@@ -43,6 +43,7 @@ fit_lta(
   predictors_transition = NULL,
   predictors_items = NULL,
   predictors_random_intercept = NULL,
+  n_steps = 1,
   transition_effects = c("common", "by_origin"),
   group = NULL,
   group_effects = c("both", "initial", "transitions", "none"),
@@ -353,6 +354,16 @@ orientation is arbitrary - the fit pins it by making the largest loading
 positive - so the sign of every coefficient is meaningful only relative to
 the loadings.}
 
+\item{n_steps}{How the measurement model and the structural model are
+estimated relative to each other. \code{1} (default) fits both at once: the
+covariates and the latent statuses are estimated in one likelihood, so the
+covariates help decide what the statuses are. \code{2} is the two-step
+estimator (Bakk & Kuha, 2018; Bartolucci, Montanari & Pandolfi, 2015): the
+measurement model is fitted first on the indicators alone, held fixed, and
+\code{predictors_initial} / \code{predictors_transition} /
+\code{predictors_random_intercept} are then fitted on the full likelihood with
+the statuses no longer free to move. See the section below.}
+
 \item{transition_effects}{How covariates act on the transitions.
 \code{"common"} (default) gives each origin status its own intercepts but one
 slope per covariate shared across origins, which is the specification in
@@ -442,6 +453,46 @@ removes that ambiguity, and is the usual practice (Collins & Lanza,
 sec. 7.11). It is a testable restriction: fit the model both ways and compare
 them with \code{\link[=lr_test]{lr_test()}}.
 }
+\section{The two-step estimator (\code{n_steps = 2})}{
+
+
+A latent transition model is two models stacked: a measurement model
+saying what the statuses are, and a structural model saying who starts in
+which one and who moves. Fitting both at once (\code{n_steps = 1}) lets the
+covariates take part in defining the statuses, so adding or dropping a
+covariate can change what the statuses mean. The two-step estimator
+removes that: step 1 fits the measurement model on the indicators alone,
+step 2 holds it fixed and maximises the same full likelihood over the
+structural coefficients only. Each E-step still runs on the joint model,
+so this is one-step estimation with one block pinned -- there is no class
+assignment and no classification table anywhere in it.
+
+What that buys: the statuses are fixed before any covariate is looked at,
+so several structural models can be compared on one measurement model and
+none of them can redefine it. What it costs: like every stepwise
+estimator, the coefficients are biased towards zero when the statuses are
+poorly separated or the sample is small (Bakk & Kuha, 2018, Tables 1 and
+3). With well-separated statuses the two estimators agree closely.
+
+Step 1 is this same call with the structural predictors dropped, so it
+takes the same \code{n_init}, \code{random_state}, invariance constraints and
+priors; it is returned on the fitted object as \verb{$step1}, and the item
+parameters of the returned fit are identical to its. Step 2 runs no
+restarts of its own -- with the measurement block fixed there is nothing
+left for a restart to search.
+
+\strong{Standard errors under \code{n_steps = 2} do not yet carry the step-1
+uncertainty} and are therefore too small: they are the curvature of the
+structural block alone, not the pseudo-maximum-likelihood variance of
+Bakk & Kuha's equation 5, which adds a term for the measurement
+parameters having been estimated rather than known. Read them as a lower
+bound until that term is available. \code{n_steps = 1} is unaffected.
+
+\code{n_steps = 3} -- the bias-adjusted three-step estimator -- is not
+implemented for latent transition models and is refused with a message
+saying so.
+}
+
 \references{
 Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
 Transition Analysis: With Applications in the Social, Behavioral, and Health
@@ -464,6 +515,21 @@ Association}, \emph{68}(343), 683-691.
 Muthen, B., & Asparouhov, T. (2022). Latent transition analysis with random
 intercepts (RI-LTA). \emph{Psychological Methods}, \emph{27}(1), 1-16.
 \doi{10.1037/met0000370}
+
+Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between latent
+classes and external variables. \emph{Psychometrika}, \emph{83}(4),
+871-892. \doi{10.1007/s11336-017-9592-7} - the estimator behind
+\code{n_steps = 2}.
+
+Bartolucci, F., Montanari, G. E., & Pandolfi, S. (2015). Three-step
+estimation of latent Markov models with covariates. \emph{Computational
+Statistics & Data Analysis}, \emph{83}, 287-301.
+\doi{10.1016/j.csda.2014.10.017} - the longitudinal case. Their step 1
+pools the occasions into one cross-sectional latent class model; the step 1
+here is the latent transition model's own measurement block, which already
+carries whatever invariance constraints the fit asks for. Both hold the
+measurement parameters fixed and maximise the full likelihood over the
+structural ones.
 
 Tseng, M.-C. (2024). Latent profile transition analysis with random
 intercepts (RI-LPTA). \emph{Structural Equation Modeling}, \emph{31}(4),

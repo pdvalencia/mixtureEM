@@ -577,10 +577,21 @@
     # not the one in force, and `smoothing = 0` also stripped the measurement
     # prior - reintroducing the boundary estimates on ρ that the prior is there
     # to prevent.
+    #
+    # `frozen` names the blocks this M-step must leave exactly as it found
+    # them. Only "mm" reaches here, and it is what the two-step estimator runs
+    # on (fit_lta(n_steps = 2), R/lta.R): the measurement block stays at its
+    # step-1 estimate while the initial-status and transition regressions above
+    # are maximised on the full likelihood, every E-step still on the joint
+    # model. The same field and the same name as m_step_core()'s in
+    # R/em_core.R, deliberately, so the two halves of the package read alike.
+    # NULL everywhere else, so an ordinary fit is untouched. A regression of
+    # the random intercept's node prior on covariates is a structural block,
+    # not a measurement one, so .lta_ri_mstep_beta() keeps running.
     if (!is.null(state$ri)) {
-      state <- .lta_ri_mstep(state, X, E, alpha)
+      if (!("mm" %in% state$frozen)) state <- .lta_ri_mstep(state, X, E, alpha)
       state <- .lta_ri_mstep_beta(state, E)
-    } else {
+    } else if (!("mm" %in% state$frozen)) {
       state$mm <- m_step(state$mm, X, .lta_mixed_gamma(E, Tn, C),
                          weights = if (all(w == 1)) NULL else w)
     }
@@ -1373,6 +1384,12 @@
 # outside the score blocks' scope.
 .lta_refine_lbfgs <- function(state, X, alpha = 1.0, max_iter = 200L) {
   if (!.lta_scores_full(state)) return(state)
+  # A state with a frozen block (the two-step estimator, fit_lta(n_steps = 2))
+  # must not be polished: the packing below carries the measurement parameters
+  # with everything else, so the climb would quietly free exactly what the
+  # freeze holds fixed. refine_lbfgs() (R/em_core.R) declines for the same
+  # reason.
+  if (length(state$frozen)) return(state)
   w <- state$weights_vec
 
   layout <- .lta_par_layout(state)
