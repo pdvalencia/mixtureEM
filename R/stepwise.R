@@ -84,9 +84,11 @@
     # measurement-only posteriors from; with a distal outcome they are part of
     # the fixed step-1 block by definition (Bakk and Kuha, sec. 2.3).
     #
-    # No covariance is attached here: the step-3 sandwich is the three-step's
-    # formula, and this fit is not a third step. confint()/vcov()/summary()
-    # fall back to the Q-function Hessian and say so.
+    # The covariance is the pseudo-maximum-likelihood one of Bakk and Kuha
+    # (eq. 5), R/twostep_variance.R -- not the step-3 sandwich, which is the
+    # three-step's formula. A distal-outcome structural model has no
+    # unconstrained packing there yet; confint()/vcov()/summary() fall back to
+    # the Q-function Hessian for it and say so.
     resp <- exp(model_state$log_resp)
     model_state$sm <- init_params(model_state$sm, Y, resp)
     model_state$sm <- m_step(model_state$sm, Y, resp)
@@ -94,6 +96,8 @@
     model_state <- fit_single_init(model_state, X, Y, max_iter = max_iter,
                                    refine = FALSE, init_state = model_state)
     model_state$frozen <- NULL
+    model_state <- .attach_twostep_covariate_vcov(
+      model_state, X, Y, model_state$sample_weights, se = se)
 
   } else if (n_steps == 3) {
     if (correction == "ML") {

@@ -118,22 +118,55 @@
 #' \code{\link{analytical_wald_test}} all print the name of the estimator that
 #' produced the numbers they show.
 #'
+#' @section The two-step estimator:
+#' A two-step fit (\code{n_steps = 2}, or \code{steps = 2} in
+#' \code{\link{add_covariates}}) has no assigned classes and no classification
+#' table: the class-prediction coefficients maximise the joint log-likelihood
+#' with the measurement parameters held at their step-1 estimate. The same
+#' three \code{se} values select among the pseudo-maximum-likelihood estimators
+#' of Gong and Samaniego (1981) as written for this case by Bakk and Kuha
+#' (2018, eq. 5):
+#' \describe{
+#'   \item{\code{"corrected"} (default)}{\eqn{V = V_2 + V_1}, where
+#'     \eqn{V_2 = I_{22}^{-1}} is the inverse observed information of the joint
+#'     log-likelihood in the structural parameters, and
+#'     \eqn{V_1 = I_{22}^{-1} I_{12}' \Sigma_{11} I_{12} I_{22}^{-1}} carries the
+#'     sampling variance \eqn{\Sigma_{11}} of the step-1 measurement parameters
+#'     through the cross-information \eqn{I_{12}}. Both blocks of the
+#'     information matrix are differenced numerically from the joint
+#'     log-likelihood; \eqn{\Sigma_{11}} is the step-1 observed information
+#'     inverted, or the outer product of the step-1 scores above 100
+#'     measurement parameters.}
+#'   \item{\code{"robust"}}{The sandwich \eqn{V_2 M V_2} with \eqn{M} the outer
+#'     product of the case-level scores of the joint log-likelihood (PSU-level
+#'     within strata under a survey design), without the step-1 term.}
+#'   \item{\code{"hessian"}}{\eqn{V_2} alone: what an analysis that treats the
+#'     step-1 estimate as known would report.}
+#' }
+#' The step-1 term is not small when the classes are poorly separated. Bakk
+#' and Kuha (2018, Table 2) put the step-2-only standard error at 40 to 60
+#' percent of the whole at entropy R-squared near 0.36, 73 to 88 percent near
+#' 0.65 and 98 to 99 percent near 0.90, with the 95 percent intervals of the
+#' step-2-only estimator covering 77 to 86 percent at the lowest separation.
+#' Under a survey design \code{"corrected"} uses the model-based \eqn{V_2},
+#' not the linearised one; \code{"robust"} is the design-based choice there.
+#'
 #' @section Scope:
 #' The corrected and robust estimators cover a covariate (class-prediction)
 #' structural model estimated with \code{n_steps = 3} and
-#' \code{correction = "none"} or \code{"ML"}. Four cases fall back to the
-#' uncorrected Hessian, and say so in the printed output:
-#' \code{correction = "BCH"} (whose weights need their own variance treatment,
-#' and which is not recommended for covariates in any case);
+#' \code{correction = "none"} or \code{"ML"}, and with \code{n_steps = 2}. Four
+#' cases fall back to the uncorrected Hessian, and say so in the printed
+#' output: \code{correction = "BCH"} (whose weights need their own variance
+#' treatment, and which is not recommended for covariates in any case);
 #' \code{n_steps = 1}, where measurement and structural parameters are estimated
-#' jointly and no carry-over correction applies; \code{n_steps = 2}, whose
-#' step-1 term is a different formula (Bakk and Kuha, 2018, eq. 5) that this
-#' version does not yet compute; and a covariate combined with a distal
-#' outcome in one nested structural model. The step-1 term additionally
-#' requires a measurement model whose parameters this package can put on an
-#' unconstrained scale — binary, polytomous, Gaussian, count, mixed, and
-#' repeated-measures models qualify; growth models do not, and there the robust
-#' sandwich is reported instead.
+#' jointly and no carry-over correction applies; a two-step fit whose
+#' structural model is a distal outcome rather than class predictors; and a
+#' covariate combined with a distal outcome in one nested structural model.
+#' The step-1 term additionally requires a measurement model whose parameters
+#' this package can put on an unconstrained scale — binary, polytomous,
+#' Gaussian, count, mixed, and repeated-measures models qualify; growth models
+#' do not, and there the robust sandwich (three-step) or \eqn{V_2} (two-step)
+#' is reported instead.
 #'
 #' @references
 #' Bakk, Z., Oberski, D. L., & Vermunt, J. K. (2014). Relating latent class
@@ -475,20 +508,24 @@ NULL
 # otherwise identical to `.step1_pack()`. Returns NULL wherever the extension
 # does not reach: `sm`'s family is not packable (`.step1_pack_sm()` above), the
 # fit's own structural data was not retained (`model_state$Y`, absent on a fit
-# from before this was added), or the fit was not a genuine one-step joint EM
-# (`n_steps != 1`) -- a step-3 fit's `mm` and `sm` were not estimated under one
-# shared E-step, so packing them together would reconstruct a model whose
-# likelihood was never the objective anything was optimised against. `lr_test()`
-# refuses that case earlier and more specifically (`.is_step3_conditional()`,
-# R/lta_methods.R); this is a second, independent guard for any other caller of
-# `.joint_pack()`, chiefly the VLMR K-vs-K+1 comparison (R/vlmr.R), which has
-# the identical hole for the identical reason.
+# from before this was added), or the fit is a third-step one (`n_steps == 3`)
+# -- a step-3 fit's `mm` and `sm` were not estimated under one shared E-step,
+# so packing them together would reconstruct a model whose likelihood was never
+# the objective anything was optimised against. A two-step fit (`n_steps == 2`)
+# is admitted: its `sm` maximises exactly this joint likelihood, with `mm` held
+# at the step-1 estimate, and R/twostep_variance.R differentiates the packed
+# vector along both blocks for the pseudo-maximum-likelihood variance.
+# `lr_test()` refuses the third-step case earlier and more specifically
+# (`.is_step3_conditional()`, R/lta_methods.R); this is a second, independent
+# guard for any other caller of `.joint_pack()`, chiefly the VLMR K-vs-K+1
+# comparison (R/vlmr.R), which has the identical hole for the identical reason.
 .joint_pack <- function(model_state) {
   sm <- model_state$sm
   if (is.null(sm) || !.supplies_class_probs(sm)) return(.step1_pack(model_state))
   pm <- .step1_pack_mm(model_state$mm)
   if (is.null(pm)) return(NULL)
-  if (!isTRUE(model_state$n_steps == 1) || is.null(model_state$Y)) return(NULL)
+  if (!isTRUE(model_state$n_steps %in% c(1, 2)) || is.null(model_state$Y))
+    return(NULL)
   ps <- .step1_pack_sm(sm)
   if (is.null(ps)) return(NULL)
   c(pm, ps)
@@ -587,6 +624,23 @@ NULL
                   log(pmax(ms$weights, 1e-300)), "+"), MARGIN = 1)
 }
 
+# Case-level step-one scores, by central differences of the case-level
+# log-likelihood: p1 pairs of evaluations for the whole n x p1 matrix. Shared
+# by the step-three correction above and the two-step variance
+# (R/twostep_variance.R), both of which hand the matrix to .step1_variance().
+.step1_case_scores <- function(model_state, X, th1, w) {
+  p1 <- length(th1)
+  h1 <- .step1_fd_step * pmax(1, abs(th1))
+  S1 <- vapply(seq_len(p1), function(m) {
+    a <- th1; a[m] <- a[m] + h1[m]
+    b <- th1; b[m] <- b[m] - h1[m]
+    w * (.step1_ll_case(model_state, X, a) -
+           .step1_ll_case(model_state, X, b)) / (2 * h1[m])
+  }, numeric(nrow(X)))
+  dim(S1) <- c(nrow(X), p1)
+  S1
+}
+
 #' @keywords internal
 #' @noRd
 #
@@ -675,15 +729,7 @@ NULL
   }, numeric((K - 1L) * D))
   dim(Cmat) <- c((K - 1L) * D, p1)
 
-  # Case-level step-one scores, by central differences of the case-level
-  # log-likelihood: p1 pairs of evaluations for the whole n x p1 matrix.
-  S1 <- vapply(seq_len(p1), function(m) {
-    a <- th1; a[m] <- a[m] + h1[m]
-    b <- th1; b[m] <- b[m] - h1[m]
-    w * (.step1_ll_case(model_state, X, a) -
-           .step1_ll_case(model_state, X, b)) / (2 * h1[m])
-  }, numeric(nrow(X)))
-  dim(S1) <- c(nrow(X), p1)
+  S1 <- .step1_case_scores(model_state, X, th1, w)
 
   d1_method <- if (p1 <= .step1_hessian_max) "hessian" else "outer"
   if (d1_method == "outer")

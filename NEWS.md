@@ -35,11 +35,25 @@ And when the classes are almost perfectly separated the one-step, two-step
 and ML three-step coefficients agree, as they must when a covariate can move
 no class probability.
 
-Standard errors for a two-step fit are, in this version, the Q-function
-Hessian of the structural model and do not yet carry the uncertainty of the
-step-1 estimates; `summary()`, `confint()` and `vcov()` print that label.
-The pseudo-maximum-likelihood variance that adds the step-1 term is the
-next item. Nothing changes numerically for `n_steps = 1` or `3`.
+Standard errors for a two-step fit with class predictors are the
+pseudo-maximum-likelihood ones of Bakk and Kuha (2018, eq. 5): the inverse
+observed information of the joint likelihood in the structural coefficients,
+plus the sampling variance of the step-1 measurement parameters carried
+through the cross-information between the two blocks. Both blocks are
+differenced numerically from the joint likelihood; the step-1 variance is the
+same estimator the three-step correction already uses. The `se` argument
+selects the full variance (`"corrected"`, the default), the sandwich on the
+case-level scores (`"robust"`), or the step-2-only information
+(`"hessian"`), and `?covariate_se` says what each is. The step-1 term is what
+an analysis that treats the step-1 estimate as known omits, and it is not
+small when the classes are poorly separated: on a two-class fixture with
+entropy R-squared 0.60 the step-2-only standard error of the intercept is
+60 percent of the whole, and at entropy near 1 the two agree to four
+decimals. A test holds the step-2-only block against an independent
+numerical Hessian of the joint likelihood, and another holds the ordering
+and the two limits. A two-step fit with a distal outcome still reports the
+Q-function Hessian, labelled as such. Nothing changes numerically for
+`n_steps = 1` or `3`.
 
 ## Covariate standard errors on the Hessian-based paths were too small
 

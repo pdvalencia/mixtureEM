@@ -309,10 +309,13 @@ covariates or outcome cannot redefine the classes, and several structural
 models can be compared on one fixed measurement model. Like every
 stepwise estimator it is biased toward zero when the classes are poorly
 separated and the sample is small (Bakk and Kuha, 2018, Tables 1 and 3).
-In this version its standard errors come from the Q-function Hessian of
-the structural model and do not yet carry the uncertainty of the step-1
-estimates, which the printed output states. The uncorrected third step
-that \code{n_steps = 2} used to run is \code{n_steps = 3,
+With class predictors its standard errors are the pseudo-maximum-
+likelihood ones of Bakk and Kuha (2018, eq. 5), which add the sampling
+variance of the step-1 estimate to the step-2 information; \code{se}
+selects among them, see \code{\link{covariate_se}}. With a distal outcome
+the standard errors come from the Q-function Hessian and do not yet carry
+the step-1 uncertainty, which the printed output states. The uncorrected
+third step that \code{n_steps = 2} used to run is \code{n_steps = 3,
   correction = "none"}.}
 
 \item{correction}{Bias correction for 3-step estimation: \code{"none"},

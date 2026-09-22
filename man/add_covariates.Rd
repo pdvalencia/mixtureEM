@@ -36,12 +36,12 @@ maximising the full likelihood, with every case's class probabilities
 recomputed under the joint model at each iteration. No classification
 step, no correction. \code{fit} is exactly the step-1 estimate the two-step
 starts from. See \code{n_steps} in \code{\link[=fit_mixture]{fit_mixture()}} for what the two-step is
-and is not; in this version its standard errors do not yet carry the
-step-1 uncertainty, and the printed output says so.}
+and is not. Its standard errors carry the step-1 uncertainty (Bakk and
+Kuha, 2018, eq. 5); see \link{covariate_se}.}
 
-\item{se}{Standard-error estimator passed on to the third step:
-\code{"corrected"} (default), \code{"robust"}, or \code{"hessian"}. Ignored with
-\code{steps = 2}.}
+\item{se}{Standard-error estimator for the structural coefficients:
+\code{"corrected"} (default), \code{"robust"}, or \code{"hessian"}. What each is under
+the three-step and under the two-step is in \link{covariate_se}.}
 
 \item{assignment}{How step 1's posteriors are turned into the assigned-class
 variable whose classification error the correction inverts.

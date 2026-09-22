@@ -249,11 +249,11 @@
 #'   recomputed under the joint model at each iteration. No classification
 #'   step, no correction. `fit` is exactly the step-1 estimate the two-step
 #'   starts from. See `n_steps` in [fit_mixture()] for what the two-step is
-#'   and is not; in this version its standard errors do not yet carry the
-#'   step-1 uncertainty, and the printed output says so.
-#' @param se Standard-error estimator passed on to the third step:
-#'   `"corrected"` (default), `"robust"`, or `"hessian"`. Ignored with
-#'   `steps = 2`.
+#'   and is not. Its standard errors carry the step-1 uncertainty (Bakk and
+#'   Kuha, 2018, eq. 5); see [covariate_se].
+#' @param se Standard-error estimator for the structural coefficients:
+#'   `"corrected"` (default), `"robust"`, or `"hessian"`. What each is under
+#'   the three-step and under the two-step is in [covariate_se].
 #' @param assignment How step 1's posteriors are turned into the assigned-class
 #'   variable whose classification error the correction inverts.
 #'   `"proportional"` (default) gives every case a weight in every class equal
@@ -421,8 +421,9 @@ add_covariates <- function(fit, predictors,
 #'   model and class sizes are held fixed and the outcome model is estimated
 #'   by maximising the full likelihood, every case's class probabilities
 #'   recomputed under the joint model at each iteration. No classification
-#'   step, no correction. See `n_steps` in [fit_mixture()]; in this version
-#'   the two-step's standard errors do not yet carry the step-1 uncertainty.
+#'   step, no correction. See `n_steps` in [fit_mixture()]; for a distal
+#'   outcome the two-step's standard errors do not yet carry the step-1
+#'   uncertainty, and the printed output says so.
 #' @param se Standard-error estimator passed on to the third step:
 #'   `"corrected"` (default), `"robust"`, or `"hessian"`. It governs the
 #'   covariate part of the third step. A continuous distal outcome under

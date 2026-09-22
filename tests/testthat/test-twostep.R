@@ -169,12 +169,89 @@ test_that("add_covariates(steps = 2) is the two-step on the fitted model", {
                "three-step only")
   expect_error(add_covariates(fit0, d$Z, steps = 4), "must be 3")
 
-  # No step-1 term yet: the printed estimator says which matrix it is.
+  # The same covariance whichever entry point built the fit, and the printed
+  # estimator names it.
+  expect_equal(fita$sm$parameters$V_robust, fit2$sm$parameters$V_robust,
+               tolerance = 1e-5)
   out <- capture.output(summary(fita))
-  expect_true(any(grepl("Q-function Hessian", out, fixed = TRUE)))
+  expect_true(any(grepl("Two-step pseudo-ML", out, fixed = TRUE)))
 
   fitb <- suppressMessages(add_outcome(fit0, d$y, steps = 2))
   expect_equal(fitb$n_steps, 2L)
   expect_identical(fitb$weights, fit0$weights)
   expect_identical(fitb$mm$parameters$pis, fit0$mm$parameters$pis)
+})
+
+# ------------------------------------------------------------------------------
+# (d) standard errors: the pseudo-ML variance of Bakk & Kuha (2018, eq. 5)
+# ------------------------------------------------------------------------------
+
+test_that("the two-step V2 is the inverse observed information of the joint likelihood", {
+  # se = "hessian" is I22^{-1}, differenced block-wise in
+  # .twostep_information(). Check it against a from-scratch joint
+  # log-likelihood differentiated by optimHess(), which shares no code with it.
+  d   <- .ts_sim("binary", rho = 0.7)
+  fit <- .ts_fit(d, "binary", "predictors", n_steps = 2, se = "hessian")
+  expect_match(fit$sm$parameters$V_method, "step 2 only")
+
+  A  <- log_likelihood(fit$mm, d$X)
+  Zm <- cbind(1, as.matrix(d$Z))
+  nll <- function(b) {
+    eta <- Zm %*% t(rbind(b, 0))
+    -sum(logsumexp(A + eta - log(rowSums(exp(eta))), MARGIN = 1))
+  }
+  B  <- fit$sm$parameters$beta
+  b0 <- B[1, ] - B[2, ]
+  ref <- solve(optimHess(b0, nll))
+  # sort_model_classes() may have moved the anchor; compare on the free block
+  # after re-anchoring on row 2, which is where optimHess()'s vector lives.
+  V <- .recenter_covariate_beta(fit$sm, 2L)$parameters$V_robust[1:2, 1:2]
+  expect_equal(V, ref, tolerance = 1e-4, ignore_attr = TRUE)
+})
+
+test_that("the step-1 term is large at weak separation and vanishes at strong", {
+  ratio <- function(rho) {
+    d  <- .ts_sim("binary", rho = rho)
+    fc <- .ts_fit(d, "binary", "predictors", n_steps = 2, se = "corrected")
+    fh <- .ts_fit(d, "binary", "predictors", n_steps = 2, se = "hessian")
+    expect_match(fc$sm$parameters$V_method, "Two-step pseudo-ML")
+    Vc <- fc$sm$parameters$V_robust
+    Vh <- fh$sm$parameters$V_robust
+    # V = V2 + V1 with V1 positive semi-definite, so the corrected variance
+    # dominates the step-2-only one in every direction.
+    ev <- eigen(Vc - Vh, symmetric = TRUE, only.values = TRUE)$values
+    expect_gte(min(ev), -1e-8 * max(abs(ev)))
+    free <- which(diag(Vh) > 0)          # the anchored class's block is zero
+    expect_length(free, 2L)
+    list(entropy = fc$metrics$entropy,
+         ratio   = sqrt(diag(Vh))[free] / sqrt(diag(Vc))[free])
+  }
+  # Weak separation: the step-2-only standard errors capture well under the
+  # whole (Bakk & Kuha, Table 2). Measured on this fixture at entropy 0.60:
+  # 0.60 on the intercept, 0.97 on the slope.
+  weak <- ratio(0.7)
+  expect_lt(weak$entropy, 0.7)
+  expect_lt(min(weak$ratio), 0.75)
+  expect_lt(max(weak$ratio), 0.995)
+  # Near-perfect separation: the step-1 estimate no longer moves the class
+  # probabilities, so the step-1 term is nil and the two agree.
+  strong <- ratio(0.98)
+  expect_gt(strong$entropy, 0.99)
+  expect_gt(min(strong$ratio), 0.99)
+})
+
+test_that("the three se values give three estimators that confint() reads", {
+  d  <- .ts_sim("binary", rho = 0.8)
+  fr <- .ts_fit(d, "binary", "predictors", n_steps = 2, se = "robust")
+  expect_match(fr$sm$parameters$V_method, "Two-step sandwich")
+  ci <- confint(fr)
+  expect_match(attr(ci, "method"), "Two-step sandwich")
+  expect_equal(dim(vcov(fr)), c(2L, 2L))   # the free block only
+  # The sandwich and the observed information agree in order of magnitude on
+  # a correctly specified model; neither is the Q-function Hessian.
+  fh <- .ts_fit(d, "binary", "predictors", n_steps = 2, se = "hessian")
+  sr <- sqrt(diag(fr$sm$parameters$V_robust))
+  sh <- sqrt(diag(fh$sm$parameters$V_robust))
+  ok <- sh > 0
+  expect_lt(max(abs(sr[ok] / sh[ok] - 1)), 0.25)
 })

@@ -49,8 +49,9 @@ the two-step estimator of Bakk and Kuha (2018): \code{fit}'s measurement
 model and class sizes are held fixed and the outcome model is estimated
 by maximising the full likelihood, every case's class probabilities
 recomputed under the joint model at each iteration. No classification
-step, no correction. See \code{n_steps} in \code{\link[=fit_mixture]{fit_mixture()}}; in this version
-the two-step's standard errors do not yet carry the step-1 uncertainty.}
+step, no correction. See \code{n_steps} in \code{\link[=fit_mixture]{fit_mixture()}}; for a distal
+outcome the two-step's standard errors do not yet carry the step-1
+uncertainty, and the printed output says so.}
 
 \item{se}{Standard-error estimator passed on to the third step:
 \code{"corrected"} (default), \code{"robust"}, or \code{"hessian"}. It governs the
