@@ -128,11 +128,18 @@
 # M-step for the regressions
 # ------------------------------------------------------------------------------
 
+# `augment` is .fit_mnl()'s K ghost observations (weight 0.01 at the covariate
+# means), which keep the Newton steps finite under complete separation but
+# also enter the likelihood being maximised. .lta_em() switches them off when
+# `smoothing = 0`, where the fit is meant to be plain maximum likelihood, and
+# leaves them on otherwise, so a default fit is unchanged. Off, a separated
+# cell is left to drift towards the boundary, as it does in any ML fit.
+
 # Initial status: an ordinary weighted multinomial logit on the Time 1
 # posteriors, which already sum to one across statuses.
-.lta_mstep_delta_cov <- function(state, gamma1) {
+.lta_mstep_delta_cov <- function(state, gamma1, augment = TRUE) {
   fit <- .fit_mnl(state$Z_delta, gamma1, weights = state$weights_vec,
-                  start = state$delta_beta)
+                  start = state$delta_beta, augment = augment)
   state$delta_beta    <- fit$beta
   state$delta_hessian <- fit$hessian
   state$delta         <- colSums(fit$prob * state$weights_vec) /
@@ -146,7 +153,7 @@
 # summing to one, so the mass is normalised out of the responsibilities and
 # folded into the case weight instead - algebraically identical, and it keeps
 # the shared fitter free of special cases.
-.lta_mstep_tau_cov <- function(state, fb) {
+.lta_mstep_tau_cov <- function(state, fb, augment = TRUE) {
   K  <- state$n_statuses
   Tn <- state$n_times
   w  <- state$weights_vec
@@ -174,7 +181,7 @@
           Zs[rows, ]   <- state$Z_tau
         }
         f <- .fit_mnl(Zs, resp, weights = wt,
-                      start = state$tau_beta[[m]][[k]])
+                      start = state$tau_beta[[m]][[k]], augment = augment)
         bk[[k]] <- f$beta; hk[[k]] <- f$hessian
       }
       betas[[m]] <- bk; hess[[m]] <- hk
@@ -205,7 +212,8 @@
         resp[rows, ] <- pk / mass
         wt[rows]     <- w * mass
       }
-      f <- .fit_mnl(Zs, resp, weights = wt, start = state$tau_beta[[m]])
+      f <- .fit_mnl(Zs, resp, weights = wt, start = state$tau_beta[[m]],
+                    augment = augment)
       betas[[m]] <- f$beta; hess[[m]] <- f$hessian
     }
   }

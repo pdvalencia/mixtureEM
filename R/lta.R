@@ -535,6 +535,11 @@ fit_lta <- function(indicators,
   # the user surface is R5's W5, and an argument on the signature is a promise
   # about combinations that have not been reasoned about yet.
   fixed_mm <- list(...)[[".fixed_emission"]]
+  # Donor-shaped starting points added to the random pool rather than replacing
+  # it: each runs exactly as a random restart does and is ranked with them, so
+  # the winner can only improve. Internal, for the three-step's pattern start
+  # (.lta_threestep_pattern_start()).
+  extra_starts <- list(...)[[".extra_starts"]]
 
   measurement_invariance <- match.arg(measurement_invariance)
   transition_invariance  <- match.arg(transition_invariance)
@@ -1239,6 +1244,17 @@ fit_lta <- function(indicators,
       s
     })
   }
+  # Built after every random start has drawn, so none of them moves; seeded so
+  # the draw .lta_refine_start() makes before overwriting it is reproducible.
+  if (!is.null(extra_starts) && is.null(refine_from)) {
+    if (!is.null(random_state)) set.seed(random_state)
+    starts <- c(starts, lapply(extra_starts, function(d) {
+      s <- .lta_refine_start(state_rank, X_fit, d)
+      if (!is.null(fixed_mm)) s$mm <- state$mm
+      s$.extra_start <- TRUE
+      s
+    }))
+  }
   # The polish belongs after a run that was allowed to converge, never after
   # the staged ranking pass: that pass stops at 250 iterations and its
   # log-likelihoods are, as the comment above says, not the maxima of anything.
@@ -1297,6 +1313,29 @@ fit_lta <- function(indicators,
   if (is.null(best))
     stop("Every random start failed; check the data and the model settings.",
          call. = FALSE)
+  # Read before .lta_expand() rebuilds the object, and not carried on it.
+  from_extra <- isTRUE(best$.extra_start)
+  best$.extra_start <- NULL
+
+  # Step 3 of the three-step: the structural surface has long flat ridges
+  # along weakly identified coefficients -- a rare status's covariate slope --
+  # and EM stops on them at the ordinary tolerance while the likelihood is
+  # still rising. Measured on the reading panel: 0.005 short of the optimum,
+  # enough to move that slope by 0.015, and about 400 more iterations recover
+  # it to 1e-3. The winner alone is continued, capped, which costs one run
+  # rather than a pool of them. It is a polish, not the convergence test: the
+  # winner converged by the ordinary rule already, so reaching the cap does not
+  # make it unconverged, and the iterations are reported in total.
+  if (!is.null(fixed_mm)) {
+    cont <- try(.lta_em(best, X_fit, max_iter = max(max_iter, 5000L),
+                        tol = min(tol, 1e-11), alpha = alpha), silent = TRUE)
+    if (!inherits(cont, "try-error") && is.finite(cont$loglik) &&
+        cont$loglik >= best$loglik) {
+      cont$converged <- isTRUE(best$converged) || isTRUE(cont$converged)
+      cont$n_iter    <- best$n_iter + cont$n_iter
+      best <- cont
+    }
+  }
 
   # Back onto the full sample before anything per-case is read off the fit:
   # every posterior, the path entropy, the standard errors and the metrics
@@ -1387,6 +1426,11 @@ fit_lta <- function(indicators,
   # declines to warn, and the flag says on the object where the solution came
   # from for anyone reading the fit later.
   best$metrics$n_requested <- if (is.null(refine_from)) max(1L, n_init) else 1L
+  # A win by a constructed start is not a maximum "seen once" by a random one:
+  # the construction is deterministic and its own searches replicated, and more
+  # random starts would not reach it any more often. .is_unreplicated() reads
+  # this so it does not advise a larger `n_init` that cannot help.
+  if (from_extra) best$metrics$pattern_start <- TRUE
   best$refined_from <- !is.null(refine_from)
   # The step-one fit is handed over for the two-step estimator's variance: its
   # measurement parameters were estimated rather than known, and the standard

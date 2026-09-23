@@ -299,6 +299,12 @@
     sprintf("%d of %d starts that ran to convergence (of %d requested)", nr, n, req)
   else
     sprintf("%d of %d starts", nr, n)
+  if (isTRUE(x$metrics$pattern_start)) {
+    cat(sprintf(paste0("  Best solution  : found by the start built from each ",
+                       "covariate pattern's own fit; %d of %d random starts ",
+                       "reached it\n"), nr - 1L, n - 1L))
+    return(invisible(NULL))
+  }
   cat(sprintf("  Best solution  : found by %s%s\n", detail,
               if (nr == 1L)
                 paste0(" - ", .replication_advice(req %||% n, n)) else ""))
@@ -321,6 +327,9 @@
   nr <- metrics$n_replicated
   n  <- metrics$n_requested %||% metrics$n_starts
   if (is.null(nr) || is.null(n) || !is.finite(nr) || !is.finite(n)) return(NA)
+  # Won by the three-step's pattern start (R/lta_threestep.R), which is not a
+  # random draw that happened to land once; more random starts cannot help.
+  if (isTRUE(metrics$pattern_start)) return(FALSE)
   nr == 1L && n >= 10L
 }
 

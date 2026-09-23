@@ -189,6 +189,22 @@ guidance now cites Tseng (2024) for what it is -- the continuous-indicator
 analogue, at a between-profile separation of d = 0.75 -- rather than as a
 loading. Nothing numeric changes.
 
+## Covariate LTA fits with `smoothing = 0` are now plain maximum likelihood
+
+The regressions `fit_lta()` fits for `predictors_initial` and
+`predictors_transition` carried a small numerical guard against complete
+separation: a handful of pseudo-observations of weight 0.01 at the covariate
+means. The guard also entered the likelihood being maximised, so a fit asked
+for with `smoothing = 0`, meant to be plain maximum likelihood, stopped a
+fraction short of the maximum. It is now off at `smoothing = 0`. With the
+default `smoothing`, nothing changes.
+
+Numbers move for covariate LTA fits at `smoothing = 0` only, and only
+slightly: on the reading panel the log-likelihood rises by 0.008 to 0.04,
+and the largest movement is in weakly identified coefficients, such as a rare
+status's covariate slope. Standard errors were already computed without the
+guard.
+
 ## `tie_initial_status` warns when there is nothing to tie
 
 `tie_initial_status = TRUE` holds the occasion-1 status distribution equal

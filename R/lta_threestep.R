@@ -292,6 +292,7 @@
 
   nd <- if (is.null(Z_delta)) 0L else ncol(Z_delta)
   nt <- if (is.null(Z_tau))   0L else ncol(Z_tau)
+  extra <- .lta_threestep_pattern_start(s12, red, nd, nt, cl, env)
 
   e <- new.env(parent = env)
   assign(".lta_step3_W", red$W,                    envir = e)
@@ -301,6 +302,7 @@
   if (nd) assign(".lta_step3_Zd", red$Z[, seq_len(nd), drop = FALSE], envir = e)
   if (nt) assign(".lta_step3_Zt", red$Z[, nd + seq_len(nt), drop = FALSE],
                  envir = e)
+  if (!is.null(extra)) assign(".lta_step3_extra", list(extra), envir = e)
 
   carried <- c("n_init", "refine", "max_iter", "n_cores", "tol", "smoothing",
                "random_state", "standard_errors", "bayes_constants",
@@ -321,7 +323,126 @@
          .fixed_emission        = quote(.lta_step3_D)),
     if (nd) list(predictors_initial    = quote(.lta_step3_Zd)),
     if (nt) list(predictors_transition = quote(.lta_step3_Zt)),
+    if (!is.null(extra)) list(.extra_starts = quote(.lta_step3_extra)),
     as.list(carried)))
 
   eval(cl3, e)
+}
+
+# The pattern start: one extra starting point for a covariate step 3, built
+# from the unconditional model fitted within each covariate pattern.
+#
+# Step 3's emission is a known constant, so its likelihood is a sum over cases
+# that couple only through the structural parameters, and a covariate reaches
+# those only through the case's pattern. Within one pattern the step-3 model
+# is therefore the unconditional one -- whose search replicates reliably --
+# and a model saturated in the patterns (`transition_effects = "by_origin"` on
+# one categorical covariate is) is exactly the patterns fitted separately.
+# For any other design the separate fits are a start, not a solution.
+#
+# Why it is needed: under "by_origin" the structural surface is multimodal and
+# the random restarts miss the highest mode, while the separate fits find it
+# in every restart (RECORDS.md, "W4.5's own numbers").
+#
+# The probabilities are carried onto the fitted model's own coefficients in
+# its own design -- .lta_tau_design() builds the rows -- weighted by the
+# expected pattern-level counts, so every design -- "common", "by_origin", "full",
+# "slopes" -- is converted by the machinery that defines it. NULL, and so no
+# extra start, when there are no covariates, one pattern, more than
+# `max_patterns` (a continuous covariate), or a pattern fit fails.
+.lta_threestep_pattern_start <- function(s12, red, nd, nt, cl, env,
+                                         max_patterns = 16L) {
+  Z <- red$Z
+  if (is.null(Z) || nd + nt == 0L) return(NULL)
+  key <- do.call(paste, c(lapply(seq_len(ncol(Z)), function(j)
+    match(Z[, j], unique(Z[, j]))), sep = "\r"))
+  grp <- match(key, unique(key))
+  P   <- max(grp)
+  if (P < 2L || P > max_patterns) return(NULL)
+
+  K  <- s12$step1$n_statuses
+  Tn <- s12$step1$n_times
+  arg <- function(nm, default) {
+    v <- if (is.null(cl[[nm]])) NULL else eval(cl[[nm]], env)
+    if (is.null(v)) default else v
+  }
+  inv       <- arg("transition_invariance", "none")[1L]
+  effects   <- arg("transition_effects", "common")[1L]
+  shared    <- inv %in% c("full", "slopes")
+
+  search <- c("n_init", "max_iter", "tol", "smoothing", "random_state",
+              "bayes_constants", "n_cores")
+  search <- lapply(cl[intersect(search, names(cl))], eval, env)
+  fits <- lapply(seq_len(P), function(g) {
+    i <- which(grp == g)
+    # A pattern may hold few cases and fail to converge or warn; this is a
+    # start, ranked against the random pool, so neither is the user's concern.
+    try(suppressWarnings(do.call(fit_lta, c(list(
+      red$W[i, , drop = FALSE], n_statuses = K, times = Tn,
+      measurement = "categorical", measurement_invariance = "none",
+      weights = red$weights[i], weight_type = "frequency",
+      transition_invariance = if (inv == "full") "full" else "none",
+      standard_errors = FALSE, .fixed_emission = lapply(s12$D, t)),
+      search))), silent = TRUE)
+  })
+  if (any(vapply(fits, inherits, TRUE, "try-error"))) return(NULL)
+
+  # Coefficients by weighted least squares on the log-ratios against the last
+  # category, which is the anchor .fit_mnl() pins: exact when the design is
+  # saturated in the patterns, a projection otherwise. Not .fit_mnl() itself --
+  # its BFGS stops after optim()'s default 100 iterations, which is enough
+  # inside EM but leaves cells near a boundary visibly off, and a start that
+  # is off by that much was measured to fall into the wrong mode.
+  logit_ls <- function(Zm, Pm, w) {
+    L  <- log(pmax(Pm, 1e-12))
+    L  <- L - L[, ncol(Pm)]
+    ok <- w > 0
+    sw <- sqrt(w[ok])
+    B  <- vapply(seq_len(ncol(Pm) - 1L), function(d)
+      qr.coef(qr(Zm[ok, , drop = FALSE] * sw), L[ok, d] * sw), numeric(ncol(Zm)))
+    B  <- matrix(B, ncol(Zm))
+    B[is.na(B)] <- 0
+    rbind(t(B), 0)
+  }
+
+  rep_row <- match(seq_len(P), grp)
+  n_g     <- vapply(seq_len(P), function(g) sum(red$weights[grp == g]), 0)
+  delta_g <- t(vapply(fits, function(f) f$delta_c[[1]], numeric(K)))
+  # Expected occupancy of each origin at each occasion, within each pattern.
+  occ_g <- lapply(fits, function(f) {
+    o <- list(f$delta_c[[1]])
+    for (t in seq_len(Tn - 1L)) o[[t + 1L]] <- as.vector(o[[t]] %*% f$tau[[t]])
+    o
+  })
+
+  delta_beta <- if (nd) logit_ls(
+    cbind(1, Z[rep_row, seq_len(nd), drop = FALSE]), delta_g,
+    n_g)
+
+  st <- list(Z_tau = cbind(1, Z[rep_row, nd + seq_len(nt), drop = FALSE]),
+             n_statuses = K, n_times = Tn, transition_effects = effects,
+             tau_occasion_free_intercepts = inv == "slopes")
+  rows <- function(t, k) t(vapply(fits, function(f) f$tau[[t]][k, ], numeric(K)))
+  wts  <- function(t, k) n_g * vapply(occ_g, function(o) o[[t]][k], 0)
+  tau_beta <- if (nt) lapply(seq_len(if (shared) 1L else Tn - 1L), function(m) {
+    ts <- if (shared) seq_len(Tn - 1L) else m
+    if (identical(effects, "by_origin")) {
+      lapply(seq_len(K), function(k) logit_ls(
+        do.call(rbind, rep(list(st$Z_tau), length(ts))),
+        do.call(rbind, lapply(ts, rows, k = k)),
+        unlist(lapply(ts, wts, k = k))))
+    } else {
+      tk <- expand.grid(k = seq_len(K), t = ts)
+      logit_ls(
+        do.call(rbind, Map(function(t, k) .lta_tau_design(st, k, t),
+                           tk$t, tk$k)),
+        do.call(rbind, Map(rows, tk$t, tk$k)),
+        unlist(Map(wts, tk$t, tk$k)))
+    }
+  })
+
+  big <- fits[[which.max(n_g)]]
+  list(delta_c = list(colSums(delta_g * n_g) / sum(n_g)),
+       tau_c = big$tau_c, delta_beta = delta_beta, tau_beta = tau_beta,
+       mm = big$mm, n_classes = 1L, class_weights = 1)
 }

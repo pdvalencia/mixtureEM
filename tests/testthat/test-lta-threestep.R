@@ -675,3 +675,86 @@ test_that("step 3 reports standard errors for the covariate block", {
   cols <- fit$se$blocks[[which(bn == "delta_beta")]]$cols
   expect_true(all(is.finite(se[cols])) && all(se[cols] > 0))
 })
+
+# ------------------------------------------------------------------------------
+# (m) the pattern start
+# ------------------------------------------------------------------------------
+# Step 3's emission is known, so a covariate reaches the likelihood only through
+# its pattern, and `transition_effects = "by_origin"` on one binary covariate is
+# saturated in its two patterns: it IS the unconditional model fitted within
+# each. That identity is what the pattern start is built on, so it is tested
+# directly, and with `smoothing = 0` it holds only if no pseudo-observation is
+# left in the covariate M-step either.
+
+.ts3_groups <- function(s12) {
+  z   <- .ts3_cov()
+  red <- mixtureEM:::.lta_threestep_reduce(s12, cbind(z, z))
+  lapply(0:1, function(v) {
+    i <- which(red$Z[, 1] == v)
+    fit_lta(red$W[i, , drop = FALSE], n_statuses = 3, times = 4,
+            measurement = "categorical", measurement_invariance = "none",
+            weights = red$weights[i], weight_type = "frequency",
+            .fixed_emission = lapply(s12$D, t), n_init = 4, random_state = 1,
+            n_cores = 1, smoothing = 0, standard_errors = FALSE)
+  })
+}
+
+test_that("by_origin on a binary covariate is its two patterns fitted apart", {
+  s12 <- .ts3_s12()
+  X <- .ts3_sim(); z <- .ts3_cov()
+  fit <- suppressWarnings(mixtureEM:::.lta_threestep_step3(
+    s12,
+    match.call(fit_lta, quote(fit_lta(
+      X, n_statuses = 3, times = 4, n_init = 4, random_state = 1,
+      n_cores = 1, smoothing = 0, standard_errors = FALSE,
+      predictors_initial = z, predictors_transition = z,
+      transition_effects = "by_origin"))),
+    environment()))
+  groups <- .ts3_groups(s12)
+  expect_equal(fit$loglik, sum(vapply(groups, `[[`, 0, "loglik")),
+               tolerance = 1e-4)
+})
+
+test_that("the pattern start reproduces each pattern's own fit exactly", {
+  s12 <- .ts3_s12()
+  X <- .ts3_sim(); z <- .ts3_cov()
+  cl  <- match.call(fit_lta, quote(fit_lta(
+    X, n_statuses = 3, times = 4, n_init = 4, random_state = 1, n_cores = 1,
+    smoothing = 0, predictors_initial = z, predictors_transition = z,
+    transition_effects = "by_origin")))
+  red <- mixtureEM:::.lta_threestep_reduce(s12, cbind(z, z))
+  st  <- mixtureEM:::.lta_threestep_pattern_start(s12, red, 1L, 1L, cl,
+                                                  environment())
+  groups <- .ts3_groups(s12)
+  for (v in 0:1) {
+    g <- groups[[v + 1L]]
+    expect_equal(as.vector(softmax_rows(cbind(1, v) %*% t(st$delta_beta))),
+                 g$delta_c[[1]], tolerance = 1e-8)
+    # A row nobody in the pattern occupies contributes nothing to its
+    # likelihood and is arbitrary in both fits, so only occupied rows compare.
+    occ <- g$delta_c[[1]]
+    for (t in 1:3) {
+      M <- t(vapply(1:3, function(k)
+        as.vector(softmax_rows(cbind(1, v) %*% t(st$tau_beta[[t]][[k]]))),
+        numeric(3)))
+      live <- occ > 1e-8
+      expect_equal(M[live, ], g$tau[[t]][live, ], tolerance = 1e-8,
+                   ignore_attr = TRUE)
+      occ <- as.vector(occ %*% g$tau[[t]])
+    }
+  }
+})
+
+test_that("there is no pattern start without a few covariate patterns", {
+  s12 <- .ts3_s12()
+  X <- .ts3_sim()
+  cl  <- match.call(fit_lta, quote(fit_lta(X, n_statuses = 3, times = 4)))
+  red <- mixtureEM:::.lta_threestep_reduce(s12)
+  expect_null(mixtureEM:::.lta_threestep_pattern_start(s12, red, 0L, 0L, cl,
+                                                       environment()))
+  # A continuous covariate: a pattern per case, far more than the cap.
+  zc  <- seq_len(nrow(X)) / nrow(X)
+  red <- mixtureEM:::.lta_threestep_reduce(s12, cbind(zc))
+  expect_null(mixtureEM:::.lta_threestep_pattern_start(s12, red, 1L, 0L, cl,
+                                                       environment()))
+})

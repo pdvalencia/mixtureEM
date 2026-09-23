@@ -516,7 +516,7 @@
       # downstream now reads. Covariates and several classes are mutually
       # exclusive (fit_lta() refuses the combination), so `c` is always 1 here.
       if (has_delta_cov) {
-        state <- .lta_mstep_delta_cov(state, es$gamma[[1]])
+        state <- .lta_mstep_delta_cov(state, es$gamma[[1]], augment = alpha > 0)
         state$delta_c[[c]] <- state$delta
       } else if (isTRUE(state$tie_initial_status) && C > 1L) {
         state$delta_c[[c]] <- delta_tied
@@ -531,7 +531,7 @@
 
       # --- transition matrices ------------------------------------------------
       if (Tn > 1L && has_tau_cov) {
-        state <- .lta_mstep_tau_cov(state, es)
+        state <- .lta_mstep_tau_cov(state, es, augment = alpha > 0)
         state$tau_c[[c]] <- state$tau
       } else if (Tn > 1L) {
         Xi <- .lta_pair_counts(es, wc, K, Tn, C)
