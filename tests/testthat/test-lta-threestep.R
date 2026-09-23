@@ -525,3 +525,142 @@ test_that("nothing changes for a fit that plants no emission", {
   expect_false(isTRUE(fit$mm_fixed))
   expect_equal(fit$n_params, 5L * 3L + 2L + 3L * 6L)
 })
+
+# ==============================================================================
+# W4 -- covariates on the step-3 model.
+#
+# Step 3 is an ordinary fit_lta() call, so `predictors_initial` and
+# `predictors_transition` reach the regression without anything being built for
+# them -- under modal assignment, where the reduced data still has one row per
+# case. Under proportional it does not: the sample is collapsed onto the K^T
+# grid of status combinations, and a covariate breaks the exchangeability that
+# collapse assumes. The remedy is to collapse WITHIN each distinct covariate
+# pattern, and the claim being tested is that this is exact rather than an
+# approximation.
+#
+#   (k) the pattern expansion is the case-by-case expansion, summed. Proved by
+#       running the same code with one pattern per case and aggregating, rather
+#       than by a second hand-written copy of the arithmetic.
+#   (l) the covariate reaches the fit, under both rules, and is counted.
+# ==============================================================================
+
+# A covariate that genuinely predicts the occasion-1 status, so the regression
+# has something to find: occasion 1's item total, dichotomised. Read off the
+# fixture rather than drawn, so it costs no second seed.
+.ts3_cov <- function() as.integer(rowSums(.ts3_sim()[, 1:5]) >= 3L)
+
+.ts3_step3_cov <- function(s12, se = FALSE) {
+  X <- .ts3_sim(); z <- .ts3_cov()
+  mixtureEM:::.lta_threestep_step3(
+    s12,
+    match.call(fit_lta, quote(fit_lta(
+      X, n_statuses = 3, times = 4, n_init = 4, random_state = 1,
+      n_cores = 1, smoothing = 0, standard_errors = se,
+      predictors_initial = z, predictors_transition = z))),
+    environment())
+}
+
+# ------------------------------------------------------------------------------
+# (k) the pattern expansion
+# ------------------------------------------------------------------------------
+
+test_that("one pattern per case IS the case-by-case expansion", {
+  # The whole design in one assertion. Handing the reduction a covariate that
+  # separates every case makes each case its own pattern, which is the
+  # expansion carried out case by case -- the thing the collapse is claimed to
+  # equal. Summing those weights back over the grid must reproduce the
+  # unconditional reduction exactly, and summing them within a two-level
+  # covariate's patterns must reproduce that covariate's reduction exactly.
+  s12 <- .ts3_s12("proportional")
+  n   <- nrow(.ts3_sim())
+  z   <- .ts3_cov()
+
+  none <- mixtureEM:::.lta_threestep_reduce(s12)
+  each <- mixtureEM:::.lta_threestep_reduce(s12, matrix(seq_len(n), ncol = 1))
+  two  <- mixtureEM:::.lta_threestep_reduce(s12, matrix(z, ncol = 1))
+
+  # Every case, every combination it has any weight on.
+  expect_gt(nrow(each$W), nrow(two$W))
+  expect_equal(sum(each$weights), sum(none$weights), tolerance = 1e-10)
+
+  cell <- function(r) apply(r$W, 1, paste, collapse = "-")
+  agg  <- function(r, by) tapply(r$weights, by, sum)
+
+  expect_equal(as.vector(agg(each, cell(each))[cell(none)]), none$weights,
+               tolerance = 1e-10)
+  expect_equal(
+    as.vector(agg(each, paste(cell(each), z[each$Z[, 1]]))[
+      paste(cell(two), two$Z[, 1])]),
+    two$weights, tolerance = 1e-10)
+})
+
+test_that("a constant covariate reproduces the unconditional grid", {
+  # One pattern is the unconditional case, so the covariate-aware branch must
+  # be bit-for-bit the branch that shipped before it.
+  s12 <- .ts3_s12("proportional")
+  none <- mixtureEM:::.lta_threestep_reduce(s12)
+  one  <- mixtureEM:::.lta_threestep_reduce(
+    s12, matrix(1, nrow(.ts3_sim()), 1))
+
+  expect_equal(unname(one$W), unname(none$W))
+  expect_equal(one$weights, none$weights)
+  expect_null(none$Z)
+})
+
+test_that("the expansion carries one covariate row per data row", {
+  s12 <- .ts3_s12("proportional")
+  red <- mixtureEM:::.lta_threestep_reduce(s12, matrix(.ts3_cov(), ncol = 1))
+
+  expect_equal(nrow(red$Z), nrow(red$W))
+  expect_lte(nrow(red$W), 2L * 3L^4L)
+  expect_setequal(unique(red$Z[, 1]), c(0, 1))
+  expect_equal(sum(red$weights), nrow(.ts3_sim()), tolerance = 1e-8)
+  expect_true(all(red$weights > 0))
+
+  # Modal hands its covariates straight back: its rows are still cases.
+  modal <- mixtureEM:::.lta_threestep_reduce(
+    .ts3_s12(), matrix(.ts3_cov(), ncol = 1))
+  expect_equal(nrow(modal$Z), nrow(.ts3_sim()))
+  expect_equal(modal$Z[, 1], .ts3_cov())
+})
+
+# ------------------------------------------------------------------------------
+# (l) the covariate reaches the fit
+# ------------------------------------------------------------------------------
+
+test_that("a covariate reaches step 3's initial-status and transition models", {
+  fit <- .ts3_step3_cov(.ts3_s12())
+
+  expect_false(is.null(fit$delta_beta))
+  expect_equal(dim(fit$delta_beta), c(3L, 2L))       # intercept + one slope
+  expect_length(fit$tau_beta, 3L)
+  # Intercept, two origin dummies, one slope, under transition_effects="common".
+  expect_true(all(vapply(fit$tau_beta, ncol, 1L) == 4L))
+  expect_true(fit$converged)
+
+  # 2 x 2 for the initial status, 2 x 4 for each of three transitions, and the
+  # fixed emission still costs nothing.
+  expect_equal(fit$n_params, 2L * 2L + 3L * (2L * 4L))
+  expect_true(isTRUE(fit$mm_fixed))
+})
+
+test_that("both assignment rules carry the covariate, and disagree", {
+  a <- .ts3_step3_cov(.ts3_s12())
+  b <- .ts3_step3_cov(.ts3_s12("proportional"))
+
+  expect_equal(b$n_params, a$n_params)
+  expect_true(b$converged)
+  expect_gt(max(abs(a$delta_beta - b$delta_beta)), 1e-6)
+})
+
+test_that("step 3 reports standard errors for the covariate block", {
+  fit <- .ts3_step3_cov(.ts3_s12(), se = TRUE)
+  bn  <- vapply(fit$se$blocks, function(x) x$name, "")
+  se  <- sqrt(diag(fit$se$vcov))
+
+  expect_true(fit$se$conditional)
+  expect_equal(nrow(fit$se$vcov), fit$n_params)
+  expect_true("delta_beta" %in% bn)
+  cols <- fit$se$blocks[[which(bn == "delta_beta")]]$cols
+  expect_true(all(is.finite(se[cols])) && all(se[cols] > 0))
+})

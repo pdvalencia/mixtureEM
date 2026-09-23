@@ -161,13 +161,28 @@
 # most K^T DISTINCT rows however large the sample is -- 81 on a three-status,
 # four-occasion panel -- and the weights are what is summed over cases. The cap
 # below is on that grid, which is the only thing here that grows with the model.
-.lta_threestep_reduce <- function(s12) {
+#
+# WHAT A COVARIATE CHANGES, and it is why `Z` is here. Summing the weights over
+# all the cases is legitimate only while the cases are exchangeable in step 3's
+# likelihood, and a covariate is exactly what stops them being so: two cases
+# with different covariate values have different initial-status and transition
+# probabilities, so they cannot share a row. They can still share one if their
+# covariate values agree. So the grid is built WITHIN each distinct covariate
+# pattern rather than over the sample, and that gives the same likelihood the
+# case-by-case expansion would -- exactly, not approximately, because the
+# covariates enter step 3 only through the pattern. With `Z` NULL there is one
+# pattern and the paragraph above is the special case.
+#
+# The case-by-case expansion was rejected on cost, not on principle: it is
+# n * K^T rows, 289,575 on the reading panel, against 162 for one binary
+# covariate.
+.lta_threestep_reduce <- function(s12, Z = NULL) {
   K  <- s12$step1$n_statuses
   Tn <- s12$step1$n_times
   w  <- s12$step1$weights_vec
 
   if (identical(s12$assignment, "modal"))
-    return(list(W = s12$modal, weights = w))
+    return(list(W = s12$modal, weights = w, Z = Z))
 
   n_cells <- K^Tn
   if (n_cells > 1e4)
@@ -179,18 +194,43 @@
 
   grid <- as.matrix(expand.grid(rep(list(seq_len(K)), Tn)))
   dimnames(grid) <- list(NULL, s12$step1$longitudinal$time_labels)
-  wts <- vapply(seq_len(nrow(grid)), function(p) {
-    v <- w
-    for (t in seq_len(Tn)) v <- v * s12$step1$gamma[[t]][, grid[p, t]]
-    sum(v)
-  }, numeric(1))
+
+  # Each case's weight on each cell of the grid, n x K^T: the case's own weight
+  # times the product over occasions of its posterior on that cell's status.
+  # One multiplication per occasion rather than one pass per cell -- the same
+  # arithmetic, and it is what lets the pattern sum below be a rowsum().
+  cell_w <- matrix(w, length(w), nrow(grid))
+  for (t in seq_len(Tn))
+    cell_w <- cell_w * s12$step1$gamma[[t]][, grid[, t], drop = FALSE]
+
+  if (is.null(Z)) {
+    idx <- rep(1L, length(w))
+    rep_row <- 1L
+  } else {
+    key     <- do.call(paste, c(as.data.frame(Z), sep = "\r"))
+    uniq    <- unique(key)
+    idx     <- match(key, uniq)
+    rep_row <- match(seq_along(uniq), idx)
+  }
+
+  # rowsum() sorts its groups by label and the labels are 1..P, so the rows of
+  # `agg` line up with `rep_row`. as.vector() then runs down the patterns within
+  # a cell, which is the order `cell_of` and `pat_of` decode.
+  agg     <- rowsum(cell_w, idx)
+  P       <- nrow(agg)
+  wts     <- as.vector(agg)
+  cell_of <- rep(seq_len(nrow(grid)), each = P)
+  pat_of  <- rep(seq_len(P), times = nrow(grid))
 
   # A combination no case gives any weight to contributes nothing to the
   # likelihood and is dropped rather than carried as a row of zeros. The
   # weights still sum to the number of cases, since every case's posteriors
   # multiply out to one across the grid.
   keep <- wts > 0
-  list(W = grid[keep, , drop = FALSE], weights = wts[keep])
+  list(W       = grid[cell_of[keep], , drop = FALSE],
+       weights = wts[keep],
+       Z       = if (is.null(Z)) NULL else
+                   Z[rep_row[pat_of[keep]], , drop = FALSE])
 }
 
 # Step three: the structural model, fitted on the reduced data with the
@@ -203,19 +243,58 @@
 # probabilities -- are carried across from the caller and mean the same thing
 # they meant in step 1. What is NOT carried is everything describing the items:
 # there are no items left. The structural predictors ARE carried, because
-# regressing the transitions on covariates is what step 3 exists to do.
+# regressing the initial status and the transitions on covariates is what step 3
+# exists to do.
+#
+# THE PREDICTORS ARE PREPARED HERE rather than passed on as the caller's
+# expressions, which is the one thing about this function that is not obvious.
+# Two reasons, and the second is the binding one.
+#
+#   The reduced data under proportional assignment has one row per (covariate
+#   pattern, status combination), not one row per case, so the caller's
+#   covariate vector is the wrong length for it. The expansion has to know the
+#   covariate values to group by them, and the fit has to receive the expanded
+#   ones. Both need the design matrix in hand, here.
+#
+#   Preparing it once, on the case scale, is also the only way the two agree.
+#   .lta_design() imputes a missing covariate value at the column mean; run on
+#   the deduplicated rows instead it would average over patterns rather than
+#   over cases and quietly shift the design. So it is run once, before the
+#   expansion, and its output -- a plain numeric matrix, which
+#   prepare_covariates() returns untouched -- is what fit_lta() receives, where
+#   passing it through .lta_design() a second time is the identity.
 .lta_threestep_step3 <- function(s12, cl, env) {
-  red <- .lta_threestep_reduce(s12)
+  n <- length(s12$step1$weights_vec)
+
+  # The intercept column .lta_design() prepends is dropped: fit_lta() adds its
+  # own back. Position, not name, because a user's covariate may be called
+  # anything at all.
+  prepared <- function(nm) {
+    if (is.null(cl[[nm]])) return(NULL)
+    .lta_design(eval(cl[[nm]], env), n, nm)[, -1L, drop = FALSE]
+  }
+  Z_delta <- prepared("predictors_initial")
+  Z_tau   <- prepared("predictors_transition")
+
+  # One key over both blocks: two cases are the same pattern only if they agree
+  # on everything step 3's structural model reads.
+  red <- .lta_threestep_reduce(
+    s12, if (is.null(Z_delta) && is.null(Z_tau)) NULL else cbind(Z_delta, Z_tau))
+
+  nd <- if (is.null(Z_delta)) 0L else ncol(Z_delta)
+  nt <- if (is.null(Z_tau))   0L else ncol(Z_tau)
 
   e <- new.env(parent = env)
   assign(".lta_step3_W", red$W,                    envir = e)
   assign(".lta_step3_w", red$weights,              envir = e)
   assign(".lta_step3_D", lapply(s12$D, t),         envir = e)
   assign(".lta_step3_labels", s12$step1$longitudinal$time_labels, envir = e)
+  if (nd) assign(".lta_step3_Zd", red$Z[, seq_len(nd), drop = FALSE], envir = e)
+  if (nt) assign(".lta_step3_Zt", red$Z[, nd + seq_len(nt), drop = FALSE],
+                 envir = e)
 
   carried <- c("n_init", "refine", "max_iter", "n_cores", "tol", "smoothing",
                "random_state", "standard_errors", "bayes_constants",
-               "predictors_initial", "predictors_transition",
                "transition_invariance", "transition_effects",
                "forbidden_transitions", "tie_initial_status")
   carried <- cl[intersect(carried, names(cl))]
@@ -231,6 +310,8 @@
          weights                = quote(.lta_step3_w),
          weight_type            = "frequency",
          .fixed_emission        = quote(.lta_step3_D)),
+    if (nd) list(predictors_initial    = quote(.lta_step3_Zd)),
+    if (nt) list(predictors_transition = quote(.lta_step3_Zt)),
     as.list(carried)))
 
   eval(cl3, e)
