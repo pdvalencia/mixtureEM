@@ -56,6 +56,15 @@
     stop("`n_steps = 3` fits its own step 1, so `refine_from` has nothing to ",
          "hand over. Drop one of them.", call. = FALSE)
 
+  # `tie_initial_status` ties the occasion-1 distribution across the classes
+  # of a mover-stayer fit, and the three-step fits one class, so it would tie
+  # nothing. Refused here, in the user's terms, rather than by step 1's
+  # transition-free model in terms of a model the user never asked for.
+  if (isTRUE(eval(cl$tie_initial_status, env)))
+    stop("`tie_initial_status` applies only to a fit with several latent ",
+         "classes (such as `mover_stayer = TRUE`), and `n_steps = 3` fits one. ",
+         "Drop it.", call. = FALSE)
+
   # `indicators` is pinned to the value already in hand rather than left as the
   # expression the caller wrote: an expression that draws or simulates would
   # otherwise hand step 1 a different sample from the one step 3 will use,
@@ -296,7 +305,7 @@
   carried <- c("n_init", "refine", "max_iter", "n_cores", "tol", "smoothing",
                "random_state", "standard_errors", "bayes_constants",
                "transition_invariance", "transition_effects",
-               "forbidden_transitions", "tie_initial_status")
+               "forbidden_transitions")
   carried <- cl[intersect(carried, names(cl))]
 
   cl3 <- as.call(c(

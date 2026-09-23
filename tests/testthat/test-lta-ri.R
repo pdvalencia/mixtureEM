@@ -118,6 +118,26 @@ test_that("tie_initial_status ties the initial distribution across classes", {
   expect_true(.lta_scores_full(fit_tied))
 })
 
+test_that("tie_initial_status says so when there is only one class to tie", {
+  X <- .lta_refine_sim(n = 30, K = 2, Tn = 4, J = 3, seed = 1)
+  args <- list(X, n_statuses = 2, times = 4, measurement = "binary",
+               n_init = 1, max_iter = 3, random_state = 1,
+               standard_errors = FALSE)
+  # max_iter = 3 also warns about convergence, so collect every warning and
+  # look for this one among them.
+  msgs <- character()
+  fit_tied <- withCallingHandlers(
+    do.call(fit_lta, c(args, tie_initial_status = TRUE)),
+    warning = function(w) {
+      msgs <<- c(msgs, conditionMessage(w)); invokeRestart("muffleWarning")
+    })
+  expect_true(any(grepl("no effect with a single latent class", msgs)))
+  fit0 <- suppressWarnings(do.call(fit_lta, args))
+  # And the warning is true: the fit is the untied one.
+  expect_equal(fit_tied$loglik, fit0$loglik)
+  expect_equal(fit_tied$n_params, fit0$n_params)
+})
+
 test_that("the refinement's gradient matches finite differences for a tied mover-stayer fit", {
   # A tied initial-status distribution collapses the C per-class delta blocks
   # in .lta_score_matrix()'s C > 1 branch into one shared block (the roadmap's

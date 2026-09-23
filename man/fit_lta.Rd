@@ -125,7 +125,8 @@ parameters, so the model is nested in the unrestricted mixture and
 \item{tie_initial_status}{For a mover-stayer fit, hold the occasion-1
 status distribution equal across the latent classes instead of
 estimating one per class. Drops the initial-status parameter count from
-\code{(K - 1) * C} to \code{K - 1}. Default \code{FALSE}.}
+\code{(K - 1) * C} to \code{K - 1}. Default \code{FALSE}. With a single latent class
+there is nothing to tie, so it has no effect and a warning says so.}
 
 \item{random_intercept}{Add a random intercept to the measurement model
 (Muthen & Asparouhov, 2022): a person-level "how likely to endorse items

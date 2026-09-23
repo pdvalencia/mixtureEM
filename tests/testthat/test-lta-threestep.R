@@ -221,6 +221,17 @@ test_that("step 1 refuses a donor fit alongside its own search", {
     "refine_from")
 })
 
+test_that("the three-step refuses a tie it has no classes to apply", {
+  X <- .ts3_sim()
+  expect_error(
+    .lta_threestep_step12(
+      match.call(fit_lta, quote(fit_lta(
+        X, n_statuses = 3, times = 4, measurement = "binary",
+        tie_initial_status = TRUE))),
+      environment()),
+    "applies only to a fit with several latent classes")
+})
+
 test_that("the transition-free model refuses what it has not been graded in", {
   X <- .ts3_sim()
   base <- function(...) fit_lta(X, n_statuses = 3, times = 4,

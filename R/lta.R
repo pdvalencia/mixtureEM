@@ -97,7 +97,8 @@
 #' @param tie_initial_status For a mover-stayer fit, hold the occasion-1
 #'   status distribution equal across the latent classes instead of
 #'   estimating one per class. Drops the initial-status parameter count from
-#'   `(K - 1) * C` to `K - 1`. Default `FALSE`.
+#'   `(K - 1) * C` to `K - 1`. Default `FALSE`. With a single latent class
+#'   there is nothing to tie, so it has no effect and a warning says so.
 #' @param random_intercept Add a random intercept to the measurement model
 #'   (Muthen & Asparouhov, 2022): a person-level "how likely to endorse items
 #'   in general" trait that regular LTA has no way to represent, and that can
@@ -666,6 +667,13 @@ fit_lta <- function(indicators,
   C <- as.integer(n_classes)
   if (is.na(C) || C < 1L)
     stop("`n_classes` must be a positive whole number.", call. = FALSE)
+  # The tie is ACROSS classes, so with one class there is nothing to tie and
+  # the fit is the untied one. Said aloud, because a user who set it would
+  # otherwise report a restriction that was never imposed.
+  if (isTRUE(tie_initial_status) && C == 1L)
+    warning("`tie_initial_status` has no effect with a single latent class; ",
+            "it ties the initial status across classes, such as those of ",
+            "`mover_stayer = TRUE`. The fit is unrestricted.", call. = FALSE)
 
   # --- what the fixed-emission model accepts ----------------------------------
   # The same treatment `.transition_free` gets below, and for the same reason,

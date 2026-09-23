@@ -189,6 +189,15 @@ guidance now cites Tseng (2024) for what it is -- the continuous-indicator
 analogue, at a between-profile separation of d = 0.75 -- rather than as a
 loading. Nothing numeric changes.
 
+## `tie_initial_status` warns when there is nothing to tie
+
+`tie_initial_status = TRUE` holds the occasion-1 status distribution equal
+across the latent classes of a mover-stayer or multi-class `fit_lta()`. With
+a single latent class there is nothing to tie, and the option was accepted
+and silently ignored, so a fit could be reported as carrying a restriction it
+never had. It now gives a warning saying the fit is unrestricted. No estimate
+changes: the fit is the same one it always was.
+
 ## Printing an unconverged LTA fit no longer crashes
 
 `print.lta_model()` and `print.mixture_model()` both threw "missing value
