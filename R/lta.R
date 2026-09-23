@@ -524,6 +524,17 @@ fit_lta <- function(indicators,
   # Everything else is refused below rather than silently accepted.
   tau_independent <- isTRUE(list(...)[[".transition_free"]])
 
+  # The step-3 model of the bias-adjusted three-step estimator: one assigned-
+  # status indicator per occasion whose response probabilities are KNOWN rather
+  # than estimated, because step 2 computed them. A list of `Tn` `K x K`
+  # matrices, rows the true status and columns the assigned one, which is the
+  # emission's own orientation and the TRANSPOSE of what .classification_error()
+  # returns -- .lta_threestep_step3() does the transposing, at the one place the
+  # two conventions meet. On `...` for the same reason `.transition_free` is:
+  # the user surface is R5's W5, and an argument on the signature is a promise
+  # about combinations that have not been reasoned about yet.
+  fixed_mm <- list(...)[[".fixed_emission"]]
+
   measurement_invariance <- match.arg(measurement_invariance)
   transition_invariance  <- match.arg(transition_invariance)
   random_intercept       <- match.arg(random_intercept)
@@ -655,6 +666,50 @@ fit_lta <- function(indicators,
   C <- as.integer(n_classes)
   if (is.na(C) || C < 1L)
     stop("`n_classes` must be a positive whole number.", call. = FALSE)
+
+  # --- what the fixed-emission model accepts ----------------------------------
+  # The same treatment `.transition_free` gets below, and for the same reason,
+  # but earlier: these refusals are about the flag itself, so they have to be
+  # reached before the ordinary combination checks that some of them would trip
+  # on anyway. `predictors_initial` and `predictors_transition` are deliberately
+  # ABSENT from the list -- a regression on the structural block is what step 3
+  # exists to fit. Everything in it either has no meaning once the measurement
+  # model is a known constant (a random intercept on a single assigned-status
+  # indicator, DIF on it) or is a design question the three-step's own
+  # specification has not answered yet (a second latent variable above the
+  # chain, groups). See part-r5-three-step-lta.md, "Tier 4".
+  if (!is.null(fixed_mm)) {
+    bad <- c(
+      ".transition_free"            = tau_independent,
+      "predictors_random_intercept" = !is.null(predictors_random_intercept),
+      "predictors_items"            = !is.null(predictors_items),
+      "random_intercept"            = random_intercept != "none",
+      "group"                       = !is.null(group),
+      "n_classes > 1"               = C > 1L,
+      "mover_stayer"                = isTRUE(mover_stayer),
+      "refine_from"                 = !is.null(refine_from))
+    if (any(bad))
+      stop("The fixed-emission model does not accept ",
+           paste(names(bad)[bad], collapse = ", "), ".", call. = FALSE)
+
+    # Every check below is on the shape of a constant this fit will never move,
+    # so a mistake in it cannot surface as a failure to converge. It surfaces as
+    # a plausible fit at the wrong number, which is why these are errors.
+    if (!is.list(fixed_mm) || length(fixed_mm) != Tn)
+      stop(sprintf(paste0(
+        "`.fixed_emission` must be a list of %d matrices, one per occasion; ",
+        "got %d."), Tn, length(fixed_mm)), call. = FALSE)
+    ok <- vapply(fixed_mm, function(m)
+      is.matrix(m) && nrow(m) == K && ncol(m) == K && all(is.finite(m)) &&
+        all(m >= 0) && max(abs(rowSums(m) - 1)) < 1e-8, logical(1))
+    if (!all(ok))
+      stop(sprintf(paste0(
+        "Each entry of `.fixed_emission` must be a %d x %d matrix of ",
+        "probabilities whose ROWS sum to 1 (rows the true status, columns the ",
+        "assigned one). Occasion%s %s do not."), K, K,
+        if (sum(!ok) == 1L) "" else "s", paste(which(!ok), collapse = ", ")),
+        call. = FALSE)
+  }
   if (C > 1L && Tn < 3L)
     stop("A mixture latent Markov model needs at least three occasions to be ",
          "identified (Vermunt, Mover-Stayer Models); with two, the classes ",
@@ -799,6 +854,7 @@ fit_lta <- function(indicators,
            paste(names(bad)[bad], collapse = ", "), ".", call. = FALSE)
   }
 
+
   state <- list(
     n_statuses      = K,
     n_classes       = C,
@@ -931,6 +987,26 @@ fit_lta <- function(indicators,
     n_init_default <- TRUE
     refine         <- FALSE
     state$frozen   <- "mm"
+  }
+
+  # --- the fixed-emission model ------------------------------------------------
+  # Step 3 of the three-step estimator. The emission is written in here, before
+  # the response-pattern collapse and before any start is drawn, and held there
+  # by the same `frozen` flag the two-step uses: the M-step leaves an `mm` named
+  # in `frozen` exactly as it found it (R/lta_core.R) and nothing else changes.
+  # Every restart therefore searches the structural block alone, which is the
+  # only block step 3 estimates.
+  #
+  # `mm_fixed` is a SECOND flag and not a reading of `frozen`, because the two
+  # say different things. `frozen` is a working instruction to the M-step and is
+  # cleared off the returned fit; `mm_fixed` is a property of the model that has
+  # to survive onto it, since it is what tells the parameter count that these
+  # numbers were never estimated.
+  if (!is.null(fixed_mm)) {
+    for (t in seq_len(Tn))
+      state$mm$models[[t]]$parameters$pis <- fixed_mm[[t]]
+    state$frozen   <- "mm"
+    state$mm_fixed <- TRUE
   }
 
   if (!is.null(refine_from)) {
@@ -1146,6 +1222,12 @@ fit_lta <- function(indicators,
       } else if (!is.null(s$ri) && identical(s$ri$kind, "continuous") &&
           .lta_ri_loading_free(s) && i > n_init %/% 2L)
         s <- .lta_ri_random_start2(s, X_fit)
+      # .lta_random_start() draws a measurement model along with everything
+      # else, and a frozen `mm` is frozen at whatever it is handed: without
+      # this the fit would hold a RANDOM emission fixed and report it as the
+      # classification error. Delta and tau keep their draw, so the structural
+      # search is a real search.
+      if (!is.null(fixed_mm)) s$mm <- state$mm
       s
     })
   }
@@ -1264,8 +1346,15 @@ fit_lta <- function(indicators,
   # prevalence would permute that order away from step one's on the one shape
   # where nothing else pins it -- a random-intercept regression with no
   # initial-status or transition covariate.
+  #
+  # A fixed-emission fit keeps its labels for a sharper version of the same
+  # reason: its status 2 is whatever status 2 was in the model the emission came
+  # from, and that correspondence is the only thing making the fixed numbers
+  # mean anything. Sorting step three by prevalence would renumber the statuses
+  # underneath a table that cannot be renumbered with them.
   keep_labels <- !is.null(forbidden_transitions) ||
-    !is.null(Z_delta) || !is.null(Z_tau) || n_steps == 2L
+    !is.null(Z_delta) || !is.null(Z_tau) || n_steps == 2L ||
+    !is.null(fixed_mm)
   if (order_by_size && !keep_labels)
     best <- .sort_lta_statuses(best)
 
@@ -1543,7 +1632,17 @@ fit_lta <- function(indicators,
   # across occasions.
   n_dif <- if (is.null(state$dif)) 0L else length(state$dif$beta)
 
-  (C - 1L) + n_delta + n_tau + n_parameters(state$mm) + n_ri + n_ri_beta + n_dif
+  # A fixed emission is a constant this fit was handed, not something it
+  # estimated, so it contributes nothing to the count and nothing to any
+  # criterion built on it. On the four-occasion, three-status reading panel
+  # that is the difference between 44 and 20.
+  #
+  # The predicate is `mm_fixed` and not `frozen`: the two-step also freezes its
+  # measurement block, but there the block WAS estimated -- in step one, on the
+  # same data -- and it is counted, which is why its 28 parameters are 28.
+  n_mm <- if (isTRUE(state$mm_fixed)) 0L else n_parameters(state$mm)
+
+  (C - 1L) + n_delta + n_tau + n_mm + n_ri + n_ri_beta + n_dif
 }
 
 # ------------------------------------------------------------------------------

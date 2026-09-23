@@ -256,3 +256,272 @@ test_that("nothing changes for an ordinary fit", {
   expect_equal(fit$n_params, 5L * 3L + 2L + 3L * 6L)
   expect_gt(max(abs(sweep(fit$tau[[1L]], 2, fit$tau[[1L]][1L, ]))), 1e-3)
 })
+
+# ==============================================================================
+# W3 -- step three: the structural model on the reduced data, with the
+# classification error held fixed.
+#
+# The reduction is the claim being tested. After step 2 the items are gone and
+# what is left is one assigned-status variable per occasion plus a K x K table
+# per occasion saying how unreliable it is. Step 3 is an ordinary latent
+# transition model on exactly that, with the measurement block frozen.
+#
+#   (f) the emission really is D, in the right orientation, and really is
+#       frozen. This is the one mistake in the item that is silent and fatal:
+#       planted backwards the fit converges, looks sane and is wrong.
+#   (g) the fixed emission costs no parameters, because it was not estimated.
+#   (h) the correction is applied in the right DIRECTION. With the error
+#       matrices set to the identity the estimator must reduce to the naive
+#       classify-analyse baseline -- the raw cross-tabulation of the assigned
+#       labels -- exactly. With the real matrices it must move away from that
+#       baseline and towards step 1's own prevalences.
+#   (i) the proportional reduction's arithmetic.
+#   (j) the guard rails.
+# ==============================================================================
+
+.ts3_s12 <- function(assignment = "modal") {
+  key <- paste0("s12_", assignment)
+  if (!is.null(.ts3_cache[[key]])) return(.ts3_cache[[key]])
+  X <- .ts3_sim()
+  .ts3_cache[[key]] <- mixtureEM:::.lta_threestep_step12(
+    match.call(fit_lta, quote(fit_lta(
+      X, n_statuses = 3, times = 4, measurement = "binary",
+      measurement_invariance = "full", n_init = 8, random_state = 1,
+      n_cores = 1, standard_errors = FALSE))),
+    environment(), assignment = assignment)
+  .ts3_cache[[key]]
+}
+
+.ts3_step3 <- function(s12) {
+  X <- .ts3_sim()
+  mixtureEM:::.lta_threestep_step3(
+    s12,
+    match.call(fit_lta, quote(fit_lta(
+      X, n_statuses = 3, times = 4, n_init = 6, random_state = 1,
+      n_cores = 1, smoothing = 0, standard_errors = FALSE))),
+    environment())
+}
+
+# ------------------------------------------------------------------------------
+# (f) the emission is D transposed, and it does not move
+# ------------------------------------------------------------------------------
+
+test_that("step 3's emission is the classification error, transposed", {
+  # D has rows the ASSIGNED status and columns the TRUE one; an emission has
+  # rows the latent status and columns the response. So the planted matrix is
+  # t(D), and this assertion is the only thing standing between a typo and a
+  # converged fit at the wrong answer.
+  s12 <- .ts3_s12()
+  fit <- .ts3_step3(s12)
+
+  for (t in seq_len(4L)) {
+    planted <- fit$mm$models[[t]]$parameters$pis
+    expect_equal(max(abs(planted - t(s12$D[[t]]))), 0, tolerance = 0)
+    # Rows are the true status, so they are what sums to one here -- D's
+    # columns are what sum to one. If the two ever agreed the table would be
+    # symmetric and the orientation would be untestable; it is not.
+    expect_lt(max(abs(rowSums(planted) - 1)), 1e-12)
+  }
+  expect_gt(max(abs(s12$D[[1L]] - t(s12$D[[1L]]))), 1e-3)
+})
+
+test_that("frozen means frozen: the emission is the one that went in", {
+  # Not a restatement of the test above. That one checks what was planted;
+  # this one checks that EM left it alone, which is the whole of what
+  # freezing the measurement block buys -- and it is checked against the input
+  # rather than against the fit's own copy of it.
+  s12  <- .ts3_s12()
+  fit  <- .ts3_step3(s12)
+  want <- lapply(s12$D, t)
+  for (t in seq_len(4L))
+    expect_equal(unname(fit$mm$models[[t]]$parameters$pis), unname(want[[t]]),
+                 tolerance = 0)
+})
+
+# ------------------------------------------------------------------------------
+# (g) a constant is not a parameter
+# ------------------------------------------------------------------------------
+
+test_that("the fixed emission costs nothing in the parameter count", {
+  # Two free initial-status probabilities plus three occasions of a 3x3
+  # transition table. The twelve emission numbers were handed to this fit, not
+  # estimated by it, so they are not in the count and not in any criterion
+  # built on it.
+  fit <- .ts3_step3(.ts3_s12())
+  expect_equal(fit$n_params, 2L + 3L * 3L * 2L)
+  expect_true(isTRUE(fit$mm_fixed))
+})
+
+test_that("the two-step's parameter count is untouched by that rule", {
+  # The two-step also freezes its measurement block, but there the block WAS
+  # estimated -- in step one, on the same data -- so it is counted. The
+  # predicate that excludes a fixed emission must not reach this fit.
+  X <- .ts3_sim()
+  z <- data.frame(v = as.numeric(X[, 1L]))
+  fit <- fit_lta(X, n_statuses = 3, times = 4, measurement = "binary",
+                 measurement_invariance = "full", n_init = 2, random_state = 1,
+                 n_cores = 1, n_steps = 2, predictors_initial = z,
+                 standard_errors = FALSE)
+  expect_false(isTRUE(fit$mm_fixed))
+  expect_gt(fit$n_params, 5L * 3L)
+})
+
+# ------------------------------------------------------------------------------
+# (h) the correction points the right way
+# ------------------------------------------------------------------------------
+
+test_that("an identity error matrix reduces step 3 to classify-analyse", {
+  # The naive baseline: believe the labels. With D the identity the model says
+  # the assigned status IS the true one, so the maximum-likelihood initial
+  # status distribution is just the proportion of cases assigned to each status
+  # at occasion 1, and each transition row the corresponding cross-tabulation.
+  # Exact, free, and it fixes the DIRECTION of the correction: anything that
+  # inverted the table rather than applying it would fail here.
+  s12  <- .ts3_s12()
+  flat <- s12
+  flat$D <- rep(list(diag(3L)), 4L)
+  fit <- .ts3_step3(flat)
+
+  W <- s12$modal
+  expect_equal(unname(fit$delta), unname(prop.table(tabulate(W[, 1L], 3L))),
+               tolerance = 1e-6)
+  for (t in seq_len(3L)) {
+    tab <- table(factor(W[, t], levels = 1:3), factor(W[, t + 1L], levels = 1:3))
+    expect_equal(unname(fit$tau[[t]]), unname(prop.table(as.matrix(tab), 1)),
+                 tolerance = 1e-6)
+  }
+})
+
+test_that("the real error matrices move the estimate towards step 1's own", {
+  # The point of the whole estimator. The naive baseline is biased because the
+  # labels are wrong some of the time; correcting for how often they are wrong
+  # must move the initial-status distribution back towards the one step 1
+  # estimated from the items themselves.
+  s12  <- .ts3_s12()
+  flat <- s12
+  flat$D <- rep(list(diag(3L)), 4L)
+
+  target    <- s12$prevalences[1L, ]
+  corrected <- .ts3_step3(s12)$delta
+  naive     <- .ts3_step3(flat)$delta
+
+  expect_lt(max(abs(corrected - target)), max(abs(naive - target)))
+  expect_lt(max(abs(corrected - target)), 0.01)
+})
+
+# ------------------------------------------------------------------------------
+# (i) the proportional reduction
+# ------------------------------------------------------------------------------
+
+test_that("proportional spreads each case over the grid without losing any", {
+  # A case is not assigned to one status but to every combination of statuses
+  # across the occasions, weighted by the product of its posteriors. The grid
+  # is K^T rows however large the sample, and the weights must still add up to
+  # the number of cases -- each case's posteriors multiply out to one over it.
+  s12 <- .ts3_s12("proportional")
+  red <- mixtureEM:::.lta_threestep_reduce(s12)
+
+  expect_lte(nrow(red$W), 3L^4L)
+  expect_equal(sum(red$weights), sum(s12$step1$weights_vec), tolerance = 1e-8)
+  expect_true(all(red$weights > 0))
+  expect_equal(ncol(red$W), 4L)
+
+  # Modal, by contrast, is one row per case.
+  expect_equal(nrow(mixtureEM:::.lta_threestep_reduce(.ts3_s12())$W),
+               nrow(.ts3_sim()))
+})
+
+test_that("the grid is capped rather than allowed to explode", {
+  s12 <- .ts3_s12("proportional")
+  big <- s12
+  big$step1$n_statuses <- 12L           # 12^4 = 20736 cells
+  expect_error(mixtureEM:::.lta_threestep_reduce(big), "too many to enumerate")
+})
+
+test_that("proportional and modal are different estimators on the same data", {
+  # A proportional table is softer than a modal one, so it applies less
+  # correction; the two must not come out identical, or one of the rules is
+  # not reaching the fit.
+  a <- .ts3_step3(.ts3_s12())$delta
+  b <- .ts3_step3(.ts3_s12("proportional"))$delta
+  expect_gt(max(abs(a - b)), 1e-6)
+})
+
+# ------------------------------------------------------------------------------
+# (j) the guard rails
+# ------------------------------------------------------------------------------
+
+test_that("the fixed-emission model refuses what it has not been reasoned about", {
+  W <- .ts3_s12()$modal
+  D <- lapply(.ts3_s12()$D, t)
+  base <- function(...) fit_lta(W, n_statuses = 3, times = 4,
+                                measurement = "categorical",
+                                measurement_invariance = "none",
+                                n_init = 2, random_state = 1, n_cores = 1,
+                                standard_errors = FALSE,
+                                .fixed_emission = D, ...)
+  expect_error(base(n_classes = 2), "does not accept")
+  expect_error(base(random_intercept = "continuous"), "does not accept")
+  expect_error(base(group = rep(1:2, length.out = nrow(W))), "does not accept")
+  expect_error(base(.transition_free = TRUE), "does not accept")
+  # A structural regression is NOT refused: fitting one is what step 3 is for.
+  expect_s3_class(base(predictors_initial =
+                         data.frame(v = as.numeric(W[, 1L] == 1L))),
+                  "lta_model")
+})
+
+test_that("a mis-shaped error matrix is an error, not a fit", {
+  # Every one of these is a constant the fit will never move, so a mistake in
+  # it cannot show up as a failure to converge. It shows up as a plausible fit
+  # at the wrong number, which is why these are errors.
+  W <- .ts3_s12()$modal
+  D <- lapply(.ts3_s12()$D, t)
+  base <- function(dd) fit_lta(W, n_statuses = 3, times = 4,
+                               measurement = "categorical",
+                               measurement_invariance = "none",
+                               n_init = 2, random_state = 1, n_cores = 1,
+                               standard_errors = FALSE, .fixed_emission = dd)
+  expect_error(base(D[1:3]), "one per occasion")
+  expect_error(base(lapply(D, function(m) m[1:2, , drop = FALSE])),
+               "ROWS sum to 1")
+  expect_error(base(lapply(D, function(m) m * 2)), "ROWS sum to 1")
+  # Handed the table without transposing it: its columns sum to one, not its
+  # rows, so this is caught rather than fitted. It is only caught because the
+  # table is asymmetric -- which is exactly when getting it wrong matters.
+  expect_error(base(.ts3_s12()$D), "ROWS sum to 1")
+})
+
+test_that("step 3 keeps step 1's status labels", {
+  # Sorting by prevalence relabels statuses from most to least common. Step 3's
+  # status 2 has to be step 1's status 2, because the fixed table indexes them
+  # and cannot be renumbered underneath it.
+  s12 <- .ts3_s12()
+  fit <- .ts3_step3(s12)
+  expect_lt(max(abs(fit$delta - s12$prevalences[1L, ])), 0.01)
+})
+
+test_that("step 3 reports standard errors, with the measurement model known", {
+  # The uncorrected step-3 standard errors: the measurement model is treated as
+  # known, which here it genuinely is -- step 2 computed it. Propagating step
+  # one's own uncertainty into them is a separate piece of work.
+  s12 <- .ts3_s12()
+  X   <- .ts3_sim()
+  fit <- mixtureEM:::.lta_threestep_step3(
+    s12,
+    match.call(fit_lta, quote(fit_lta(
+      X, n_statuses = 3, times = 4, n_init = 6, random_state = 1,
+      n_cores = 1, smoothing = 0, standard_errors = TRUE))),
+    environment())
+  expect_true(fit$se$conditional)
+  expect_true(all(is.finite(fit$se$prob_se$delta)))
+  expect_true(all(fit$se$prob_se$delta > 0))
+})
+
+test_that("nothing changes for a fit that plants no emission", {
+  # Every branch the flag adds is guarded by it.
+  fit <- fit_lta(.ts3_sim(), n_statuses = 3, times = 4, measurement = "binary",
+                 measurement_invariance = "full", n_init = 4, random_state = 3,
+                 n_cores = 1, standard_errors = FALSE)
+  expect_false(isTRUE(fit$mm_fixed))
+  expect_equal(fit$n_params, 5L * 3L + 2L + 3L * 6L)
+})

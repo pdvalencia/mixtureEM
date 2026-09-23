@@ -121,3 +121,117 @@
        D           = lapply(errors, `[[`, "D"),
        logits      = lapply(errors, `[[`, "logits"))
 }
+
+# ------------------------------------------------------------------------------
+# Step three.
+# ------------------------------------------------------------------------------
+#
+# THE REDUCTION, which is the whole reason this step is small. After step 2 the
+# items have done their work and are never looked at again. What is left is one
+# assigned-status variable W_t per occasion, taking K values, and a K x K table
+# D_t saying how often an assigned value misses the true one. A model for that
+# is an ordinary latent transition model with ONE categorical indicator per
+# occasion whose response probabilities are already known -- so it is fitted by
+# holding the measurement block fixed and letting the initial-status and
+# transition blocks run free, which is the machinery the two-step estimator
+# already put in place.
+#
+# THE ORIENTATION, which is the one mistake here that is silent and fatal.
+# .classification_error() returns D with rows the ASSIGNED status and columns
+# the TRUE one, columns summing to 1, because that is the orientation the fixed
+# logits are read off. An emission is the other way round: its parameter matrix
+# is rows the latent status, columns the response, rows summing to 1. So the
+# emission is t(D_t). Written here, at the single place the two conventions
+# meet, and checked by a test rather than trusted to this comment -- planted
+# backwards it produces a converged, plausible fit at the wrong answer.
+
+# The reduced data. Returns the response matrix and the weight attached to each
+# of its rows; the caller passes them straight to fit_lta().
+#
+# Under `modal` each case contributes one row -- the statuses it was assigned --
+# with its own sampling weight. Under `proportional` a case is not assigned to
+# one status but spread over all of them in proportion to its posterior, so it
+# contributes to every combination (w_1, ..., w_T) with weight
+# `prod_t gamma_t[i, w_t]`. That is the longitudinal form of the expanded data
+# set fit_ml() builds cross-sectionally, where a case becomes K records weighted
+# by its posterior (R/corrections.R).
+#
+# The expansion does not have to be carried out case by case. The reduced model
+# has exactly one indicator per occasion, so the whole expanded data set has at
+# most K^T DISTINCT rows however large the sample is -- 81 on a three-status,
+# four-occasion panel -- and the weights are what is summed over cases. The cap
+# below is on that grid, which is the only thing here that grows with the model.
+.lta_threestep_reduce <- function(s12) {
+  K  <- s12$step1$n_statuses
+  Tn <- s12$step1$n_times
+  w  <- s12$step1$weights_vec
+
+  if (identical(s12$assignment, "modal"))
+    return(list(W = s12$modal, weights = w))
+
+  n_cells <- K^Tn
+  if (n_cells > 1e4)
+    stop(sprintf(paste0(
+      "Proportional assignment spreads each case over all %d combinations of ",
+      "%d statuses at %d occasions, which is too many to enumerate. Use ",
+      "assignment = \"modal\", which assigns each case to one."),
+      as.integer(n_cells), K, Tn), call. = FALSE)
+
+  grid <- as.matrix(expand.grid(rep(list(seq_len(K)), Tn)))
+  dimnames(grid) <- list(NULL, s12$step1$longitudinal$time_labels)
+  wts <- vapply(seq_len(nrow(grid)), function(p) {
+    v <- w
+    for (t in seq_len(Tn)) v <- v * s12$step1$gamma[[t]][, grid[p, t]]
+    sum(v)
+  }, numeric(1))
+
+  # A combination no case gives any weight to contributes nothing to the
+  # likelihood and is dropped rather than carried as a row of zeros. The
+  # weights still sum to the number of cases, since every case's posteriors
+  # multiply out to one across the grid.
+  keep <- wts > 0
+  list(W = grid[keep, , drop = FALSE], weights = wts[keep])
+}
+
+# Step three: the structural model, fitted on the reduced data with the
+# classification error held fixed.
+#
+# `cl` and `env` are the caller's `match.call()` and frame, as in
+# .lta_threestep_step12(). The reduced fit is a fit_lta() call like any other,
+# so the settings that describe a search rather than a model -- the restart
+# budget, the seed, the cores, the stopping rule, the prior on the structural
+# probabilities -- are carried across from the caller and mean the same thing
+# they meant in step 1. What is NOT carried is everything describing the items:
+# there are no items left. The structural predictors ARE carried, because
+# regressing the transitions on covariates is what step 3 exists to do.
+.lta_threestep_step3 <- function(s12, cl, env) {
+  red <- .lta_threestep_reduce(s12)
+
+  e <- new.env(parent = env)
+  assign(".lta_step3_W", red$W,                    envir = e)
+  assign(".lta_step3_w", red$weights,              envir = e)
+  assign(".lta_step3_D", lapply(s12$D, t),         envir = e)
+  assign(".lta_step3_labels", s12$step1$longitudinal$time_labels, envir = e)
+
+  carried <- c("n_init", "refine", "max_iter", "n_cores", "tol", "smoothing",
+               "random_state", "standard_errors", "bayes_constants",
+               "predictors_initial", "predictors_transition",
+               "transition_invariance", "transition_effects",
+               "forbidden_transitions", "tie_initial_status")
+  carried <- cl[intersect(carried, names(cl))]
+
+  cl3 <- as.call(c(
+    list(quote(fit_lta),
+         indicators             = quote(.lta_step3_W),
+         n_statuses             = s12$step1$n_statuses,
+         times                  = s12$step1$n_times,
+         measurement            = "categorical",
+         measurement_invariance = "none",
+         time_labels            = quote(.lta_step3_labels),
+         weights                = quote(.lta_step3_w),
+         weight_type            = "frequency",
+         .fixed_emission        = quote(.lta_step3_D)),
+    as.list(carried)))
+
+  eval(cl3, e)
+}
