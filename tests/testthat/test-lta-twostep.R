@@ -202,12 +202,11 @@ test_that("n_steps validates its arguments", {
   # Nothing to put in step two.
   expect_error(do.call(fit_lta, c(base, list(n_steps = 2))),
                "needs a structural model")
-  # The three-step estimator is not implemented for this family yet, and says
-  # so by name rather than failing somewhere downstream.
-  expect_error(do.call(fit_lta, c(base, list(n_steps = 3))),
-               "not implemented for latent transition models")
   expect_error(do.call(fit_lta, c(base, list(n_steps = 0))),
-               "must be 1 or 2")
+               "must be 1, 2 or 3")
+  # The three-step's own arguments mean nothing to the two-step.
+  expect_error(do.call(fit_lta, c(base, list(n_steps = 2, assignment = "modal"))),
+               "apply only with `n_steps = 3`")
   # Two ways of handing over a starting point, one of which is the estimator.
   expect_error(
     suppressWarnings(fit_lta(sim$X, n_statuses = 2, times = 3,

@@ -758,3 +758,118 @@ test_that("there is no pattern start without a few covariate patterns", {
   expect_null(mixtureEM:::.lta_threestep_pattern_start(s12, red, 1L, 0L, cl,
                                                        environment()))
 })
+
+# ==============================================================================
+# The user surface: fit_lta(n_steps = 3).
+#
+#   (k) the public call is the internal pipeline, and nothing else: same step
+#       1, same error matrices, same step 3.
+#   (l) `correction = "none"` is the naive classify-analyse baseline, which
+#       has a closed form under modal assignment.
+#   (m) the refusals, each reached before step 1 spends any time.
+#   (n) `measurement_invariance = "none"`: step 1's labels are matched across
+#       occasions, since its likelihood cannot tell them apart.
+# ==============================================================================
+
+.ts3_public <- function(...) {
+  fit_lta(.ts3_sim(), n_statuses = 3, times = 4, measurement = "binary",
+          n_init = 6, random_state = 1, n_cores = 1, smoothing = 0,
+          standard_errors = FALSE, n_steps = 3, ...)
+}
+
+test_that("the public three-step is the internal pipeline", {
+  X   <- .ts3_sim()
+  cl  <- match.call(fit_lta, quote(fit_lta(
+    X, n_statuses = 3, times = 4, measurement = "binary", n_init = 6,
+    random_state = 1, n_cores = 1, smoothing = 0, standard_errors = FALSE)))
+  s12 <- mixtureEM:::.lta_threestep_step12(cl, environment(),
+                                           assignment = "modal")
+  ref <- mixtureEM:::.lta_threestep_step3(s12, cl, environment())
+  fit <- .ts3_public(assignment = "modal")
+
+  expect_identical(fit$n_steps, 3L)
+  expect_equal(fit$loglik, ref$loglik, tolerance = 1e-10)
+  expect_equal(fit$delta, ref$delta, tolerance = 1e-10)
+  expect_equal(fit$threestep$classification_error, s12$D)
+  expect_equal(fit$step1$loglik, s12$step1$loglik)
+  expect_identical(fit$threestep$correction, "ML")
+  expect_identical(fit$threestep$assignment, "modal")
+})
+
+test_that("proportional is the default assignment", {
+  expect_identical(.ts3_public()$threestep$assignment, "proportional")
+})
+
+test_that("correction = \"none\" is the naive cross-tabulation of the labels", {
+  fit <- .ts3_public(assignment = "modal", correction = "none")
+  for (t in seq_len(4L))
+    expect_equal(unname(fit$threestep$classification_error[[t]]), diag(3L))
+
+  W <- fit$threestep$modal
+  expect_equal(unname(fit$delta), prop.table(tabulate(W[, 1L], 3L)),
+               tolerance = 1e-6)
+  for (t in seq_len(3L)) {
+    tab <- table(factor(W[, t], levels = 1:3), factor(W[, t + 1L], levels = 1:3))
+    expect_equal(unname(fit$tau[[t]]), unname(prop.table(as.matrix(tab), 1)),
+                 tolerance = 1e-6)
+  }
+})
+
+test_that("the three-step refuses what it is not defined for, before fitting", {
+  X <- .ts3_sim()
+  z <- rep(0:1, length.out = nrow(X))
+  base <- list(X, n_statuses = 3, times = 4, measurement = "binary",
+               n_init = 1, n_cores = 1, n_steps = 3)
+  refused <- list(list(random_intercept = "continuous"),
+                  list(n_classes = 2),
+                  list(mover_stayer = TRUE),
+                  list(group = z),
+                  list(predictors_items = z),
+                  list(predictors_random_intercept = z))
+  for (a in refused)
+    expect_error(do.call(fit_lta, c(base, a)), "`n_steps = 3` does not support")
+  expect_error(do.call(fit_lta, c(base, list(correction = "BCH"))),
+               "not available for latent transition models")
+  expect_error(do.call(fit_lta, c(base, list(strata = z))),
+               "does not yet carry `strata` or `cluster`")
+})
+
+test_that("a non-invariant step 1 has its labels matched across occasions", {
+  # Scramble one occasion's labels by hand -- which leaves the likelihood
+  # exactly where it was -- and the matching must undo it.
+  s1 <- fit_lta(.ts3_sim(), n_statuses = 3, times = 4, measurement = "binary",
+                measurement_invariance = "none", n_init = 4, random_state = 1,
+                n_cores = 1, standard_errors = FALSE, .transition_free = TRUE)
+  s1 <- mixtureEM:::.lta_threestep_align(s1)
+  pis <- lapply(s1$mm$models, function(m) m$parameters$pis)
+
+  p  <- c(2L, 3L, 1L)
+  sc <- s1
+  sc$mm$models[[3]] <- mixtureEM:::.permute_emission_classes(sc$mm$models[[3]], p)
+  sc$gamma[[3]] <- sc$gamma[[3]][, p]
+  sc$tau[[2]]   <- sc$tau[[2]][, p]
+  sc$tau[[3]]   <- sc$tau[[3]][p, ]
+  sc$tau_c[[1]] <- sc$tau
+  back <- mixtureEM:::.lta_threestep_align(sc)
+
+  expect_identical(back$alignment[[3]], order(p))
+  expect_equal(back$mm$models[[3]]$parameters$pis, pis[[3]])
+  expect_equal(back$gamma[[3]], s1$gamma[[3]])
+  expect_equal(back$prevalences, s1$prevalences)
+  # The fixture's statuses are high, middle and low at every occasion, so once
+  # matched they rank the same way everywhere. Not a closeness bound: the
+  # middle status answers every item at .5 and is loosely estimated when each
+  # occasion is fitted on its own, so its profile wanders by up to .5.
+  for (t in 2:4)
+    expect_identical(order(rowMeans(pis[[t]])), order(rowMeans(pis[[1]])))
+})
+
+test_that("measurement_invariance = \"none\" runs end to end", {
+  fit <- .ts3_public(measurement_invariance = "none", assignment = "modal")
+  expect_identical(fit$n_steps, 3L)
+  expect_length(fit$threestep$alignment, 4L)
+  expect_true(fit$converged)
+  # With free time-varying transitions step 3's likelihood does not depend on
+  # the labels, so the matched and the unmatched fits are the same model.
+  expect_equal(fit$n_params, 20L)
+})

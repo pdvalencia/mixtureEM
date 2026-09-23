@@ -104,11 +104,61 @@ one real cost, a few thousand likelihood evaluations; `standard_errors =
 FALSE` skips it and `standard_errors = "robust"` is the sandwich on the
 case-level scores, which is a step-2-only estimator.
 
-`n_steps = 3` for latent transition models is refused with a message naming
-itself. Nothing changes numerically for `n_steps = 1`, which is every
+Nothing changes numerically for `n_steps = 1`, which is every
 `fit_lta()` fit made before this release. A two-step fit no longer reorders
 its statuses by size: its measurement block is step 1's and the two have to
 stay in the same order.
+
+## `fit_lta()` gains the bias-adjusted three-step estimator
+
+`fit_lta(n_steps = 3)` estimates a latent transition model in three steps
+(Vermunt, 2010; Nylund-Gibson, Grimm, Quirk and Furlong, 2014). Step 1 fits
+the measurement model with no transitions, each occasion carrying its own
+status prevalences, so that every occasion's posterior depends on that
+occasion's items alone. Step 2 assigns a status at every occasion and forms
+that occasion's own classification-error matrix. Step 3 estimates the
+initial-status distribution and the transitions from the assigned statuses,
+with those matrices held fixed. It takes `predictors_initial`,
+`predictors_transition`, `transition_effects`, `transition_invariance` and
+`forbidden_transitions` as a one-step fit does. The returned object is the
+step-3 fit, with `$step1` and `$threestep` (the error matrices, the step-1
+prevalences, the modal assignments) attached.
+
+The error matrix is formed per occasion rather than pooled because the
+classification error depends on the base rates, and in a transition model
+the base rates move. On `ecls_reading` one status holds 1.8% of the children
+at the first occasion and 81% at the last; a pooled matrix believes that
+status is misclassified one time in fifty, when at the first occasion it is
+misclassified two times in five, and it recovers that occasion's prevalence
+at 39% of its value where the per-occasion matrices recover it to 2e-4.
+
+Two new arguments, both three-step only and an error otherwise. `assignment`
+is `"proportional"` (default) or `"modal"`, with the meaning and default it
+has in `add_covariates()`. `correction` is `"ML"` (default) or `"none"`, the
+naive classify-analyse estimate with every error matrix set to the identity,
+which is what the correction is measured against; `"BCH"` is not available
+for latent transition models. `measurement_invariance = "none"` and
+`"partial"` apply to step 1. Under `"none"` step 1 cannot tell one
+occasion's labels from another's, so they are matched to occasion 1 by item
+profile and the match is returned as `$threestep$alignment`.
+
+Refused, with a message: random intercepts, `n_classes > 1`,
+`mover_stayer`, `group`, `predictors_items`, `strata` and `cluster`. The
+estimator here covers one chain of statuses on a measurement model every
+case shares, and each of those changes that. Two limits to read the output
+by. Step 3's log-likelihood is that of the assigned statuses rather than the
+items and must not be compared with a one- or two-step fit's. Its standard
+errors treat the error matrices as known and do not yet include step 1's
+sampling variance.
+
+Tested on the estimator's own terms: with no transitions step 1's
+log-likelihood factorises exactly into the per-occasion ones; with the
+identity matrix and modal assignment step 3 returns the raw cross-tabulation
+of the assigned statuses, and with proportional assignment the mean
+occasion-1 posterior; with the real matrices it moves towards step 1's own
+prevalences; a scrambled occasion is put back by the label matching; and the
+public call reproduces the internal pipeline exactly. Nothing changes
+numerically for `n_steps = 1` or `n_steps = 2`.
 
 ## Covariate standard errors on the Hessian-based paths were too small
 

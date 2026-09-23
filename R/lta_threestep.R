@@ -3,12 +3,13 @@
 # steps one and two.
 # ------------------------------------------------------------------------------
 #
-# Step 1 estimates the measurement model with the items equated across
-# occasions and NO transition structure, each occasion's status prevalences
-# free. Step 2 classifies at each occasion and forms that occasion's
-# classification-error matrix. Step 3 -- estimating the initial status and the
-# transitions with those errors held fixed -- is a separate piece of work and
-# is not here yet.
+# Step 1 estimates the measurement model under the caller's invariance
+# constraints and with NO transition structure, each occasion's status
+# prevalences free. Step 2 classifies at each occasion and forms that
+# occasion's classification-error matrix. Step 3, further down, estimates the
+# initial status and the transitions with those errors held fixed.
+# .lta_threestep() at the bottom of the file is the entry point fit_lta()
+# calls for `n_steps = 3`.
 #
 # WHY STEP 1 DROPS THE TRANSITIONS, which is the one decision in this file that
 # is not obvious. Step 3's likelihood treats the assigned status W_t as a lone
@@ -45,10 +46,17 @@
 #
 # Returns the step-1 fit, the per-occasion prevalences and assignments, and the
 # per-occasion classification-error matrices with their fixed logits.
+#
+# `correction = "none"` is the naive classify-analyse baseline: every error
+# matrix is the identity, so step 3 believes the assigned statuses. It is what
+# the correction exists to improve on, and having it available is what makes
+# the improvement visible on the user's own data.
 .lta_threestep_step12 <- function(cl, env,
                                   assignment = c("modal", "proportional"),
-                                  zero_floor = 1e-6) {
+                                  zero_floor = 1e-6,
+                                  correction = c("ML", "none")) {
   assignment <- match.arg(assignment)
+  correction <- match.arg(correction)
 
   # Two ways of handing over a starting point; silently preferring one is how a
   # user gets a fit they did not ask for. The same refusal `n_steps = 2` makes.
@@ -91,6 +99,21 @@
 
   step1 <- eval(cl1, e)
 
+  # With the item parameters free at every occasion and no transitions, nothing
+  # in step 1's likelihood says which status at occasion 2 is "the same" as a
+  # status at occasion 1: every per-occasion relabelling fits identically. So
+  # the labels are matched here, by the rule a reader would use -- status k at
+  # occasion t is the one whose item profile is closest to status k's at
+  # occasion 1. `"partial"` needs none of this: the items held equal pin the
+  # labels inside the likelihood itself.
+  mi <- if (is.null(cl$measurement_invariance)) "full" else
+    match.arg(eval(cl$measurement_invariance, env), c("full", "none", "partial"))
+  alignment <- NULL
+  if (identical(mi, "none")) {
+    step1     <- .lta_threestep_align(step1)
+    alignment <- step1$alignment
+  }
+
   K  <- step1$n_statuses
   Tn <- step1$n_times
   w  <- step1$weights_vec
@@ -110,6 +133,12 @@
   errors <- lapply(seq_len(Tn), function(t)
     .classification_error(step1$gamma[[t]], assignment = assignment,
                           weights = w, zero_floor = zero_floor))
+  if (correction == "none")
+    errors <- lapply(errors, function(x) {
+      x$D[] <- diag(K)
+      x$logits <- NULL
+      x
+    })
 
   # The hard classification, reported whichever rule was asked for: under
   # `modal` it is the response variable step 3 fits, and under `proportional`
@@ -124,11 +153,47 @@
 
   list(step1       = step1,
        assignment  = assignment,
+       correction  = correction,
+       alignment   = alignment,
        zero_floor  = zero_floor,
        prevalences = prevalences,
        modal       = modal,
        D           = lapply(errors, `[[`, "D"),
        logits      = lapply(errors, `[[`, "logits"))
+}
+
+# Match the status labels of a transition-free step 1 whose item parameters are
+# free at every occasion. Each occasion t >= 2 is permuted onto occasion 1 by
+# the smallest total squared distance between item profiles, which is
+# align_classes() over the same profile matrix the bootstrap aligns on. The
+# permutation reaches every per-occasion quantity the three-step reads: the
+# occasion's measurement block, its posteriors, and the transition-free rows
+# that carry its prevalences. Standard errors and pairwise posteriors are
+# dropped if anything moved rather than permuted piecemeal; nothing downstream
+# reads them. `$alignment` records the permutations, identity included.
+.lta_threestep_align <- function(step1) {
+  Tn   <- step1$n_times
+  ref  <- get_mm_alignment_matrix(step1$mm$models[[1L]])
+  perm <- c(list(seq_len(step1$n_statuses)), lapply(seq_len(Tn)[-1L], function(t)
+    align_classes(ref, get_mm_alignment_matrix(step1$mm$models[[t]]))))
+
+  if (any(vapply(perm, is.unsorted, logical(1)))) {
+    for (t in seq_len(Tn)) {
+      p <- perm[[t]]
+      step1$mm$models[[t]] <- .permute_emission_classes(step1$mm$models[[t]], p)
+      step1$gamma[[t]]     <- step1$gamma[[t]][, p, drop = FALSE]
+    }
+    for (t in seq_len(Tn - 1L))
+      step1$tau[[t]] <- step1$tau[[t]][perm[[t]], perm[[t + 1L]], drop = FALSE]
+    # One class above the chain: `tau_c[[1]]` is the same list `tau` reports.
+    step1$tau_c[[1L]] <- step1$tau
+    step1$prevalences <- .lta_prevalences(step1)
+    step1$se <- NULL
+    step1$xi <- NULL
+  }
+  names(perm) <- step1$longitudinal$time_labels
+  step1$alignment <- perm
+  step1
 }
 
 # ------------------------------------------------------------------------------
@@ -445,4 +510,31 @@
   list(delta_c = list(colSums(delta_g * n_g) / sum(n_g)),
        tau_c = big$tau_c, delta_beta = delta_beta, tau_beta = tau_beta,
        mm = big$mm, n_classes = 1L, class_weights = 1)
+}
+
+# ------------------------------------------------------------------------------
+# The entry point.
+# ------------------------------------------------------------------------------
+#
+# fit_lta(n_steps = 3) hands its own call over here once its refusals have run.
+# Steps one and two, then step three, each from the caller's call, so every
+# argument the user wrote reaches the step that reads it and no other. The
+# returned object is the step-3 fit -- the model the user asked about -- with
+# what it was built from attached: the step-1 fit, and the error matrices step 3
+# held fixed, in the rows-assigned, columns-true orientation they were formed in.
+.lta_threestep <- function(cl, env, correction, assignment) {
+  s12 <- .lta_threestep_step12(cl, env, assignment = assignment,
+                               correction = correction)
+  fit <- .lta_threestep_step3(s12, cl, env)
+
+  fit$n_steps   <- 3L
+  fit$step1     <- s12$step1
+  fit$threestep <- list(correction           = s12$correction,
+                        assignment           = s12$assignment,
+                        zero_floor           = s12$zero_floor,
+                        prevalences_step1    = s12$prevalences,
+                        classification_error = s12$D,
+                        modal                = s12$modal,
+                        alignment            = s12$alignment)
+  fit
 }

@@ -320,7 +320,11 @@
 #'   measurement model is fitted first on the indicators alone, held fixed, and
 #'   `predictors_initial` / `predictors_transition` /
 #'   `predictors_random_intercept` are then fitted on the full likelihood with
-#'   the statuses no longer free to move. See the section below.
+#'   the statuses no longer free to move. `3` is the bias-adjusted three-step
+#'   estimator (Vermunt, 2010; Nylund-Gibson et al., 2014): the statuses are
+#'   estimated, assigned, and the transitions are then estimated from the
+#'   assignments with their classification error corrected for. See the two
+#'   sections below.
 #' @param transition_effects How covariates act on the transitions.
 #'   `"common"` (default) gives each origin status its own intercepts but one
 #'   slope per covariate shared across origins, which is the specification in
@@ -336,6 +340,18 @@
 #'   shift: `"both"` (default), `"initial"`, `"transitions"` or `"none"`.
 #'   Fitting the same data under two of these and comparing them with
 #'   [`lr_test()`] gives the group-difference tests of sec. 8.6-8.8.
+#' @param correction Three-step only. `"ML"` (default; Vermunt, 2010) holds
+#'   each occasion's classification-error matrix fixed while the transitions
+#'   are estimated, which is what removes the bias. `"none"` sets every matrix
+#'   to the identity, which is the naive classify-analyse estimate: useful as
+#'   the baseline the correction is measured against, and biased towards
+#'   whatever the classification gets wrong. `"BCH"` is not available for
+#'   latent transition models.
+#' @param assignment Three-step only. How each occasion's posteriors become
+#'   the assigned status step 3 reads. `"proportional"` (default) spreads every
+#'   case over the statuses in proportion to its posterior; `"modal"` assigns
+#'   each case to its most likely status. The same argument, with the same
+#'   default and for the same reason, as in [`add_covariates()`].
 #' @param ... Ignored.
 #'
 #' @return An object of class `"lta_model"` with components including `delta`,
@@ -419,9 +435,51 @@
 #'   scores, which is a step-2-only estimator and does not include
 #'   \eqn{V_1}. `n_steps = 1` is unaffected by any of this.
 #'
-#'   `n_steps = 3` -- the bias-adjusted three-step estimator -- is not
-#'   implemented for latent transition models and is refused with a message
-#'   saying so.
+#' @section The three-step estimator (`n_steps = 3`):
+#'
+#'   Step 1 fits the measurement model with no transitions at all: each
+#'   occasion gets its own status prevalences and nothing links one occasion's
+#'   status to the next. That is deliberate. A model with transitions smooths
+#'   each occasion's posterior along the chain, so the status assigned at
+#'   occasion 2 would carry information about occasions 1 and 3, and step 3
+#'   could no longer treat it as a lone, imperfect measurement of the status
+#'   at occasion 2. `measurement_invariance` applies to step 1 as usual.
+#'
+#'   Step 2 assigns a status at every occasion (see `assignment`) and records,
+#'   for each occasion separately, how often an assigned status differs from
+#'   the true one. The matrices differ by occasion because the error depends
+#'   on the base rates, and in a transition model the base rates move: on the
+#'   [`ecls_reading`] panel one status holds 1.8% of the children at the first
+#'   occasion and 81% at the last, and it is misclassified two times in five at
+#'   the first occasion against one in fifty averaged over all four. A cell the
+#'   data leave empty is held at 1e-6 rather than zero, so no transition is
+#'   ruled out by a classification table.
+#'
+#'   Step 3 is a latent transition model with one indicator per occasion, the
+#'   assigned status, whose response probabilities are those matrices held
+#'   fixed. It takes `predictors_initial`, `predictors_transition`,
+#'   `transition_effects`, `transition_invariance` and `forbidden_transitions`
+#'   exactly as a one-step fit does. The returned object is the step-3 fit;
+#'   `$step1` is step 1, and `$threestep` holds the error matrices (rows the
+#'   assigned status, columns the true one), the step-1 prevalences by
+#'   occasion and the modal assignments.
+#'
+#'   With `measurement_invariance = "none"` and no transitions, nothing in
+#'   step 1 says which status at occasion 2 is the same as a given status at
+#'   occasion 1. The labels are matched: status \eqn{k} at every occasion is
+#'   the one whose item profile is closest, in summed squared distance, to
+#'   status \eqn{k}'s at occasion 1. `$threestep$alignment` records the match.
+#'   With `transition_invariance = "none"` step 3's likelihood does not depend
+#'   on the labels, only its reading does; with `"full"` or `"slopes"` it does,
+#'   so inspect the step-1 profiles before relying on those.
+#'
+#'   Three things to know when reading the result. Step 3's log-likelihood is
+#'   that of the assigned statuses, not of the items, so it must never be
+#'   compared with a one- or two-step fit's. Its standard errors treat the
+#'   error matrices as known and so do not yet carry step 1's uncertainty.
+#'   And the estimator covers one chain of statuses on a measurement model
+#'   every case shares: random intercepts, `n_classes > 1`, `mover_stayer`,
+#'   `group`, `predictors_items`, `strata` and `cluster` are refused.
 #'
 #' @references
 #' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
@@ -460,6 +518,10 @@
 #' carries whatever invariance constraints the fit asks for. Both hold the
 #' measurement parameters fixed and maximise the full likelihood over the
 #' structural ones.
+#'
+#' Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
+#' three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450-469.
+#' \doi{10.1093/pan/mpq025} - the correction behind `n_steps = 3`.
 #'
 #' Tseng, M.-C. (2024). Latent profile transition analysis with random
 #' intercepts (RI-LPTA). \emph{Structural Equation Modeling}, \emph{31}(4),
@@ -509,6 +571,8 @@ fit_lta <- function(indicators,
                     group = NULL,
                     group_effects = c("both", "initial", "transitions", "none"),
                     bayes_constants = NULL,
+                    correction = c("ML", "BCH", "none"),
+                    assignment = c("proportional", "modal"),
                     ...) {
 
   # Read before anything can touch `n_init`: `refine_from` refuses to be given
@@ -553,13 +617,47 @@ fit_lta <- function(indicators,
     stop("`standard_errors` must be TRUE, FALSE or \"robust\".", call. = FALSE)
 
   n_steps <- as.integer(n_steps)[1L]
-  if (identical(n_steps, 3L))
-    stop("`n_steps = 3` -- the bias-adjusted three-step estimator -- is not ",
-         "implemented for latent transition models. Use `n_steps = 2` for the ",
-         "two-step estimator, or `n_steps = 1` to fit everything at once.",
+  if (is.na(n_steps) || !(n_steps %in% 1:3))
+    stop("`n_steps` must be 1, 2 or 3.", call. = FALSE)
+
+  # `correction` and `assignment` describe the three-step estimator's step 2 and
+  # mean nothing to the other two, so a value given with them is a mistake
+  # worth saying rather than ignoring.
+  if (n_steps != 3L && (!missing(correction) || !missing(assignment)))
+    stop("`correction` and `assignment` apply only with `n_steps = 3`.",
          call. = FALSE)
-  if (is.na(n_steps) || !(n_steps %in% c(1L, 2L)))
-    stop("`n_steps` must be 1 or 2.", call. = FALSE)
+  correction <- match.arg(correction)
+  assignment <- match.arg(assignment)
+
+  # --- the three-step estimator -----------------------------------------------
+  # Everything is refused up front, before step 1 spends any time: what the
+  # three-step is defined for here is one chain of statuses whose measurement
+  # model every case shares. A random intercept, classes above the chain, groups
+  # and item-level covariate effects each change that, and each is
+  # out of scope for now rather than supported half-way. A survey design
+  # reaches step 1 but not step 3, whose rows are assigned-status patterns
+  # rather than cases, so it is refused too rather than silently half-applied.
+  if (n_steps == 3L) {
+    if (correction == "BCH")
+      stop("`correction = \"BCH\"` is not available for latent transition ",
+           "models. Use \"ML\" or \"none\".", call. = FALSE)
+    bad <- c(
+      "random_intercept"            = random_intercept != "none",
+      "predictors_random_intercept" = !is.null(predictors_random_intercept),
+      "n_classes > 1"               = n_classes > 1,
+      "mover_stayer"                = isTRUE(mover_stayer),
+      "group"                       = !is.null(group),
+      "predictors_items"            = !is.null(predictors_items))
+    if (any(bad))
+      stop("`n_steps = 3` does not support ",
+           paste(names(bad)[bad], collapse = ", "), ". The three-step ",
+           "estimator here fits one chain of statuses on a measurement model ",
+           "every case shares; use `n_steps = 1` for this model.", call. = FALSE)
+    if (!is.null(strata) || !is.null(cluster))
+      stop("`n_steps = 3` does not yet carry `strata` or `cluster` into its ",
+           "third step. Drop them, or use `n_steps = 1` or `2`.", call. = FALSE)
+    return(.lta_threestep(match.call(), parent.frame(), correction, assignment))
+  }
 
   # `latent` is the one bayes_constants name fit_lta() does not read: the
   # status and transition priors are `smoothing`'s job. Resolving it silently
@@ -688,9 +786,9 @@ fit_lta <- function(indicators,
   # ABSENT from the list -- a regression on the structural block is what step 3
   # exists to fit. Everything in it either has no meaning once the measurement
   # model is a known constant (a random intercept on a single assigned-status
-  # indicator, DIF on it) or is a design question the three-step's own
-  # specification has not answered yet (a second latent variable above the
-  # chain, groups). See part-r5-three-step-lta.md, "Tier 4".
+  # indicator, DIF on it) or lies outside what the three-step is defined for (a second latent variable
+  # above the chain, groups), which fit_lta() refuses for `n_steps = 3` before
+  # this is reached. The list is the backstop for an internal caller.
   if (!is.null(fixed_mm)) {
     bad <- c(
       ".transition_free"            = tau_independent,
@@ -845,11 +943,10 @@ fit_lta <- function(indicators,
   # The transition-free model exists for one caller and is graded in one
   # configuration. Every combination below either has no meaning once the
   # transition rows are tied together (`forbidden_transitions`,
-  # `transition_invariance`) or is a design question the three-step's own
-  # specification has not answered yet (a second latent variable above the
-  # chain, a random intercept, groups, structural predictors). Refusing is
-  # what keeps an unanswered question from becoming an accepted argument
-  # combination -- see part-r5-three-step-lta.md, "Tier 4".
+  # `transition_invariance`) or lies outside what the three-step is defined for (a second latent variable
+  # above the chain, a random intercept, groups, structural predictors).
+  # Refusing is what keeps an unsupported combination from becoming an
+  # accepted one.
   if (tau_independent) {
     bad <- c(
       "predictors_initial"          = !is.null(Z_delta),

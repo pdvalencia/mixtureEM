@@ -48,6 +48,8 @@ fit_lta(
   group = NULL,
   group_effects = c("both", "initial", "transitions", "none"),
   bayes_constants = NULL,
+  correction = c("ML", "BCH", "none"),
+  assignment = c("proportional", "modal"),
   ...
 )
 }
@@ -363,7 +365,11 @@ estimator (Bakk & Kuha, 2018; Bartolucci, Montanari & Pandolfi, 2015): the
 measurement model is fitted first on the indicators alone, held fixed, and
 \code{predictors_initial} / \code{predictors_transition} /
 \code{predictors_random_intercept} are then fitted on the full likelihood with
-the statuses no longer free to move. See the section below.}
+the statuses no longer free to move. \code{3} is the bias-adjusted three-step
+estimator (Vermunt, 2010; Nylund-Gibson et al., 2014): the statuses are
+estimated, assigned, and the transitions are then estimated from the
+assignments with their classification error corrected for. See the two
+sections below.}
 
 \item{transition_effects}{How covariates act on the transitions.
 \code{"common"} (default) gives each origin status its own intercepts but one
@@ -387,6 +393,20 @@ Fitting the same data under two of these and comparing them with
 \emph{measurement} model (\code{categorical}, \code{poisson}, \code{variances}); see
 \code{\link[=fit_mixture]{fit_mixture()}}. The status and transition probabilities are governed by
 \code{smoothing} instead, so \code{latent} is not read here.}
+
+\item{correction}{Three-step only. \code{"ML"} (default; Vermunt, 2010) holds
+each occasion's classification-error matrix fixed while the transitions
+are estimated, which is what removes the bias. \code{"none"} sets every matrix
+to the identity, which is the naive classify-analyse estimate: useful as
+the baseline the correction is measured against, and biased towards
+whatever the classification gets wrong. \code{"BCH"} is not available for
+latent transition models.}
+
+\item{assignment}{Three-step only. How each occasion's posteriors become
+the assigned status step 3 reads. \code{"proportional"} (default) spreads every
+case over the statuses in proportion to its posterior; \code{"modal"} assigns
+each case to its most likely status. The same argument, with the same
+default and for the same reason, as in \code{\link[=add_covariates]{add_covariates()}}.}
 
 \item{...}{Ignored.}
 }
@@ -502,10 +522,54 @@ minutes on a large model; pass \code{standard_errors = FALSE} to skip it.
 And \code{standard_errors = "robust"} is the sandwich on the case-level
 scores, which is a step-2-only estimator and does not include
 \eqn{V_1}. \code{n_steps = 1} is unaffected by any of this.
+}
 
-\code{n_steps = 3} -- the bias-adjusted three-step estimator -- is not
-implemented for latent transition models and is refused with a message
-saying so.
+\section{The three-step estimator (\code{n_steps = 3})}{
+
+
+Step 1 fits the measurement model with no transitions at all: each
+occasion gets its own status prevalences and nothing links one occasion's
+status to the next. That is deliberate. A model with transitions smooths
+each occasion's posterior along the chain, so the status assigned at
+occasion 2 would carry information about occasions 1 and 3, and step 3
+could no longer treat it as a lone, imperfect measurement of the status
+at occasion 2. \code{measurement_invariance} applies to step 1 as usual.
+
+Step 2 assigns a status at every occasion (see \code{assignment}) and records,
+for each occasion separately, how often an assigned status differs from
+the true one. The matrices differ by occasion because the error depends
+on the base rates, and in a transition model the base rates move: on the
+\code{\link{ecls_reading}} panel one status holds 1.8\% of the children at the first
+occasion and 81\% at the last, and it is misclassified two times in five at
+the first occasion against one in fifty averaged over all four. A cell the
+data leave empty is held at 1e-6 rather than zero, so no transition is
+ruled out by a classification table.
+
+Step 3 is a latent transition model with one indicator per occasion, the
+assigned status, whose response probabilities are those matrices held
+fixed. It takes \code{predictors_initial}, \code{predictors_transition},
+\code{transition_effects}, \code{transition_invariance} and \code{forbidden_transitions}
+exactly as a one-step fit does. The returned object is the step-3 fit;
+\verb{$step1} is step 1, and \verb{$threestep} holds the error matrices (rows the
+assigned status, columns the true one), the step-1 prevalences by
+occasion and the modal assignments.
+
+With \code{measurement_invariance = "none"} and no transitions, nothing in
+step 1 says which status at occasion 2 is the same as a given status at
+occasion 1. The labels are matched: status \eqn{k} at every occasion is
+the one whose item profile is closest, in summed squared distance, to
+status \eqn{k}'s at occasion 1. \verb{$threestep$alignment} records the match.
+With \code{transition_invariance = "none"} step 3's likelihood does not depend
+on the labels, only its reading does; with \code{"full"} or \code{"slopes"} it does,
+so inspect the step-1 profiles before relying on those.
+
+Three things to know when reading the result. Step 3's log-likelihood is
+that of the assigned statuses, not of the items, so it must never be
+compared with a one- or two-step fit's. Its standard errors treat the
+error matrices as known and so do not yet carry step 1's uncertainty.
+And the estimator covers one chain of statuses on a measurement model
+every case shares: random intercepts, \code{n_classes > 1}, \code{mover_stayer},
+\code{group}, \code{predictors_items}, \code{strata} and \code{cluster} are refused.
 }
 
 \references{
@@ -545,6 +609,10 @@ here is the latent transition model's own measurement block, which already
 carries whatever invariance constraints the fit asks for. Both hold the
 measurement parameters fixed and maximise the full likelihood over the
 structural ones.
+
+Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
+three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450-469.
+\doi{10.1093/pan/mpq025} - the correction behind \code{n_steps = 3}.
 
 Tseng, M.-C. (2024). Latent profile transition analysis with random
 intercepts (RI-LPTA). \emph{Structural Equation Modeling}, \emph{31}(4),
