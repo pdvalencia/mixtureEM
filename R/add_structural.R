@@ -426,10 +426,12 @@ add_covariates <- function(fit, predictors,
 #'   different question from different class probabilities; estimated jointly,
 #'   the paths from the predictors to the classes, from the classes to each
 #'   outcome, and from the covariates to each outcome are adjusted for one
-#'   another. Available with `correction = "ML"` and pooled slopes; standard
-#'   errors are those of the joint step-3 log-likelihood (`se = "hessian"`
-#'   for the inverse observed information, otherwise the sandwich), which
-#'   treat the step-1 estimates as known.
+#'   another. Available with `correction = "ML"` (the default here) or
+#'   `"BCH"`, and pooled slopes. Under ML the standard errors are those of the
+#'   joint step-3 log-likelihood (`se = "hessian"` for the inverse observed
+#'   information, otherwise the sandwich); under BCH the model is fitted to
+#'   the BCH-weighted log-likelihood and its standard errors are always the
+#'   sandwich clustered on the case. Both treat the step-1 estimates as known.
 #' @param variances For a continuous outcome with `covariates`: `"equal"`
 #'   (default; one residual variance shared by the classes) or
 #'   `"class_specific"` (one per class). A continuous outcome without
@@ -450,7 +452,8 @@ add_covariates <- function(fit, predictors,
 #'   `"corrected"` (default), `"robust"`, or `"hessian"`. It governs the
 #'   covariate part of the third step. A continuous distal outcome under
 #'   `correction = "BCH"` always reports a sandwich clustered on the case,
-#'   whatever this is set to: the expanded data set carries one weighted
+#'   whatever this is set to, and so does a BCH model with `predictors`: the
+#'   expanded data set carries one weighted
 #'   record per class per case, so a case-clustered sandwich is the only
 #'   estimator that prices the information the correction gives up.
 #' @param assignment How step 1's posteriors are turned into the assigned-class
@@ -618,14 +621,15 @@ add_outcome <- function(fit, outcome, covariates = NULL,
   if (steps == 2L)
     stop("`predictors` with a distal outcome is available for the three-step ",
          "(`steps = 3`) only.", call. = FALSE)
-  if (correction %in% c("BCH", "none"))
-    stop(sprintf(paste0(
-      "`correction = \"%s\"` is not yet available when `predictors` and an ",
-      "outcome are estimated together; use `correction = \"ML\"`."),
-      correction), call. = FALSE)
-  correction <- "ML"
-  if (!corr_set)
+  if (correction == "none")
+    stop(paste0(
+      "`correction = \"none\"` is not yet available when `predictors` and an ",
+      "outcome are estimated together; use `correction = \"ML\"` or \"BCH\"."),
+      call. = FALSE)
+  if (correction == "auto") {
+    correction <- "ML"
     message("Using 'ML' bias correction (set `correction` to override).")
+  }
 
   .check_data_form(predictors, data, "predictors")
   if (!is.null(data) && inherits(predictors, "formula") &&

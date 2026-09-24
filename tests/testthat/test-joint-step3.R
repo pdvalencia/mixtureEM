@@ -1,5 +1,5 @@
 # add_outcome(predictors = ): class predictors and distal outcomes in one
-# ML-corrected step-3 model.
+# bias-corrected (ML or BCH) step-3 model.
 
 .joint_sim <- function(n = 600, seed = 11) {
   set.seed(seed)
@@ -12,12 +12,12 @@
   list(X = X, d = data.frame(z = z, y1 = y1, y2 = y2))
 }
 
-.joint_fit <- function(s, ...) {
+.joint_fit <- function(s, correction = "ML", ...) {
   fit <- fit_mixture(s$X, n_classes = 2, measurement = "binary", n_init = 5,
                      random_state = 1, n_cores = 1)
   suppressMessages(add_outcome(fit, outcome = s$d[c("y1", "y2")],
                                covariates = s$d["z"], predictors = s$d["z"],
-                               correction = "ML", ...))
+                               correction = correction, ...))
 }
 
 test_that("the joint model counts its parameters and reproduces its own log-likelihood", {
@@ -54,6 +54,41 @@ test_that("the joint model counts its parameters and reproduces its own log-like
   expect_true(all(is.finite(se) & se > 0))
 })
 
+test_that("the joint BCH model maximises its weighted log-likelihood and reports the case sandwich", {
+  s  <- .joint_sim()
+  jh <- .joint_fit(s, correction = "BCH", variances = "class_specific",
+                   assignment = "modal", se = "hessian")
+  jr <- .joint_fit(s, correction = "BCH", variances = "class_specific",
+                   assignment = "modal", se = "robust")
+  expect_equal(n_parameters(jh$sm), 10L)
+
+  # The BCH weights and the weighted log-likelihood written out by hand.
+  fit <- fit_mixture(s$X, n_classes = 2, measurement = "binary", n_init = 5,
+                     random_state = 1, n_cores = 1)
+  r   <- exp(fit$log_resp)
+  A   <- diag(2)[max.col(r, ties.method = "first"), ]
+  C   <- t(A) %*% r
+  C   <- sweep(C, 2, colSums(r), "/")
+  dw  <- A %*% t(solve(C))
+  m   <- jh$sm$models
+  eta <- cbind(1, s$d$z) %*% t(m$predictor$parameters$beta)
+  lpk <- eta - log(rowSums(exp(eta)))
+  b1  <- m$distal$parameters$beta_pooled
+  v1  <- as.vector(m$distal$parameters$covariances)
+  b2  <- m$distal2$parameters$beta_pooled
+  lf  <- sapply(1:2, function(k) {
+    dnorm(s$d$y1, b1[k] + b1[3] * s$d$z, sqrt(v1[k]), log = TRUE) +
+      dbinom(s$d$y2, 1, plogis(b2[k] + b2[3] * s$d$z), log = TRUE)
+  })
+  expect_equal(jh$metrics$ll, sum(dw * (lpk + lf)), tolerance = 1e-8)
+
+  # `se` does not change the BCH variance: it is always the sandwich.
+  expect_equal(jh$sm$parameters$vcov_joint, jr$sm$parameters$vcov_joint)
+  expect_match(jh$sm$parameters$V_method, "BCH")
+  se <- sqrt(diag(jh$sm$parameters$vcov_joint))
+  expect_true(all(is.finite(se) & se > 0))
+})
+
 test_that("each outcome can be contrasted and summarised", {
   s <- .joint_sim()
   j <- .joint_fit(s)
@@ -84,7 +119,7 @@ test_that("unsupported combinations are refused", {
   fit <- fit_mixture(s$X, n_classes = 2, measurement = "binary", n_init = 2,
                      random_state = 1, n_cores = 1)
   expect_error(add_outcome(fit, s$d$y1, predictors = s$d$z,
-                           correction = "BCH"), "not yet available")
+                           correction = "none"), "not yet available")
   expect_error(add_outcome(fit, s$d$y1, predictors = s$d$z, steps = 2),
                "three-step")
   expect_error(suppressMessages(

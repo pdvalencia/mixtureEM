@@ -21,10 +21,23 @@ variance per class, `variances = "class_specific"`; the default `"equal"` is
 the existing single-variance model and gives the same numbers as before.
 
 The log-likelihood a joint fit reports is the step-3 likelihood written out
-term by term from its own estimates, and the tests check it that way. Not
-yet covered: the BCH correction with `predictors` (refused for now),
-class-specific covariate slopes in the joint model, and step-1 uncertainty in
-its standard errors.
+term by term from its own estimates, and the tests check it that way.
+
+`correction = "BCH"` is also available with `predictors`. The joint model is
+then fitted to the BCH-weighted log-likelihood, the sum over cases and
+classes of each case's BCH weight times the log of its class probability and
+outcome densities, with the M-step repeated on the fixed weights until that
+sum settles; it is the log-likelihood the fit reports. Its standard errors
+are always the sandwich with the scores summed per case, whatever `se` says,
+the rule a single BCH outcome already follows: the BCH weights are not
+frequencies, many of them are negative, and the inverse Hessian alone
+understates the class-specific variances by up to a third. The default
+correction with `predictors` stays `"ML"`. Nothing changes for a fit without
+`predictors`.
+
+Not yet covered: `correction = "none"` with `predictors`, class-specific
+covariate slopes in the joint model, and step-1 uncertainty in its standard
+errors.
 
 The legacy `fit_mixture(X, n_components =, predictors =, outcome =)` call ran
 this same model but reported a log-likelihood that left out the outcome

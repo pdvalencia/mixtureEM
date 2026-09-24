@@ -17,6 +17,17 @@
 # the parameter vector is short (tens of entries) and each evaluation is one
 # pass over an n x K matrix, so this is cheap, and a closed form for every
 # pairing of blocks would be a great deal of code to keep in step.
+#
+# Under the BCH correction there is no C matrix: A1 holds the BCH weights d_ik
+# and the objective is the weighted log-likelihood
+#
+#   l(theta) = sum_i w_i sum_k d_ik log [P(k | z_i) prod_d f_d(y_id | k, z_i)],
+#
+# which is a sum of separate terms and so is maximised by the M-step alone. Its
+# variance is always the sandwich with the scores summed per case: the weights
+# are not frequencies (many are negative), so the inverse Hessian credits each
+# case with a full observation in every class it touches, and the K records of
+# one case share its outcome and covariates, so the case is the independent unit.
 # ==============================================================================
 
 # Which blocks of a nested structural model this file can pack. A block of any
@@ -85,6 +96,7 @@
     sm$models[[j]] <- .nested_block_unpack(
       sm$models[[j]], par[(ends[j] - lens[j] + 1L):ends[j]])
   log_sm <- log_likelihood(sm, Y)
+  if (is.null(Cn)) return(rowSums(A1 * log_sm))
   lsh    <- .row_max(log_sm)
   Z      <- exp(log_sm - lsh) %*% Cn
   rowSums(A1 * log(pmax(Z, 1e-300))) + lsh
@@ -98,7 +110,8 @@
 # model as `vcov_joint`, for contrasts that cross blocks.
 #
 # se: "hessian" is the inverse observed information of the step-3
-# log-likelihood; "robust" and "corrected" are the sandwich around it. The
+# log-likelihood; "robust" and "corrected" are the sandwich around it. With
+# `Cn = NULL` (BCH) the sandwich is reported whatever `se` says. The
 # second variance component of Bakk, Oberski & Vermunt (2014), the uncertainty
 # carried over from step 1, is not added for a joint model yet, and V_method
 # says so.
@@ -139,15 +152,18 @@
   H <- (H + t(H)) / 2
 
   B_inv <- pinv(-H)
-  if (identical(se, "hessian")) {
+  if (identical(se, "hessian") && !is.null(Cn)) {
     V      <- B_inv
     method <- "Inverse observed information of the step-3 log-likelihood (joint model)"
   } else {
     meat   <- if (is.null(strata)) crossprod(S * w)
               else compute_survey_B(S * w, strata, cluster)
     V      <- B_inv %*% meat %*% B_inv
-    method <- paste("Step-3 sandwich of the joint model; step-1 uncertainty",
-                    "not propagated")
+    method <- if (is.null(Cn))
+      paste("Case-clustered sandwich of the BCH-weighted step-3",
+            "log-likelihood (joint model); step-1 uncertainty not propagated")
+    else paste("Step-3 sandwich of the joint model; step-1 uncertainty",
+               "not propagated")
   }
 
   lab <- unlist(lapply(names(sm$models), function(nm)

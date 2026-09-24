@@ -54,10 +54,12 @@ separately, the outcomes and the predictors would each answer a
 different question from different class probabilities; estimated jointly,
 the paths from the predictors to the classes, from the classes to each
 outcome, and from the covariates to each outcome are adjusted for one
-another. Available with \code{correction = "ML"} and pooled slopes; standard
-errors are those of the joint step-3 log-likelihood (\code{se = "hessian"}
-for the inverse observed information, otherwise the sandwich), which
-treat the step-1 estimates as known.}
+another. Available with \code{correction = "ML"} (the default here) or
+\code{"BCH"}, and pooled slopes. Under ML the standard errors are those of the
+joint step-3 log-likelihood (\code{se = "hessian"} for the inverse observed
+information, otherwise the sandwich); under BCH the model is fitted to
+the BCH-weighted log-likelihood and its standard errors are always the
+sandwich clustered on the case. Both treat the step-1 estimates as known.}
 
 \item{variances}{For a continuous outcome with \code{covariates}: \code{"equal"}
 (default; one residual variance shared by the classes) or
@@ -82,7 +84,8 @@ uncertainty, and the printed output says so.}
 \code{"corrected"} (default), \code{"robust"}, or \code{"hessian"}. It governs the
 covariate part of the third step. A continuous distal outcome under
 \code{correction = "BCH"} always reports a sandwich clustered on the case,
-whatever this is set to: the expanded data set carries one weighted
+whatever this is set to, and so does a BCH model with \code{predictors}: the
+expanded data set carries one weighted
 record per class per case, so a case-clustered sandwich is the only
 estimator that prices the information the correction gives up.}
 

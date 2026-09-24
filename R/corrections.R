@@ -120,7 +120,8 @@ get_modal_resp <- function(resp) {
 #   feature of the BCH correction for poorly-separated classes (Bakk et al.,
 #   2013) and must not be clipped to zero.
 #
-fit_bch <- function(model_state, X, Y, assignment = "proportional") {
+fit_bch <- function(model_state, X, Y, assignment = "proportional",
+                    max_iter = 1000) {
 
   if (inherits(model_state$sm, c("covariate", "distal_regression", "distal_pooled"))) {
     warning(paste(
@@ -163,6 +164,28 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional") {
 
   # Apply to the assignment weights. Negative weights are retained intentionally.
   bch_resp <- A %*% D
+
+  # A nested structural model (class predictors with distal outcomes) is not
+  # always solved by one M-step -- a block with class-specific variances takes
+  # one conditional-maximisation cycle per call -- so the M-step is repeated on
+  # the fixed weights until the BCH-weighted log-likelihood settles. That
+  # per-case log-likelihood is what the fit reports, and its variance is the
+  # case-clustered sandwich over the joint parameter vector (R/step3_joint.R).
+  if (inherits(model_state$sm, "nested")) {
+    wll <- function(sm) rowSums(bch_resp * log_likelihood(sm, Y))
+    model_state$sm <- init_params(model_state$sm, Y, bch_resp)
+    prev <- -Inf
+    for (iter in seq_len(max_iter)) {
+      model_state$sm <- m_step(model_state$sm, Y, bch_resp, weights = weights)
+      cur <- sum(weights * wll(model_state$sm))
+      if (abs(cur - prev) < 1e-10 * max(1, abs(prev))) break
+      prev <- cur
+    }
+    model_state$lower_bound <- wll(model_state$sm)
+    return(.attach_nested_step3_vcov(
+      model_state, Y, bch_resp, NULL, weights, se = "robust",
+      strata = model_state$strata, cluster = model_state$cluster))
+  }
 
   model_state$sm <- init_params(model_state$sm, Y, bch_resp)
   model_state$sm <- m_step(model_state$sm, Y, bch_resp)
