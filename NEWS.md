@@ -146,7 +146,11 @@ Refused, with a message: random intercepts, `n_classes > 1`,
 `mover_stayer`, `group` and `predictors_items`. The estimator here covers one chain of statuses on a measurement model every
 case shares, and each of those changes that. Two limits to read the output
 by. Step 3's log-likelihood is that of the assigned statuses rather than the
-items and must not be compared with a one- or two-step fit's. Its standard
+items and must not be compared with a one- or two-step fit's, so the package
+does not: `print()` and `compare_longitudinal(n_steps = 3)` report step 1's
+criteria, labelled `(Step 1)` in the print, and `lr_test()` refuses a
+three-step fit beside a one- or two-step one, and two three-step fits whose
+step 3 saw different assigned statuses or error matrices. Its standard
 errors include step 1's sampling variance: the first-order
 pseudo-maximum-likelihood correction of Bakk, Oberski and Vermunt (2014),
 carried through each occasion's error matrix and, under proportional

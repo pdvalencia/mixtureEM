@@ -476,6 +476,41 @@ lta_g2 <- function(object) {
     .supplies_class_probs(fit$sm)
 }
 
+# fit_lta(n_steps = 3) returns the step-3 fit, whose `loglik` is the likelihood
+# of the assigned statuses under fixed classification errors, not of the items.
+# It is on a different scale from a one- or two-step fit's, so the pair is
+# refused. Two three-step fits are comparable only when step 3 saw the same
+# data: the same assigned statuses and the same fixed error matrices.
+.is_threestep_lta <- function(fit) {
+  inherits(fit, "lta_model") && isTRUE(fit$n_steps == 3L)
+}
+
+.check_threestep_pair <- function(restricted, full) {
+  s3 <- c(.is_threestep_lta(restricted), .is_threestep_lta(full))
+  if (!any(s3)) return(invisible(NULL))
+  if (!all(s3))
+    stop(paste(
+      "One model is a three-step fit (`n_steps = 3`) and the other is not.",
+      "A three-step fit's log-likelihood is that of the assigned statuses in",
+      "step 3, not of the items, so it is on a different scale from a one- or",
+      "two-step fit's and the difference is not a test of anything. Refit",
+      "both with the same `n_steps`."), call. = FALSE)
+  a <- restricted$threestep
+  b <- full$threestep
+  same <- identical(a$assignment, b$assignment) &&
+    identical(a$correction, b$correction) &&
+    identical(a$modal, b$modal) &&
+    isTRUE(all.equal(a$classification_error, b$classification_error))
+  if (!same)
+    stop(paste(
+      "The two three-step fits were built on different step-1 results (their",
+      "assigned statuses or classification-error matrices differ), so their",
+      "step-3 log-likelihoods are of different data. Fit both from the same",
+      "step 1: the same measurement specification, `assignment`,",
+      "`correction` and `random_state`."), call. = FALSE)
+  invisible(NULL)
+}
+
 # ------------------------------------------------------------------------------
 # Choosing the number of classes / statuses
 # ------------------------------------------------------------------------------
@@ -551,6 +586,8 @@ lta_g2 <- function(object) {
 #'   p. 571) state the same rule for the tests: they "compare models that differ
 #'   only in the number of classes ... but are not appropriate for comparing
 #'   models that allow for different types of between-class differences".
+#'   With `n_steps = 3` every row reads the step-1 measurement model's
+#'   criteria, since step 3's log-likelihood is of the assigned statuses.
 #'
 #' @return An object of class `mixture_comparison`, a list with `fit_table`
 #'   (columns `Classes`, `LL`, `Params`, `AIC`, `BIC`, `CAIC`, `AIC3`, `ICL`,
@@ -617,7 +654,10 @@ compare_longitudinal <- function(indicators, k_range = NULL,
       mixtureEM_replication = function(w) invokeRestart("muffleWarning"),
       mixtureEM_smoothing   = function(w) invokeRestart("muffleWarning"))
 
-    m <- fit$metrics
+    # Under `n_steps = 3` each row reads step 1, the measurement model: that is
+    # the model choosing K is about, and step 3's likelihood is of the assigned
+    # statuses, a different scale from one K to the next.
+    m <- (if (.is_threestep_lta(fit)) fit$step1 else fit)$metrics
     models[[paste0("K", k)]] <- fit
     # A one-class model has no classification to be entropic about, so the cell
     # is NA rather than a 1 that would read as perfect separation.
@@ -689,6 +729,12 @@ compare_longitudinal <- function(indicators, k_range = NULL,
 #' beyond the parameter counts and sample size, so it remains the analyst's
 #' responsibility.
 #'
+#' A three-step fit (`fit_lta(n_steps = 3)`) reports the log-likelihood of its
+#' third step, which models the assigned statuses rather than the items, so it
+#' is refused beside a one- or two-step fit. Two three-step fits are tested only
+#' when their third steps saw the same data: the same assigned statuses and the
+#' same classification-error matrices.
+#'
 #' Because `full` strictly nests `restricted`, its log-likelihood can never
 #' be genuinely lower — if it comes out that way here, the `full` model's
 #' random-restart search landed on a worse local optimum than the
@@ -714,6 +760,11 @@ lr_test <- function(restricted, full, scaled = c("auto", "yes", "no")) {
   scaled <- match.arg(scaled)
   a <- .nested_fit_info(restricted)
   b <- .nested_fit_info(full)
+
+  # Checked before the parameter counts: a step-3 fit carries no measurement
+  # parameters, so a mixed pair in the right order would otherwise be refused
+  # as "reversed", which names the wrong problem.
+  .check_threestep_pair(restricted, full)
 
   if (a$n_params > b$n_params)
     stop("`restricted` has more parameters than `full`; the arguments look ",
@@ -941,15 +992,21 @@ print.lta_model <- function(x, ...) {
     cat(sprintf("Case weights       : frequency counts (%s cases in %d rows)\n",
                 format(x$n_eff), length(x$weights_vec)))
   cat("---------------------------------------------------------\n")
+  # A three-step fit's own metrics are step 3's, the likelihood of the assigned
+  # statuses; setting its BIC beside a one-step fit's would compare two scales.
+  # The block reads off step 1, the measurement model, and says so, as
+  # print.mixture_model() does. Step 3's numbers stay in `x$metrics`.
+  s1 <- if (.is_threestep_lta(x) && !is.null(x$step1)) x$step1 else x
   .print_fit_indices(
-    x$metrics,
-    entropy_note = if (is.null(x$metrics$class_entropy)) "" else " (status)")
-  if (!is.null(x$metrics$class_entropy))
-    cat(sprintf("                   %.4f (class)\n", x$metrics$class_entropy))
+    s1$metrics,
+    suffix = if (identical(s1, x)) "" else " (Step 1)",
+    entropy_note = if (is.null(s1$metrics$class_entropy)) "" else " (status)")
+  if (!is.null(s1$metrics$class_entropy))
+    cat(sprintf("                   %.4f (class)\n", s1$metrics$class_entropy))
   # The quiet channel the mixture models have had all along: how many restarts
   # found this solution. It sits with the other indented metrics rather than in
   # the header block above, which is left-aligned.
-  .print_replication_note(x)
+  .print_replication_note(s1)
   # The boundary from the other side. The note below already names the cells the
   # data have driven to zero; this names the row the prior is holding off it,
   # and only when the prior is carrying enough of that row to matter.

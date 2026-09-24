@@ -43,7 +43,9 @@ specification to every K is the point: the criteria in the table are only
 comparable across models that differ in nothing else. Ram and Grimm (2009,
 p. 571) state the same rule for the tests: they "compare models that differ
 only in the number of classes ... but are not appropriate for comparing
-models that allow for different types of between-class differences".}
+models that allow for different types of between-class differences".
+With \code{n_steps = 3} every row reads the step-1 measurement model's
+criteria, since step 3's log-likelihood is of the assigned statuses.}
 }
 \value{
 An object of class \code{mixture_comparison}, a list with \code{fit_table}

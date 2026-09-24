@@ -464,6 +464,12 @@
 #'   assigned status, columns the true one), the step-1 prevalences by
 #'   occasion and the modal assignments.
 #'
+#'   The step-3 fit's `loglik` and `metrics` are the likelihood of the
+#'   assigned statuses, not of the items, and are on a different scale from a
+#'   one- or two-step fit's. `print()` and [`compare_longitudinal()`]
+#'   therefore report step 1's criteria, labelled as such, and [`lr_test()`]
+#'   refuses a three-step fit beside a one- or two-step one.
+#'
 #'   With `measurement_invariance = "none"` and no transitions, nothing in
 #'   step 1 says which status at occasion 2 is the same as a given status at
 #'   occasion 1. The labels are matched: status \eqn{k} at every occasion is
