@@ -727,7 +727,7 @@ compare_longitudinal <- function(indicators, k_range = NULL,
 #'   \item **The same question before any transitions are modelled**: the
 #'     configural against the invariant measurement model, with the occasions
 #'     unlinked, which is how a three-step analysis settles invariance before
-#'     step 3. A three-step fit's `$step1`
+#'     step 3 (Nylund-Gibson, Arch & Carter, 2026). A three-step fit's `$step1`
 #'     is exactly that model, so fit [`fit_lta()`] with `n_steps = 3` and
 #'     `measurement_invariance = "full"` and `"none"`, and test
 #'     `lr_test(fit_full$step1, fit_none$step1)`. With `"none"` the step-1
@@ -768,6 +768,11 @@ compare_longitudinal <- function(indicators, k_range = NULL,
 #' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
 #' Transition Analysis: With Applications in the Social, Behavioral, and Health
 #' Sciences}. Wiley.
+#'
+#' Nylund-Gibson, K., Arch, D. A. N., & Carter, D. (2026). Latent transition
+#' analysis with auxiliary variables: A demonstration of the ML 3-step and BCH
+#' in Mplus. \emph{The Quantitative Methods for Psychology}, \emph{22}(1).
+#' \doi{10.20982/tqmp.22.1.p001}
 #' @export
 lr_test <- function(restricted, full, scaled = c("auto", "yes", "no")) {
   scaled <- match.arg(scaled)

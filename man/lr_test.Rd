@@ -40,7 +40,7 @@ with \code{measurement_invariance = "full"} and \code{"none"} and compare.
 \item \strong{The same question before any transitions are modelled}: the
 configural against the invariant measurement model, with the occasions
 unlinked, which is how a three-step analysis settles invariance before
-step 3. A three-step fit's \verb{$step1}
+step 3 (Nylund-Gibson, Arch & Carter, 2026). A three-step fit's \verb{$step1}
 is exactly that model, so fit \code{\link[=fit_lta]{fit_lta()}} with \code{n_steps = 3} and
 \code{measurement_invariance = "full"} and \code{"none"}, and test
 \code{lr_test(fit_full$step1, fit_none$step1)}. With \code{"none"} the step-1
@@ -71,4 +71,9 @@ case; refitting \code{full} with a larger \code{n_init} is the usual fix.
 Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
 Transition Analysis: With Applications in the Social, Behavioral, and Health
 Sciences}. Wiley.
+
+Nylund-Gibson, K., Arch, D. A. N., & Carter, D. (2026). Latent transition
+analysis with auxiliary variables: A demonstration of the ML 3-step and BCH
+in Mplus. \emph{The Quantitative Methods for Psychology}, \emph{22}(1).
+\doi{10.20982/tqmp.22.1.p001}
 }
