@@ -575,12 +575,21 @@ posteriors give the reduced data). The step-3-only part is kept as
 \code{correction = "none"} with modal assignment step 1 never reaches step 3,
 and the standard errors are step 3's own.
 
+With \code{strata} or \code{cluster} and \code{assignment = "modal"}, the variance is
+the design-based sandwich over both steps at once: each case's scores in
+step 1 and in step 3 are combined through the same first-order term,
+summed within primary sampling units and compared across them within
+strata. Clustering therefore widens the step-1 part as well as step 3's
+own, and any correlation between the two steps' scores within a cluster
+is counted rather than assumed away. Proportional assignment refuses a
+design, because its step-3 rows are status combinations, not cases.
+
 Two more things to know when reading the result. Step 3's log-likelihood
 is that of the assigned statuses, not of the items, so it must never be
 compared with a one- or two-step fit's. And the estimator covers one
 chain of statuses on a measurement model every case shares: random
-intercepts, \code{n_classes > 1}, \code{mover_stayer}, \code{group}, \code{predictors_items},
-\code{strata} and \code{cluster} are refused.
+intercepts, \code{n_classes > 1}, \code{mover_stayer}, \code{group} and
+\code{predictors_items} are refused.
 }
 
 \references{

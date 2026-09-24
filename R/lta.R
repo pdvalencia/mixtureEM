@@ -485,12 +485,21 @@
 #'   `correction = "none"` with modal assignment step 1 never reaches step 3,
 #'   and the standard errors are step 3's own.
 #'
+#'   With `strata` or `cluster` and `assignment = "modal"`, the variance is
+#'   the design-based sandwich over both steps at once: each case's scores in
+#'   step 1 and in step 3 are combined through the same first-order term,
+#'   summed within primary sampling units and compared across them within
+#'   strata. Clustering therefore widens the step-1 part as well as step 3's
+#'   own, and any correlation between the two steps' scores within a cluster
+#'   is counted rather than assumed away. Proportional assignment refuses a
+#'   design, because its step-3 rows are status combinations, not cases.
+#'
 #'   Two more things to know when reading the result. Step 3's log-likelihood
 #'   is that of the assigned statuses, not of the items, so it must never be
 #'   compared with a one- or two-step fit's. And the estimator covers one
 #'   chain of statuses on a measurement model every case shares: random
-#'   intercepts, `n_classes > 1`, `mover_stayer`, `group`, `predictors_items`,
-#'   `strata` and `cluster` are refused.
+#'   intercepts, `n_classes > 1`, `mover_stayer`, `group` and
+#'   `predictors_items` are refused.
 #'
 #' @references
 #' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
@@ -650,9 +659,11 @@ fit_lta <- function(indicators,
   # three-step is defined for here is one chain of statuses whose measurement
   # model every case shares. A random intercept, classes above the chain, groups
   # and item-level covariate effects each change that, and each is
-  # out of scope for now rather than supported half-way. A survey design
-  # reaches step 1 but not step 3, whose rows are assigned-status patterns
-  # rather than cases, so it is refused too rather than silently half-applied.
+  # out of scope for now rather than supported half-way. A survey design is
+  # carried through both steps under modal assignment, where step 3's rows are
+  # the cases; under proportional assignment they are status combinations with
+  # no case, PSU or stratum of their own, so the design is refused there rather
+  # than silently half-applied.
   if (n_steps == 3L) {
     if (correction == "BCH")
       stop("`correction = \"BCH\"` is not available for latent transition ",
@@ -669,9 +680,11 @@ fit_lta <- function(indicators,
            paste(names(bad)[bad], collapse = ", "), ". The three-step ",
            "estimator here fits one chain of statuses on a measurement model ",
            "every case shares; use `n_steps = 1` for this model.", call. = FALSE)
-    if (!is.null(strata) || !is.null(cluster))
-      stop("`n_steps = 3` does not yet carry `strata` or `cluster` into its ",
-           "third step. Drop them, or use `n_steps = 1` or `2`.", call. = FALSE)
+    if ((!is.null(strata) || !is.null(cluster)) && assignment == "proportional")
+      stop("`n_steps = 3` carries `strata` and `cluster` only with ",
+           "`assignment = \"modal\"`: proportional assignment spreads each ",
+           "case over every status combination, so step 3's rows are not ",
+           "cases and have no cluster to belong to.", call. = FALSE)
     return(.lta_threestep(match.call(), parent.frame(), correction, assignment))
   }
 

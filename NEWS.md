@@ -143,8 +143,7 @@ occasion's labels from another's, so they are matched to occasion 1 by item
 profile and the match is returned as `$threestep$alignment`.
 
 Refused, with a message: random intercepts, `n_classes > 1`,
-`mover_stayer`, `group`, `predictors_items`, `strata` and `cluster`. The
-estimator here covers one chain of statuses on a measurement model every
+`mover_stayer`, `group` and `predictors_items`. The estimator here covers one chain of statuses on a measurement model every
 case shares, and each of those changes that. Two limits to read the output
 by. Step 3's log-likelihood is that of the assigned statuses rather than the
 items and must not be compared with a one- or two-step fit's. Its standard
@@ -158,6 +157,19 @@ likelihood written independently of the package, and the propagation term
 against the slope of step 3's estimate when step 3 is refitted at a nudged
 step 1. On a weakly separated panel the corrected standard errors are up to
 2.3 times the step-3-only ones.
+
+`strata` and `cluster` are carried through both steps under
+`assignment = "modal"`. The variance is then the design-based sandwich over
+the two steps stacked: each case's step-1 and step-3 scores are combined
+through the same first-order term, summed within primary sampling units and
+compared across them within strata, so clustering widens step 1's
+contribution as well as step 3's own. Proportional assignment refuses a
+design, because its step-3 rows are status combinations rather than cases.
+Tested on the estimator's own terms: with every case its own sampling unit
+the design variance agrees with the model-based one to sampling error, and
+duplicating every case inside its own cluster leaves every standard error
+where it was, since a copy adds no information. Nothing changes numerically
+for a fit without a design.
 
 Tested on the estimator's own terms: with no transitions step 1's
 log-likelihood factorises exactly into the per-occasion ones; with the

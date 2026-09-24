@@ -380,6 +380,18 @@
                  envir = e)
   if (!is.null(extra)) assign(".lta_step3_extra", list(extra), envir = e)
 
+  # A survey design reaches step 3 only under modal assignment (fit_lta()
+  # refuses the other), where the reduced data is one row per case in step 1's
+  # order, so step 1's own per-case vectors are the ones step 3 needs.
+  design <- isTRUE(s12$step1$has_survey_design)
+  if (design) {
+    if (length(s12$step1$strata) != nrow(red$W))
+      stop("The survey design does not line up with step 3's rows.",
+           call. = FALSE)
+    assign(".lta_step3_strata",  s12$step1$strata,  envir = e)
+    assign(".lta_step3_cluster", s12$step1$cluster, envir = e)
+  }
+
   carried <- c("n_init", "refine", "max_iter", "n_cores", "tol", "smoothing",
                "random_state", "standard_errors", "bayes_constants",
                "transition_invariance", "transition_effects",
@@ -400,6 +412,8 @@
     if (nd) list(predictors_initial    = quote(.lta_step3_Zd)),
     if (nt) list(predictors_transition = quote(.lta_step3_Zt)),
     if (!is.null(extra)) list(.extra_starts = quote(.lta_step3_extra)),
+    if (design) list(strata  = quote(.lta_step3_strata),
+                     cluster = quote(.lta_step3_cluster)),
     as.list(carried)))
 
   eval(cl3, e)
@@ -692,13 +706,54 @@
   V  <- V2 + V2 %*% t(info$H12) %*% S11 %*% info$H12 %*% V2
   V  <- (V + t(V)) / 2
   if (!all(is.finite(V))) return(NULL)
+  method <- "Three-step pseudo-ML, first order (Bakk, Oberski and Vermunt, 2014)"
 
-  out <- list(V = V, V2 = V2, S11 = S11,
-              method = "Three-step pseudo-ML, first order (Bakk, Oberski and Vermunt, 2014)")
+  # Under a survey design the two steps are one stacked set of estimating
+  # equations, and the variance is their sandwich. The bread is block lower
+  # triangular -- step 1 does not read step 3 -- so the step-3 row of its
+  # inverse is [V2 H21' S11, V2], and each case's influence on step 3 is V2
+  # times U_i = s3_i + s1_i S11 H21: its own step-3 score plus its step-1 score
+  # carried through the same cross derivative as above. Summing U within PSU
+  # and comparing across PSUs within stratum (compute_survey_B()) then counts
+  # the clustering of both steps and of their covariance. With independent
+  # cases its expectation is the V above. Scores are taken on the distinct
+  # rows, as everything else here is, and expanded back to the cases.
+  B11 <- B33 <- NULL
+  if (isTRUE(fit$has_survey_design)) {
+    if (!modal || nrow(W3) != length(w1) || length(fit$strata) != length(w1))
+      return(NULL)
+    row_grad <- function(f, v) {
+      h <- .step1_fd_step * pmax(1, abs(v))
+      vapply(seq_along(v), function(j) {
+        vp <- v; vp[j] <- vp[j] + h[j]
+        vm <- v; vm[j] <- vm[j] - h[j]
+        (f(vp) - f(vm)) / (2 * h[j])
+      }, numeric(length(f(v))))
+    }
+    G1 <- row_grad(function(r) .lta_ll_case(s1, X1c, r[src], lay1), r0)
+    s3 <- step1_side(r0)
+    st3 <- st3c
+    for (t in seq_len(Tn)) st3$mm$models[[t]]$parameters$pis <- s3$emission[[t]]
+    st3$weights_vec <- as.vector(rowsum(w3, pat3$idx))
+    G3 <- row_grad(function(v) .lta_ll_case(st3, W3c, v, lay3), par3)
+    Sc1 <- w1 * G1[pat1$idx, , drop = FALSE]
+    Sc3 <- w3 * G3[pat3$idx, , drop = FALSE]
+
+    U <- Sc3 + Sc1 %*% S11 %*% info$H12
+    V <- V2 %*% compute_survey_B(U, fit$strata, fit$cluster) %*% V2
+    V <- (V + t(V)) / 2
+    if (!all(is.finite(V))) return(NULL)
+    B11 <- S11 %*% compute_survey_B(Sc1, fit$strata, fit$cluster) %*% S11
+    B33 <- V2 %*% compute_survey_B(Sc3, fit$strata, fit$cluster) %*% V2
+    method <- paste(method, "with the survey-linearized sandwich over both steps")
+  }
+
+  out <- list(V = V, V2 = V2, S11 = S11, method = method)
   # The pieces a test needs to check the propagation term from outside: the
   # cross derivative, step 1's reduced point and what step 3 reads off it.
   if (parts) out <- c(out, list(H12 = info$H12, r0 = r0, par3 = par3,
-                                lay3 = lay3, step1_side = step1_side))
+                                lay3 = lay3, step1_side = step1_side,
+                                design_step1 = B11, design_step3 = B33))
   out
 }
 

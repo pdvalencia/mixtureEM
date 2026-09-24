@@ -830,8 +830,12 @@ test_that("the three-step refuses what it is not defined for, before fitting", {
     expect_error(do.call(fit_lta, c(base, a)), "`n_steps = 3` does not support")
   expect_error(do.call(fit_lta, c(base, list(correction = "BCH"))),
                "not available for latent transition models")
+  # A design is carried under modal assignment only (W6b, below).
   expect_error(do.call(fit_lta, c(base, list(strata = z))),
-               "does not yet carry `strata` or `cluster`")
+               "only with `assignment = \"modal\"`")
+  expect_error(do.call(fit_lta, c(base, list(cluster = seq_along(z),
+                                             assignment = "proportional"))),
+               "only with `assignment = \"modal\"`")
 })
 
 test_that("a non-invariant step 1 has its labels matched across occasions", {
@@ -989,4 +993,47 @@ test_that("modal with no correction has nothing to propagate", {
   fit <- .ts3_w6("modal", "none")
   expect_null(fit$se$threestep)
   expect_true(fit$se$conditional)
+})
+
+# ==============================================================================
+# W6b -- strata and cluster under modal assignment: the stacked sandwich.
+#
+# Graded against printed reference numbers in the validation suite; here, two
+# properties of the estimator itself, on fits with the item prior off so that
+# doubling the data doubles the likelihood exactly.
+#   (o) every case its own PSU, one stratum: the design variance is the robust
+#       one, which agrees with the model-based variance to sampling error;
+#   (p) every case duplicated inside its own PSU: a copy adds no information,
+#       so every standard error is where it was (to the finite-difference
+#       noise, measured 3.4e-3).
+# ==============================================================================
+
+.ts3_w6b <- function(X, ...) {
+  fit_lta(X, n_statuses = 3, times = 4, measurement = "binary", n_init = 6,
+          random_state = 1, n_cores = 1, smoothing = 0, n_steps = 3,
+          assignment = "modal", tol = 1e-10, max_iter = 20000,
+          bayes_constants = list(categorical = 0), ...)
+}
+
+test_that("with every case its own PSU the design variance is the model's, roughly", {
+  X  <- .ts3_sim()
+  m  <- .ts3_w6b(X)
+  d  <- .ts3_w6b(X, cluster = seq_len(nrow(X)))
+  expect_true(d$has_survey_design)
+  expect_match(d$se$method, "survey-linearized sandwich over both steps")
+  expect_equal(d$delta, m$delta, tolerance = 1e-8)
+  r <- sqrt(diag(d$se$vcov) / diag(m$se$vcov))
+  expect_gt(min(r), 0.7)
+  expect_lt(max(r), 1.5)
+  .ts3_cache$w6b_own <- d
+})
+
+test_that("duplicating every case inside its own PSU changes no standard error", {
+  X  <- .ts3_sim()
+  n  <- nrow(X)
+  d1 <- .ts3_cache$w6b_own %||% .ts3_w6b(X, cluster = seq_len(n))
+  d2 <- .ts3_w6b(X[rep(seq_len(n), each = 2), ],
+                 cluster = rep(seq_len(n), each = 2))
+  expect_equal(d2$delta, d1$delta, tolerance = 1e-8)
+  expect_lt(max(abs(sqrt(diag(d2$se$vcov) / diag(d1$se$vcov)) - 1)), 0.01)
 })
