@@ -590,8 +590,9 @@ lta_g2 <- function(object) {
 #'   criteria, since step 3's log-likelihood is of the assigned statuses.
 #'
 #' @return An object of class `mixture_comparison`, a list with `fit_table`
-#'   (columns `Classes`, `LL`, `Params`, `AIC`, `BIC`, `CAIC`, `AIC3`, `ICL`,
-#'   `SABIC`, `Entropy` and `Unreplicated`), the fitted `models` (named
+#'   (columns `Classes`, `LL`, `Params`, `AIC`, `BIC`, `CAIC`, `AWE`, `AIC3`,
+#'   `ICL`, `SABIC`, `Entropy`, `Unreplicated`, `BF` and `cmP`, defined as in
+#'   [`compare_mixtures()`]), the fitted `models` (named
 #'   `"K2"`, `"K3"`, ...) and
 #'   `best_k`, the class count with the lowest BIC. It indexes exactly as a
 #'   plain list; [`plot()`][plot.mixture_comparison] draws the criteria
@@ -664,7 +665,8 @@ compare_longitudinal <- function(indicators, k_range = NULL,
     rows[[length(rows) + 1L]] <- data.frame(
       Classes = k, LL = m$ll, Params = m$n_params,
       AIC = m$aic, BIC = m$bic,
-      CAIC = m$caic, AIC3 = m$aic3, ICL = m$icl, SABIC = m$sabic,
+      CAIC = m$caic, AWE = m$awe, AIC3 = m$aic3, ICL = m$icl,
+      SABIC = m$sabic,
       Entropy = if (k == 1L) NA_real_ else m$entropy %||% NA_real_,
       Unreplicated = .is_unreplicated(m))
   }
@@ -672,6 +674,7 @@ compare_longitudinal <- function(indicators, k_range = NULL,
   tab <- do.call(rbind, rows)
   tab <- tab[order(tab$Classes), , drop = FALSE]
   rownames(tab) <- NULL
+  tab <- .bf_cmp(tab)
   # `lta` is the one model here that does not ride the mixture engine, so
   # .vlmr_pair() declines it by class rather than by a special case.
   if (vlmr != "none") tab <- .vlmr_augment(tab, models, vlmr)
@@ -721,6 +724,16 @@ compare_longitudinal <- function(indicators, k_range = NULL,
 #'     `group_effects = "none"` against `"prevalence"`.
 #'   \item **Measurement invariance across time** (sec. 7.11): fit [`fit_lta()`]
 #'     with `measurement_invariance = "full"` and `"none"` and compare.
+#'   \item **The same question before any transitions are modelled**: the
+#'     configural against the invariant measurement model, with the occasions
+#'     unlinked, which is how a three-step analysis settles invariance before
+#'     step 3. A three-step fit's `$step1`
+#'     is exactly that model, so fit [`fit_lta()`] with `n_steps = 3` and
+#'     `measurement_invariance = "full"` and `"none"`, and test
+#'     `lr_test(fit_full$step1, fit_none$step1)`. With `"none"` the step-1
+#'     model is one free latent class model per occasion; with `"full"` the
+#'     item probabilities are shared, so the degrees of freedom are the item
+#'     parameters freed at every occasion after the first.
 #'   \item **A time-homogeneous transition matrix** (sec. 7.14): fit
 #'     [`fit_lta()`] with `transition_invariance = "full"` and `"none"`.
 #' }

@@ -502,7 +502,7 @@ test_that("the diagnostics print without error", {
   expect_output(print(bivariate_residuals(fit)), "Largest")
   expect_output(print(classification_table(fit)), "Classification error")
   expect_output(cd <- classification_diagnostics(fit), "AvePP")
-  expect_named(cd, c("ave_pp", "table", "error"))
+  expect_named(cd, c("ave_pp", "table", "error", "classes"))
 
   # The heat table, including a residual past the scale's saturation point:
   # clamping, not zlim, is what has to keep that cell drawn.
@@ -751,4 +751,33 @@ test_that("a K^T too large to score against the table is refused, not attempted"
   fit$n_times <- 40L
   expect_message(res <- absolute_fit(fit), "too large")
   expect_null(res)
+})
+
+test_that("classification_diagnostics() carries Masyn's per-class table", {
+  set.seed(52)
+  X <- rbind(matrix(rbinom(600, 1, 0.85), ncol = 5),
+             matrix(rbinom(400, 1, 0.15), ncol = 5))
+  fit <- fit_mixture(X, n_classes = 2, measurement = "binary", n_init = 3,
+                     random_state = 1)
+  expect_true(all(fit$sample_weights == 1))
+  cd <- suppressWarnings(capture.output(
+    out <- classification_diagnostics(fit)))
+  m <- out$classes
+  resp  <- exp(fit$log_resp)
+  modal <- max.col(resp, ties.method = "first")
+  expect_equal(m$Proportion, as.numeric(fit$weights))
+  expect_equal(m$mcaP, tabulate(modal, 2) / nrow(X))
+  expect_equal(m$AvePP, unname(diag(out$ave_pp)))
+  expect_equal(m$OCC, (m$AvePP / (1 - m$AvePP)) /
+                        (m$Proportion / (1 - m$Proportion)))
+
+  # The bootstrap continues the fitted solution, so its interval brackets the
+  # estimate and keeps the fitted labels.
+  capture.output(b <- classification_diagnostics(fit, n_boot = 20,
+                                                 n_cores = 1))
+  ci <- b$classes
+  expect_named(ci, c("Class", "Proportion", "Lower", "Upper", "mcaP",
+                     "AvePP", "OCC"))
+  expect_true(all(ci$Lower <= ci$Proportion & ci$Proportion <= ci$Upper))
+  expect_true(all(ci$Upper - ci$Lower < 0.2))
 })

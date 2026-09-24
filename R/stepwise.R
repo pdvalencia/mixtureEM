@@ -33,6 +33,8 @@
     aic      = -2 * ll_s1 + 2 * n_params_s1,
     bic      = bic_s1,
     caic     = -2 * ll_s1 + (log(n_eff) + 1) * n_params_s1,
+    # AWE: Banfield & Raftery (1993), in the form Masyn (2013) gives.
+    awe      = -2 * ll_s1 + 2 * n_params_s1 * (log(n_eff) + 1.5),
     aic3     = -2 * ll_s1 + 3 * n_params_s1,
     # ICL: BIC penalised by twice the absolute classification entropy
     # (Baudry).
@@ -221,6 +223,7 @@
     aic      = -2 * ll + 2 * n_params,
     bic      = bic,
     caic     = -2 * ll + (log(n_eff) + 1) * n_params,
+    awe      = -2 * ll + 2 * n_params * (log(n_eff) + 1.5),
     aic3     = -2 * ll + 3 * n_params,
     icl      = bic + 2 * abs_ent,
     sabic    = -2 * ll + log((n_eff + 2) / 24) * n_params,

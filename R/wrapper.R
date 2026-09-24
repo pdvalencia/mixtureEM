@@ -604,11 +604,28 @@ measurement_summary.default <- function(object,
 #'
 #' @param object A fitted \code{mixture_model} object returned by
 #'   \code{\link{fit_mixture}}.
+#' @param n_boot Non-negative integer. Number of case-resampling bootstrap
+#'   draws behind a percentile interval for each class proportion; `0` (the
+#'   default) skips it. Each draw continues the fitted solution on the
+#'   resampled cases (one EM run from the fitted parameters, no restarts), so
+#'   its classes keep the fitted labels. Available for an unconditional,
+#'   unweighted, single-group, one-step fit.
+#' @param level Confidence level of that interval. Default `0.95`.
+#' @param random_state Integer seed for the resampling. Default `123`.
+#' @param n_cores Positive integer. Processes to spread the draws over.
+#'   Default \code{1}, or \code{options(mixtureEM.n_cores = )} where set.
 #' @param ... Passed to methods.
 #'
 #' @return Invisibly, a list with `ave_pp` (the K x K matrix), `table` (the
-#'   classification table) and `error` (the classification error). All are also
-#'   printed to the console.
+#'   classification table), `error` (the classification error) and `classes`,
+#'   Masyn's (2013) per-class table: `Proportion` (the model's class
+#'   proportion), `Lower` and `Upper` (its bootstrap interval, when `n_boot >
+#'   0`), `mcaP` (the share of cases modally assigned to the class), `AvePP`
+#'   (the diagonal of the AvePP matrix) and `OCC`, the odds of correct
+#'   classification, \eqn{[\mathrm{AvePP}_k/(1-\mathrm{AvePP}_k)] /
+#'   [\pi_k/(1-\pi_k)]}: how much better modal assignment does than guessing
+#'   from the class proportion alone. Masyn suggests values above 5 indicate
+#'   good separation. All are also printed to the console.
 #'
 #' @examples
 #' set.seed(1)
@@ -629,6 +646,10 @@ measurement_summary.default <- function(object,
 #' Nagin, D. S. (2005). \emph{Group-Based Modeling of Development}. Harvard
 #' University Press.
 #'
+#' Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
+#' T. D. Little (Ed.), \emph{The Oxford Handbook of Quantitative Methods}
+#' (Vol. 2, pp. 551-611). Oxford University Press.
+#'
 #' @seealso [`class_assignments()`] for the per-case assignment these
 #'   diagnostics summarise.
 #'
@@ -638,7 +659,11 @@ classification_diagnostics <- function(object, ...)
 
 #' @rdname classification_diagnostics
 #' @export
-classification_diagnostics.default <- function(object, ...) {
+classification_diagnostics.default <- function(object, n_boot = 0,
+                                               level = 0.95,
+                                               random_state = 123,
+                                               n_cores = .default_n_cores(),
+                                               ...) {
   resp <- exp(object$log_resp)
   K    <- object$n_components
   w    <- object$sample_weights %||% rep(1, nrow(resp))
@@ -646,6 +671,13 @@ classification_diagnostics.default <- function(object, ...) {
   ave_pp <- .ave_pp(resp, w, K)
   rownames(ave_pp) <- paste("Assigned Class", 1:K)
   colnames(ave_pp) <- paste("Prob C", 1:K)
+
+  masyn <- .masyn_table(object, resp, w, K, diag(ave_pp))
+  if (n_boot > 0) {
+    ci <- .class_proportion_ci(object, n_boot, level, random_state, n_cores)
+    masyn <- cbind(masyn[, 1:2], Lower = ci[, 1], Upper = ci[, 2],
+                   masyn[, -(1:2)])
+  }
 
   cat("=========================================================\n")
   cat("          AVERAGE POSTERIOR PROBABILITIES (AvePP)        \n")
@@ -658,7 +690,77 @@ classification_diagnostics.default <- function(object, ...) {
   tab <- .classification_table(resp, w, K)
   print(tab)
 
-  invisible(list(ave_pp = ave_pp, table = tab, error = attr(tab, "error")))
+  cat("\nClass sizes and classification quality (Masyn, 2013)\n")
+  printed <- masyn
+  printed[-1] <- lapply(printed[-1], round, 3)
+  print(printed, row.names = FALSE)
+
+  invisible(list(ave_pp = ave_pp, table = tab, error = attr(tab, "error"),
+                 classes = masyn))
+}
+
+# Masyn's (2013) per-class classification table. `Proportion` is the model's
+# class proportion (averaged over cases when a covariate model supplies one per
+# case), `mcaP` the share of cases modally assigned to the class, `AvePP` the
+# diagonal of the AvePP matrix, and `OCC` the odds of correct classification:
+# the odds of a correct modal assignment against the odds of a correct guess
+# from the class proportion alone, [AvePP / (1 - AvePP)] / [pi / (1 - pi)].
+.masyn_table <- function(object, resp, w, K, avepp) {
+  pi_k  <- .marginal_class_weights(object) %||% (colSums(resp * w) / sum(w))
+  modal <- max.col(resp, ties.method = "first")
+  mcap  <- vapply(seq_len(K), function(k) sum(w[modal == k]), numeric(1)) /
+    sum(w)
+  data.frame(Class = seq_len(K), Proportion = pi_k, mcaP = mcap,
+             AvePP = unname(avepp),
+             OCC = (avepp / (1 - avepp)) / (pi_k / (1 - pi_k)),
+             row.names = NULL)
+}
+
+# Percentile bootstrap interval for each class proportion. Each draw resamples
+# cases with replacement and continues the fitted solution on them, the way
+# `refine_from` continues a donor: one EM run seeded from the fitted parameters,
+# no random restarts and no size reordering, so a draw's class k is the fitted
+# class k. The measurement alignment is kept as a check on that, since a draw
+# far enough from the fitted data could still carry a class across.
+.class_proportion_ci <- function(object, n_boot, level, random_state,
+                                 n_cores) {
+  if (!is.null(object$sm) || any(object$sample_weights %||% 1 != 1) ||
+      .is_group_blocks(object) || !identical(as.integer(object$n_steps %||% 1L),
+                                             1L))
+    stop("The bootstrap interval of the class proportions needs an ",
+         "unconditional, unweighted, single-group fit: with covariates the ",
+         "proportion is not one parameter, and resampling weighted or ",
+         "grouped cases needs a design this function does not model.",
+         call. = FALSE)
+  K    <- object$n_components
+  X    <- object$data
+  N    <- nrow(X)
+  orig <- get_mm_alignment_matrix(object$mm)
+  warm <- .mixture_refine_warm_start(object)
+  set.seed(random_state)
+  seeds <- sample.int(.Machine$integer.max, n_boot)
+
+  one_rep <- function(i) {
+    set.seed(seeds[i])
+    idx <- sample.int(N, N, replace = TRUE)
+    b <- try(fit_mixture_internal(
+      X = X[idx, , drop = FALSE], n_components = K,
+      measurement = object$measurement_descriptor, n_init = 0L,
+      warm_start = warm, order_by_size = FALSE, refine = FALSE,
+      bayes_constants = object$bayes_constants, se = "hessian",
+      variances_equal = isTRUE(object$mm$variances_equal),
+      n_cores = 1L), silent = TRUE)
+    if (inherits(b, "try-error")) return(rep(NA_real_, K))
+    perm <- align_classes(orig, get_mm_alignment_matrix(b$mm))
+    b$weights[perm]
+  }
+  draws <- if (n_cores > 1L) {
+    .par_lapply(seq_len(n_boot), one_rep, n_cores = n_cores)
+  } else lapply(seq_len(n_boot), one_rep)
+  draws <- do.call(rbind, draws)
+  a <- (1 - level) / 2
+  t(apply(draws, 2, stats::quantile, probs = c(a, 1 - a), na.rm = TRUE,
+          names = FALSE))
 }
 
 #' Class Sizes of a Fitted Mixture Model
@@ -3776,12 +3878,23 @@ print.mixture_model <- function(x, ...) {
 #' @return An object of class `mixture_comparison`: a named list with three
 #'   elements, which can be indexed exactly as a plain list.
 #'   * `fit_table` Data frame with one row per K and columns `Classes`, `LL`,
-#'     `Params`, `AIC`, `BIC`, `CAIC`, `AIC3`, `ICL`, `SABIC`, `Entropy` and
-#'     `Unreplicated`. `CAIC` and `AIC3` apply a heavier parameter penalty than
-#'     `BIC`; `ICL` is `BIC` penalised further by classification entropy
-#'     (Baudry). The `-> Best model` line and `best_k` below are always chosen
-#'     by `BIC` alone; the other indices are printed for comparison, not used
-#'     to pick a model. With
+#'     `Params`, `AIC`, `BIC`, `CAIC`, `AWE`, `AIC3`, `ICL`, `SABIC`,
+#'     `Entropy`, `Unreplicated`, `BF` and `cmP`. `CAIC` and `AIC3` apply a
+#'     heavier parameter penalty than `BIC`; `ICL` is `BIC` penalised further by
+#'     classification entropy (Baudry). `AWE`, the approximate weight of
+#'     evidence, is \eqn{-2\ell + 2p(\log n + 1.5)} (Banfield & Raftery, 1993,
+#'     in the form Masyn, 2013, gives), the heaviest penalty of the set. `BF`
+#'     is the approximate Bayes factor of the row's model against the *next*
+#'     row's, \eqn{\exp(\mathrm{SIC}_K - \mathrm{SIC}_{K+1})} with
+#'     \eqn{\mathrm{SIC} = -\mathrm{BIC}/2}: above 1 favours the smaller
+#'     model, above 10 strongly (Wagenmakers, 2007). The last row is `NA`.
+#'     `cmP` is the approximate probability that the row's model is the correct
+#'     one *among the models in the table*, \eqn{\exp(\mathrm{SIC}_K -
+#'     \max\mathrm{SIC}) / \sum_j \exp(\mathrm{SIC}_j - \max\mathrm{SIC})}, so
+#'     it changes when the range of K does (Masyn, 2013). The
+#'     `-> Best model` line and `best_k` below are always chosen by `BIC`
+#'     alone; the other indices are printed for comparison, not used to pick a
+#'     model. With
 #'     `vlmr` set it also carries `VLMR_LR` and one p-value column per
 #'     requested form (`VLMR_p`, `VLMR_p_robust`); each row tests its own K
 #'     against the next one in the table, so the last row is `NA`.
@@ -3827,6 +3940,14 @@ print.mixture_model <- function(x, ...) {
 #' Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
 #' T. D. Little (Ed.), \emph{The Oxford Handbook of Quantitative Methods}
 #' (Vol. 2, pp. 551-611). Oxford University Press.
+#'
+#' Banfield, J. D., & Raftery, A. E. (1993). Model-based Gaussian and
+#' non-Gaussian clustering. \emph{Biometrics}, \emph{49}(3), 803-821.
+#' \doi{10.2307/2532201}
+#'
+#' Wagenmakers, E.-J. (2007). A practical solution to the pervasive problems
+#' of p values. \emph{Psychonomic Bulletin & Review}, \emph{14}(5), 779-804.
+#' \doi{10.3758/BF03194105}
 #'
 #' Vermunt, J. K. (2024). The Vuong-Lo-Mendell-Rubin test for latent class and
 #' latent profile analysis. \emph{Methodology}, \emph{20}(1), e12467.
@@ -3896,7 +4017,8 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
     results[[k]] <- data.frame(
       Classes = k, LL = fit$metrics$ll, Params = fit$metrics$n_params,
       AIC = fit$metrics$aic, BIC = fit$metrics$bic,
-      CAIC = fit$metrics$caic, AIC3 = fit$metrics$aic3, ICL = fit$metrics$icl,
+      CAIC = fit$metrics$caic, AWE = fit$metrics$awe,
+      AIC3 = fit$metrics$aic3, ICL = fit$metrics$icl,
       SABIC = fit$metrics$sabic, Entropy = fit$metrics$entropy,
       # No warning is raised anywhere in this loop: it calls the engine
       # directly, and the warning lives in fit_mixture(). The column is how a
@@ -3909,6 +4031,7 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
   # what k_range gives unless the caller shuffled it.
   fit_table   <- fit_table[order(fit_table$Classes), , drop = FALSE]
   rownames(fit_table) <- NULL
+  fit_table   <- .bf_cmp(fit_table)
   if (vlmr != "none") {
     cat("Computing the VLMR test...\n")
     fit_table <- .vlmr_augment(fit_table, models, vlmr)
@@ -3943,6 +4066,24 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
   }
   class(out) <- "mixture_comparison"
   return(out)
+}
+
+# Appends the two enumeration columns that are properties of the table rather
+# than of any one fit (Wagenmakers, 2007; Masyn, 2013). Both work on the
+# Schwarz information criterion, SIC = -BIC / 2. `BF` in row i is the
+# approximate Bayes factor of that row's model against the next row's,
+# exp(SIC_i - SIC_{i+1}), so a value above 1 favours the smaller model and the
+# last row is NA -- the same row convention as the VLMR columns. `cmP` is each
+# model's approximate probability of being the correct one among the models in
+# the table, exp(SIC_i - max SIC) / sum(exp(SIC_j - max SIC)), which only
+# reaches the table's rows: adding a K changes every row's value.
+.bf_cmp <- function(tab) {
+  sic <- -tab$BIC / 2
+  nr  <- length(sic)
+  tab$BF  <- c(if (nr > 1L) exp(sic[-nr] - sic[-1L]), NA_real_)
+  rel     <- exp(sic - max(sic))
+  tab$cmP <- rel / sum(rel)
+  tab
 }
 
 #' Extract Covariate Odds Ratios from a Fitted Mixture Model

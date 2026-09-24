@@ -49,8 +49,9 @@ criteria, since step 3's log-likelihood is of the assigned statuses.}
 }
 \value{
 An object of class \code{mixture_comparison}, a list with \code{fit_table}
-(columns \code{Classes}, \code{LL}, \code{Params}, \code{AIC}, \code{BIC}, \code{CAIC}, \code{AIC3}, \code{ICL},
-\code{SABIC}, \code{Entropy} and \code{Unreplicated}), the fitted \code{models} (named
+(columns \code{Classes}, \code{LL}, \code{Params}, \code{AIC}, \code{BIC}, \code{CAIC}, \code{AWE}, \code{AIC3},
+\code{ICL}, \code{SABIC}, \code{Entropy}, \code{Unreplicated}, \code{BF} and \code{cmP}, defined as in
+\code{\link[=compare_mixtures]{compare_mixtures()}}), the fitted \code{models} (named
 \code{"K2"}, \code{"K3"}, ...) and
 \code{best_k}, the class count with the lowest BIC. It indexes exactly as a
 plain list; \code{\link[=plot.mixture_comparison]{plot()}} draws the criteria

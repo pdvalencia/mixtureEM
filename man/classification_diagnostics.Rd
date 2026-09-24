@@ -7,18 +7,45 @@
 \usage{
 classification_diagnostics(object, ...)
 
-\method{classification_diagnostics}{default}(object, ...)
+\method{classification_diagnostics}{default}(
+  object,
+  n_boot = 0,
+  level = 0.95,
+  random_state = 123,
+  n_cores = .default_n_cores(),
+  ...
+)
 }
 \arguments{
 \item{object}{A fitted \code{mixture_model} object returned by
 \code{\link{fit_mixture}}.}
 
 \item{...}{Passed to methods.}
+
+\item{n_boot}{Non-negative integer. Number of case-resampling bootstrap
+draws behind a percentile interval for each class proportion; \code{0} (the
+default) skips it. Each draw continues the fitted solution on the
+resampled cases (one EM run from the fitted parameters, no restarts), so
+its classes keep the fitted labels. Available for an unconditional,
+unweighted, single-group, one-step fit.}
+
+\item{level}{Confidence level of that interval. Default \code{0.95}.}
+
+\item{random_state}{Integer seed for the resampling. Default \code{123}.}
+
+\item{n_cores}{Positive integer. Processes to spread the draws over.
+Default \code{1}, or \code{options(mixtureEM.n_cores = )} where set.}
 }
 \value{
 Invisibly, a list with \code{ave_pp} (the K x K matrix), \code{table} (the
-classification table) and \code{error} (the classification error). All are also
-printed to the console.
+classification table), \code{error} (the classification error) and \code{classes},
+Masyn's (2013) per-class table: \code{Proportion} (the model's class
+proportion), \code{Lower} and \code{Upper} (its bootstrap interval, when \code{n_boot > 0}), \code{mcaP} (the share of cases modally assigned to the class), \code{AvePP}
+(the diagonal of the AvePP matrix) and \code{OCC}, the odds of correct
+classification, \eqn{[\mathrm{AvePP}_k/(1-\mathrm{AvePP}_k)] /
+  [\pi_k/(1-\pi_k)]}: how much better modal assignment does than guessing
+from the class proportion alone. Masyn suggests values above 5 indicate
+good separation. All are also printed to the console.
 }
 \description{
 Prints the two tables that describe how cleanly the model assigns cases.
@@ -67,6 +94,10 @@ Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
 
 Nagin, D. S. (2005). \emph{Group-Based Modeling of Development}. Harvard
 University Press.
+
+Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
+T. D. Little (Ed.), \emph{The Oxford Handbook of Quantitative Methods}
+(Vol. 2, pp. 551-611). Oxford University Press.
 }
 \seealso{
 \code{\link[=class_assignments]{class_assignments()}} for the per-case assignment these

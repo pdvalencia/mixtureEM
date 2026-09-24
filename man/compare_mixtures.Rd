@@ -48,12 +48,23 @@ An object of class \code{mixture_comparison}: a named list with three
 elements, which can be indexed exactly as a plain list.
 \itemize{
 \item \code{fit_table} Data frame with one row per K and columns \code{Classes}, \code{LL},
-\code{Params}, \code{AIC}, \code{BIC}, \code{CAIC}, \code{AIC3}, \code{ICL}, \code{SABIC}, \code{Entropy} and
-\code{Unreplicated}. \code{CAIC} and \code{AIC3} apply a heavier parameter penalty than
-\code{BIC}; \code{ICL} is \code{BIC} penalised further by classification entropy
-(Baudry). The \verb{-> Best model} line and \code{best_k} below are always chosen
-by \code{BIC} alone; the other indices are printed for comparison, not used
-to pick a model. With
+\code{Params}, \code{AIC}, \code{BIC}, \code{CAIC}, \code{AWE}, \code{AIC3}, \code{ICL}, \code{SABIC},
+\code{Entropy}, \code{Unreplicated}, \code{BF} and \code{cmP}. \code{CAIC} and \code{AIC3} apply a
+heavier parameter penalty than \code{BIC}; \code{ICL} is \code{BIC} penalised further by
+classification entropy (Baudry). \code{AWE}, the approximate weight of
+evidence, is \eqn{-2\ell + 2p(\log n + 1.5)} (Banfield & Raftery, 1993,
+in the form Masyn, 2013, gives), the heaviest penalty of the set. \code{BF}
+is the approximate Bayes factor of the row's model against the \emph{next}
+row's, \eqn{\exp(\mathrm{SIC}_K - \mathrm{SIC}_{K+1})} with
+\eqn{\mathrm{SIC} = -\mathrm{BIC}/2}: above 1 favours the smaller
+model, above 10 strongly (Wagenmakers, 2007). The last row is \code{NA}.
+\code{cmP} is the approximate probability that the row's model is the correct
+one \emph{among the models in the table}, \eqn{\exp(\mathrm{SIC}_K -
+    \max\mathrm{SIC}) / \sum_j \exp(\mathrm{SIC}_j - \max\mathrm{SIC})}, so
+it changes when the range of K does (Masyn, 2013). The
+\verb{-> Best model} line and \code{best_k} below are always chosen by \code{BIC}
+alone; the other indices are printed for comparison, not used to pick a
+model. With
 \code{vlmr} set it also carries \code{VLMR_LR} and one p-value column per
 requested form (\code{VLMR_p}, \code{VLMR_p_robust}); each row tests its own K
 against the next one in the table, so the last row is \code{NA}.
@@ -168,6 +179,14 @@ identifying differences in longitudinal change among unobserved groups.
 Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
 T. D. Little (Ed.), \emph{The Oxford Handbook of Quantitative Methods}
 (Vol. 2, pp. 551-611). Oxford University Press.
+
+Banfield, J. D., & Raftery, A. E. (1993). Model-based Gaussian and
+non-Gaussian clustering. \emph{Biometrics}, \emph{49}(3), 803-821.
+\doi{10.2307/2532201}
+
+Wagenmakers, E.-J. (2007). A practical solution to the pervasive problems
+of p values. \emph{Psychonomic Bulletin & Review}, \emph{14}(5), 779-804.
+\doi{10.3758/BF03194105}
 
 Vermunt, J. K. (2024). The Vuong-Lo-Mendell-Rubin test for latent class and
 latent profile analysis. \emph{Methodology}, \emph{20}(1), e12467.

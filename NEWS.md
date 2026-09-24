@@ -1,5 +1,31 @@
 # mixtureEM (development version)
 
+## The enumeration table gains AWE, BF and cmP; `classification_diagnostics()` gains Masyn's class table
+
+`compare_mixtures()` and `compare_longitudinal()` carry three more columns,
+the ones published class-enumeration tables report beside BIC. `AWE`, the
+approximate weight of evidence, is -2LL + 2p(log n + 1.5) (Banfield &
+Raftery, 1993; Masyn, 2013), and is also stored on every fit as
+`fit$metrics$awe`. `BF` is the approximate Bayes factor of each row's model
+against the next row's, exp(SIC_K - SIC_{K+1}) with SIC = -BIC/2, so a value
+above 1 favours the smaller model and the last row is `NA`. `cmP` is each
+model's approximate probability of being the correct one among the models in
+the table (Wagenmakers, 2007; Masyn, 2013). The best-K line is still chosen
+by BIC, and no existing column changes.
+
+`classification_diagnostics()` now also returns and prints, as `classes`,
+the per-class table of Masyn (2013): the model's class proportion, the share
+of cases modally assigned to each class (`mcaP`), the diagonal of the AvePP
+matrix and the odds of correct classification (`OCC`). With `n_boot > 0` it
+adds a percentile bootstrap interval for each class proportion, from case
+resampling that continues the fitted solution on every draw, for
+unconditional, unweighted, single-group fits. The existing `ave_pp`, `table`
+and `error` elements are unchanged.
+
+The `lr_test()` documentation now spells out how to compare the configural
+and the invariant measurement model before any transitions are modelled: the
+`$step1` of two `fit_lta(n_steps = 3)` fits.
+
 ## `n_steps = 2` is now the two-step estimator, and its numbers change
 
 Every fit made with `n_steps = 2` returns different coefficients from

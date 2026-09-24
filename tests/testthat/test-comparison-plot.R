@@ -50,3 +50,23 @@ test_that("entropy = TRUE leaves the graphics parameters unchanged", {
   expect_error(plot(out, indices = "LL"))
   expect_error(plot(out, indices = "Entropy"))
 })
+
+test_that("the enumeration table carries AWE, BF and cmP by their definitions", {
+  set.seed(52)
+  X <- rbind(matrix(rbinom(600, 1, 0.85), ncol = 5),
+             matrix(rbinom(400, 1, 0.15), ncol = 5))
+  capture.output(res <- compare_mixtures(X, k_range = 1:3,
+                                         measurement = "binary", n_init = 3,
+                                         n_cores = 1))
+  tab <- res$fit_table
+  n   <- nrow(X)
+  expect_equal(tab$AWE, -2 * tab$LL + 2 * tab$Params * (log(n) + 1.5))
+  sic <- -tab$BIC / 2
+  expect_equal(tab$BF, c(exp(sic[1] - sic[2]), exp(sic[2] - sic[3]), NA))
+  expect_equal(tab$cmP, exp(sic) / sum(exp(sic)))
+  expect_equal(sum(tab$cmP), 1)
+
+  # A spread of BIC wide enough to overflow exp() naively still normalises.
+  big <- mixtureEM:::.bf_cmp(data.frame(BIC = c(20000, 18000, 18010)))
+  expect_equal(big$cmP, c(0, 1 / (1 + exp(-5)), exp(-5) / (1 + exp(-5))))
+})

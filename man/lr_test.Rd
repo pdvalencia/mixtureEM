@@ -37,6 +37,16 @@ significantly better fit?"
 \code{group_effects = "none"} against \code{"prevalence"}.
 \item \strong{Measurement invariance across time} (sec. 7.11): fit \code{\link[=fit_lta]{fit_lta()}}
 with \code{measurement_invariance = "full"} and \code{"none"} and compare.
+\item \strong{The same question before any transitions are modelled}: the
+configural against the invariant measurement model, with the occasions
+unlinked, which is how a three-step analysis settles invariance before
+step 3. A three-step fit's \verb{$step1}
+is exactly that model, so fit \code{\link[=fit_lta]{fit_lta()}} with \code{n_steps = 3} and
+\code{measurement_invariance = "full"} and \code{"none"}, and test
+\code{lr_test(fit_full$step1, fit_none$step1)}. With \code{"none"} the step-1
+model is one free latent class model per occasion; with \code{"full"} the
+item probabilities are shared, so the degrees of freedom are the item
+parameters freed at every occasion after the first.
 \item \strong{A time-homogeneous transition matrix} (sec. 7.14): fit
 \code{\link[=fit_lta]{fit_lta()}} with \code{transition_invariance = "full"} and \code{"none"}.
 }
