@@ -24,6 +24,7 @@ fit_mixture_internal(
   refine = TRUE,
   bayes_constants = NULL,
   warm_start = NULL,
+  dif = NULL,
   se = c("corrected", "robust", "hessian"),
   n_cores = .default_n_cores(),
   ...
@@ -128,6 +129,11 @@ defaulting to \code{1}. See \code{\link{fit_mixture}}.}
 starting model state for EM, or \code{NULL} to skip that start. Used by the
 group-varying measurement search to seed each fit from the pooled solution.
 \code{NULL} (default) uses only the usual random initializations.}
+
+\item{dif}{Optional direct covariate effects on binary items, as built by
+\code{fit_mixture()} from \code{predictors_items}: a list of \code{Z}
+(the covariates), \code{free} (items by covariates, which slopes exist) and
+\code{by_class} (which items' slopes differ by class). One-step fits only.}
 
 \item{se}{Character. How standard errors for a covariate (class-prediction)
 structural model are computed when \code{n_steps} is \code{3}.

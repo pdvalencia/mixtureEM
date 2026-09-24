@@ -146,6 +146,10 @@ align_classes <- function(orig_mat, boot_mat) {
 bootstrap_covariates <- function(model_state, X, Y, n_reps = 100,
                                  n_cores = .default_n_cores(),
                                  random_state = 123, ref_class = 1) {
+  if (inherits(model_state$mm, "bernoulli_dif"))
+    stop("bootstrap_covariates() refits from the measurement specification ",
+         "alone and would drop `predictors_items`; use the model's own ",
+         "standard errors (dif_effects(), vcov()) instead.", call. = FALSE)
   set.seed(random_state)
 
   n_samples <- nrow(X)

@@ -14,6 +14,11 @@ sort_model_classes <- function(model_state) {
     model_state$mm$parameters$pis <-
       model_state$mm$parameters$pis[new_order, , drop = FALSE]
   }
+  # Direct covariate effects on the items (R/categorical_dif.R), one row per class.
+  if (!is.null(model_state$mm$parameters[["dif_slopes"]])) {
+    model_state$mm$parameters$dif_slopes <-
+      model_state$mm$parameters$dif_slopes[new_order, , drop = FALSE]
+  }
   # Gaussian LPA: also sort means and covariances
   if (!is.null(model_state$mm$parameters[["means"]])) {
     model_state$mm$parameters$means <-
@@ -1993,6 +1998,10 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   starting model state for EM, or \code{NULL} to skip that start. Used by the
 #'   group-varying measurement search to seed each fit from the pooled solution.
 #'   \code{NULL} (default) uses only the usual random initializations.
+#' @param dif Optional direct covariate effects on binary items, as built by
+#'   \code{fit_mixture()} from \code{predictors_items}: a list of \code{Z}
+#'   (the covariates), \code{free} (items by covariates, which slopes exist) and
+#'   \code{by_class} (which items' slopes differ by class). One-step fits only.
 #' @param se Character. How standard errors for a covariate (class-prediction)
 #'   structural model are computed when \code{n_steps} is \code{3}.
 #'   \code{"corrected"} (default) is the first-order corrected estimator of
@@ -2058,6 +2067,7 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
                                  refine = TRUE,
                                  bayes_constants = NULL,
                                  warm_start = NULL,
+                                 dif = NULL,
                                  se = c("corrected", "robust", "hessian"),
                                  n_cores = .default_n_cores(), ...) {
 
@@ -2101,6 +2111,7 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
     keep <- setdiff(seq_len(n_input_rows), empty_rows)
     X    <- X[keep, , drop = FALSE]
     if (!is.null(Y))       Y       <- Y[keep, , drop = FALSE]
+    if (!is.null(dif))     dif$Z   <- dif$Z[keep, , drop = FALSE]
     if (!is.null(weights)) weights <- weights[keep]
     if (!is.null(strata))  strata  <- strata[keep]
     if (!is.null(cluster)) cluster <- cluster[keep]
@@ -2304,6 +2315,15 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   # Push the constants down onto the emissions, recursively, so that every
   # M-step and refine_lbfgs() read one object rather than each holding its own
   # copy of a default.
+  # Direct covariate effects on the items swap the plain binary emission for
+  # its DIF form (R/categorical_dif.R) before the priors are attached to it.
+  if (!is.null(dif)) {
+    if (n_steps != 1L)
+      stop("`predictors_items` needs `n_steps = 1`: the direct effects belong ",
+           "to the measurement model, which a stepwise fit estimates without ",
+           "the covariates.", call. = FALSE)
+    model_state$mm <- .dif_emission(model_state$mm, dif)
+  }
   model_state$mm <- .attach_bayes_constants(model_state$mm, bayes_constants)
   model_state$sm <- .attach_bayes_constants(model_state$sm, bayes_constants)
 
@@ -2347,6 +2367,7 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   # Collapsed-variance check, after sorting so the class numbers it reports are
   # the ones the user will see. See R/gaussian_boundary.R.
   model_state <- .check_gaussian_degeneracy(model_state, X)
+  model_state <- .check_dif_boundary(model_state)
 
   return(model_state)
 }
@@ -2892,6 +2913,23 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   error, never silently ignored.
 #'   Naming a strict subset of the classes also needs \code{start_from}; see
 #'   there for why a search cannot answer the per-class question on its own.
+#' @param predictors_items Optional direct effects of covariates on the
+#'   indicators, for testing measurement invariance (differential item
+#'   functioning): a named list mapping an item to a one-sided formula or
+#'   column names in \code{data}, e.g. \code{list(item3 = ~ female)}. Each named
+#'   covariate shifts the log-odds of endorsing that item for people in the same
+#'   class. Unlike \code{predictors}, which only changes who is in which class,
+#'   this changes what an item means. Binary indicators and one-step fits only;
+#'   \code{n_steps} defaults to 1 when this is given. The covariates must be
+#'   complete and take few distinct values (see
+#'   \code{options(mixtureEM.dif_max_patterns = )}). The item probabilities the
+#'   fit reports are those of a case with these covariates at zero. The slopes
+#'   are reported by \code{\link{dif_effects}}; compare nested fits with
+#'   \code{\link{lr_test}}.
+#' @param predictors_items_by_class Names of items in \code{predictors_items}
+#'   whose slopes differ by class. Every other named item gets one slope shared
+#'   by all classes (uniform DIF), the default because a class-specific slope
+#'   needs much more data to estimate.
 #' @param start_from A fitted model to start from, in place of the random
 #'   restarts. Available only alongside \code{group_prevalence_equal}: pass the
 #'   unrestricted multiple-group fit that the restricted one is going to be
@@ -3281,6 +3319,8 @@ fit_mixture <- function(indicators = NULL,
                         group_invariant_items = NULL,
                         group_invariant_params = NULL,
                         group_prevalence_equal = NULL,
+                        predictors_items = NULL,
+                        predictors_items_by_class = NULL,
                         start_from = NULL,
                         refine_from = NULL,
                         variances_equal = NULL,
@@ -3604,6 +3644,26 @@ fit_mixture <- function(indicators = NULL,
              else .cbind_covariates(Y_use, group_info$design)
   }
 
+  # --- Direct covariate effects on the items (R/categorical_dif.R) ------------
+  # They belong to the measurement model, so the fit is one-step: the stepwise
+  # default below would estimate the classes without them.
+  dif_spec <- NULL
+  if (!is.null(predictors_items)) {
+    if (!is.null(group))
+      stop("`predictors_items` cannot be combined with `group` yet; enter the ",
+           "grouping variable in `predictors` and `predictors_items` instead.",
+           call. = FALSE)
+    if (!is.null(outcome))
+      stop("`predictors_items` cannot be combined with `outcome`; fit the ",
+           "measurement model first and use add_outcome() on it.",
+           call. = FALSE)
+    dif_spec <- .dif_spec(predictors_items, predictors_items_by_class, data,
+                          X_use, measurement_engine)
+    if (!steps_set) { n_steps <- 1L; steps_set <- TRUE }
+  } else if (!is.null(predictors_items_by_class)) {
+    stop("`predictors_items_by_class` needs `predictors_items`.", call. = FALSE)
+  }
+
   # --- Friendly defaults when a structural model is present -------------------
   if (!is.null(structural_engine) && !steps_set) {
     n_steps <- 3L
@@ -3671,7 +3731,7 @@ fit_mixture <- function(indicators = NULL,
     weight_type = weight_type,
     strata = strata, cluster = cluster, refine = refine,
     bayes_constants = bayes_constants, warm_start = group_warm_start,
-    n_cores = n_cores,
+    dif = dif_spec, n_cores = n_cores,
     se = se), dots))
 
   # One start, and it was not a random one: `n_init` was set to zero above, and
@@ -3754,6 +3814,10 @@ print.mixture_model <- function(x, ...) {
   cat(sprintf("Converged          : %s (in %d iterations)\n", x$converged, x$n_iter))
   # Deleted cases are reported on their own line, ahead of the FIML summary, so
   # the printed sample size can always be reconciled with the input data.
+  if (inherits(x$mm, "bernoulli_dif"))
+    cat(sprintf("Item Covariates    : %s (item probabilities are for %s = 0; see dif_effects())\n",
+                paste(x$mm$dif$covariates, collapse = ", "),
+                paste(x$mm$dif$covariates, collapse = " = ")))
   if (isTRUE(x$missing_data$n_empty_rows > 0L))
     cat(sprintf("Cases Removed      : %d of %d with no observed indicator (n = %d analysed)\n",
                 x$missing_data$n_empty_rows, x$missing_data$n_input_rows,

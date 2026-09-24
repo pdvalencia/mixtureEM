@@ -19,6 +19,8 @@ fit_mixture(
   group_invariant_items = NULL,
   group_invariant_params = NULL,
   group_prevalence_equal = NULL,
+  predictors_items = NULL,
+  predictors_items_by_class = NULL,
   start_from = NULL,
   refine_from = NULL,
   variances_equal = NULL,
@@ -232,6 +234,25 @@ models with \code{lr_test()} instead. An out-of-range class index is an
 error, never silently ignored.
 Naming a strict subset of the classes also needs \code{start_from}; see
 there for why a search cannot answer the per-class question on its own.}
+
+\item{predictors_items}{Optional direct effects of covariates on the
+indicators, for testing measurement invariance (differential item
+functioning): a named list mapping an item to a one-sided formula or
+column names in \code{data}, e.g. \code{list(item3 = ~ female)}. Each named
+covariate shifts the log-odds of endorsing that item for people in the same
+class. Unlike \code{predictors}, which only changes who is in which class,
+this changes what an item means. Binary indicators and one-step fits only;
+\code{n_steps} defaults to 1 when this is given. The covariates must be
+complete and take few distinct values (see
+\code{options(mixtureEM.dif_max_patterns = )}). The item probabilities the
+fit reports are those of a case with these covariates at zero. The slopes
+are reported by \code{\link{dif_effects}}; compare nested fits with
+\code{\link{lr_test}}.}
+
+\item{predictors_items_by_class}{Names of items in \code{predictors_items}
+whose slopes differ by class. Every other named item gets one slope shared
+by all classes (uniform DIF), the default because a class-specific slope
+needs much more data to estimate.}
 
 \item{start_from}{A fitted model to start from, in place of the random
 restarts. Available only alongside \code{group_prevalence_equal}: pass the

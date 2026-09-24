@@ -394,6 +394,7 @@ NULL
 
 # Pack an emission (measurement model) — NULL when the family is unsupported.
 .step1_pack_mm <- function(mm) {
+  if (inherits(mm, "bernoulli_dif")) return(.dif_pack(mm))
   if (inherits(mm, "blocks")) {
     free  <- .blocks_free_items(mm)
     parts <- lapply(seq_along(mm$models),
@@ -410,6 +411,7 @@ NULL
 }
 
 .step1_unpack_mm <- function(mm, par) {
+  if (inherits(mm, "bernoulli_dif")) return(.dif_unpack(mm, par))
   if (inherits(mm, "blocks")) {
     free <- .blocks_free_items(mm)
     at   <- 0L

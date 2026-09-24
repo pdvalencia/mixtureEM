@@ -302,7 +302,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 # that covers only some of the emissions creates the very defect it exists to
 # remove, once a fit of a covered kind is compared against a fit of an
 # uncovered kind.
-.em_prior_supported <- c("bernoulli", "bernoulli_nan",
+.em_prior_supported <- c("bernoulli", "bernoulli_nan", "bernoulli_dif",
                          "multinoulli", "multinoulli_nan",
                          "ordinal", "ordinal_nan",
                          "poisson", "poisson_nan",
@@ -333,7 +333,8 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 
   switch(fam,
     bernoulli      = list(m = .em_col_marginal(X, wt)),
-    bernoulli_nan  = list(m = .em_col_marginal_valid(X, wt)),
+    bernoulli_nan  = ,
+    bernoulli_dif  = list(m = .em_col_marginal_valid(X, wt)),
     poisson        = ,
     poisson_nan    = {
       m <- .em_col_marginal(X, wt)
@@ -419,7 +420,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
   cols <- .em_item_cols(sub, items)
   val  <- 0
 
-  if (fam %in% c("bernoulli", "bernoulli_nan")) {
+  if (fam %in% c("bernoulli", "bernoulli_nan", "bernoulli_dif")) {
     a <- .bayes_alpha(sub, "categorical")
     if (a > 0) {
       Xi <- X_view[, items, drop = FALSE]
@@ -476,7 +477,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 .em_flat_family_log_prior <- function(mm, X, K, marginals) {
   fam <- class(mm)[1]
   val <- 0
-  if (fam %in% c("bernoulli", "bernoulli_nan")) {
+  if (fam %in% c("bernoulli", "bernoulli_nan", "bernoulli_dif")) {
     a <- .bayes_alpha(mm, "categorical")
     if (a > 0) {
       p <- pmin(pmax(mm$parameters$pis, 1e-300), 1 - 1e-300)

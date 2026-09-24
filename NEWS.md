@@ -1,5 +1,22 @@
 # mixtureEM (development version)
 
+## `fit_mixture()` models direct covariate effects on binary items
+
+`fit_mixture()` gains `predictors_items` and `predictors_items_by_class`, which
+let a covariate act on an item directly, inside each class: the item's
+log-odds of endorsement shift with the covariate for people in the same class,
+which is differential item functioning. The analyst names each covariate-item
+pair; a slope is shared by every class unless the item is named in
+`predictors_items_by_class`, in which case each class gets its own. The fit is
+one-step, and the class-membership regression in `predictors` is estimated
+jointly with the direct effects. The reported item probabilities are those of
+a case with the item covariates at zero. The new `dif_effects()` reports the
+slopes with standard errors from the observed information of the full model,
+and nested fits are compared with `lr_test()`. A class-specific slope on an
+item whose probability is 0 or 1 in some class is not identified there, and
+the fit warns when that happens. Binary indicators only for now. Nothing
+changes for a model without `predictors_items`.
+
 ## `add_outcome()` estimates class predictors and distal outcomes together
 
 `add_outcome()` gains `predictors`. With it, the class-membership regression
