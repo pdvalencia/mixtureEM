@@ -233,9 +233,12 @@
 # I22 and I12 of the joint log-likelihood at the fitted point, by the same
 # four-point central difference on the same relative step .step1_fd_hessian()
 # uses. Returned as second derivatives of the log-likelihood; negate for
-# information.
-.lta_twostep_information <- function(state, X, w, layout, par, idx1, idx2) {
-  ll <- function(v) sum(w * .lta_ll_case(state, X, v, layout))
+# information. `ll` is the objective on the whole vector; the default is the
+# joint log-likelihood of `state`, and the three-step passes its own, in which
+# the step-1 coordinates reach step 3 through the classification error.
+.lta_twostep_information <- function(state, X, w, layout, par, idx1, idx2,
+                                     ll = function(v)
+                                       sum(w * .lta_ll_case(state, X, v, layout))) {
   h  <- .step1_fd_step * pmax(1, abs(par))
   bump <- function(i, s) { v <- par; v[i] <- v[i] + s * h[i]; v }
   two  <- function(i, si, j, sj) {

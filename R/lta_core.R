@@ -797,6 +797,14 @@
     }
   }
 
+  # A fixed emission (the three-step's step 3) has no free measurement
+  # parameters, so the vector is the structural block alone. Its family is not
+  # one the branch below knows, and it does not need to be: nothing here would
+  # read it. .lta_par_packable() still refuses such a fit on its family, so the
+  # polish and the sandwich stay off it; only the three-step variance
+  # (R/lta_threestep.R) reads this layout.
+  if (isTRUE(state$mm_fixed)) return(out)
+
   J   <- state$n_items
   if (!is.null(state$ri)) {
     # The measurement free parameters of an RI fit are `ri$A` and `ri$L`, not

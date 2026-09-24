@@ -148,8 +148,16 @@ estimator here covers one chain of statuses on a measurement model every
 case shares, and each of those changes that. Two limits to read the output
 by. Step 3's log-likelihood is that of the assigned statuses rather than the
 items and must not be compared with a one- or two-step fit's. Its standard
-errors treat the error matrices as known and do not yet include step 1's
-sampling variance.
+errors include step 1's sampling variance: the first-order
+pseudo-maximum-likelihood correction of Bakk, Oberski and Vermunt (2014),
+carried through each occasion's error matrix and, under proportional
+assignment, through the weights of the reduced data. The step-3-only part is
+kept as `$se$threestep_V2`, step 1's variance as `$se$step1_vcov`. Tested
+piece by piece: step 1's variance against the Hessian of a transition-free
+likelihood written independently of the package, and the propagation term
+against the slope of step 3's estimate when step 3 is refitted at a nudged
+step 1. On a weakly separated panel the corrected standard errors are up to
+2.3 times the step-3-only ones.
 
 Tested on the estimator's own terms: with no transitions step 1's
 log-likelihood factorises exactly into the per-occasion ones; with the

@@ -42,6 +42,13 @@ get_modal_resp <- function(resp) {
 # The argument is exposed rather than buried so that the choice, and the fact
 # that it is a choice, is visible in the fitted object.
 #
+# `assigned`, when given, is the modal assignment to use instead of the one
+# `resp` implies: an integer vector of assigned classes, one per row. The
+# three-step variance differentiates `D` with respect to step 1's estimates,
+# and the derivative of a modal table holds the assignments where they are --
+# a small change to the posteriors must not move a case across a boundary, or
+# the difference quotient measures the jump rather than the slope.
+#
 # Returns `D` (K x K) and `logits` (K x K, last row zero by construction).
 #
 # Reference
@@ -51,7 +58,8 @@ get_modal_resp <- function(resp) {
 .classification_error <- function(resp,
                                   assignment = c("proportional", "modal"),
                                   weights    = NULL,
-                                  zero_floor = 1e-6) {
+                                  zero_floor = 1e-6,
+                                  assigned   = NULL) {
 
   assignment <- match.arg(assignment)
   resp <- as.matrix(resp)
@@ -67,7 +75,8 @@ get_modal_resp <- function(resp) {
     stop("`weights` must have one entry per row of `resp`.")
   }
 
-  A  <- if (assignment == "modal") get_modal_resp(resp) else resp
+  A  <- if (assignment == "proportional") resp else if (is.null(assigned))
+    get_modal_resp(resp) else diag(K)[assigned, , drop = FALSE]
   RW <- resp * weights
 
   # Rows the assigned class, columns the true class. See ORIENTATION above.

@@ -563,13 +563,24 @@ With \code{transition_invariance = "none"} step 3's likelihood does not depend
 on the labels, only its reading does; with \code{"full"} or \code{"slopes"} it does,
 so inspect the step-1 profiles before relying on those.
 
-Three things to know when reading the result. Step 3's log-likelihood is
-that of the assigned statuses, not of the items, so it must never be
-compared with a one- or two-step fit's. Its standard errors treat the
-error matrices as known and so do not yet carry step 1's uncertainty.
-And the estimator covers one chain of statuses on a measurement model
-every case shares: random intercepts, \code{n_classes > 1}, \code{mover_stayer},
-\code{group}, \code{predictors_items}, \code{strata} and \code{cluster} are refused.
+Step 3's standard errors carry step 1's uncertainty. The error matrices
+are computed from step 1's estimates, which have sampling error of their
+own, so treating them as known understates every standard error in step
+3. The reported variance is the first-order pseudo-maximum-likelihood
+one of Bakk, Oberski and Vermunt (2014): step 3's own inverse information
+plus the variance of step 1's estimates, carried through the error
+matrices (and, under proportional assignment, through the weights the
+posteriors give the reduced data). The step-3-only part is kept as
+\verb{$se$threestep_V2} and step 1's variance as \verb{$se$step1_vcov}. Under
+\code{correction = "none"} with modal assignment step 1 never reaches step 3,
+and the standard errors are step 3's own.
+
+Two more things to know when reading the result. Step 3's log-likelihood
+is that of the assigned statuses, not of the items, so it must never be
+compared with a one- or two-step fit's. And the estimator covers one
+chain of statuses on a measurement model every case shares: random
+intercepts, \code{n_classes > 1}, \code{mover_stayer}, \code{group}, \code{predictors_items},
+\code{strata} and \code{cluster} are refused.
 }
 
 \references{
@@ -613,6 +624,13 @@ structural ones.
 Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
 three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450-469.
 \doi{10.1093/pan/mpq025} - the correction behind \code{n_steps = 3}.
+
+Bakk, Z., Oberski, D. L., & Vermunt, J. K. (2014). Relating latent class
+assignments to external variables: Standard errors for correct inference.
+\emph{Political Analysis}, \emph{22}(4), 520–540. \doi{10.1093/pan/mpu003}
+\itemize{
+\item the standard errors of \code{n_steps = 3}.
+}
 
 Tseng, M.-C. (2024). Latent profile transition analysis with random
 intercepts (RI-LPTA). \emph{Structural Equation Modeling}, \emph{31}(4),

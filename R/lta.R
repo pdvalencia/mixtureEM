@@ -473,13 +473,24 @@
 #'   on the labels, only its reading does; with `"full"` or `"slopes"` it does,
 #'   so inspect the step-1 profiles before relying on those.
 #'
-#'   Three things to know when reading the result. Step 3's log-likelihood is
-#'   that of the assigned statuses, not of the items, so it must never be
-#'   compared with a one- or two-step fit's. Its standard errors treat the
-#'   error matrices as known and so do not yet carry step 1's uncertainty.
-#'   And the estimator covers one chain of statuses on a measurement model
-#'   every case shares: random intercepts, `n_classes > 1`, `mover_stayer`,
-#'   `group`, `predictors_items`, `strata` and `cluster` are refused.
+#'   Step 3's standard errors carry step 1's uncertainty. The error matrices
+#'   are computed from step 1's estimates, which have sampling error of their
+#'   own, so treating them as known understates every standard error in step
+#'   3. The reported variance is the first-order pseudo-maximum-likelihood
+#'   one of Bakk, Oberski and Vermunt (2014): step 3's own inverse information
+#'   plus the variance of step 1's estimates, carried through the error
+#'   matrices (and, under proportional assignment, through the weights the
+#'   posteriors give the reduced data). The step-3-only part is kept as
+#'   `$se$threestep_V2` and step 1's variance as `$se$step1_vcov`. Under
+#'   `correction = "none"` with modal assignment step 1 never reaches step 3,
+#'   and the standard errors are step 3's own.
+#'
+#'   Two more things to know when reading the result. Step 3's log-likelihood
+#'   is that of the assigned statuses, not of the items, so it must never be
+#'   compared with a one- or two-step fit's. And the estimator covers one
+#'   chain of statuses on a measurement model every case shares: random
+#'   intercepts, `n_classes > 1`, `mover_stayer`, `group`, `predictors_items`,
+#'   `strata` and `cluster` are refused.
 #'
 #' @references
 #' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
@@ -522,6 +533,11 @@
 #' Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
 #' three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450-469.
 #' \doi{10.1093/pan/mpq025} - the correction behind `n_steps = 3`.
+#'
+#' Bakk, Z., Oberski, D. L., & Vermunt, J. K. (2014). Relating latent class
+#' assignments to external variables: Standard errors for correct inference.
+#' \emph{Political Analysis}, \emph{22}(4), 520–540. \doi{10.1093/pan/mpu003}
+#' - the standard errors of `n_steps = 3`.
 #'
 #' Tseng, M.-C. (2024). Latent profile transition analysis with random
 #' intercepts (RI-LPTA). \emph{Structural Equation Modeling}, \emph{31}(4),
@@ -2222,10 +2238,20 @@ fit_lta <- function(indicators,
     }
   }
 
-  # Delta method onto the probability scale. For a multinomial logit with the
-  # reference category anchored, d p_l / d eta_m = p_l (1{l = m} - p_m), so the
-  # covariance of the whole probability vector - reference category included -
-  # is G V_block G'.
+  prob_se <- .lta_prob_se(blocks, V)
+
+  list(vcov = V, blocks = blocks, prob_se = prob_se, loading_se = loading_se,
+       conditional = conditional, design_based = design_based,
+       robust = robust_used, twostep = twostep_used, twostep_V2 = twostep_V2,
+       method = v_method)
+}
+
+# Delta method onto the probability scale. For a multinomial logit with the
+# reference category anchored, d p_l / d eta_m = p_l (1{l = m} - p_m), so the
+# covariance of the whole probability vector - reference category included -
+# is G V_block G'. Shared with the three-step, which replaces `V` after the
+# fact (R/lta_threestep.R).
+.lta_prob_se <- function(blocks, V) {
   prob_se <- list()
   for (b in blocks) {
     if (is.null(b$probs)) next
@@ -2237,11 +2263,7 @@ fit_lta <- function(indicators,
     Vb <- V[b$cols, b$cols, drop = FALSE]
     prob_se[[b$name]] <- sqrt(pmax(diag(G %*% Vb %*% t(G)), 0))
   }
-
-  list(vcov = V, blocks = blocks, prob_se = prob_se, loading_se = loading_se,
-       conditional = conditional, design_based = design_based,
-       robust = robust_used, twostep = twostep_used, twostep_V2 = twostep_V2,
-       method = v_method)
+  prob_se
 }
 
 # Where the score blocks below are the right ones. Both `.lta_standard_errors()`

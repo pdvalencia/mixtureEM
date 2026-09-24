@@ -873,3 +873,120 @@ test_that("measurement_invariance = \"none\" runs end to end", {
   # the labels, so the matched and the unmatched fits are the same model.
   expect_equal(fit$n_params, 20L)
 })
+
+# ==============================================================================
+# W6 -- standard errors that know step 1 was estimated.
+#
+# The corrected variance is V2 + V2 H21' S11 H21 V2. No external program
+# prints it for this model, so each of its pieces is checked on its own terms:
+#
+#   S11   against the Hessian of a transition-free likelihood written from
+#         scratch here, which shares no code with the package's packing;
+#   H21   through what it means rather than how it is computed: V2 H21' is the
+#         slope of step 3's estimate in step 1's parameters, so step 3 is
+#         refitted at a nudged step 1 and the two slopes compared;
+#   V     is V2 plus a positive semi-definite term, so no standard error can
+#         shrink, and with nothing to propagate it is not applied at all.
+# ==============================================================================
+
+.ts3_w6 <- function(assignment = "modal", correction = "ML") {
+  key <- paste("w6", assignment, correction)
+  if (!is.null(.ts3_cache[[key]])) return(.ts3_cache[[key]])
+  .ts3_cache[[key]] <- fit_lta(
+    .ts3_sim(), n_statuses = 3, times = 4, measurement = "binary",
+    n_init = 6, random_state = 1, n_cores = 1, smoothing = 0, n_steps = 3,
+    assignment = assignment, correction = correction)
+}
+
+.ts3_w6_s12 <- function(fit) {
+  list(step1 = fit$step1, assignment = fit$threestep$assignment,
+       correction = fit$threestep$correction,
+       zero_floor = fit$threestep$zero_floor, modal = fit$threestep$modal,
+       D = fit$threestep$classification_error)
+}
+
+test_that("step 1's variance is the transition-free model's own", {
+  fit <- .ts3_w6()
+  s1  <- fit$step1
+  X   <- .ts3_sim()
+  K <- 3; J <- 5; Tn <- 4
+  # Item logits (status fastest, item slowest), then each occasion's
+  # prevalence logits against the last status.
+  th0 <- c(qlogis(s1$mm$models[[1]]$parameters$pis),
+           unlist(lapply(seq_len(Tn), function(t) {
+             p <- s1$prevalences[t, ]
+             log(p[1:2] / p[3])
+           })))
+  ll <- function(th) {
+    rho <- matrix(plogis(th[seq_len(K * J)]), K, J)
+    sum(vapply(seq_len(Tn), function(t) {
+      e  <- exp(c(th[K * J + (t - 1) * 2 + 1:2], 0))
+      Xt <- X[, (t - 1) * J + seq_len(J)]
+      lk <- vapply(seq_len(K), function(k)
+        e[k] / sum(e) * exp(Xt %*% log(rho[k, ]) + (1 - Xt) %*% log(1 - rho[k, ])),
+        numeric(nrow(X)))
+      sum(log(rowSums(lk)))
+    }, numeric(1)))
+  }
+  expect_equal(ll(th0), s1$loglik, tolerance = 1e-8)
+  se_scratch <- sqrt(diag(solve(-optimHess(th0, ll))))
+  # The package orders the prevalences first.
+  se_ours <- sqrt(diag(fit$se$step1_vcov))
+  expect_length(se_ours, 23L)
+  expect_lt(max(abs(se_ours / c(tail(se_scratch, 8), head(se_scratch, 15)) - 1)),
+            5e-3)
+})
+
+test_that("the correction only ever adds, and says it has been applied", {
+  fit <- .ts3_w6()
+  V   <- diag(fit$se$vcov)
+  V2  <- diag(fit$se$threestep_V2)
+  expect_true(isTRUE(fit$se$threestep))
+  expect_false(fit$se$conditional)
+  expect_true(all(V >= V2 - 1e-12))
+  expect_gt(max(V / V2), 1.1)
+  expect_true(all(is.finite(unlist(fit$se$prob_se))))
+  # At step 1's own point, what the variance reads off step 1 is exactly what
+  # step 3 was fitted with.
+  pt <- mixtureEM:::.lta_threestep_vcov(fit, .ts3_w6_s12(fit), parts = TRUE)
+  side <- pt$step1_side(pt$r0)
+  for (t in 1:4)
+    expect_equal(side$emission[[t]], t(fit$threestep$classification_error[[t]]),
+                 tolerance = 1e-10)
+})
+
+test_that("the propagation term is the slope of step 3's estimate in step 1's", {
+  fit <- .ts3_w6()
+  pt  <- mixtureEM:::.lta_threestep_vcov(fit, .ts3_w6_s12(fit), parts = TRUE)
+  slope <- pt$V2 %*% t(pt$H12)          # d(step 3 estimate) / d(step 1 point)
+  a   <- which.max(colSums(slope^2))
+  eps <- 1e-3
+  refit <- function(s) {
+    r <- pt$r0
+    r[a] <- r[a] + s * eps
+    side <- pt$step1_side(r)
+    f <- fit_lta(fit$data, n_statuses = 3, times = 4,
+                 measurement = "categorical", measurement_invariance = "none",
+                 weights = side$weights, weight_type = "frequency",
+                 .fixed_emission = side$emission, n_init = 6, random_state = 1,
+                 n_cores = 1, smoothing = 0, tol = 1e-12, max_iter = 20000,
+                 standard_errors = FALSE)
+    mixtureEM:::.lta_par_pack(f, pt$lay3)
+  }
+  num <- (refit(1) - refit(-1)) / (2 * eps)
+  expect_lt(max(abs(num - slope[, a])) / max(abs(slope[, a])), 0.02)
+})
+
+test_that("proportional assignment propagates through the weights too", {
+  fit <- .ts3_w6("proportional")
+  expect_true(isTRUE(fit$se$threestep))
+  expect_true(all(diag(fit$se$vcov) >= diag(fit$se$threestep_V2) - 1e-12))
+})
+
+test_that("modal with no correction has nothing to propagate", {
+  # Every table is the identity and every weight a case weight, so step 1's
+  # parameters never reach step 3 and the variance is left as it was.
+  fit <- .ts3_w6("modal", "none")
+  expect_null(fit$se$threestep)
+  expect_true(fit$se$conditional)
+})

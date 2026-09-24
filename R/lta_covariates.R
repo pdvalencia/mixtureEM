@@ -293,7 +293,8 @@ lta_covariate_summary <- function(object, digits = 3) {
   # name so that the two descriptions of the vector -- the one the scores use
   # and the one printed here -- cannot be matched up by position and drift.
   ts_block <- function(name) {
-    if (!isTRUE(object$se$twostep) || is.null(object$se$vcov)) return(NULL)
+    if (!(isTRUE(object$se$twostep) || isTRUE(object$se$threestep)) ||
+        is.null(object$se$vcov)) return(NULL)
     blk <- Find(function(b) identical(b$name, name), object$se$blocks)
     if (is.null(blk)) return(NULL)
     object$se$vcov[blk$cols, blk$cols, drop = FALSE]
@@ -426,6 +427,11 @@ lta_covariate_summary <- function(object, digits = 3) {
         "the curvature of the full likelihood in these coefficients, plus the\n",
         "sampling uncertainty of the measurement parameters held fixed in\n",
         "step 2. See `?fit_lta`.\n", sep = "")
+  if (isTRUE(object$se$threestep))
+    cat("\nStandard errors are the three-step (pseudo-maximum-likelihood) ones:\n",
+        "the curvature of step 3's likelihood in these coefficients, plus the\n",
+        "sampling uncertainty of the step-1 estimates the classification\n",
+        "error was computed from. See `?fit_lta`.\n", sep = "")
   cat("\n=========================================================\n")
   invisible(object)
 }

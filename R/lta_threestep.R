@@ -337,7 +337,10 @@
 #   expansion, and its output -- a plain numeric matrix, which
 #   prepare_covariates() returns untouched -- is what fit_lta() receives, where
 #   passing it through .lta_design() a second time is the identity.
-.lta_threestep_step3 <- function(s12, cl, env) {
+#
+# The preparation is its own function because the variance below needs the same
+# case-scale design to rebuild the reduced data.
+.lta_threestep_Z <- function(s12, cl, env) {
   n <- length(s12$step1$weights_vec)
 
   # The intercept column .lta_design() prepends is dropped: fit_lta() adds its
@@ -352,8 +355,16 @@
 
   # One key over both blocks: two cases are the same pattern only if they agree
   # on everything step 3's structural model reads.
-  red <- .lta_threestep_reduce(
-    s12, if (is.null(Z_delta) && is.null(Z_tau)) NULL else cbind(Z_delta, Z_tau))
+  list(delta = Z_delta, tau = Z_tau,
+       Z = if (is.null(Z_delta) && is.null(Z_tau)) NULL else cbind(Z_delta, Z_tau))
+}
+
+.lta_threestep_step3 <- function(s12, cl, env) {
+  Zc      <- .lta_threestep_Z(s12, cl, env)
+  Z_delta <- Zc$delta
+  Z_tau   <- Zc$tau
+
+  red <- .lta_threestep_reduce(s12, Zc$Z)
 
   nd <- if (is.null(Z_delta)) 0L else ncol(Z_delta)
   nt <- if (is.null(Z_tau))   0L else ncol(Z_tau)
@@ -513,6 +524,207 @@
 }
 
 # ------------------------------------------------------------------------------
+# Standard errors that know step 1 was estimated.
+# ------------------------------------------------------------------------------
+#
+# Step 3 holds the classification error fixed, so the variance its own
+# information gives -- V2 -- treats `D_t` as known constants. They are not: they
+# were computed from step 1's estimates, which carry sampling error of their
+# own. Step 3 is a pseudo-maximum-likelihood estimator in the sense of Gong and
+# Samaniego (1981), and the first-order correction Bakk, Oberski and Vermunt
+# (2014) derive for the three-step is
+#
+#   V = V2 + V2 H21' S11 H21 V2,
+#
+# with S11 the sampling variance of step 1's estimates and H21 the cross
+# derivative of step 3's log-likelihood in its structural coefficients and step
+# 1's parameters. That is the two-step's equation with step 1's parameters in
+# place of the measurement block, so the cross derivative is taken by the same
+# function (.lta_twostep_information(), R/twostep_variance.R) on an objective
+# that carries step 1's parameters through the three things step 3 reads off
+# them: each occasion's posterior, the error matrix built from it, and -- under
+# proportional assignment only -- the weights of the reduced data. Modal
+# assignment is held where step 2 put it: the derivative of a modal table is
+# the slope of its cell shares, and a case crossing a boundary is a jump, not
+# a slope.
+#
+# Step 1's own vector is read through a copy with the shared-row flag off. The
+# transition-free model ties every origin row of an occasion to one vector;
+# with the rows equal, the ordinary packing describes it exactly, and the
+# reduction below maps one free vector per occasion onto the K rows that share
+# it. So S11 is the variance of the model step 1 fitted, not of a model with K
+# free rows per occasion.
+#
+# Returns NULL when there is nothing to propagate (modal assignment with
+# `correction = "none"`: every table is the identity and every weight a case
+# weight) or when either fit falls outside the packing.
+.lta_threestep_vcov <- function(fit, s12, Z = NULL, parts = FALSE) {
+  step1 <- s12$step1
+  modal <- identical(s12$assignment, "modal")
+  none  <- identical(s12$correction, "none")
+  if (modal && none) return(NULL)
+  if (!isTRUE(fit$mm_fixed) || !is.null(fit$ri) || !is.null(step1$ri) ||
+      (fit$n_classes %||% 1L) > 1L)
+    return(NULL)
+
+  K  <- step1$n_statuses
+  Tn <- step1$n_times
+  X1 <- as.matrix(step1$data)
+  w1 <- step1$weights_vec
+
+  # Step 1, reduced to its free parameters.
+  s1 <- step1
+  s1$tau_independent <- FALSE
+  lay1  <- .lta_par_layout(s1)
+  full1 <- .lta_par_pack(s1, lay1)
+  len   <- vapply(lay1, function(b) as.integer(b$len), integer(1))
+  beg   <- cumsum(len) - len
+  src   <- integer(length(full1))
+  n_red <- 0L
+  first <- list()
+  for (i in seq_along(lay1)) {
+    b    <- lay1[[i]]
+    cols <- beg[i] + seq_len(len[i])
+    key  <- if (identical(b$kind, "tau")) paste0("tau", b$i_mat) else NULL
+    if (!is.null(key) && !is.null(first[[key]])) {
+      src[cols] <- first[[key]]
+    } else {
+      src[cols] <- n_red + seq_len(len[i])
+      n_red <- n_red + len[i]
+      if (!is.null(key)) first[[key]] <- src[cols]
+    }
+  }
+  r0 <- full1[match(seq_len(n_red), src)]
+  if (max(abs(r0[src] - full1)) > 1e-8) return(NULL)
+
+  # Every nudge below re-runs a forward-backward pass, so both steps run on
+  # their distinct rows with the case weights summed, as the search does
+  # (.lta_collapse()). Step 1 has no covariates, so its rows are response
+  # patterns, and a posterior -- hence a modal assignment -- is a function of
+  # the pattern, so the per-case posteriors are the pattern's, expanded back.
+  pat1 <- .pattern_index(X1)
+  X1c  <- X1[pat1$rep_row, , drop = FALSE]
+  w1c  <- as.vector(rowsum(w1, pat1$idx))
+  s1$weights_vec <- w1c
+
+  ll1 <- function(r) sum(w1c * .lta_ll_case(s1, X1c, r[src], lay1))
+  S11 <- .psd_pinv(-.step1_fd_hessian(ll1, r0))
+  S11 <- (S11 + t(S11)) / 2
+
+  # What step 3 reads off step 1, at an arbitrary point of step 1's vector.
+  posteriors <- function(r) {
+    st <- .lta_par_unpack(r[src], s1, lay1)
+    g  <- .lta_forward_backward(.lta_emission_loglik(st$mm, X1c),
+                                .lta_log_delta(st), .lta_log_tau(st), w1c)$gamma
+    lapply(g, function(m) m[pat1$idx, , drop = FALSE])
+  }
+  emission <- function(gamma) lapply(seq_len(Tn), function(t) {
+    if (none) return(diag(K))
+    t(.classification_error(gamma[[t]], assignment = s12$assignment,
+                            weights = w1, zero_floor = s12$zero_floor,
+                            assigned = if (modal) s12$modal[, t])$D)
+  })
+
+  lay3 <- .lta_par_layout(fit)
+  par3 <- .lta_par_pack(fit, lay3)
+  W3   <- as.matrix(fit$data)
+  w3   <- fit$weights_vec
+  if (length(par3) != fit$n_params) return(NULL)
+
+  # Under proportional assignment the reduced data's weights are step 1's
+  # posteriors multiplied out, so they move with step 1 too. The rows are
+  # rebuilt by the function that built them and must come back in the same
+  # order, which is checked once at the fitted point.
+  weights_at <- function(gamma) {
+    if (modal) return(w3)
+    s <- s12
+    s$step1$gamma <- gamma
+    .lta_threestep_reduce(s, Z)$weights
+  }
+  if (!modal) {
+    red0 <- .lta_threestep_reduce(s12, Z)
+    if (!identical(dim(red0$W), dim(W3)) || any(red0$W != W3) ||
+        max(abs(red0$weights - w3)) > 1e-8 * max(w3))
+      return(NULL)
+  }
+
+  # Step 1's point changes only across the cross terms, so each point's tables
+  # and weights are computed once and reused over the whole row of them.
+  cache <- new.env(parent = emptyenv())
+  step1_side <- function(r) {
+    key <- paste(format(r, digits = 17), collapse = ",")
+    hit <- cache[[key]]
+    if (!is.null(hit)) return(hit)
+    g   <- posteriors(r)
+    out <- list(emission = emission(g), weights = weights_at(g))
+    if (length(ls(cache)) > 8L) rm(list = ls(cache), envir = cache)
+    assign(key, out, envir = cache)
+    out
+  }
+
+  # Step 3 likewise, on its distinct (assigned statuses, covariate) rows: at
+  # most K^T per covariate pattern. The weights are summed within a row at
+  # every point, since under proportional assignment they move with step 1.
+  pat3 <- .pattern_index(W3, cbind(fit$Z_delta, fit$Z_tau))
+  W3c  <- W3[pat3$rep_row, , drop = FALSE]
+  st3c <- fit
+  if (!is.null(fit$Z_delta))
+    st3c$Z_delta <- fit$Z_delta[pat3$rep_row, , drop = FALSE]
+  if (!is.null(fit$Z_tau))
+    st3c$Z_tau <- fit$Z_tau[pat3$rep_row, , drop = FALSE]
+
+  p3   <- length(par3)
+  idx2 <- seq_len(p3)
+  idx1 <- p3 + seq_len(n_red)
+  ll <- function(v) {
+    s   <- step1_side(v[idx1])
+    wc  <- as.vector(rowsum(s$weights, pat3$idx))
+    st3 <- st3c
+    for (t in seq_len(Tn)) st3$mm$models[[t]]$parameters$pis <- s$emission[[t]]
+    st3$weights_vec <- wc
+    sum(wc * .lta_ll_case(st3, W3c, v[idx2], lay3))
+  }
+
+  info <- .lta_twostep_information(fit, W3, w3, lay3, c(par3, r0), idx1, idx2,
+                                   ll = ll)
+  V2 <- .psd_pinv(-info$H22)
+  V2 <- (V2 + t(V2)) / 2
+  V  <- V2 + V2 %*% t(info$H12) %*% S11 %*% info$H12 %*% V2
+  V  <- (V + t(V)) / 2
+  if (!all(is.finite(V))) return(NULL)
+
+  out <- list(V = V, V2 = V2, S11 = S11,
+              method = "Three-step pseudo-ML, first order (Bakk, Oberski and Vermunt, 2014)")
+  # The pieces a test needs to check the propagation term from outside: the
+  # cross derivative, step 1's reduced point and what step 3 reads off it.
+  if (parts) out <- c(out, list(H12 = info$H12, r0 = r0, par3 = par3,
+                                lay3 = lay3, step1_side = step1_side))
+  out
+}
+
+# Put the corrected variance on the fit: the structural block of `se$vcov`,
+# the probability-scale standard errors read off it, and V2 kept alongside.
+.lta_threestep_attach_vcov <- function(fit, s12, Z = NULL) {
+  if (is.null(fit$se) || is.null(fit$se$vcov)) return(fit)
+  ts <- tryCatch(.lta_threestep_vcov(fit, s12, Z), error = function(e) {
+    warning("The three-step standard errors could not be corrected for step ",
+            "1's uncertainty and treat the classification error as known: ",
+            conditionMessage(e), call. = FALSE)
+    NULL
+  })
+  if (is.null(ts) || !identical(dim(ts$V), dim(fit$se$vcov))) return(fit)
+
+  fit$se$vcov         <- ts$V
+  fit$se$prob_se      <- .lta_prob_se(fit$se$blocks, ts$V)
+  fit$se$conditional  <- FALSE
+  fit$se$threestep    <- TRUE
+  fit$se$threestep_V2 <- ts$V2
+  fit$se$step1_vcov   <- ts$S11
+  fit$se$method       <- ts$method
+  fit
+}
+
+# ------------------------------------------------------------------------------
 # The entry point.
 # ------------------------------------------------------------------------------
 #
@@ -526,6 +738,7 @@
   s12 <- .lta_threestep_step12(cl, env, assignment = assignment,
                                correction = correction)
   fit <- .lta_threestep_step3(s12, cl, env)
+  fit <- .lta_threestep_attach_vcov(fit, s12, .lta_threestep_Z(s12, cl, env)$Z)
 
   fit$n_steps   <- 3L
   fit$step1     <- s12$step1

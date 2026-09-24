@@ -178,3 +178,20 @@ test_that("the proportional table is the softer of the two", {
   expect_true(all(diag(modal$D) > diag(prop$D)))
   expect_equal(unname(colSums(prop$D)), rep(1, 3))
 })
+
+test_that("a fixed modal assignment is used as given", {
+  # The three-step variance differentiates the table with the assignments held
+  # where step 2 put them; a posterior nudged across a boundary must not move
+  # its case to another row.
+  resp <- rbind(c(.6, .3, .1), c(.2, .7, .1), c(.1, .2, .7), c(.45, .44, .11))
+  a    <- max.col(resp)
+  expect_equal(.classification_error(resp, "modal", assigned = a),
+               .classification_error(resp, "modal"))
+  nudged <- resp
+  nudged[4, ] <- c(.44, .45, .11)
+  held <- .classification_error(nudged, "modal", assigned = a)$D
+  free <- .classification_error(nudged, "modal")$D
+  expect_false(isTRUE(all.equal(held, free)))
+  # Row 1 of `held` still holds case 4's mass: column 2 gains it from case 4.
+  expect_gt(held[1, 2], free[1, 2])
+})
