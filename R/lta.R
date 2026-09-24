@@ -352,6 +352,18 @@
 #'   case over the statuses in proportion to its posterior; `"modal"` assigns
 #'   each case to its most likely status. The same argument, with the same
 #'   default and for the same reason, as in [`add_covariates()`].
+#' @param distal Three-step only, with `assignment = "modal"`. A distal
+#'   outcome measured after the last occasion: a vector or a data frame with
+#'   one row per case, in the rows of `indicators`. Each column is modelled by
+#'   the status at the last occasion -- a 0/1, logical or two-level factor
+#'   column as binary with a status-specific probability, any other numeric
+#'   column as Gaussian with a status-specific mean and variance -- and is
+#'   estimated jointly with the structural model in step 3, so the outcome
+#'   informs the last occasion's posteriors and the transitions (Vermunt,
+#'   2010). A missing value contributes nothing to that case's likelihood.
+#'   The estimates, with standard errors that carry step 1's uncertainty, are
+#'   returned as `distal`; [outcome_contrasts()] gives the pairwise status
+#'   differences. `NULL` (the default) fits no outcome.
 #' @param ... Ignored.
 #'
 #' @return An object of class `"lta_model"` with components including `delta`,
@@ -604,6 +616,7 @@ fit_lta <- function(indicators,
                     bayes_constants = NULL,
                     correction = c("ML", "BCH", "none"),
                     assignment = c("proportional", "modal"),
+                    distal = NULL,
                     ...) {
 
   # Read before anything can touch `n_init`: `refine_from` refuses to be given
@@ -635,6 +648,10 @@ fit_lta <- function(indicators,
   # the winner can only improve. Internal, for the three-step's pattern start
   # (.lta_threestep_pattern_start()).
   extra_starts <- list(...)[[".extra_starts"]]
+  # The distal outcome as step 3 receives it, already prepared and aligned
+  # with step 3's rows by .lta_threestep_step3(). The user's `distal` is read
+  # only on the three-step path below.
+  distal_d <- list(...)[[".distal"]]
 
   measurement_invariance <- match.arg(measurement_invariance)
   transition_invariance  <- match.arg(transition_invariance)
@@ -659,6 +676,17 @@ fit_lta <- function(indicators,
          call. = FALSE)
   correction <- match.arg(correction)
   assignment <- match.arg(assignment)
+  if (!is.null(distal) && n_steps != 3L)
+    stop("`distal` applies only with `n_steps = 3`: the outcome is attached ",
+         "to step 3's model of the assigned statuses.", call. = FALSE)
+  if (!is.null(distal) && assignment != "modal")
+    stop("`distal` needs `assignment = \"modal\"`. Proportional assignment ",
+         "spreads each case over every status combination, so step 3's rows ",
+         "are not cases and a case's outcome has no row to attach to.",
+         call. = FALSE)
+  if (!is.null(distal) && (!is.null(strata) || !is.null(cluster)))
+    stop("`distal` is not yet available with `strata` or `cluster`.",
+         call. = FALSE)
 
   # --- the three-step estimator -----------------------------------------------
   # Everything is refused up front, before step 1 spends any time: what the
@@ -1152,6 +1180,16 @@ fit_lta <- function(indicators,
       state$mm$models[[t]]$parameters$pis <- fixed_mm[[t]]
     state$frozen   <- "mm"
     state$mm_fixed <- TRUE
+    # The outcome joins the data as trailing columns and the emission as
+    # `mm$distal` (R/lta_distal.R). Step 3's indicator is one assigned status
+    # per occasion, so the last one is column `Tn`.
+    if (!is.null(distal_d)) {
+      if (nrow(distal_d$Y) != n)
+        stop("The distal outcome does not line up with step 3's rows.",
+             call. = FALSE)
+      X <- cbind(X, distal_d$Y)
+      state$mm$distal <- .lta_distal_init(distal_d, X[, Tn], w, K)
+    }
   }
 
   if (!is.null(refine_from)) {
@@ -1672,6 +1710,8 @@ fit_lta <- function(indicators,
   if (!is.null(state$dif))              return(NULL)
   if (!is.null(state$group_info))       return(NULL)
   if (isTRUE(state$has_survey_design))  return(NULL)
+  # A continuous distal outcome makes nearly every row its own pattern.
+  if (!is.null(state$mm$distal))        return(NULL)
 
   sub <- state$mm$models[[1L]]
   if (is.null(sub) || !class(sub)[1] %in%
@@ -1824,7 +1864,9 @@ fit_lta <- function(indicators,
   # The predicate is `mm_fixed` and not `frozen`: the two-step also freezes its
   # measurement block, but there the block WAS estimated -- in step one, on the
   # same data -- and it is counted, which is why its 28 parameters are 28.
-  n_mm <- if (isTRUE(state$mm_fixed)) 0L else n_parameters(state$mm)
+  # A distal outcome beside a fixed emission is estimated, and counts.
+  n_mm <- if (isTRUE(state$mm_fixed))
+    .lta_distal_n_params(state$mm$distal) else n_parameters(state$mm)
 
   (C - 1L) + n_delta + n_tau + n_mm + n_ri + n_ri_beta + n_dif
 }
@@ -2160,6 +2202,34 @@ fit_lta <- function(indicators,
   if (is.null(sc)) return(NULL)
   S <- sc$S; blocks <- sc$blocks; conditional <- sc$conditional
   w <- state$weights_vec
+
+  # A three-step fit with a distal outcome: the score matrix covers the
+  # structural block only, so the variance is the inverse observed information
+  # over the whole packed vector, the outcome's blocks appended. This is the
+  # uncorrected variance; the three-step correction replaces it afterwards
+  # (.lta_threestep_attach_vcov(), R/lta_threestep.R).
+  if (!is.null(state$mm$distal)) {
+    layout <- .lta_par_layout(state)
+    par    <- .lta_par_pack(state, layout)
+    n_d    <- .lta_distal_n_params(state$mm$distal)
+    if (length(par) != ncol(S) + n_d) return(NULL)
+    H <- .step1_fd_hessian(
+      function(v) sum(w * .lta_ll_case(state, X, v, layout)), par)
+    V <- .psd_pinv(-H)
+    V <- (V + t(V)) / 2
+    pos <- ncol(S)
+    for (b in layout[vapply(layout, function(b)
+      startsWith(b$kind, "distal_"), logical(1))]) {
+      blocks[[length(blocks) + 1L]] <- list(
+        cols = pos + seq_len(b$len), probs = NULL, ref = NULL,
+        name = sprintf("%s[%s]", b$kind, state$mm$distal$names[b$p]))
+      pos <- pos + b$len
+    }
+    return(list(vcov = V, blocks = blocks, prob_se = .lta_prob_se(blocks, V),
+                loading_se = NULL, conditional = conditional,
+                design_based = FALSE, robust = FALSE, twostep = FALSE,
+                twostep_V2 = NULL, method = "Observed information"))
+  }
 
   # The small-sample correction N / (N - 1) on the case-score outer product is
   # the usual finite-population fix for a sample covariance matrix estimated

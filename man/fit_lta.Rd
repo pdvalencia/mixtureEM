@@ -50,6 +50,7 @@ fit_lta(
   bayes_constants = NULL,
   correction = c("ML", "BCH", "none"),
   assignment = c("proportional", "modal"),
+  distal = NULL,
   ...
 )
 }
@@ -407,6 +408,19 @@ the assigned status step 3 reads. \code{"proportional"} (default) spreads every
 case over the statuses in proportion to its posterior; \code{"modal"} assigns
 each case to its most likely status. The same argument, with the same
 default and for the same reason, as in \code{\link[=add_covariates]{add_covariates()}}.}
+
+\item{distal}{Three-step only, with \code{assignment = "modal"}. A distal
+outcome measured after the last occasion: a vector or a data frame with
+one row per case, in the rows of \code{indicators}. Each column is modelled by
+the status at the last occasion -- a 0/1, logical or two-level factor
+column as binary with a status-specific probability, any other numeric
+column as Gaussian with a status-specific mean and variance -- and is
+estimated jointly with the structural model in step 3, so the outcome
+informs the last occasion's posteriors and the transitions (Vermunt,
+2010). A missing value contributes nothing to that case's likelihood.
+The estimates, with standard errors that carry step 1's uncertainty, are
+returned as \code{distal}; \code{\link[=outcome_contrasts]{outcome_contrasts()}} gives the pairwise status
+differences. \code{NULL} (the default) fits no outcome.}
 
 \item{...}{Ignored.}
 }

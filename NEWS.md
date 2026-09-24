@@ -1,5 +1,19 @@
 # mixtureEM (development version)
 
+## The three-step `fit_lta()` models a distal outcome off the last occasion
+
+`fit_lta(n_steps = 3, assignment = "modal")` gains `distal`, one or more
+outcomes measured after the last occasion. A binary column gets a
+status-specific probability and a continuous one a status-specific mean and
+variance, all by the status at the last occasion, and they are estimated in
+step 3 jointly with the initial-status and transition models, including any
+covariates on them. The outcome therefore informs who is in which status at
+the last occasion, and through that the transitions. The fit carries the
+estimates as `distal`, with standard errors that include step 1's uncertainty,
+and `outcome_contrasts()` now accepts such a fit and gives the pairwise status
+differences. Proportional assignment and survey designs are refused for now.
+Nothing changes for a fit without `distal`.
+
 ## `fit_mixture()` models direct covariate effects on binary items
 
 `fit_mixture()` gains `predictors_items` and `predictors_items_by_class`, which

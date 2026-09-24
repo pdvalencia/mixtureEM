@@ -125,7 +125,8 @@
 #' wherever it is available.
 #'
 #' @param fit A fitted model with a distal outcome attached, as returned by
-#'   [add_outcome()].
+#'   [add_outcome()], or a three-step [fit_lta()] fit with `distal`, where the
+#'   classes are the statuses at the last occasion.
 #' @param ref Optional reference class, as an integer between 1 and the number
 #'   of classes. `NULL` (the default) reports all pairs.
 #' @param adjust Multiplicity adjustment across the reported contrasts, passed
@@ -166,11 +167,17 @@ outcome_contrasts <- function(fit, ref = NULL,
                               adjust = c("none", "holm", "bonferroni"),
                               level = 0.95, outcome = NULL, ...) {
   adjust <- match.arg(adjust)
-  if (!inherits(fit, "mixture_model"))
+  lta <- inherits(fit, "lta_model")
+  if (!inherits(fit, "mixture_model") && !lta)
     stop("`fit` must be a fitted mixture model.", call. = FALSE)
-  fit <- .select_distal(fit, outcome)
-
-  K <- fit$n_components
+  if (lta) {
+    built <- .lta_distal_contrast_parts(fit, outcome)
+    attr(fit, "distal_label") <- built$label
+    K <- fit$n_statuses
+  } else {
+    fit <- .select_distal(fit, outcome)
+    K <- fit$n_components
+  }
   if (is.null(K) || K < 2L)
     stop("Class contrasts need at least two classes.", call. = FALSE)
   if (!is.null(ref)) {
@@ -183,7 +190,7 @@ outcome_contrasts <- function(fit, ref = NULL,
     stop("`level` must be a confidence level strictly between 0 and 1.",
          call. = FALSE)
 
-  built <- .outcome_contrast_parts(fit, K)
+  if (!lta) built <- .outcome_contrast_parts(fit, K)
   pairs <- .contrast_pairs(K, ref)
 
   rows <- list()

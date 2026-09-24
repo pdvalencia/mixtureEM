@@ -33,8 +33,16 @@
 # Emission log-densities, one n x K matrix per occasion.
 .lta_emission_loglik <- function(mm, X) {
   J <- mm$n_items
-  lapply(seq_len(mm$n_times), function(t)
+  out <- lapply(seq_len(mm$n_times), function(t)
     log_likelihood(mm$models[[t]], X[, .time_block_cols(t, J), drop = FALSE]))
+  # A distal outcome on the three-step's last occasion (R/lta_distal.R) rides
+  # in the trailing columns and adds its factor to that occasion's emission.
+  if (!is.null(mm$distal)) {
+    Tn <- mm$n_times
+    out[[Tn]] <- out[[Tn]] + .lta_distal_loglik(
+      mm$distal, X[, .lta_distal_cols(mm), drop = FALSE])
+  }
+  out
 }
 
 # Forward-backward.
@@ -607,6 +615,12 @@
       state$mm <- m_step(state$mm, X, .lta_mixed_gamma(E, Tn, C),
                          weights = if (all(w == 1)) NULL else w)
     }
+    # The distal outcome is never frozen: it is what step 3 estimates beside
+    # the structural block, on the last occasion's posteriors.
+    if (!is.null(state$mm$distal))
+      state$mm$distal <- .lta_distal_mstep(
+        state$mm$distal, X[, .lta_distal_cols(state$mm), drop = FALSE],
+        .lta_mixed_gamma(E, Tn, C)[[Tn]], w)
   }
 
   # A random intercept is identified only up to a reflection/relabelling; fix
@@ -803,7 +817,11 @@
   # read it. .lta_par_packable() still refuses such a fit on its family, so the
   # polish and the sandwich stay off it; only the three-step variance
   # (R/lta_threestep.R) reads this layout.
-  if (isTRUE(state$mm_fixed)) return(out)
+  if (isTRUE(state$mm_fixed)) {
+    if (!is.null(state$mm$distal))
+      out <- c(out, .lta_distal_layout(state$mm$distal, K))
+    return(out)
+  }
 
   J   <- state$n_items
   if (!is.null(state$ri)) {
@@ -952,7 +970,10 @@
         Q <- length(p)
         log(p[seq_len(Q - 1L)]) - log(p[Q])
       },
-      ri_beta = as.vector(state$ri_beta))
+      ri_beta = as.vector(state$ri_beta),
+      distal_mu     = state$mm$distal$mean[, b$p],
+      distal_log_sd = 0.5 * log(state$mm$distal$var[, b$p]),
+      distal_logit  = stats::qlogis(state$mm$distal$prob[, b$p]))
   }), use.names = FALSE)
 }
 
@@ -1022,6 +1043,12 @@
       state$ri$mass <- p / sum(p)
     } else if (b$kind == "ri_beta") {
       state$ri_beta <- matrix(v, ncol = 1L)
+    } else if (b$kind == "distal_mu") {
+      state$mm$distal$mean[, b$p] <- v
+    } else if (b$kind == "distal_log_sd") {
+      state$mm$distal$var[, b$p] <- exp(2 * v)
+    } else if (b$kind == "distal_logit") {
+      state$mm$distal$prob[, b$p] <- stats::plogis(v)
     } else {
       for (tt in b$grp)
         state$mm$models[[tt]]$parameters$means[, b$j] <- v

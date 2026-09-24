@@ -94,6 +94,7 @@
   cl1$forbidden_transitions       <- NULL
   cl1$assignment                  <- NULL
   cl1$correction                  <- NULL
+  cl1$distal                      <- NULL
   cl1$zero_floor                  <- NULL
   cl1$.transition_free            <- TRUE
 
@@ -375,6 +376,18 @@
   assign(".lta_step3_w", red$weights,              envir = e)
   assign(".lta_step3_D", lapply(s12$D, t),         envir = e)
   assign(".lta_step3_labels", s12$step1$longitudinal$time_labels, envir = e)
+
+  # The distal outcome, on the user's rows, is cut to step 1's: step 1 drops a
+  # case with no observed indicator at any occasion, and step 3's rows are
+  # step 1's (modal assignment, the only one `distal` is allowed with).
+  distal <- if (is.null(cl$distal)) NULL else eval(cl$distal, env)
+  if (!is.null(distal)) {
+    md <- s12$step1$missing_data
+    distal <- as.data.frame(distal)
+    if (!is.null(md) && length(md$empty_rows) && nrow(distal) == md$n_input_rows)
+      distal <- distal[-md$empty_rows, , drop = FALSE]
+    assign(".lta_step3_Y", .lta_distal_prepare(distal, nrow(red$W)), envir = e)
+  }
   if (nd) assign(".lta_step3_Zd", red$Z[, seq_len(nd), drop = FALSE], envir = e)
   if (nt) assign(".lta_step3_Zt", red$Z[, nd + seq_len(nt), drop = FALSE],
                  envir = e)
@@ -412,6 +425,7 @@
     if (nd) list(predictors_initial    = quote(.lta_step3_Zd)),
     if (nt) list(predictors_transition = quote(.lta_step3_Zt)),
     if (!is.null(extra)) list(.extra_starts = quote(.lta_step3_extra)),
+    if (!is.null(distal)) list(.distal = quote(.lta_step3_Y)),
     if (design) list(strata  = quote(.lta_step3_strata),
                      cluster = quote(.lta_step3_cluster)),
     as.list(carried)))
@@ -804,5 +818,6 @@
                         classification_error = s12$D,
                         modal                = s12$modal,
                         alignment            = s12$alignment)
+  if (!is.null(fit$mm$distal)) fit$distal <- .lta_distal_table(fit)
   fit
 }

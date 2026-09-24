@@ -15,7 +15,8 @@ outcome_contrasts(
 }
 \arguments{
 \item{fit}{A fitted model with a distal outcome attached, as returned by
-\code{\link[=add_outcome]{add_outcome()}}.}
+\code{\link[=add_outcome]{add_outcome()}}, or a three-step \code{\link[=fit_lta]{fit_lta()}} fit with \code{distal}, where the
+classes are the statuses at the last occasion.}
 
 \item{ref}{Optional reference class, as an integer between 1 and the number
 of classes. \code{NULL} (the default) reports all pairs.}
