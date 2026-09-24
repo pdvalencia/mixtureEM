@@ -10,6 +10,8 @@ add_outcome(
   covariates = NULL,
   outcome_type = c("auto", "continuous", "categorical"),
   slopes = "pooled",
+  predictors = NULL,
+  variances = c("equal", "class_specific"),
   correction = c("auto", "BCH", "ML", "none"),
   steps = c(3, 2),
   se = c("corrected", "robust", "hessian"),
@@ -38,6 +40,29 @@ case of the data the model was fit to.}
 covariate names (or a one-sided formula naming them, e.g. \code{~ loc1 + loc2}) giving a slope per class to just those covariates while the rest
 stay pooled. The last form -- letting the class moderate some covariates
 while adjusting for others -- is continuous-outcome only.}
+
+\item{predictors}{Optional covariates that predict class membership, in any
+form \code{\link[=add_covariates]{add_covariates()}} accepts. When supplied, the class-membership
+regression and the outcome are estimated together in one step-3 model:
+each case's contribution is \eqn{\sum_k P(k \mid z) f(y \mid k, x)} times
+the classification-error term, so the class probabilities the outcome is
+related to are the covariate-specific ones rather than the overall class
+sizes (Vermunt, 2010). \code{outcome} may then name several distal outcomes (a
+data frame, or a formula naming several columns of \code{data}); each is
+specified as it would be on its own and all share \code{covariates}. Estimated
+separately, the outcomes and the predictors would each answer a
+different question from different class probabilities; estimated jointly,
+the paths from the predictors to the classes, from the classes to each
+outcome, and from the covariates to each outcome are adjusted for one
+another. Available with \code{correction = "ML"} and pooled slopes; standard
+errors are those of the joint step-3 log-likelihood (\code{se = "hessian"}
+for the inverse observed information, otherwise the sandwich), which
+treat the step-1 estimates as known.}
+
+\item{variances}{For a continuous outcome with \code{covariates}: \code{"equal"}
+(default; one residual variance shared by the classes) or
+\code{"class_specific"} (one per class). A continuous outcome without
+covariates always has one variance per class.}
 
 \item{correction}{Bias correction for the third step: \code{"auto"} (default)
 picks \code{"BCH"} for continuous outcomes (Bakk & Vermunt, 2016) and \code{"ML"}
@@ -113,6 +138,10 @@ fit_mod <- add_outcome(fit, cannabis_days,
 
 }
 \references{
+Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
+three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450–469.
+\doi{10.1093/pan/mpq025}
+
 Bakk, Z., & Vermunt, J. K. (2016). Robustness of stepwise latent class
 modeling with continuous distal outcomes. \emph{Structural Equation
 Modeling}, \emph{23}(1), 20–31. \doi{10.1080/10705511.2014.955104}

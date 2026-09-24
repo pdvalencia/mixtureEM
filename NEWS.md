@@ -1,5 +1,36 @@
 # mixtureEM (development version)
 
+## `add_outcome()` estimates class predictors and distal outcomes together
+
+`add_outcome()` gains `predictors`. With it, the class-membership regression
+and the distal outcome are one ML-corrected step-3 model, in which each
+outcome is related to the classes through the covariate-specific class
+probabilities, and `outcome` may name several distal outcomes, each with the
+same `covariates` and a pooled slope on them. The paths from the predictors
+to the classes, from the classes to each outcome and from the covariates to
+each outcome are then adjusted for one another, which fitting them one at a
+time does not do. The standard errors are those of the joint step-3
+log-likelihood: `se = "hessian"` is its inverse observed information and the
+other settings the sandwich around it, and all of them treat the step-1
+estimates as known. `outcome_contrasts()` gains `outcome` to pick one of
+several outcomes, and now also contrasts a covariate-adjusted continuous
+outcome's class intercepts; `summary()` shows each outcome in turn.
+
+A continuous outcome adjusted for covariates can now have one residual
+variance per class, `variances = "class_specific"`; the default `"equal"` is
+the existing single-variance model and gives the same numbers as before.
+
+The log-likelihood a joint fit reports is the step-3 likelihood written out
+term by term from its own estimates, and the tests check it that way. Not
+yet covered: the BCH correction with `predictors` (refused for now),
+class-specific covariate slopes in the joint model, and step-1 uncertainty in
+its standard errors.
+
+The legacy `fit_mixture(X, n_components =, predictors =, outcome =)` call ran
+this same model but reported a log-likelihood that left out the outcome
+densities; it now reports the full step-3 log-likelihood. Its estimates do not
+change, and its standard errors are now the joint ones described above.
+
 ## The enumeration table gains AWE, BF and cmP; `classification_diagnostics()` gains Masyn's class table
 
 `compare_mixtures()` and `compare_longitudinal()` carry three more columns,

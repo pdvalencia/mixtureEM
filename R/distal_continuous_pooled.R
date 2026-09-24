@@ -55,9 +55,14 @@
   idx
 }
 
-distal_continuous_pooled_model <- function(n_components, moderated = integer(0), ...) {
+# `variances`: "equal" (one residual variance shared by every class) or
+# "class_specific" (one per class). The class-specific form has no closed-form
+# M-step, because the pooled slopes are then a weighted least-squares fit whose
+# weights are the class precisions; see m_step below.
+distal_continuous_pooled_model <- function(n_components, moderated = integer(0),
+                                           variances = "equal", ...) {
   state <- list(n_components = n_components, moderated = as.integer(moderated),
-                parameters = list())
+                variances = variances, parameters = list())
   class(state) <- c("distal_continuous_pooled", "emission")
   return(state)
 }
@@ -104,10 +109,22 @@ m_step.distal_continuous_pooled <- function(model_state, X, resp, weights = NULL
   W_flat <- as.vector(resp_v)
   Y_flat <- rep(Y_v, K)
 
+  # Class-specific variances make the slopes a weighted least-squares fit with
+  # each record also weighted by its class's precision 1/sigma2_k. One
+  # conditional-maximisation cycle -- coefficients at the current variances,
+  # then the variances at the new coefficients -- raises the expected
+  # complete-data log-likelihood, which is all a generalised EM step needs
+  # (Meng & Rubin, 1993). Under equal variances the precision is a common
+  # factor and cancels, so it is left out.
+  cls_spec  <- identical(model_state$variances, "class_specific")
+  prec_flat <- if (cls_spec)
+    rep(1 / as.vector(model_state$parameters$covariances), each = N_v) else 1
+  W_fit <- W_flat * prec_flat
+
   # 2. Estimate intercepts, pooled slopes and class-specific slopes  (bread of
   #    the sandwich)
-  UWU <- t(U) %*% sweep(U, 1, W_flat, "*")
-  UWY <- t(U) %*% (W_flat * Y_flat)
+  UWU <- t(U) %*% sweep(U, 1, W_fit, "*")
+  UWY <- t(U) %*% (W_fit * Y_flat)
 
   diag(UWU) <- diag(UWU) + 1e-6        # ridge penalty for stability
   B_inv <- pinv(UWU)
@@ -136,6 +153,13 @@ m_step.distal_continuous_pooled <- function(model_state, X, resp, weights = NULL
   # Store a K x 1 matrix of the pooled variance (same value for every class)
   # to keep the log_likelihood method working unchanged.
   vars <- matrix(sigma2, nrow = K, ncol = 1)
+  if (cls_spec) {
+    cls  <- rep(seq_len(K), each = N_v)
+    Nk   <- as.vector(tapply(W_flat, cls, sum))
+    SSk  <- as.vector(tapply(W_flat * resids^2, cls, sum))
+    vars <- matrix(pmax(ifelse(abs(Nk) > 1e-5, SSk / Nk, 1e-5), 1e-5),
+                   nrow = K, ncol = 1)
+  }
 
   # 4. Standard errors: a sandwich clustered on the case.
   #
@@ -159,7 +183,7 @@ m_step.distal_continuous_pooled <- function(model_state, X, resp, weights = NULL
   #    Note: We report SEs for the absolute intercepts rather than pairwise
   #    contrasts. Both are correct; they differ only in parameterisation. The
   #    contrast SE is recoverable as sqrt(V[k,k] + V[1,1] - 2*V[k,1]).
-  scores  <- U * (W_flat * resids)
+  scores  <- U * (W_fit * resids)
   # rowsum() over the case index folds each person's K records into one score.
   s_case  <- rowsum(scores, rep.int(seq_len(N_v), K), reorder = FALSE)
   meat    <- crossprod(s_case)
@@ -219,6 +243,8 @@ log_likelihood.distal_continuous_pooled <- function(model_state, X, ...) {
 #' @exportS3Method
 n_parameters.distal_continuous_pooled <- function(model_state, ...) {
   # L free coefficients (intercepts + pooled slopes + class-specific slopes)
-  # + 1 pooled variance
-  return(ncol(model_state$parameters$beta_pooled) + 1L)
+  # + 1 pooled variance, or K of them when they vary by class
+  n_var <- if (identical(model_state$variances, "class_specific"))
+    model_state$n_components else 1L
+  return(ncol(model_state$parameters$beta_pooled) + n_var)
 }

@@ -9,6 +9,7 @@ outcome_contrasts(
   ref = NULL,
   adjust = c("none", "holm", "bonferroni"),
   level = 0.95,
+  outcome = NULL,
   ...
 )
 }
@@ -26,6 +27,11 @@ is what to report when the contrasts were named in advance; an adjustment
 belongs on the all-pairs table read as a family.}
 
 \item{level}{Confidence level for the intervals. Default \code{0.95}.}
+
+\item{outcome}{For a fit holding several distal outcomes (see \code{predictors}
+in \code{\link[=add_outcome]{add_outcome()}}), the outcome to contrast, by name or position.
+\code{NULL} (the default) is the first; the \code{outcome} attribute of the result
+names the one used.}
 
 \item{...}{Currently unused.}
 }

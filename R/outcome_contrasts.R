@@ -37,6 +37,42 @@
   NULL
 }
 
+# The distal blocks of a nested structural model, named by the outcome each one
+# models (the first column of its block of `Y`). A joint model of predictors
+# and several outcomes holds them as "distal", "distal2", ...
+.distal_blocks <- function(sm, Y) {
+  if (!inherits(sm, "nested")) return(character(0))
+  ends <- cumsum(sm$columns_per_model)
+  nm   <- names(sm$models)
+  keep <- startsWith(nm, "distal")
+  first <- (ends - sm$columns_per_model + 1)[keep]
+  lab  <- colnames(Y)[first] %||% nm[keep]
+  stats::setNames(nm[keep], lab)
+}
+
+# A view of `fit` in which the requested outcome's block is the one named
+# "distal", so every reader written for a single distal outcome serves any of
+# several. `outcome` is an outcome label or a block position; NULL is the first.
+.select_distal <- function(fit, outcome = NULL) {
+  blocks <- .distal_blocks(fit$sm, fit$Y)
+  if (length(blocks) < 2L) {
+    if (!is.null(outcome) && length(blocks) == 1L &&
+        !outcome %in% c(names(blocks), 1))
+      stop(sprintf("`outcome` \"%s\" is not on this fit; its outcome is %s.",
+                   outcome, names(blocks)), call. = FALSE)
+    return(fit)
+  }
+  pick <- if (is.null(outcome)) 1L
+          else if (is.numeric(outcome)) as.integer(outcome)
+          else match(outcome, names(blocks))
+  if (length(pick) != 1L || is.na(pick) || pick < 1L || pick > length(blocks))
+    stop(sprintf("`outcome` must name one of this fit's outcomes: %s.",
+                 paste(names(blocks), collapse = ", ")), call. = FALSE)
+  fit$sm$models$distal <- fit$sm$models[[blocks[[pick]]]]
+  attr(fit, "distal_label") <- names(blocks)[pick]
+  fit
+}
+
 # The (class, reference) pairs to report, in printing order.
 #
 # With no reference given, every unordered pair, each reported once as the
@@ -98,6 +134,10 @@
 #'   is what to report when the contrasts were named in advance; an adjustment
 #'   belongs on the all-pairs table read as a family.
 #' @param level Confidence level for the intervals. Default `0.95`.
+#' @param outcome For a fit holding several distal outcomes (see `predictors`
+#'   in [add_outcome()]), the outcome to contrast, by name or position.
+#'   `NULL` (the default) is the first; the `outcome` attribute of the result
+#'   names the one used.
 #' @param ... Currently unused.
 #'
 #' @return A data frame of class `outcome_contrasts`, one row per contrast, with
@@ -124,10 +164,11 @@
 #' @export
 outcome_contrasts <- function(fit, ref = NULL,
                               adjust = c("none", "holm", "bonferroni"),
-                              level = 0.95, ...) {
+                              level = 0.95, outcome = NULL, ...) {
   adjust <- match.arg(adjust)
   if (!inherits(fit, "mixture_model"))
     stop("`fit` must be a fitted mixture model.", call. = FALSE)
+  fit <- .select_distal(fit, outcome)
 
   K <- fit$n_components
   if (is.null(K) || K < 2L)
@@ -182,6 +223,7 @@ outcome_contrasts <- function(fit, ref = NULL,
   attr(out, "outcome_type") <- built$type
   attr(out, "level")        <- level
   attr(out, "adjust")       <- adjust
+  attr(out, "outcome")      <- attr(fit, "distal_label")
   class(out) <- c("outcome_contrasts", "data.frame")
   out
 }
@@ -214,6 +256,23 @@ outcome_contrasts <- function(fit, ref = NULL,
       type   = "continuous",
       method = method,
       parts  = list(list(category = NA_integer_, theta = means, V = Sigma,
+                         index = seq_len(K)))))
+  }
+
+  # --- Continuous outcome adjusted for covariates: class intercepts --------
+  #
+  # The first K entries of beta_pooled are the class intercepts, and cov_theta
+  # is their covariance with the slopes; the difference of two intercepts is
+  # the difference of the class means at equal covariate values.
+  cpool <- .distal_submodel(fit$sm, "distal_continuous_pooled")
+  if (!is.null(cpool) && !is.null(cpool$parameters$cov_theta)) {
+    return(list(
+      type   = "continuous",
+      method = "covariance of the class intercepts (class means at covariates of zero)",
+      parts  = list(list(category = NA_integer_,
+                         theta = as.vector(cpool$parameters$beta_pooled)[seq_len(K)],
+                         V = cpool$parameters$cov_theta[seq_len(K), seq_len(K),
+                                                        drop = FALSE],
                          index = seq_len(K)))))
   }
 

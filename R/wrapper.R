@@ -1203,6 +1203,30 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
     return(invisible())
   }
 
+  # A joint model of predictors and several distal outcomes: every section
+  # below reads one block named "distal", so each outcome is shown in turn
+  # through a view holding that block alone (the class predictors with the
+  # first). The sections themselves are unchanged.
+  blocks <- .distal_blocks(object$sm, object$Y)
+  if (length(blocks) > 1L) {
+    others <- setdiff(names(object$sm$models), blocks)
+    res <- lapply(seq_along(blocks), function(j) {
+      v <- object
+      keep <- c(if (j == 1L) others, blocks[[j]])
+      v$sm$models            <- v$sm$models[keep]
+      v$sm$columns_per_model <- v$sm$columns_per_model[keep]
+      names(v$sm$models)[length(keep)]            <- "distal"
+      names(v$sm$columns_per_model)[length(keep)] <- "distal"
+      cat(sprintf("\nDistal outcome %d of %d: %s\n", j, length(blocks),
+                  names(blocks)[j]))
+      summary.mixture_model(v, ref_class = ref_class, ...)
+    })
+    out <- res[[1L]]
+    out$outcome  <- NULL
+    out$outcomes <- stats::setNames(lapply(res, `[[`, "outcome"), names(blocks))
+    return(invisible(out))
+  }
+
   # Everything printed below is also collected here and returned invisibly,
   # so vignettes and downstream code can use the numbers without re-deriving
   # them from the model internals.
@@ -3361,9 +3385,9 @@ fit_mixture <- function(indicators = NULL,
 
   if (!is.null(predictors) && !is.null(outcome))
     stop("Specify either `predictors` (to model class membership) or ",
-         "`outcome` (a distal outcome), not both in one model. To run both ",
-         "analyses from one solution, fit the unconditional model and use ",
-         "add_covariates() and add_outcome() on it.", call. = FALSE)
+         "`outcome` (a distal outcome), not both in one model. To estimate ",
+         "both together, fit the unconditional model and call ",
+         "add_outcome(fit, outcome, predictors = ) on it.", call. = FALSE)
   if (!is.null(outcome_covariates) && is.null(outcome))
     stop("`outcome_covariates` requires an `outcome`.", call. = FALSE)
   if (!is.null(group) && group_effects %in% c("both", "prevalence") &&

@@ -198,9 +198,10 @@
 # Shared execution: attach the structural model and run steps 2-3 only.
 .add_structural <- function(fit, Y_use, engine, correction, se, max_iter,
                             assignment = "proportional",
-                            moderated = integer(0), steps = 3L) {
+                            moderated = integer(0), steps = 3L,
+                            variances = "equal") {
   fit$sm         <- build_emission(engine, n_components = fit$n_components,
-                                   moderated = moderated)
+                                   moderated = moderated, variances = variances)
   # The structural model is built here rather than in fit_mixture_internal(), so
   # it has to be handed the fit's prior strengths on the way past; without this
   # `bayes_constants` would apply on the one-call three-step path and silently
@@ -412,6 +413,27 @@ add_covariates <- function(fit, predictors,
 #'   loc2`) giving a slope per class to just those covariates while the rest
 #'   stay pooled. The last form -- letting the class moderate some covariates
 #'   while adjusting for others -- is continuous-outcome only.
+#' @param predictors Optional covariates that predict class membership, in any
+#'   form [add_covariates()] accepts. When supplied, the class-membership
+#'   regression and the outcome are estimated together in one step-3 model:
+#'   each case's contribution is \eqn{\sum_k P(k \mid z) f(y \mid k, x)} times
+#'   the classification-error term, so the class probabilities the outcome is
+#'   related to are the covariate-specific ones rather than the overall class
+#'   sizes (Vermunt, 2010). `outcome` may then name several distal outcomes (a
+#'   data frame, or a formula naming several columns of `data`); each is
+#'   specified as it would be on its own and all share `covariates`. Estimated
+#'   separately, the outcomes and the predictors would each answer a
+#'   different question from different class probabilities; estimated jointly,
+#'   the paths from the predictors to the classes, from the classes to each
+#'   outcome, and from the covariates to each outcome are adjusted for one
+#'   another. Available with `correction = "ML"` and pooled slopes; standard
+#'   errors are those of the joint step-3 log-likelihood (`se = "hessian"`
+#'   for the inverse observed information, otherwise the sandwich), which
+#'   treat the step-1 estimates as known.
+#' @param variances For a continuous outcome with `covariates`: `"equal"`
+#'   (default; one residual variance shared by the classes) or
+#'   `"class_specific"` (one per class). A continuous outcome without
+#'   covariates always has one variance per class.
 #' @param correction Bias correction for the third step: `"auto"` (default)
 #'   picks `"BCH"` for continuous outcomes (Bakk & Vermunt, 2016) and `"ML"`
 #'   for categorical outcomes; or set `"BCH"`, `"ML"`, `"none"` directly.
@@ -453,6 +475,10 @@ add_covariates <- function(fit, predictors,
 #'   whether any of them do.
 #'
 #' @references
+#' Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
+#' three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450–469.
+#' \doi{10.1093/pan/mpq025}
+#'
 #' Bakk, Z., & Vermunt, J. K. (2016). Robustness of stepwise latent class
 #' modeling with continuous distal outcomes. \emph{Structural Equation
 #' Modeling}, \emph{23}(1), 20–31. \doi{10.1080/10705511.2014.955104}
@@ -493,7 +519,8 @@ add_covariates <- function(fit, predictors,
 #' @export
 add_outcome <- function(fit, outcome, covariates = NULL,
                         outcome_type = c("auto", "continuous", "categorical"),
-                        slopes = "pooled",
+                        slopes = "pooled", predictors = NULL,
+                        variances = c("equal", "class_specific"),
                         correction = c("auto", "BCH", "ML", "none"),
                         steps = c(3, 2),
                         se = c("corrected", "robust", "hessian"),
@@ -505,7 +532,9 @@ add_outcome <- function(fit, outcome, covariates = NULL,
   steps        <- .check_steps(steps, corr_set)
   se           <- match.arg(se)
   assignment   <- match.arg(assignment)
+  variances    <- match.arg(variances)
   cov_expr     <- substitute(covariates)
+  predictors_expr <- substitute(predictors)
 
   if (missing(outcome) || is.null(outcome))
     stop("`outcome` is required: the distal outcome to relate to the classes.",
@@ -520,7 +549,7 @@ add_outcome <- function(fit, outcome, covariates = NULL,
   # the formula-only test here, where `predictors` and `covariates` take either.
   if (!is.null(data) && inherits(outcome, "formula")) {
     outcome <- .columns_from_data(outcome, data, "outcome")
-    if (ncol(outcome) != 1L)
+    if (ncol(outcome) != 1L && is.null(predictors))
       stop(sprintf(paste0("`outcome` must name exactly one distal outcome, ",
                           "but %d were named (%s). Fit them one at a time."),
                    ncol(outcome), paste(names(outcome), collapse = ", ")),
@@ -536,8 +565,15 @@ add_outcome <- function(fit, outcome, covariates = NULL,
     cov_expr   <- NULL
   }
 
+  if (!is.null(predictors))
+    return(.add_joint_outcome(fit, outcome, covariates, cov_expr, predictors,
+                              predictors_expr, data, outcome_type, slopes,
+                              variances, correction, corr_set, steps, se,
+                              assignment, max_iter))
+
   spec <- .build_outcome_spec(outcome, covariates, outcome_type, slopes,
                               cov_expr)
+  spec <- .apply_outcome_variances(spec, variances)
 
   if (steps == 2L) {
     correction <- "none"
@@ -551,5 +587,98 @@ add_outcome <- function(fit, outcome, covariates = NULL,
 
   .add_structural(fit, Y_use, spec$engine, correction, se, max_iter,
                   assignment = assignment, moderated = spec$moderated,
-                  steps = steps)
+                  steps = steps, variances = spec$variances)
+}
+
+# `variances = "class_specific"` exists only where the residual variance is a
+# choice: a continuous outcome adjusted for covariates. A continuous outcome
+# without covariates already has one variance per class, and a categorical one
+# has none.
+.apply_outcome_variances <- function(spec, variances) {
+  if (identical(variances, "class_specific") &&
+      spec$engine != "continuous_outcome_adjusted")
+    stop('`variances = "class_specific"` applies to a continuous outcome with ',
+         '`covariates` and pooled or partly pooled `slopes`. A continuous ',
+         'outcome without covariates already has one variance per class.',
+         call. = FALSE)
+  spec$variances <- variances
+  spec
+}
+
+# add_outcome() with `predictors`: the class-membership regression and every
+# distal outcome in one step-3 model. The outcomes are not independent pieces
+# here the way they are without predictors -- each one's likelihood carries
+# the class probabilities P(k | z) that the predictors now model -- so they are
+# estimated together, in one nested structural model: a covariate block
+# followed by one block per outcome, all fitted by the same ML-corrected EM.
+.add_joint_outcome <- function(fit, outcome, covariates, cov_expr, predictors,
+                               predictors_expr, data, outcome_type, slopes,
+                               variances, correction, corr_set, steps, se,
+                               assignment, max_iter) {
+  if (steps == 2L)
+    stop("`predictors` with a distal outcome is available for the three-step ",
+         "(`steps = 3`) only.", call. = FALSE)
+  if (correction %in% c("BCH", "none"))
+    stop(sprintf(paste0(
+      "`correction = \"%s\"` is not yet available when `predictors` and an ",
+      "outcome are estimated together; use `correction = \"ML\"`."),
+      correction), call. = FALSE)
+  correction <- "ML"
+  if (!corr_set)
+    message("Using 'ML' bias correction (set `correction` to override).")
+
+  .check_data_form(predictors, data, "predictors")
+  if (!is.null(data) && inherits(predictors, "formula") &&
+      .formula_has_interaction(predictors)) {
+    predictors      <- .covariate_matrix_from_formula(predictors, data, "predictors")
+    predictors_expr <- NULL
+  } else if (!is.null(data) &&
+             (inherits(predictors, "formula") || is.character(predictors))) {
+    predictors      <- .columns_from_data(predictors, data, "predictors")
+    predictors_expr <- NULL
+  }
+  Z <- prepare_covariates(
+    .as_named_covariates(predictors, predictors_expr, "predictor"))
+
+  # Several outcomes may be named here. Each is specified exactly as a single
+  # add_outcome() call would specify it, and all share `covariates`.
+  outs <- if (is.data.frame(outcome)) as.list(outcome)
+          else if (is.matrix(outcome))
+            stats::setNames(lapply(seq_len(ncol(outcome)), function(j) outcome[, j]),
+                            colnames(outcome) %||% paste0("outcome", seq_len(ncol(outcome))))
+          else list(outcome)
+  specs <- lapply(seq_along(outs), function(j) {
+    o <- outs[[j]]
+    if (length(outs) > 1L) {
+      o <- data.frame(o)
+      names(o) <- names(outs)[j]
+    }
+    s <- .build_outcome_spec(o, covariates, outcome_type, slopes, cov_expr)
+    if (!s$engine %in% c("continuous_outcome", "continuous_outcome_adjusted",
+                         "categorical_outcome", "categorical_outcome_adjusted"))
+      stop("With `predictors`, the outcome's covariate slopes must be pooled ",
+           '(`slopes = "pooled"`, or names for a continuous outcome); ',
+           '`slopes = "class_specific"` is not available in a joint model.',
+           call. = FALSE)
+    # A categorical outcome has no residual variance, so `variances` speaks
+    # only to the continuous outcomes among several.
+    if (startsWith(s$engine, "categorical") && length(outs) > 1L) {
+      s$variances <- "equal"
+      s
+    } else .apply_outcome_variances(s, variances)
+  })
+
+  blocks <- list(predictor = list(model = "predict_class", n_columns = ncol(Z)))
+  nm     <- c("distal", if (length(specs) > 1L)
+    paste0("distal", seq_len(length(specs) - 1L) + 1L))
+  for (j in seq_along(specs))
+    blocks[[nm[j]]] <- list(model = specs[[j]]$engine,
+                            n_columns = ncol(specs[[j]]$Y),
+                            moderated = specs[[j]]$moderated,
+                            variances = specs[[j]]$variances)
+  Y_use <- do.call(.cbind_covariates, c(list(Z), lapply(specs, `[[`, "Y")))
+  Y_use <- .align_structural_rows(Y_use, fit, "outcome")
+
+  .add_structural(fit, Y_use, blocks, correction, se, max_iter,
+                  assignment = assignment, steps = steps)
 }

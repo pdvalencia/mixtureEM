@@ -345,6 +345,15 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
       sm_prob <- sm_prob / rowSums(sm_prob)
       Z_mat   <- sm_prob %*% C_row_norm
       ll_case    <- rowSums(A1 * log(pmax(Z_mat, 1e-300)))
+      # A nested model's log_sm is log P(k | z) plus the distal log-densities,
+      # which do not sum to one over k, so the row normalisation above drops
+      # log sum_k of them from the log-likelihood (W is unaffected: the
+      # normaliser cancels in the ratio below). Put it back so the reported
+      # value is the step-3 log-likelihood itself. rowSums(A1) is 1 under
+      # either assignment rule.
+      if (inherits(model_state$sm, "nested"))
+        ll_case <- ll_case + as.vector(lsh) +
+          log(rowSums(exp(log_sm - as.vector(lsh))))
       current_ll <- sum(w_clean * ll_case)
       R <- A1 / pmax(Z_mat, 1e-300)
       W <- sm_prob * (R %*% t(C_row_norm))
@@ -399,14 +408,19 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   }
 
   # A covariate block inside a nested structural model shares its step-three
-  # likelihood with the distal block, so the single-block formulas above do not
-  # apply. The naive Hessian stands, but it is labelled as such rather than
-  # reported as though it were the corrected variance.
-  if (inherits(model_state$sm, "nested") &&
-      !is.null(model_state$sm$models[["predictor"]]) &&
-      inherits(model_state$sm$models$predictor, "covariate")) {
-    model_state$sm$models$predictor$parameters$V_method <-
-      "Q-function Hessian (uncorrected; covariate combined with a distal outcome)"
+  # likelihood with the distal blocks, so the single-block formulas above do not
+  # apply; the variance is taken over the joint parameter vector instead
+  # (R/step3_joint.R). A block that file cannot pack keeps the naive Hessian,
+  # labelled as such rather than reported as though it were corrected.
+  if (inherits(model_state$sm, "nested")) {
+    model_state <- .attach_nested_step3_vcov(
+      model_state, Y_clean, A1, C_row_norm, w_clean, se,
+      strata = model_state$strata[keep], cluster = model_state$cluster[keep])
+    if (is.null(model_state$sm$parameters$vcov_joint) &&
+        !is.null(model_state$sm$models[["predictor"]]) &&
+        inherits(model_state$sm$models$predictor, "covariate"))
+      model_state$sm$models$predictor$parameters$V_method <-
+        "Q-function Hessian (uncorrected; covariate combined with a distal outcome)"
   }
 
   # --- distal_pooled (joint parameter vector, one shared Hessian) -------------
