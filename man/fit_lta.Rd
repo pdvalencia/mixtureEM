@@ -414,8 +414,15 @@ each occasion's classification-error matrix fixed while the transitions
 are estimated, which is what removes the bias. \code{"none"} sets every matrix
 to the identity, which is the naive classify-analyse estimate: useful as
 the baseline the correction is measured against, and biased towards
-whatever the classification gets wrong. \code{"BCH"} is not available for
-latent transition models.}
+whatever the classification gets wrong. \code{"BCH"} (Bolck, Croon and
+Hagenaars, 2004) reweights instead: each case is spread over the status
+paths by the product, over occasions, of the rows of the inverted
+error tables for the statuses it was assigned, and step 3 fits the
+initial status and the transitions to those weighted paths. Some weights
+are negative and are kept. It uses modal assignment, reports the
+BCH-weighted log-likelihood, and its standard errors are the
+case-clustered sandwich; it does not yet support \code{distal},
+\code{predictors_items}, \code{strata} or \code{cluster}.}
 
 \item{assignment}{Three-step only. How each occasion's posteriors become
 the assigned status step 3 reads. \code{"proportional"} (default) spreads every

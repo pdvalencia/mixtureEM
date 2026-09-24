@@ -51,10 +51,14 @@
 # matrix is the identity, so step 3 believes the assigned statuses. It is what
 # the correction exists to improve on, and having it available is what makes
 # the improvement visible on the user's own data.
+#
+# `correction = "BCH"` forms the same tables as "ML"; step 3 inverts them into
+# case weights (.lta_threestep_bch_weights()) instead of holding them fixed as
+# an emission.
 .lta_threestep_step12 <- function(cl, env,
                                   assignment = c("modal", "proportional"),
                                   zero_floor = 1e-6,
-                                  correction = c("ML", "none")) {
+                                  correction = c("ML", "BCH", "none")) {
   assignment <- match.arg(assignment)
   correction <- match.arg(correction)
 
@@ -812,6 +816,166 @@
 }
 
 # ------------------------------------------------------------------------------
+# Step three under the BCH correction.
+# ------------------------------------------------------------------------------
+#
+# Bolck, Croon and Hagenaars (2004) correct the classify-analyse estimator by
+# reweighting rather than by modelling the error: a case assigned status w at
+# occasion t carries weight D_t^-1[w, s] on true status s, where D_t is the
+# occasion's classification-error table read the other way round (rows the true
+# status, columns the assigned one). Averaged over the cases, the weights undo
+# the misclassification exactly. Some are negative, necessarily, and are kept.
+#
+# For a chain the weight on a whole status path is the product of the
+# occasions' weights (Asparouhov and Muthen, 2014, eq. 2), which
+# makes step 3 a weighted fit of the initial-status and transition model to
+# the paths themselves, with no latent variable left and so no E-step. The
+# occasions' weights come from the transition-free step 1, whose posterior at
+# each occasion depends on that occasion's items alone -- the property the ML
+# correction relies on too, for the same reason.
+#
+# Modal assignment only: the weights are rows of D_t^-1 picked by the assigned
+# status, and under proportional assignment there is no single row to pick.
+
+# The n x K^T matrix of path weights, case weights included. Columns follow
+# expand.grid() over the occasions, occasion 1 fastest. Each row sums to the
+# case's weight, because every row of D_t^-1 sums to one.
+.lta_threestep_bch_weights <- function(s12) {
+  K  <- s12$step1$n_statuses
+  Tn <- s12$step1$n_times
+  grid <- as.matrix(expand.grid(rep(list(seq_len(K)), Tn)))
+  out  <- matrix(s12$step1$weights_vec, nrow(s12$modal), nrow(grid))
+  for (t in seq_len(Tn)) {
+    # s12$D[[t]] has rows the assigned status; its transpose is the table the
+    # weights invert.
+    B   <- solve(t(s12$D[[t]]))[s12$modal[, t], , drop = FALSE]
+    out <- out * B[, grid[, t], drop = FALSE]
+  }
+  out
+}
+
+# Step three on fixed path weights. `case_w` is the matrix above, taken as an
+# argument so that weights formed elsewhere can be passed in.
+#
+# The fit starts as the uncorrected step 3 -- identity error tables, the
+# assigned paths taken at face value -- and is moved to the maximum of the
+# BCH-weighted log-likelihood
+#
+#   sum_i sum_path case_w[i, path] log P(path | z_i).
+#
+# It is not refitted by EM: the search refuses negative weights, and with the
+# paths observed there is nothing for an E-step to do. The objective is summed
+# per (covariate pattern, path) cell, so it costs K^T evaluations per pattern
+# whatever the sample size, and is maximised over the fit's own packed vector
+# from the uncorrected estimate: quasi-Newton, then Newton on the numerical
+# Hessian to a gradient of 1e-6. A cell whose summed weight is negative pushes
+# its path's probability to zero; in a model saturated in the paths that has no
+# interior maximum, and the check below refuses rather than reports it.
+#
+# The variance is the case-clustered sandwich: the weights make the objective a
+# pseudo-likelihood, so its Hessian alone is not the variance, and each case's
+# score is summed over all of its paths before the outer product, which counts
+# a case once however many paths it is spread over. The uncertainty in the
+# weights themselves, from step 1, is not propagated.
+.lta_threestep_bch_step3 <- function(s12, cl, env, case_w) {
+  K  <- s12$step1$n_statuses
+  Tn <- s12$step1$n_times
+  s0 <- s12
+  s0$D <- rep(list(diag(K)), Tn)
+  fit <- .lta_threestep_step3(s0, cl, env)
+
+  grid <- as.matrix(expand.grid(rep(list(seq_len(K)), Tn)))
+  G    <- nrow(grid)
+  n    <- nrow(case_w)
+  Zall <- cbind(fit$Z_delta, fit$Z_tau)
+  if (is.null(Zall)) {
+    idx     <- rep(1L, n)
+    rep_row <- 1L
+  } else {
+    pat     <- .pattern_index(Zall)
+    idx     <- pat$idx
+    rep_row <- which(pat$rep_row)
+  }
+  P <- length(rep_row)
+
+  # Cell (pattern p, path g) is row (g - 1) * P + p. .pattern_index() numbers
+  # the patterns by first appearance, which is rowsum()'s unsorted order.
+  st    <- fit
+  wc    <- as.vector(rowsum(case_w, idx, reorder = FALSE))
+  Wc    <- grid[rep(seq_len(G), each = P), , drop = FALSE]
+  cells <- rep(rep_row, times = G)
+  if (!is.null(fit$Z_delta)) st$Z_delta <- fit$Z_delta[cells, , drop = FALSE]
+  if (!is.null(fit$Z_tau))   st$Z_tau   <- fit$Z_tau[cells, , drop = FALSE]
+  st$weights_vec <- wc
+  st$.tau_design_cache <- NULL
+  lay <- .lta_par_layout(fit)
+  par <- .lta_par_pack(fit, lay)
+
+  llc  <- function(v) .lta_ll_case(st, Wc, v, lay)
+  ll   <- function(v) {
+    val <- sum(wc * llc(v))
+    if (is.finite(val)) val else -1e300
+  }
+  grad <- function(v) {
+    h <- .step1_fd_step * pmax(1, abs(v))
+    vapply(seq_along(v), function(j) {
+      e <- replace(numeric(length(v)), j, h[j])
+      (ll(v + e) - ll(v - e)) / (2 * h[j])
+    }, numeric(1))
+  }
+
+  par <- stats::optim(par, ll, grad, method = "BFGS",
+                      control = list(fnscale = -1, maxit = 1000,
+                                     reltol = 1e-14))$par
+  for (it in seq_len(50L)) {
+    g <- grad(par)
+    H <- .step1_fd_hessian(ll, par)
+    H <- (H + t(H)) / 2
+    if (max(abs(g)) < 1e-6) break
+    step <- tryCatch(solve(-H, g), error = function(e) NULL)
+    if (is.null(step)) break
+    f0 <- ll(par)
+    a  <- 1
+    while (a > 1e-8 && ll(par + a * step) < f0) a <- a / 2
+    par <- par + a * step
+  }
+  ev <- eigen(H, symmetric = TRUE, only.values = TRUE)$values
+  if (max(abs(grad(par))) > 1e-4 || max(ev) >= 0)
+    stop("The BCH-weighted step-3 likelihood has no interior maximum on these ",
+         "data: some status paths carry a negative total weight. Use ",
+         "`correction = \"ML\"`.", call. = FALSE)
+
+  # Written back onto the per-case fit, so the average tables it reports are
+  # over the cases rather than over the cells.
+  fit <- .lta_par_unpack(par, fit, lay)
+  fit$prevalences <- .lta_prevalences(fit)
+  fit$loglik    <- ll(par)
+  fit$converged <- TRUE
+
+  if (!is.null(fit$se) && !is.null(fit$se$vcov) &&
+      identical(dim(fit$se$vcov), c(length(par), length(par)))) {
+    h  <- .step1_fd_step * pmax(1, abs(par))
+    Gc <- matrix(vapply(seq_along(par), function(j) {
+      e <- replace(numeric(length(par)), j, h[j])
+      (llc(par + e) - llc(par - e)) / (2 * h[j])
+    }, numeric(nrow(Wc))), nrow(Wc))
+    S <- matrix(0, n, length(par))
+    for (g in seq_len(G))
+      S <- S + case_w[, g] * Gc[(g - 1L) * P + idx, , drop = FALSE]
+    Hi <- .psd_pinv(-H)
+    V  <- Hi %*% crossprod(S) %*% Hi
+    V  <- (V + t(V)) / 2
+    dimnames(V) <- dimnames(fit$se$vcov)
+    fit$se$vcov    <- V
+    fit$se$prob_se <- .lta_prob_se(fit$se$blocks, V)
+    fit$se$method  <- paste("Case-clustered sandwich of the BCH-weighted",
+                            "step-3 log-likelihood; step-1 uncertainty",
+                            "not propagated")
+  }
+  fit
+}
+
+# ------------------------------------------------------------------------------
 # The entry point.
 # ------------------------------------------------------------------------------
 #
@@ -824,8 +988,15 @@
 .lta_threestep <- function(cl, env, correction, assignment) {
   s12 <- .lta_threestep_step12(cl, env, assignment = assignment,
                                correction = correction)
-  fit <- .lta_threestep_step3(s12, cl, env)
-  fit <- .lta_threestep_attach_vcov(fit, s12, .lta_threestep_Z(s12, cl, env)$Z)
+  bch_w <- NULL
+  if (identical(correction, "BCH")) {
+    bch_w <- .lta_threestep_bch_weights(s12)
+    fit   <- .lta_threestep_bch_step3(s12, cl, env, bch_w)
+  } else {
+    fit <- .lta_threestep_step3(s12, cl, env)
+    fit <- .lta_threestep_attach_vcov(fit, s12,
+                                      .lta_threestep_Z(s12, cl, env)$Z)
+  }
 
   fit$n_steps   <- 3L
   fit$step1     <- s12$step1
@@ -835,7 +1006,8 @@
                         prevalences_step1    = s12$prevalences,
                         classification_error = s12$D,
                         modal                = s12$modal,
-                        alignment            = s12$alignment)
+                        alignment            = s12$alignment,
+                        bch_weights          = bch_w)
   if (!is.null(fit$mm$distal)) fit$distal <- .lta_distal_table(fit)
   fit
 }

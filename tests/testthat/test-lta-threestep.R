@@ -827,8 +827,15 @@ test_that("the three-step refuses what it is not defined for, before fitting", {
                   list(predictors_random_intercept = z))
   for (a in refused)
     expect_error(do.call(fit_lta, c(base, a)), "`n_steps = 3` does not support")
-  expect_error(do.call(fit_lta, c(base, list(correction = "BCH"))),
-               "not available for latent transition models")
+  # BCH: modal assignment only, and not yet with a distal or a design.
+  expect_error(do.call(fit_lta, c(base, list(correction = "BCH",
+                                             assignment = "proportional"))),
+               "needs `assignment = \"modal\"`")
+  expect_error(do.call(fit_lta, c(base, list(correction = "BCH",
+                                             distal = data.frame(y = z)))),
+               "does not yet support distal")
+  expect_error(do.call(fit_lta, c(base, list(correction = "BCH", strata = z))),
+               "does not yet support strata or cluster")
   # A design is carried under modal assignment only (W6b, below).
   expect_error(do.call(fit_lta, c(base, list(strata = z))),
                "only with `assignment = \"modal\"`")
@@ -1035,4 +1042,66 @@ test_that("duplicating every case inside its own PSU changes no standard error",
                  cluster = rep(seq_len(n), each = 2))
   expect_equal(d2$delta, d1$delta, tolerance = 1e-8)
   expect_lt(max(abs(sqrt(diag(d2$se$vcov) / diag(d1$se$vcov)) - 1)), 0.01)
+})
+
+# ==============================================================================
+# The BCH correction: product weights, step 3 fitted to the weighted paths.
+# Graded in the validation suite; here, that it recovers a simulated chain the
+# uncorrected estimate gets wrong, and that its weights are what the
+# construction says.
+# ==============================================================================
+
+.ts3_chain <- function() {
+  if (!is.null(.ts3_cache$chain)) return(.ts3_cache$chain)
+  set.seed(11)
+  n <- 2000; J <- 5
+  tau <- rbind(c(.8, .2), c(.2, .8))
+  s1 <- sample.int(2, n, TRUE, prob = c(.6, .4))
+  s2 <- vapply(s1, function(s) sample.int(2, 1, prob = tau[s, ]), 1L)
+  # Items weak enough that one case in six or so is misclassified at each
+  # occasion, which is what attenuates the uncorrected transitions.
+  rho <- rbind(rep(.75, J), rep(.25, J))
+  X <- cbind(matrix(rbinom(n * J, 1, rho[s1, ]), n),
+             matrix(rbinom(n * J, 1, rho[s2, ]), n))
+  fit <- function(correction)
+    fit_lta(X, n_statuses = 2, times = 2, measurement = "binary",
+            n_init = 4, random_state = 1, n_cores = 1, n_steps = 3,
+            correction = correction, assignment = "modal")
+  .ts3_cache$chain <- list(tau = tau, bch = fit("BCH"), none = fit("none"),
+                           ml = fit("ML"))
+  .ts3_cache$chain
+}
+
+test_that("BCH recovers the transitions the uncorrected estimate attenuates", {
+  # Measured: stay probabilities .842/.823 BCH, .841/.822 ML, .727/.671
+  # uncorrected, against .8/.8.
+  ch  <- .ts3_chain()
+  bch <- diag(ch$bch$tau[[1]])
+  raw <- diag(ch$none$tau[[1]])
+  expect_lt(max(abs(bch - diag(ch$tau))), 0.06)
+  expect_gt(min(abs(raw - diag(ch$tau))), 0.06)
+  # Two corrections built on different principles land on the same answer.
+  expect_lt(max(abs(ch$bch$tau[[1]] - ch$ml$tau[[1]])), 0.005)
+  expect_equal(ch$bch$threestep$correction, "BCH")
+  expect_equal(ch$bch$threestep$assignment, "modal")
+})
+
+test_that("each case's path weights multiply out and sum to one", {
+  f <- .ts3_chain()$bch
+  W <- f$threestep$bch_weights
+  expect_equal(dim(W), c(nrow(f$threestep$modal), 4L))
+  expect_equal(unname(rowSums(W)), rep(1, nrow(W)), tolerance = 1e-10)
+  expect_true(any(W < 0))
+  # Column (s1, s2), occasion 1 fastest, is occasion 1's weight times
+  # occasion 2's.
+  B <- lapply(1:2, function(t)
+    solve(t(f$threestep$classification_error[[t]]))[f$threestep$modal[, t], ])
+  expect_equal(W[, 3], B[[1]][, 1] * B[[2]][, 2], tolerance = 1e-12)
+})
+
+test_that("BCH reports the sandwich, larger than the uncorrected Hessian", {
+  ch <- .ts3_chain()
+  expect_match(ch$bch$se$method, "Case-clustered sandwich of the BCH-weighted")
+  expect_true(all(is.finite(diag(ch$bch$se$vcov))))
+  expect_true(all(diag(ch$bch$se$vcov) > diag(ch$none$se$vcov)))
 })

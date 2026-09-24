@@ -357,8 +357,15 @@
 #'   are estimated, which is what removes the bias. `"none"` sets every matrix
 #'   to the identity, which is the naive classify-analyse estimate: useful as
 #'   the baseline the correction is measured against, and biased towards
-#'   whatever the classification gets wrong. `"BCH"` is not available for
-#'   latent transition models.
+#'   whatever the classification gets wrong. `"BCH"` (Bolck, Croon and
+#'   Hagenaars, 2004) reweights instead: each case is spread over the status
+#'   paths by the product, over occasions, of the rows of the inverted
+#'   error tables for the statuses it was assigned, and step 3 fits the
+#'   initial status and the transitions to those weighted paths. Some weights
+#'   are negative and are kept. It uses modal assignment, reports the
+#'   BCH-weighted log-likelihood, and its standard errors are the
+#'   case-clustered sandwich; it does not yet support `distal`,
+#'   `predictors_items`, `strata` or `cluster`.
 #' @param assignment Three-step only. How each occasion's posteriors become
 #'   the assigned status step 3 reads. `"proportional"` (default) spreads every
 #'   case over the statuses in proportion to its posterior; `"modal"` assigns
@@ -695,7 +702,15 @@ fit_lta <- function(indicators,
     stop("`correction` and `assignment` apply only with `n_steps = 3`.",
          call. = FALSE)
   correction <- match.arg(correction)
-  assignment <- match.arg(assignment)
+  # BCH picks a row of the inverted error table by each case's assigned
+  # status, so it is defined for modal assignment only; that is its default,
+  # and asking for the other is refused rather than overridden.
+  if (correction == "BCH" && !missing(assignment) &&
+      match.arg(assignment) == "proportional")
+    stop("`correction = \"BCH\"` needs `assignment = \"modal\"`: each case's ",
+         "weights are the row of the inverted classification-error table for ",
+         "the status it was assigned.", call. = FALSE)
+  assignment <- if (correction == "BCH") "modal" else match.arg(assignment)
   if (!is.null(distal) && n_steps != 3L)
     stop("`distal` applies only with `n_steps = 3`: the outcome is attached ",
          "to step 3's model of the assigned statuses.", call. = FALSE)
@@ -720,9 +735,18 @@ fit_lta <- function(indicators,
   # status combinations with no case, PSU or stratum of their own, so the
   # design is refused there rather than silently half-applied.
   if (n_steps == 3L) {
-    if (correction == "BCH")
-      stop("`correction = \"BCH\"` is not available for latent transition ",
-           "models. Use \"ML\" or \"none\".", call. = FALSE)
+    # BCH covers the initial status and the transitions, with or without
+    # covariates. A distal outcome, item-level covariate effects and a survey
+    # design are carried by the ML correction only for now.
+    if (correction == "BCH") {
+      bad <- c("distal"           = !is.null(distal),
+               "predictors_items" = !is.null(predictors_items),
+               "strata or cluster" = !is.null(strata) || !is.null(cluster))
+      if (any(bad))
+        stop("`correction = \"BCH\"` does not yet support ",
+             paste(names(bad)[bad], collapse = ", "), ". Use ",
+             "`correction = \"ML\"` for this model.", call. = FALSE)
+    }
     bad <- c(
       "random_intercept"            = random_intercept != "none",
       "predictors_random_intercept" = !is.null(predictors_random_intercept),

@@ -1,5 +1,19 @@
 # mixtureEM (development version)
 
+## The three-step `fit_lta()` offers the BCH correction
+
+`fit_lta(n_steps = 3, correction = "BCH")` was refused and now fits. Each
+occasion's classification-error table is inverted, and each case is spread
+over the status paths by the product, over occasions, of the rows for the
+statuses it was assigned (Bolck, Croon and Hagenaars, 2004). Step 3 then fits
+the initial-status and transition models, with any covariates on them, to
+those weighted paths. The weights are not clipped, although many of them are
+negative. The fit reports the BCH-weighted log-likelihood, standard errors
+from the case-clustered sandwich, which leaves out step 1's uncertainty, and
+the path weights as `threestep$bch_weights`. Assignment is modal; `distal`,
+`predictors_items`, `strata` and `cluster` are refused with BCH for now.
+Nothing changes for `"ML"` or `"none"`.
+
 ## `fit_lta()` tests items for DIF one at a time, and inside the three-step
 
 `predictors_items` in `fit_lta()` now also takes a named list, item name = the
