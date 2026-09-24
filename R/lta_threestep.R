@@ -98,6 +98,24 @@
   cl1$zero_floor                  <- NULL
   cl1$.transition_free            <- TRUE
 
+  # With `predictors_items`, step 1 also regresses the status at every occasion
+  # on the same covariates, and step 3 fits whatever structural predictors the
+  # caller asked for. Without the status regression the item slope has to
+  # carry the whole association between the covariate and the status, so a
+  # covariate that only moves people between statuses would read as bias in
+  # the items. The regressions go in through the transition-free model's
+  # origin-free design (.lta_tau_design()), which keeps the occasions
+  # independent given the covariate: one prevalence regression per occasion.
+  pi_items <- eval(cl$predictors_items, env)
+  if (!is.null(pi_items)) {
+    Zi <- if (is.list(pi_items) && !is.data.frame(pi_items))
+      .lta_dif_spec(pi_items, NULL, names(pi_items), NROW(pi_items[[1L]]))$Z
+    else pi_items
+    assign(".lta_step1_status_covariates", Zi, envir = e)
+    cl1$predictors_initial    <- quote(.lta_step1_status_covariates)
+    cl1$predictors_transition <- quote(.lta_step1_status_covariates)
+  }
+
   step1 <- eval(cl1, e)
 
   # With the item parameters free at every occasion and no transitions, nothing

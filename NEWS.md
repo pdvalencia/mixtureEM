@@ -1,5 +1,21 @@
 # mixtureEM (development version)
 
+## `fit_lta()` tests items for DIF one at a time, and inside the three-step
+
+`predictors_items` in `fit_lta()` now also takes a named list, item name = the
+covariates acting on that item, as `fit_mixture()`'s does. A slope listed this
+way is shared by every status (uniform DIF, one parameter) unless the item is
+named in the new `predictors_items_by_status`, and items left out of the list
+get no slope at all. The matrix form keeps its meaning, a slope on every item
+for every status, and its fits are unchanged.
+
+`fit_lta(n_steps = 3)` no longer refuses `predictors_items`. The item slopes
+live in step 1, which then also regresses the status at each occasion on the
+same covariates, one regression per occasion with the occasions independent
+given the covariates; step 3 fits the structural model the call asks for, as
+before. Step 3's standard errors in this case treat the classification error
+as known. Nothing changes numerically for a fit without `predictors_items`.
+
 ## The three-step `fit_lta()` models a distal outcome off the last occasion
 
 `fit_lta(n_steps = 3, assignment = "modal")` gains `distal`, one or more

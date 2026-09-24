@@ -850,8 +850,9 @@
       }
       if (loading_free)
         out[[length(out) + 1L]] <- list(kind = "lambda", j = j, len = M)
-      if (D_dif > 0L)
-        out[[length(out) + 1L]] <- list(kind = "dif", j = j, len = K * D_dif)
+      if (D_dif > 0L && .lta_dif_len(state$dif, j) > 0L)
+        out[[length(out) + 1L]] <- list(kind = "dif", j = j,
+                                        len = .lta_dif_len(state$dif, j))
     }
     # The continuous variant's Gauss-Hermite weights are FIXED and must never
     # get a block, the same restriction .lta_ri_mstep() and
@@ -962,9 +963,8 @@
       },
       alpha  = state$ri$A[, b$j],
       lambda = state$ri$L[b$j, ],
-      # Status fastest, covariate slowest -- as.vector() on a K x D matrix.
-      dif = as.vector(matrix(state$dif$beta[, b$j, ], K,
-                             ncol(state$dif$Zu))),
+      # Status fastest, covariate slowest (.lta_dif_pack(), R/lta_dif.R).
+      dif = .lta_dif_pack(state$dif, b$j),
       ri_mass = {
         p <- pmax(state$ri$mass, 1e-12)
         Q <- length(p)
@@ -1037,7 +1037,7 @@
     } else if (b$kind == "lambda") {
       state$ri$L[b$j, ] <- v
     } else if (b$kind == "dif") {
-      state$dif$beta[, b$j, ] <- matrix(v, K, ncol(state$dif$Zu))
+      state$dif <- .lta_dif_unpack(state$dif, b$j, v)
     } else if (b$kind == "ri_mass") {
       p <- exp(c(v, 0) - max(c(v, 0)))
       state$ri$mass <- p / sum(p)

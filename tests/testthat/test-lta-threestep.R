@@ -238,9 +238,9 @@ test_that("the transition-free model refuses what it has not been graded in", {
                                 measurement = "binary", n_init = 2,
                                 random_state = 1, n_cores = 1,
                                 .transition_free = TRUE, ...)
-  z <- data.frame(v = rnorm(nrow(X)))
-  expect_error(base(predictors_initial = z), "does not accept")
-  expect_error(base(predictors_transition = z), "does not accept")
+  # Covariates are accepted since Part 52 Phase E: a step 1 with
+  # `predictors_items` regresses each occasion's status on them
+  # (test-lta-dif-items.R).
   expect_error(base(n_classes = 2), "does not accept")
   expect_error(base(random_intercept = "continuous"), "does not accept")
   expect_error(base(forbidden_transitions = matrix(c(0, 0, 0, 1, 0, 0, 0, 0, 0), 3, 3, byrow = TRUE)), "does not accept")
@@ -824,7 +824,6 @@ test_that("the three-step refuses what it is not defined for, before fitting", {
                   list(n_classes = 2),
                   list(mover_stayer = TRUE),
                   list(group = z),
-                  list(predictors_items = z),
                   list(predictors_random_intercept = z))
   for (a in refused)
     expect_error(do.call(fit_lta, c(base, a)), "`n_steps = 3` does not support")

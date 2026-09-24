@@ -42,6 +42,7 @@ fit_lta(
   predictors_initial = NULL,
   predictors_transition = NULL,
   predictors_items = NULL,
+  predictors_items_by_status = NULL,
   predictors_random_intercept = NULL,
   n_steps = 1,
   transition_effects = c("common", "by_origin"),
@@ -346,7 +347,20 @@ groups, which is the assumption this argument exists to relax. Requires
 \code{measurement = "ordinal"} and \code{measurement_invariance = "full"}.
 Restricted to covariates taking few distinct values - see
 \code{options(mixtureEM.dif_max_patterns = )}. The item probabilities the fit
-reports are those of a case with every one of these covariates at zero.}
+reports are those of a case with every one of these covariates at zero.
+
+Alternatively a named list, item name = a data frame (or a matrix with
+column names) of the covariates acting on that item, e.g.
+\code{list(item3 = data.frame(female))}, which frees slopes on the named items
+only. Items are named as the fit names them (occasion 1's column names
+with the occasion marker dropped), and a covariate is matched across
+items by its column name. Each slope is then shared by every status
+(uniform DIF, one parameter) unless the item is named in
+\code{predictors_items_by_status}.}
+
+\item{predictors_items_by_status}{Names of items in the list form of
+\code{predictors_items} whose slopes differ by status (non-uniform DIF, one
+slope per status). The matrix form is already by status.}
 
 \item{predictors_random_intercept}{Optional covariates predicting the
 continuous random intercept itself (the article's own Step 5). The
@@ -608,8 +622,15 @@ Two more things to know when reading the result. Step 3's log-likelihood
 is that of the assigned statuses, not of the items, so it must never be
 compared with a one- or two-step fit's. And the estimator covers one
 chain of statuses on a measurement model every case shares: random
-intercepts, \code{n_classes > 1}, \code{mover_stayer}, \code{group} and
-\code{predictors_items} are refused.
+intercepts, \code{n_classes > 1}, \code{mover_stayer} and \code{group} are refused.
+
+\code{predictors_items} is accepted and acts in step 1 only, where the status
+at every occasion is also regressed on the same covariates (without that
+regression the item slope would have to carry the whole association
+between the covariate and the status). Step 3 fits whatever
+\code{predictors_initial} and \code{predictors_transition} ask for. Step 1 has no
+standard errors in this case, so step 3's treat the classification error
+as known rather than adding step 1's uncertainty.
 }
 
 \references{

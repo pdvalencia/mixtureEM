@@ -43,8 +43,22 @@
 # and a constant column refused, both of which are right here for the same
 # reason they are right there -- a shift shared by every case is absorbed
 # exactly by the free per-status thresholds and is not identified.
-.lta_dif_init <- function(predictors, n, K, R, label = "predictors_items") {
+#
+# `mode` says which slopes are free: an R x D integer matrix, 0 for none, 1 for
+# one slope shared by every status (uniform DIF) and 2 for one per status
+# (non-uniform). The matrix form of `predictors_items` is every item by status,
+# which is what `mode = NULL` means. `beta` keeps its K x R x D shape whatever
+# the mode, so every reader of it stays as written: a uniform slope is K equal
+# rows and an absent one is zero.
+.lta_dif_init <- function(predictors, n, K, R, label = "predictors_items",
+                          mode = NULL) {
   Z <- .lta_ri_design(predictors, n, label)
+  if (is.null(mode)) {
+    mode <- matrix(2L, R, ncol(Z))
+  } else {
+    mode <- mode[, colnames(Z), drop = FALSE]
+  }
+  dimnames(mode) <- NULL
 
   # match() against unique() rather than factor(): the codes only have to
   # separate the distinct values, and a factor's level ordering is a needless
@@ -68,7 +82,63 @@
 
   list(Z = Z, Zu = Z[u, , drop = FALSE], pat = idx, P = P,
        rows = lapply(seq_len(P), function(p) which(idx == p)),
-       beta = array(0, c(K, R, ncol(Z))), names = colnames(Z))
+       beta = array(0, c(K, R, ncol(Z))), names = colnames(Z), mode = mode)
+}
+
+# The list form of `predictors_items`: item name -> the covariates acting on
+# that item, as in fit_mixture() (.dif_spec(), R/categorical_dif.R). Items are
+# named as the fit names them, which is occasion 1's column names with the
+# occasion marker dropped; the slope is shared across occasions either way.
+# Returns the union design (one column per distinct covariate, by name) and the
+# R x D mode matrix .lta_dif_init() reads. A list entry is uniform unless its
+# item is named in `by_status`.
+.lta_dif_spec <- function(spec, by_status, item_names, n) {
+  if (is.null(names(spec)) || any(!nzchar(names(spec))))
+    stop("`predictors_items` given as a list must be named: item name = ",
+         "the covariates acting on that item, e.g. list(item3 = ",
+         "data.frame(female)).", call. = FALSE)
+  bad <- setdiff(c(names(spec), by_status), item_names)
+  if (length(bad))
+    stop(sprintf("`predictors_items` names %s not among the items (%s): %s.",
+                 if (length(bad) > 1L) "items" else "an item",
+                 paste(item_names, collapse = ", "),
+                 paste(bad, collapse = ", ")), call. = FALSE)
+  bad <- setdiff(by_status, names(spec))
+  if (length(bad))
+    stop(sprintf(paste0("`predictors_items_by_status` names %s with no entry ",
+                        "in `predictors_items`: %s."),
+                 if (length(bad) > 1L) "items" else "an item",
+                 paste(bad, collapse = ", ")), call. = FALSE)
+  # Columns are matched across items by name, so a nameless vector could not
+  # say whether two items share a covariate or have two of their own.
+  unnamed <- vapply(spec, function(x) is.null(colnames(x)), logical(1))
+  if (any(unnamed))
+    stop(sprintf(paste0("Each entry of `predictors_items` must be a data frame ",
+                        "or a matrix with column names (%s has none), e.g. ",
+                        "list(item3 = data.frame(female))."),
+                 paste(names(spec)[unnamed], collapse = ", ")), call. = FALSE)
+  per_item <- lapply(names(spec), function(it)
+    as.matrix(prepare_covariates(spec[[it]])))
+  if (any(vapply(per_item, nrow, 1L) != n))
+    stop("Every entry of `predictors_items` must have one row per case.",
+         call. = FALSE)
+  covs <- unique(unlist(lapply(per_item, colnames)))
+  Z    <- matrix(NA_real_, n, length(covs), dimnames = list(NULL, covs))
+  mode <- matrix(0L, length(item_names), length(covs),
+                 dimnames = list(item_names, covs))
+  for (i in seq_along(per_item)) {
+    cn <- colnames(per_item[[i]])
+    for (cc in cn) {
+      if (!all(is.na(Z[, cc])) &&
+          !isTRUE(all.equal(Z[, cc], per_item[[i]][, cc], check.attributes = FALSE)))
+        stop(sprintf(paste0("`predictors_items` gives two different columns ",
+                            "named `%s`; a covariate must be the same variable ",
+                            "on every item it acts on."), cc), call. = FALSE)
+      Z[, cc] <- per_item[[i]][, cc]
+    }
+    mode[names(spec)[i], cn] <- if (names(spec)[i] %in% by_status) 2L else 1L
+  }
+  list(Z = Z, mode = mode)
 }
 
 # The K x R additive shift to every item's linear predictor for covariate
@@ -173,19 +243,37 @@
     d_j      <- matrix(beta[, j, ], K, D)
     node_sh  <- as.vector(ri$Dnode %*% lambda_j)[node_of]   # length n_grid
 
-    # Cycle 1: thresholds and DIF slopes together, one status at a time.
+    # Cycle 1: thresholds and the status-specific DIF slopes together, one
+    # status at a time; a uniform or absent slope is held where it is.
+    by_st <- which(.lta_dif_mode(dif)[j, ] == 2L)
+    unif  <- which(.lta_dif_mode(dif)[j, ] == 1L)
     for (k in seq_len(K)) {
-      par0 <- c(theta_j[k, ], d_j[k, ])
+      par0 <- c(theta_j[k, ], d_j[k, by_st])
       nll <- function(par) {
         th_k <- matrix(par[seq_len(Sj - 1L)], 1L, Sj - 1L)
-        sh   <- matrix(node_sh + as.vector(Zg %*% par[Sj - 1L + seq_len(D)]),
-                       1L, n_grid)
+        d_k  <- d_j[k, ]
+        d_k[by_st] <- par[Sj - 1L + seq_along(by_st)]
+        sh   <- matrix(node_sh + as.vector(Zg %*% d_k), 1L, n_grid)
         .ordinal_grid_negloglik(th_k, sh, array(n_arr[k, , ], c(1L, n_grid, Sj)),
                                 Sj)
       }
       fit_k <- stats::nlminb(par0, nll)
-      theta_j[k, ] <- fit_k$par[seq_len(Sj - 1L)]
-      d_j[k, ]     <- fit_k$par[Sj - 1L + seq_len(D)]
+      theta_j[k, ]     <- fit_k$par[seq_len(Sj - 1L)]
+      d_j[k, by_st]    <- fit_k$par[Sj - 1L + seq_along(by_st)]
+    }
+
+    # Cycle 1b: the uniform slopes, one value shared by every status, pooling
+    # the statuses with the thresholds held -- the loading cycle's shape. It
+    # only increases the objective, so monotonicity is kept.
+    if (length(unif)) {
+      nll_u <- function(u) {
+        d_all <- d_j
+        d_all[, unif] <- matrix(u, K, length(unif), byrow = TRUE)
+        sh <- t(matrix(node_sh, n_grid, K) + tcrossprod(Zg, d_all))
+        .ordinal_grid_negloglik(theta_j, sh, n_arr, Sj)
+      }
+      u <- stats::nlminb(d_j[1L, unif], nll_u)$par
+      d_j[, unif] <- matrix(u, K, length(unif), byrow = TRUE)
     }
     theta[, cols] <- theta_j
     beta[, j, ]   <- d_j
@@ -229,4 +317,57 @@
   for (t in seq_len(Tn))
     state$mm$models[[t]]$parameters$pis <- state$mm$models[[1]]$parameters$pis
   state
+}
+
+# ------------------------------------------------------------------------------
+# The free slopes of one item, as the parameter vector carries them
+# ------------------------------------------------------------------------------
+#
+# Covariate slowest, status fastest -- as.vector() on the K x D slope matrix
+# when every slope is by status, which is the order the matrix form has always
+# been packed in. A uniform slope contributes one entry and an absent one none.
+# .lta_par_layout(), .lta_par_pack(), .lta_par_unpack() and
+# .lta_score_matrix() all go through these, so the four cannot drift apart.
+# A fit saved before `mode` existed had every slope by status.
+.lta_dif_mode <- function(dif)
+  dif$mode %||% matrix(2L, dim(dif$beta)[2], dim(dif$beta)[3])
+
+.lta_dif_len <- function(dif, j) {
+  K    <- dim(dif$beta)[1]
+  mode <- .lta_dif_mode(dif)
+  as.integer(sum(mode[j, ] == 1L) + K * sum(mode[j, ] == 2L))
+}
+
+.lta_dif_pack <- function(dif, j) {
+  mode <- .lta_dif_mode(dif)
+  unlist(lapply(seq_len(ncol(dif$Zu)), function(d)
+    switch(mode[j, d] + 1L, NULL, dif$beta[1L, j, d], dif$beta[, j, d])),
+    use.names = FALSE)
+}
+
+.lta_dif_unpack <- function(dif, j, v) {
+  K   <- dim(dif$beta)[1]
+  pos <- 0L
+  for (d in seq_len(ncol(dif$Zu))) {
+    m <- .lta_dif_mode(dif)[j, d]
+    if (m == 1L) {
+      dif$beta[, j, d] <- v[pos + 1L]; pos <- pos + 1L
+    } else if (m == 2L) {
+      dif$beta[, j, d] <- v[pos + seq_len(K)]; pos <- pos + K
+    }
+  }
+  dif
+}
+
+# `S` holds one column per (covariate, status), status fastest, which is what a
+# by-status slope is scored on. A uniform slope moves every status's linear
+# predictor at once, so its score is the sum of its K columns.
+.lta_dif_score <- function(dif, j, S) {
+  K <- dim(dif$beta)[1]
+  do.call(cbind, lapply(seq_len(ncol(dif$Zu)), function(d) {
+    cols <- (d - 1L) * K + seq_len(K)
+    switch(.lta_dif_mode(dif)[j, d] + 1L, NULL,
+           matrix(rowSums(S[, cols, drop = FALSE]), ncol = 1L),
+           S[, cols, drop = FALSE])
+  }))
 }

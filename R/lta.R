@@ -303,6 +303,18 @@
 #'   Restricted to covariates taking few distinct values - see
 #'   `options(mixtureEM.dif_max_patterns = )`. The item probabilities the fit
 #'   reports are those of a case with every one of these covariates at zero.
+#'
+#'   Alternatively a named list, item name = a data frame (or a matrix with
+#'   column names) of the covariates acting on that item, e.g.
+#'   `list(item3 = data.frame(female))`, which frees slopes on the named items
+#'   only. Items are named as the fit names them (occasion 1's column names
+#'   with the occasion marker dropped), and a covariate is matched across
+#'   items by its column name. Each slope is then shared by every status
+#'   (uniform DIF, one parameter) unless the item is named in
+#'   `predictors_items_by_status`.
+#' @param predictors_items_by_status Names of items in the list form of
+#'   `predictors_items` whose slopes differ by status (non-uniform DIF, one
+#'   slope per status). The matrix form is already by status.
 #' @param predictors_random_intercept Optional covariates predicting the
 #'   continuous random intercept itself (the article's own Step 5). The
 #'   factor's residual variance is fixed at 1 and its residual mean at 0, so no
@@ -516,8 +528,15 @@
 #'   is that of the assigned statuses, not of the items, so it must never be
 #'   compared with a one- or two-step fit's. And the estimator covers one
 #'   chain of statuses on a measurement model every case shares: random
-#'   intercepts, `n_classes > 1`, `mover_stayer`, `group` and
-#'   `predictors_items` are refused.
+#'   intercepts, `n_classes > 1`, `mover_stayer` and `group` are refused.
+#'
+#'   `predictors_items` is accepted and acts in step 1 only, where the status
+#'   at every occasion is also regressed on the same covariates (without that
+#'   regression the item slope would have to carry the whole association
+#'   between the covariate and the status). Step 3 fits whatever
+#'   `predictors_initial` and `predictors_transition` ask for. Step 1 has no
+#'   standard errors in this case, so step 3's treat the classification error
+#'   as known rather than adding step 1's uncertainty.
 #'
 #' @references
 #' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
@@ -608,6 +627,7 @@ fit_lta <- function(indicators,
                     predictors_initial = NULL,
                     predictors_transition = NULL,
                     predictors_items = NULL,
+                    predictors_items_by_status = NULL,
                     predictors_random_intercept = NULL,
                     n_steps = 1,
                     transition_effects = c("common", "by_origin"),
@@ -691,13 +711,14 @@ fit_lta <- function(indicators,
   # --- the three-step estimator -----------------------------------------------
   # Everything is refused up front, before step 1 spends any time: what the
   # three-step is defined for here is one chain of statuses whose measurement
-  # model every case shares. A random intercept, classes above the chain, groups
-  # and item-level covariate effects each change that, and each is
-  # out of scope for now rather than supported half-way. A survey design is
-  # carried through both steps under modal assignment, where step 3's rows are
-  # the cases; under proportional assignment they are status combinations with
-  # no case, PSU or stratum of their own, so the design is refused there rather
-  # than silently half-applied.
+  # model every case shares. A random intercept, classes above the chain and
+  # groups each change that, and each is out of scope for now rather than
+  # supported half-way. Item-level covariate effects do not: they live in step
+  # 1 only, and step 3 reads their consequence through each case's posterior.
+  # A survey design is carried through both steps under modal assignment,
+  # where step 3's rows are the cases; under proportional assignment they are
+  # status combinations with no case, PSU or stratum of their own, so the
+  # design is refused there rather than silently half-applied.
   if (n_steps == 3L) {
     if (correction == "BCH")
       stop("`correction = \"BCH\"` is not available for latent transition ",
@@ -707,8 +728,7 @@ fit_lta <- function(indicators,
       "predictors_random_intercept" = !is.null(predictors_random_intercept),
       "n_classes > 1"               = n_classes > 1,
       "mover_stayer"                = isTRUE(mover_stayer),
-      "group"                       = !is.null(group),
-      "predictors_items"            = !is.null(predictors_items))
+      "group"                       = !is.null(group))
     if (any(bad))
       stop("`n_steps = 3` does not support ",
            paste(names(bad)[bad], collapse = ", "), ". The three-step ",
@@ -751,6 +771,22 @@ fit_lta <- function(indicators,
   if (prep$n_times < 2L)
     stop("Latent transition analysis needs at least two occasions.",
          call. = FALSE)
+
+  # The list form of `predictors_items` is read here, against the item names
+  # the data just produced and before any case is dropped, into the covariate
+  # design every other form already is plus the slopes it frees
+  # (.lta_dif_spec(), R/lta_dif.R). From here on both forms are one design.
+  dif_mode <- NULL
+  if (is.list(predictors_items) && !is.data.frame(predictors_items)) {
+    ds <- .lta_dif_spec(predictors_items, predictors_items_by_status,
+                        prep$item_names, nrow(prep$X))
+    predictors_items <- ds$Z
+    dif_mode         <- ds$mode
+  } else if (!is.null(predictors_items_by_status)) {
+    stop("`predictors_items_by_status` needs `predictors_items` given as a ",
+         "named list; the matrix form already gives every item a slope per ",
+         "status.", call. = FALSE)
+  }
 
   # --- Cases with no observed indicator at any occasion -----------------------
   # A case observed at no occasion has a flat likelihood at every wave, so its
@@ -1006,16 +1042,17 @@ fit_lta <- function(indicators,
   # The transition-free model exists for one caller and is graded in one
   # configuration. Every combination below either has no meaning once the
   # transition rows are tied together (`forbidden_transitions`,
-  # `transition_invariance`) or lies outside what the three-step is defined for (a second latent variable
-  # above the chain, a random intercept, groups, structural predictors).
+  # `transition_invariance`) or lies outside what the three-step is defined for
+  # (a second latent variable above the chain, a random intercept, groups).
+  # Covariates are accepted for one caller, a step 1 with `predictors_items`:
+  # the status at each occasion is then regressed on the DIF covariates, which
+  # .lta_tau_design() makes origin-free, so the occasions stay independent
+  # given the covariates (.lta_threestep_step12()).
   # Refusing is what keeps an unsupported combination from becoming an
   # accepted one.
   if (tau_independent) {
     bad <- c(
-      "predictors_initial"          = !is.null(Z_delta),
-      "predictors_transition"       = !is.null(Z_tau),
       "predictors_random_intercept" = !is.null(Z_ri),
-      "predictors_items"            = !is.null(predictors_items),
       "random_intercept"            = random_intercept != "none",
       "group"                       = !is.null(group),
       "n_classes > 1"               = C > 1L,
@@ -1063,7 +1100,8 @@ fit_lta <- function(indicators,
                                         cats            = engine$cats),
     ri              = .lta_ri_init(random_intercept, n_quadrature, n_ri),
     dif             = if (is.null(predictors_items)) NULL else
-      .lta_dif_init(predictors_items, n, K, prep$n_items, "predictors_items")
+      .lta_dif_init(predictors_items, n, K, prep$n_items, "predictors_items",
+                    mode = dif_mode)
   )
 
   # A DIF slope only means something in the cumulative-logit parameterisation,
@@ -1853,8 +1891,11 @@ fit_lta <- function(indicators,
       if (state$ri$kind == "binary") length(state$ri$mass) - 1L else 0L
   n_ri_beta <- if (is.null(state$Z_ri)) 0L else ncol(state$Z_ri)
   # One proportional-odds slope per (latent status, item, covariate), shared
-  # across occasions.
-  n_dif <- if (is.null(state$dif)) 0L else length(state$dif$beta)
+  # across occasions -- or one per (item, covariate) where it is uniform, and
+  # none where the list form of `predictors_items` left the item out.
+  n_dif <- if (is.null(state$dif)) 0L else
+    sum(vapply(seq_len(state$n_items), function(j) .lta_dif_len(state$dif, j),
+               integer(1)))
 
   # A fixed emission is a constant this fit was handed, not something it
   # estimated, so it contributes nothing to the count and nothing to any
@@ -2748,8 +2789,9 @@ fit_lta <- function(indicators,
         add_block(s_theta, NULL, NULL, sprintf("theta[item %d]", j))
         if (loading_free)
           add_block(s_lambda, NULL, NULL, sprintf("lambda[item %d]", j))
-        if (!is.null(dif))
-          add_block(s_dif, NULL, NULL, sprintf("dif[item %d]", j))
+        if (!is.null(dif) && .lta_dif_len(dif, j) > 0L)
+          add_block(.lta_dif_score(dif, j, s_dif), NULL, NULL,
+                    sprintf("dif[item %d]", j))
         next
       }
       s_alpha  <- matrix(0, n, K)

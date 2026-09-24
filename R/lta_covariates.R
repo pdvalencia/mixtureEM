@@ -105,6 +105,13 @@
   # due here; returning Z unchanged keeps this identical to the design
   # .lta_mstep_tau_cov()'s by-origin branch builds from state$Z_tau directly.
   if (identical(state$transition_effects, "by_origin")) return(Z)
+  # The transition-free model (a three-step step 1 with `predictors_items`):
+  # no origin dummies, so every origin row is the same regression and this is
+  # the occasion's own prevalence regression. Stacking the K origins with that
+  # one design in .lta_mstep_tau_cov() is then exactly the regression of the
+  # occasion's posteriors on the covariates, since the origins' pairwise
+  # posteriors sum to them.
+  if (isTRUE(state$tau_independent)) return(Z)
   occ <- .lta_tau_occasion_contrasts(state, nrow(Z), occasion)
   dummies <- matrix(0, nrow(Z), K - 1L)
   if (k < K) dummies[, k] <- 1
@@ -397,17 +404,28 @@ lta_covariate_summary <- function(object, digits = 3) {
     # The block columns are packed status-fastest, covariate-slowest, which is
     # the order .lta_par_pack()'s `dif` arm writes them in.
     est <- se <- numeric(0); lab_i <- lab_k <- lab_t <- character(0)
+    # A uniform slope is one row labelled "all"; an item the list form left
+    # out has no row.
+    mode <- .lta_dif_mode(dif)
     for (j in seq_len(J)) {
+      len <- .lta_dif_len(dif, j)
+      if (len == 0L) next
       blk <- if (is.null(object$se)) NULL else
         Find(function(b) identical(b$name, sprintf("dif[item %d]", j)),
              object$se$blocks)
-      se_j <- if (is.null(blk)) rep(NA_real_, K * D) else
+      se_j <- if (is.null(blk)) rep(NA_real_, len) else
         sqrt(pmax(diag(object$se$vcov)[blk$cols], 0))
-      est <- c(est, as.vector(matrix(dif$beta[, j, ], K, D)))
+      est <- c(est, .lta_dif_pack(dif, j))
       se  <- c(se, se_j)
-      lab_i <- c(lab_i, rep(itn[j], K * D))
-      lab_k <- c(lab_k, rep(paste("Status", seq_len(K)), times = D))
-      lab_t <- c(lab_t, rep(nms, each = K))
+      lab_i <- c(lab_i, rep(itn[j], len))
+      for (d in seq_len(D)) {
+        if (mode[j, d] == 1L) {
+          lab_k <- c(lab_k, "all"); lab_t <- c(lab_t, nms[d])
+        } else if (mode[j, d] == 2L) {
+          lab_k <- c(lab_k, paste("Status", seq_len(K)))
+          lab_t <- c(lab_t, rep(nms[d], K))
+        }
+      }
     }
     z <- est / se
     print(data.frame(
