@@ -132,10 +132,19 @@ test_that("the non-convergence warning names the doubled iteration budget", {
 test_that("fit_lta() warns when it stops at the iteration cap", {
   set.seed(21)
   X <- matrix(rbinom(120 * 3, 1, 0.5), ncol = 3)
+  # EM alone (`refine = FALSE`). A refined fit is taken on from the cap by the
+  # Newton-type finish (R/qn_finish.R), and its flag then says whether that
+  # ended at a stationary point.
   expect_warning(
     fit_lta(X, n_statuses = 2, times = 3, measurement = "binary", n_init = 1,
-            max_iter = 2, random_state = 1, standard_errors = FALSE),
+            max_iter = 2, random_state = 1, standard_errors = FALSE,
+            refine = FALSE),
     "max_iter = 4", fixed = TRUE)
+  fin <- suppressWarnings(
+    fit_lta(X, n_statuses = 2, times = 3, measurement = "binary", n_init = 1,
+            max_iter = 2, random_state = 1, standard_errors = FALSE))
+  if (!is.null(fin$qn_finish))
+    expect_identical(fin$converged, fin$qn_finish$converged)
 })
 
 # ------------------------------------------------------------------------------

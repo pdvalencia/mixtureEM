@@ -73,7 +73,9 @@ test_that("fit_mixture() refines its own fit and refuses the wrong donor", {
   b <- suppressWarnings(fit_mixture(X, measurement = "binary", n_classes = 2,
                                     refine_from = a, random_state = 2))
 
-  expect_gte(b$metrics$ll, a$metrics$ll - 1e-10)
+  # `a` already sits at the maximum (the Newton-type finish, R/qn_finish.R),
+  # so refining it can move the reported log-likelihood by rounding only.
+  expect_gte(b$metrics$ll, a$metrics$ll - 1e-8)
   expect_equal(b$metrics$ll, a$metrics$ll, tolerance = 1e-6)
   expect_identical(b$metrics$n_requested, 1L)
   expect_true(isTRUE(b$refined_from))

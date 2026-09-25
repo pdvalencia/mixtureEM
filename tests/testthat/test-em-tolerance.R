@@ -126,12 +126,21 @@ test_that("failing to converge within max_iter is reported, not swallowed", {
   # hitting the cap was near-impossible and print() was the only place the flag
   # appeared. Now that they run the iterations they need, a cap can genuinely
   # bite, and returning whatever iterate EM was on without saying so would be
-  # the worst of the three outcomes.
+  # the worst of the three outcomes. That is the EM-only path, `refine =
+  # FALSE`; a refined categorical fit is taken on from EM's iterate by the
+  # Newton-type finish (R/qn_finish.R), and its flag then says whether that
+  # ended at a stationary point.
   expect_warning(
     fit <- fit_mixture(X, n_classes = 3, measurement = "categorical",
-                       n_init = 1, max_iter = 3, random_state = 1),
+                       n_init = 1, max_iter = 3, random_state = 1,
+                       refine = FALSE),
     "did not converge")
   expect_false(fit$converged)
+  fin <- suppressWarnings(fit_mixture(X, n_classes = 3,
+                                      measurement = "categorical", n_init = 1,
+                                      max_iter = 3, random_state = 1))
+  expect_false(is.null(fin$qn_finish))
+  expect_identical(fin$converged, fin$qn_finish$converged)
 
   # And it stays quiet when the model does converge.
   expect_no_warning(

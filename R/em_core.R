@@ -287,9 +287,13 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 # RECORDS.md, "R3's W1"; the reasoning that ruled out chasing the gap with a
 # gradient fix instead: DECISIONS.md, "R3 — the polish was never the gap".
 # Median cost across the ten models measured is 1.5x the iterations, worst
-# case 2.6x. The relative term is kept only as a safety valve so that a very
-# large sample cannot iterate indefinitely; it is not implicated in the gap
-# above and stays at 1e-8.
+# case 2.6x. The relative term was meant as a safety valve so that a very
+# large sample cannot iterate indefinitely, but above |LL| = 100 it is the
+# clause that fires first: at |LL| ~ 4000 EM stops once a step gains ~4e-5. On
+# a categorical fit with cells on the 0/1 boundary that is still far from the
+# maximum (EM crawls there; see R/qn_finish.R), and those fits are taken the
+# rest of the way by the Newton-type finish rather than by a tighter rule
+# here, which would cost tens of thousands of iterations for the same point.
 .em_tol_unpolished <- list(abs = 1e-6, rel = 1e-8)
 
 # The log-prior term every m_step.<family>() and refine_lbfgs() already add to
@@ -1311,6 +1315,16 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
   # whole units apart, so 0.01 separates them without splitting one.
   same_ll <- 1e-2
 
+  # EM's own end points are what the replication count above describes; the
+  # Newton-type finish (R/qn_finish.R) then takes the leading ones on to the
+  # maximum and the best of those is reported. It is part of the refinement,
+  # so `refine = FALSE` -- the path bootstrap replicates take -- skips it.
+  qn_finish <- function(states, best) {
+    if (!isTRUE(refine) || is.null(best)) return(best)
+    fin <- .qn_finish_search(states, ll_of, X, Y)
+    if (!is.null(fin) && ll_of(fin) > ll_of(best)) fin else best
+  }
+
   finish <- function(best) {
     if (is.null(best)) return(best)
     best$start_lls    <- final_lls
@@ -1375,8 +1389,9 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
       warm_ll      <- ll_of(fitted_state)
       record(warm_ll)
       if (warm_ll > best_total_ll) best_model <- fitted_state
+      fitted <- c(fitted, list(fitted_state))
     }
-    return(finish(best_model))
+    return(finish(qn_finish(fitted, best_model)))
   }
 
   best_model <- NULL
@@ -1405,7 +1420,8 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     record(warm_ll)
     if (is.null(best_model) || warm_ll > best_total_ll)
       best_model <- fitted_state
+    fitted <- c(fitted, list(fitted_state))
   }
 
-  return(finish(best_model))
+  return(finish(qn_finish(fitted, best_model)))
 }

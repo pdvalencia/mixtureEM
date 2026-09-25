@@ -1569,6 +1569,29 @@ fit_lta <- function(indicators,
     }
   }
 
+  # The Newton-type finish (R/qn_finish.R): EM's winner, and any distinct
+  # solution within reach of it, taken on from where EM stopped to the
+  # maximum. Candidates compete only with others of the winner's degeneracy
+  # status, so the ranking rule above still decides between the two kinds.
+  # Every fit it applies to took the unstaged search, so `cands` holds the
+  # converged restarts.
+  if (isTRUE(refine) && is.null(fixed_mm) && !staged &&
+      .qn_lta_supported(best)) {
+    pool <- Filter(function(cd) !inherits(cd, "try-error") &&
+                     identical(!is.null(.categorical_boundary(cd, X_fit)),
+                               best_degenerate),
+                   cands)
+    if (!length(pool)) pool <- list(best)
+    pick <- .qn_pick(vapply(pool, score_of, numeric(1)),
+                     lapply(pool, `[[`, "ll_case"), best$weights_vec)
+    for (i in pick) {
+      fin <- .qn_finish_lta(pool[[i]], X_fit, alpha, rank_marg)
+      if (!is.null(fin) && score_of(fin) > best_score) {
+        best <- fin; best_score <- score_of(fin)
+      }
+    }
+  }
+
   # Back onto the full sample before anything per-case is read off the fit:
   # every posterior, the path entropy, the standard errors and the metrics
   # below all describe cases, and the search saw patterns.
@@ -2450,7 +2473,7 @@ fit_lta <- function(indicators,
     integer(0)
 }
 
-.lta_scores_supported <- function(state) {
+.lta_scores_supported <- function(state, shared_ok = FALSE) {
   if (state$n_statuses < 2L || state$n_times < 2L) return(FALSE)
   # The transition-free model ties every row of an occasion's matrix to one
   # shared vector, and the packed vector below still describes K free rows, so
@@ -2459,7 +2482,13 @@ fit_lta <- function(indicators,
   # .lta_par_layout() and everything built on it, so this fit reports no
   # standard errors at all rather than wrong ones. Teaching the packing a
   # shared-row block is R5's W6, which is where step-1 uncertainty is needed.
-  if (isTRUE(state$tau_independent)) return(FALSE)
+  #
+  # `shared_ok` is for a caller that maps the shared rows onto one free vector
+  # per occasion itself (.qn_lta_reduction(), R/qn_finish.R) and reads the
+  # per-row scores only to fold them. With a transition regression the
+  # origin-free design has one row per occasion to begin with. Both were
+  # checked against central differences of .lta_ll_case() to 4e-8.
+  if (isTRUE(state$tau_independent) && !shared_ok) return(FALSE)
   # The multi-class branch of `.lta_score_matrix()` now runs
   # `.lta_ri_e_step()` per the RI arm above, populating `ri_G` / `ri_pq` for
   # the measurement blocks, so a multi-class RI fit needs no guard here.
@@ -2519,13 +2548,13 @@ fit_lta <- function(indicators,
 # The forward-backward pass is run here rather than read off `state`, so the
 # scores describe the parameters currently in `state` even when no E-step has
 # been taken at them. At a converged fit the two agree by construction.
-.lta_score_matrix <- function(state, X) {
+.lta_score_matrix <- function(state, X, shared_ok = FALSE) {
   K  <- state$n_statuses
   Tn <- state$n_times
   C  <- state$n_classes %||% 1L
   w  <- state$weights_vec
   n  <- nrow(X)
-  if (!.lta_scores_supported(state)) return(NULL)
+  if (!.lta_scores_supported(state, shared_ok)) return(NULL)
 
   logB <- .lta_emission_loglik(state$mm, X)
 

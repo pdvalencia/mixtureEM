@@ -1,5 +1,30 @@
 # mixtureEM (development version)
 
+## Categorical fits are taken to the maximum after EM
+
+A categorical model whose optimum has response probabilities at 0 or 1 sits
+on a ridge: the likelihood is almost flat along those cells, and EM crawls
+along it. The EM stopping rule, which fires once a step gains less than about
+4e-5 at the sample sizes typical here, used to leave such fits 0.002 to 0.02
+below their maximum. That is enough to move a classification table by 2e-3
+and a three-step estimate built on it by up to 0.3 in log-likelihood.
+
+`fit_mixture()` and `fit_lta()` now finish every categorical fit with
+Newton-type steps after EM. The steps use the outer product of the case-level
+scores as the curvature (BHHH), a trust region of one unit per coordinate, and
+the same penalised objective EM climbs. The finish covers binary and
+polytomous items, direct item effects, a class-membership regression, and the
+three-step LTA's transition-free step 1. A logit that passes 15 is sent to
+the edge of the scale (25, a probability of 1e-11) and held there. Where EM
+stopped short, the reported log-likelihood rises by up to 0.02, and every
+estimate moves to the maximum that a long EM run eventually reaches. A fit
+whose EM hit its iteration cap but whose finish ends with every gradient
+component below 1e-6 per case is now reported as converged, and `fit$qn_finish`
+records the iterations, the held cells and the final gradient. The
+replication count still describes EM's end points. Gaussian and count models,
+LTA models with a free random-intercept loading, and `refine = FALSE` fits
+(bootstrap replicates) are unchanged.
+
 ## The three-step `fit_lta()` offers the BCH correction
 
 `fit_lta(n_steps = 3, correction = "BCH")` was refused and now fits. Each

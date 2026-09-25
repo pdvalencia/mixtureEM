@@ -1010,8 +1010,12 @@ test_that("modal with no correction has nothing to propagate", {
 #   (o) every case its own PSU, one stratum: the design variance is the robust
 #       one, which agrees with the model-based variance to sampling error;
 #   (p) every case duplicated inside its own PSU: a copy adds no information,
-#       so every standard error is where it was (to the finite-difference
-#       noise, measured 3.4e-3).
+#       so every standard error is where it was, to the finite-difference
+#       noise of step 1's Hessian. That noise is ~0.02 per element at
+#       |LL| ~ 1e4 (rounding over h^2 = 1e-10) and moves these SEs by up to
+#       1.2%. The 3.4e-3 once recorded here measured two bitwise-identical
+#       EM iterates, whose rounding errors were the same; the Newton-type
+#       finish leaves the two fits 5e-11 apart, which is enough to show it.
 # ==============================================================================
 
 .ts3_w6b <- function(X, ...) {
@@ -1041,7 +1045,7 @@ test_that("duplicating every case inside its own PSU changes no standard error",
   d2 <- .ts3_w6b(X[rep(seq_len(n), each = 2), ],
                  cluster = rep(seq_len(n), each = 2))
   expect_equal(d2$delta, d1$delta, tolerance = 1e-8)
-  expect_lt(max(abs(sqrt(diag(d2$se$vcov) / diag(d1$se$vcov)) - 1)), 0.01)
+  expect_lt(max(abs(sqrt(diag(d2$se$vcov) / diag(d1$se$vcov)) - 1)), 0.02)
 })
 
 # ==============================================================================
