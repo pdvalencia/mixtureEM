@@ -231,6 +231,51 @@ comprehension, relative to staying in low alphabet. The `from:` terms are the or
 intercepts and are not of interest in themselves; the ones with enormous
 standard errors belong to cells almost nobody occupies.
 
+### The same question in three steps
+
+In the fit above the covariate and the statuses are estimated together, so
+poverty has a say in what the statuses *are*: a status is partly defined by
+who is poor. Usually that pull is small, but nothing guarantees it, and it
+means adding or dropping a covariate can quietly change the statuses whose
+prevalences you are comparing. The stepwise estimators remove it. With
+`n_steps = 3` (Vermunt, 2010; Nylund-Gibson et al., 2014) `fit_lta()` first
+fits the LTA with no covariates, then assigns every child a status at every
+occasion, and finally regresses those assigned statuses on poverty while
+correcting for the children the assignment gets wrong. The statuses are fixed
+before poverty is ever looked at.
+
+```{r poverty-3step, cache = TRUE}
+fit_pov3 <- fit_lta(items, n_statuses = 3, times = 4, measurement = "binary",
+                    predictors_initial = ecls_reading["poverty"],
+                    predictors_transition = ecls_reading["poverty"],
+                    n_steps = 3, n_init = 20, random_state = 7)
+round(status_prevalences(fit_pov3), 3)
+```
+
+Here status 1 is the low-alphabet stage, status 2 early word reading and
+status 3 comprehension, so the contrasts below are all against comprehension:
+
+```{r poverty-3step-coefs}
+lta_covariate_summary(fit_pov3)
+```
+
+Turned around to be against low alphabet, as above, the answer barely moves.
+A child in poverty has 0.25 times the odds of starting kindergarten in early
+word reading (0.23 in one step) and 0.15 times the odds of starting in
+comprehension (0.12). Over the summer those odds are 0.39 and 0.10 (0.40 and
+0.12). The poverty effect was not an artefact of letting poverty shape the
+statuses. When the two routes disagree, the three-step answer is the one to
+trust about the covariate, because its statuses are the ones the indicators
+alone define.
+
+The standard errors account both for the assignments being uncertain and
+for the first step's estimates being estimates. Other stepwise options work
+the same way: `correction = "BCH"` reweights the cases instead of modelling
+the misassignment, `n_steps = 2` holds the step-1 measurement model fixed
+and fits the covariates on the full likelihood, and `distal =` (with
+`assignment = "modal"`) adds an outcome measured after the last occasion,
+modelled by the status reached there. `?fit_lta` has the details.
+
 Whether the poverty effect on the *transitions* survives once stable
 between-child differences in reading readiness are modelled directly is
 the question `vignette("rilta")` takes up.
@@ -245,7 +290,16 @@ Kaplan, D. (2008). An overview of Markov chain methods for the study of
 stage-sequential developmental processes. *Developmental Psychology*,
 *44*(2), 457–467. <https://doi.org/10.1037/0012-1649.44.2.457>
 
+Nylund-Gibson, K., Grimm, R., Quirk, M., & Furlong, M. (2014). A latent
+transition mixture model using the three-step specification. *Structural
+Equation Modeling*, *21*(3), 439–454.
+<https://doi.org/10.1080/10705511.2014.915375>
+
 Vermunt, J. K. (2004). Mover-stayer models. In M. S. Lewis-Beck, A.
 Bryman, & T. F. Liao (Eds.), *The SAGE encyclopedia of social science
 research methods* (Vol. 3, p. 666). SAGE Publications.
 <https://doi.org/10.4135/9781412950589.n583>
+
+Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
+three-step approaches. *Political Analysis*, *18*(4), 450–469.
+<https://doi.org/10.1093/pan/mpq025>
