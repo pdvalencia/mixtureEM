@@ -37,7 +37,8 @@
 #' misses the true class. Step 3 fits a multinomial logistic regression of each
 #' occasion's latent class on the previous occasion's, holding those error
 #' tables fixed, so the classification error does not attenuate the
-#' association (Vermunt, 2010; Bakk, Tekle & Vermunt, 2013).
+#' association (Vermunt, 2010; Bakk, Tekle & Vermunt, 2013; Asparouhov &
+#' Muthén, 2014).
 #'
 #' The models may differ in family and in number of classes. Occasion 1's
 #' class is regressed on `predictors_initial`; each later occasion's class on
@@ -76,6 +77,10 @@
 #' Bakk, Z., Tekle, F. B., & Vermunt, J. K. (2013). Estimating the association
 #' between latent class membership and external variables using bias-adjusted
 #' three-step approaches. *Sociological Methodology*, 43(1), 272-311.
+#'
+#' Asparouhov, T., & Muthén, B. (2014). Auxiliary variables in mixture
+#' modeling: Three-step approaches using Mplus. *Structural Equation
+#' Modeling*, 21(3), 329-341.
 #'
 #' Nylund-Gibson, K., Grimm, R., Quirk, M., & Furlong, M. (2014). A latent
 #' transition mixture model using the three-step specification. *Structural
