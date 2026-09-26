@@ -86,18 +86,18 @@ that is what the reported probabilities refer to.
 0-based item. \code{"count"} fits a Poisson model, one rate per item and
 class, and needs non-negative integers.
 
-\strong{Known issue: a single \code{"categorical"} block charges every
-item the same parameter count.} It uses one \code{max_val} for the whole
-block — the number of levels in whichever item has the most — so any item
-with fewer levels than that maximum is still costed as if it had that
-many. A block mixing a two-level item with a four-level one charges the
-two-level item for four, inflating \code{n_params} and, with it, AIC and
-BIC. The remedy is the mixed \code{list} spelling above: give items with
-different numbers of levels their own entries — a two-level item as its
-own \code{"binary"} entry, or several \code{"categorical"} entries
-grouped by level count — rather than putting them all in one
-\code{"categorical"} block. Per-item level counting inside a single
-polytomous block is not implemented.}
+\strong{Items in one \code{"categorical"} block may have different numbers
+of categories.} Two-, three- and four-category items can share a block,
+and each item is charged for its own categories only: \eqn{K(C_j - 1)}
+parameters for an item with \eqn{C_j} categories. An item's categories
+are its highest observed code or, for a factor, its number of levels,
+whichever is larger, so an unused factor level stays part of the item.
+In a multiple-group or longitudinal model the count is taken over every
+group and occasion together. The set of possible answers belongs to the
+item, and every group and occasion shares it, so a category missing from
+one group is estimated at 0 there rather than removed. A category with no
+response at all, or none in one group or occasion where the item's
+probabilities are free to differ, gives a warning naming it.}
 
 \item{predictors}{Optional covariates that predict latent class membership.
 Supplying this fits a class-membership regression (the "predict class"

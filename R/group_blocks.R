@@ -61,13 +61,13 @@ group_blocks_model <- function(n_components, n_items, n_groups,
                                invariant_items = integer(0),
                                invariant_params = character(0),
                                variances_equal = FALSE,
-                               max_val = NULL, ...) {
+                               max_val = NULL, cats = NULL, ...) {
   .blocks_model(n_components, n_items, n_blocks = n_groups,
                sub_model = sub_model,
                invariant_items = invariant_items,
                invariant_params = invariant_params,
                variances_equal = variances_equal,
-               max_val = max_val, prefix = "G",
+               max_val = max_val, cats = cats, prefix = "G",
                extra_class = "group_blocks")
 }
 

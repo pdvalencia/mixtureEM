@@ -137,9 +137,13 @@
 # log-ratios against that class's most probable category (.qn_lr_pack()).
 # Ordinal items without a random intercept are the same thing with a ragged
 # number of categories per item.
+#
+# A nominal item packs only its own categories. The padding a shorter item
+# carries up to the block's widest item is fixed at 0, so it is no coordinate
+# of the finish, and unpacking leaves it untouched.
 .qn_cat_cols <- function(emis, j)
   if (is.null(emis$max_val)) .ordinal_item_cols(emis, j) else
-    ((j - 1L) * emis$max_val + 1L):(j * emis$max_val)
+    .multinoulli_item_cols(emis, j)
 
 .qn_pack_cat <- function(emis, items) {
   P <- emis$parameters$pis

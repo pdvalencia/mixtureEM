@@ -302,6 +302,10 @@ measurement_summary.default <- function(object,
     item_names <- colnames(mat)
     base_items <- NULL
     categories <- NULL
+    # Columns to show. A polytomous block pads every item out to its widest
+    # item's category count; the padding is no category of that item, so it is
+    # dropped here rather than printed as a row of zeros.
+    keep       <- seq_len(ncol(mat))
 
     if (is.null(item_names)) {
       if (!is.null(sub_model) && !is.null(sub_model$max_val)) {
@@ -314,6 +318,10 @@ measurement_summary.default <- function(object,
                              " (Cat ", rep(seq_len(M), times = n_items), ")")
         base_items <- rep(base, each = M)
         categories <- rep(seq_len(M), times = n_items)
+        keep       <- .multinoulli_real_cols(sub_model)
+        item_names <- item_names[keep]
+        base_items <- base_items[keep]
+        categories <- categories[keep]
       } else {
         item_names <- paste0("Item_", 1:ncol(mat))
       }
@@ -335,6 +343,9 @@ measurement_summary.default <- function(object,
     overall <- if (show_overall) .observed_marginals(object, mat, sub_model,
                                                       parameter) else NULL
     if (!is.null(overall) && length(overall) != ncol(mat)) overall <- NULL
+    if (!is.null(overall)) overall <- overall[keep]
+    mat <- mat[, keep, drop = FALSE]
+    if (!is.null(intercept)) intercept <- intercept[keep]
     if (show_overall && is.null(overall)) any_no_overall <<- TRUE
 
     cat(sprintf("%-*s", label_w, "Indicator"))
@@ -748,13 +759,13 @@ classification_diagnostics.default <- function(object, n_boot = 0,
   one_rep <- function(i) {
     set.seed(seeds[i])
     idx <- sample.int(N, N, replace = TRUE)
-    b <- try(fit_mixture_internal(
+    b <- try(do.call(fit_mixture_internal, c(list(
       X = X[idx, , drop = FALSE], n_components = K,
       measurement = object$measurement_descriptor, n_init = 0L,
       warm_start = warm, order_by_size = FALSE, refine = FALSE,
       bayes_constants = object$bayes_constants, se = "hessian",
       variances_equal = isTRUE(object$mm$variances_equal),
-      n_cores = 1L), silent = TRUE)
+      n_cores = 1L), .refit_cat_args(object$mm))), silent = TRUE)
     if (inherits(b, "try-error")) return(rep(NA_real_, K))
     perm <- align_classes(orig, get_mm_alignment_matrix(b$mm))
     b$weights[perm]
@@ -2501,6 +2512,12 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   # way to tell the user which of their categories became the "1" whose
   # probability gets reported.
   labels <- .indicator_level_labels(indicators)
+  # A factor declares its response space, unused levels included, and
+  # data.matrix() keeps the level codes but not how many levels there were.
+  declared <- if (is.data.frame(indicators))
+    vapply(indicators, function(v) if (is.factor(v)) nlevels(v) else NA_integer_,
+           integer(1), USE.NAMES = FALSE)
+  else rep(NA_integer_, NCOL(indicators))
 
   indicators <- if (is.data.frame(indicators)) data.matrix(indicators)
   else as.matrix(indicators)
@@ -2508,8 +2525,12 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   if (is.character(measurement) && length(measurement) == 1L) {
     rec <- .recode_binary(measurement, indicators, seq_len(ncol(indicators)),
                           labels)
+    cc <- if (measurement %in% .categorical_families)
+      .pooled_block_cats(rec$indicators, seq_len(ncol(indicators)),
+                         ncol(indicators), 1L, declared)
     return(list(descriptor = measurement, indicators = rec$indicators,
-                recode = rec$map))
+                recode = rec$map, cats = cc$cats, declared = declared,
+                empty = cc))
   }
 
   if (!is.list(measurement))
@@ -2568,10 +2589,53 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
          "Unassigned column(s): ", paste(unassigned, collapse = ", "),
          call. = FALSE)
 
+  indicators <- indicators[, ordered_idx, drop = FALSE]
+  declared   <- declared[ordered_idx]
+
+  # Each categorical block carries its items' own category counts, which
+  # build_emission() hands to the block's constructor. Item positions in
+  # `empty` are positions in the regrouped matrix returned here.
+  empty  <- NULL
+  offset <- 0L
+  for (key in names(descriptor)) {
+    n_j <- descriptor[[key]]$n_columns
+    if (descriptor[[key]]$model %in% .categorical_families) {
+      items <- offset + seq_len(n_j)
+      pc <- .pooled_block_cats(indicators, items, ncol(indicators), 1L,
+                               declared[items])
+      descriptor[[key]]$cats <- pc$cats
+      empty <- list(pooled = rbind(empty$pooled, pc$pooled))
+    }
+    offset <- offset + n_j
+  }
+
   list(descriptor = descriptor,
-       indicators  = indicators[, ordered_idx, drop = FALSE],
-       recode      = recode)
+       indicators = indicators,
+       recode     = recode,
+       declared   = declared,
+       empty      = empty)
 }
+
+.categorical_families <- c("categorical", "multinoulli",
+                           "categorical_nan", "multinoulli_nan")
+
+# The per-item category counts a single-type categorical fit hands its
+# emission, as extra engine arguments. Empty for every other measurement, for a
+# mixed model (whose blocks carry their own), and when the caller has fixed
+# `max_val` or `cats` explicitly, which then stands.
+.categorical_engine_args <- function(mm, dots) {
+  if (is.null(mm$cats) || any(c("max_val", "cats") %in% names(dots)))
+    return(list())
+  list(cats = mm$cats)
+}
+
+# The same, for a refit of a fitted single-type categorical model on resampled
+# or simulated data: a replicate that happens to draw no case in an item's top
+# category still has that category, so it is fitted over the original's
+# response space and its parameters line up with the original's.
+.refit_cat_args <- function(fitted_mm)
+  if (inherits(fitted_mm, c("multinoulli", "multinoulli_nan")) &&
+      !is.null(fitted_mm$cats)) list(cats = fitted_mm$cats) else list()
 
 # Level labels for every column of the user's indicators, so a recoded item can
 # say which of the original categories is the one whose probability is reported.
@@ -2760,18 +2824,18 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   0-based item. \code{"count"} fits a Poisson model, one rate per item and
 #'   class, and needs non-negative integers.
 #'
-#'   \strong{Known issue: a single \code{"categorical"} block charges every
-#'   item the same parameter count.} It uses one \code{max_val} for the whole
-#'   block — the number of levels in whichever item has the most — so any item
-#'   with fewer levels than that maximum is still costed as if it had that
-#'   many. A block mixing a two-level item with a four-level one charges the
-#'   two-level item for four, inflating \code{n_params} and, with it, AIC and
-#'   BIC. The remedy is the mixed \code{list} spelling above: give items with
-#'   different numbers of levels their own entries — a two-level item as its
-#'   own \code{"binary"} entry, or several \code{"categorical"} entries
-#'   grouped by level count — rather than putting them all in one
-#'   \code{"categorical"} block. Per-item level counting inside a single
-#'   polytomous block is not implemented.
+#'   \strong{Items in one \code{"categorical"} block may have different numbers
+#'   of categories.} Two-, three- and four-category items can share a block,
+#'   and each item is charged for its own categories only: \eqn{K(C_j - 1)}
+#'   parameters for an item with \eqn{C_j} categories. An item's categories
+#'   are its highest observed code or, for a factor, its number of levels,
+#'   whichever is larger, so an unused factor level stays part of the item.
+#'   In a multiple-group or longitudinal model the count is taken over every
+#'   group and occasion together. The set of possible answers belongs to the
+#'   item, and every group and occasion shares it, so a category missing from
+#'   one group is estimated at 0 there rather than removed. A category with no
+#'   response at all, or none in one group or occasion where the item's
+#'   probabilities are free to differ, gives a warning naming it.
 #' @param predictors Optional covariates that predict latent class membership.
 #'   Supplying this fits a class-membership regression (the "predict class"
 #'   structural model). Mutually exclusive with \code{outcome}. Besides a
@@ -3466,6 +3530,13 @@ fit_mixture <- function(indicators = NULL,
   mm                 <- .normalize_measurement(measurement, indicators)
   X_use              <- mm$indicators
   measurement_engine <- mm$descriptor
+  cat_args           <- .categorical_engine_args(mm, list(...))
+  group_measurement  <- !is.null(group) &&
+    group_effects %in% c("both", "measurement")
+  # A multiple-group measurement model reports its empty categories below,
+  # group by group, alongside the ones nobody used anywhere.
+  if (!group_measurement)
+    .warn_empty_categories(mm$empty, colnames(X_use))
 
   # --- Grouping variable: measurement effect (multiple-group model) ----------
   # Reuses the time-blocks trick across a group axis instead of a time axis
@@ -3505,7 +3576,7 @@ fit_mixture <- function(indicators = NULL,
                        cluster = if (is.null(rows)) cluster else cluster[rows],
                        refine = refine, bayes_constants = bayes_constants,
                        se = se, variances_equal = isTRUE(variances_equal)),
-                  list(...))
+                  cat_args, list(...))
         out <- try(suppressWarnings(suppressMessages(
           do.call(fit_mixture_internal, args))), silent = TRUE)
         if (inherits(out, "try-error")) NULL else out
@@ -3546,7 +3617,11 @@ fit_mixture <- function(indicators = NULL,
       # same string.
       engine <- .longitudinal_measurement_spec(measurement_engine, X_grp,
                                                n_items = ncol(X_use),
-                                               n_times = n_groups)
+                                               n_times = n_groups,
+                                               declared = mm$declared)
+      .warn_empty_categories(engine$empty, item_names,
+                             grp_spec$invariant_items,
+                             levels(group_info$factor), "group")
       X_use              <- engine$X
       measurement_engine <- "group_blocks"
       group_extra_args <- list(
@@ -3555,7 +3630,8 @@ fit_mixture <- function(indicators = NULL,
         sub_model        = engine$sub_model,
         invariant_items  = grp_spec$invariant_items,
         invariant_params = group_invariant_params %||% character(0),
-        max_val          = engine$max_val
+        max_val          = engine$max_val,
+        cats             = engine$cats
       )
     }
   }
@@ -3718,8 +3794,9 @@ fit_mixture <- function(indicators = NULL,
     n_init <- 0L
   }
 
-  dots <- c(list(...), list(variances_equal = isTRUE(variances_equal),
-                            moderated = structural_moderated))
+  dots <- c(list(...), cat_args,
+            list(variances_equal = isTRUE(variances_equal),
+                 moderated = structural_moderated))
   if (length(group_extra_args)) dots <- utils::modifyList(dots, group_extra_args)
 
   fit <- do.call(fit_mixture_internal, c(list(
@@ -4087,6 +4164,8 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
   # (Day 1969; Hathaway 1985). Without it the sweep would compare a different
   # model family than the one a subsequent fit_mixture() call would estimate.
   dots <- list(...)
+  dots <- c(.categorical_engine_args(mm, dots), dots)
+  .warn_empty_categories(mm$empty, colnames(X))
   if (!"variances_equal" %in% names(dots))
     dots$variances_equal <- is.character(measurement) &&
       length(measurement) == 1L &&

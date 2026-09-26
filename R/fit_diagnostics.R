@@ -65,9 +65,13 @@
       list(probs = cbind(1 - pis[, j], pis[, j]), categories = c(0, 1))))
   }
 
+  # Each item over its own categories only: the padding up to the block's
+  # widest item is no category of this one, and a column of structural zeros
+  # would enter every expected table as an empty cell.
+  cats <- .multinoulli_cats(mm)
   lapply(seq_len(ncol(pis) %/% M), function(j)
-    list(probs = pis[, ((j - 1L) * M + 1L):(j * M), drop = FALSE],
-         categories = seq_len(M)))
+    list(probs = pis[, .multinoulli_item_cols(mm, j), drop = FALSE],
+         categories = seq_len(cats[j])))
 }
 
 # The categorical items of a fitted model, aligned to its data columns and
@@ -1121,13 +1125,13 @@ bivariate_residuals <- function(object, n_reps = 0, n_init_boot = 10,
 
     # refine = FALSE for the same reason blrt() uses it: a replicate needs a
     # residual, not polished estimates, and the refinement is the expensive part.
-    rep_fit <- try(fit_mixture_internal(
+    rep_fit <- try(do.call(fit_mixture_internal, c(list(
       X = X_gen, n_components = K,
       measurement = object$measurement_descriptor,
       n_init = n_init_boot, refine = FALSE,
       # Not the caller's `n_cores`: this body is what the workers run, so a
       # fit that spread its own restarts would nest one cluster in another.
-      n_cores = 1L), silent = TRUE)
+      n_cores = 1L), .refit_cat_args(object$mm))), silent = TRUE)
     if (inherits(rep_fit, "try-error")) return(NULL)
 
     items_r <- .fit_item_probs(rep_fit$mm, ncol(X_gen), colnames(X_gen))

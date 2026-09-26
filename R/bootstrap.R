@@ -197,7 +197,7 @@ bootstrap_covariates <- function(model_state, X, Y, n_reps = 100,
     # se = "hessian": a replicate contributes only its coefficients, and the
     # bootstrap is itself the variance estimator, so computing the analytic
     # correction here would be paid for n_reps times and thrown away each time.
-    b_model <- fit_mixture_internal(
+    b_model <- do.call(fit_mixture_internal, c(list(
       X = X_boot, Y = Y_boot, n_components = K,
       measurement  = measurement_desc,
       structural   = "covariate",
@@ -209,7 +209,7 @@ bootstrap_covariates <- function(model_state, X, Y, n_reps = 100,
       n_cores      = 1L,
       order_by_size = FALSE,
       se           = "hessian"
-    )
+    ), .refit_cat_args(model_state$mm)))
 
     boot_align_mat <- get_mm_alignment_matrix(b_model$mm)
     mapping        <- align_classes(orig_align_mat, boot_align_mat)

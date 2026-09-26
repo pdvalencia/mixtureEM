@@ -4,7 +4,13 @@
 \alias{categorical_model}
 \title{Constructor for Categorical models}
 \usage{
-categorical_model(n_components, type = "bernoulli", max_val = NULL, ...)
+categorical_model(
+  n_components,
+  type = "bernoulli",
+  max_val = NULL,
+  cats = NULL,
+  ...
+)
 }
 \arguments{
 \item{n_components}{Integer. The number of latent classes/components to estimate.}
@@ -12,6 +18,10 @@ categorical_model(n_components, type = "bernoulli", max_val = NULL, ...)
 \item{type}{Character. The specific distribution type, usually "bernoulli".}
 
 \item{max_val}{Integer or NULL. The maximum category value (used for multinoulli).}
+
+\item{cats}{Integer vector or NULL. The number of categories of each item
+(used for multinoulli). When NULL, each item's count is its own highest
+observed code, or \code{max_val} for every item when that is given.}
 
 \item{...}{Additional arguments passed to the method.}
 }

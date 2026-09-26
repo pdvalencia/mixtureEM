@@ -338,11 +338,13 @@ NULL
       c(as.vector(p$means[, cols, drop = FALSE]), 0.5 * log(pmax(v, 1e-12)))
     },
     multinoulli = {
-      M <- emis$max_val
+      # Each item over its own categories, anchored on its own last one. The
+      # padding above an item's count is fixed at 0 and is not a parameter;
+      # anchoring on it would put every log-ratio at +27.
       unlist(lapply(items, function(j) {
-        cj  <- ((j - 1L) * M + 1L):(j * M)
-        Pj  <- pmax(p$pis[, cj, drop = FALSE], 1e-12)
-        as.vector(log(Pj[, -M, drop = FALSE] / Pj[, M]))
+        Pj <- pmax(p$pis[, .multinoulli_item_cols(emis, j), drop = FALSE], 1e-12)
+        Mj <- ncol(Pj)
+        as.vector(log(Pj[, -Mj, drop = FALSE] / Pj[, Mj]))
       }), use.names = FALSE)
     },
     NULL)
@@ -372,13 +374,13 @@ NULL
       else
         matrix(exp(2 * vp), K, nc)
   } else if (fam == "multinoulli") {
-    M   <- emis$max_val
-    per <- K * (M - 1L)
-    for (i in seq_along(items)) {
-      j  <- items[i]
-      cj <- ((j - 1L) * M + 1L):(j * M)
-      L  <- cbind(matrix(par[((i - 1L) * per + 1L):(i * per)], K, M - 1L), 0)
+    at <- 0L
+    for (j in items) {
+      cj  <- .multinoulli_item_cols(emis, j)
+      per <- K * (length(cj) - 1L)
+      L   <- cbind(matrix(par[at + seq_len(per)], K, length(cj) - 1L), 0)
       emis$parameters$pis[, cj] <- softmax_rows(L)
+      at  <- at + per
     }
   }
   emis

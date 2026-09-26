@@ -339,6 +339,9 @@ blrt <- function(indicators, k_small, k_large, measurement,
   mm          <- .normalize_measurement(measurement, indicators)
   Xd          <- mm$indicators
   measurement <- mm$descriptor
+  # The replicates are fitted over the observed data's response space, so a
+  # draw that misses an item's top category still has it.
+  extra       <- c(.categorical_engine_args(mm, extra), extra)
 
   # One place that calls the engine, so the observed fits and the replicates
   # cannot drift apart in what they were given.

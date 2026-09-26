@@ -863,6 +863,11 @@ fit_lta <- function(indicators,
   engine <- .longitudinal_measurement_spec(measurement, prep$X, prep$n_items,
                                            prep$n_times)
   prep$X <- engine$X
+  # A fixed emission (the three-step's classification-error tables) estimates
+  # no item probability, so an unused category has nothing to report.
+  if (is.null(fixed_mm))
+    .warn_empty_categories(engine$empty, prep$item_names, spec$invariant_items,
+                           prep$time_labels, "occasion")
 
   X <- prep$X
   n <- nrow(X)
@@ -1792,8 +1797,9 @@ fit_lta <- function(indicators,
 # The starts do not move on the paths this does accept. .lta_random_start()
 # draws its initial and transition probabilities from Dirichlets that never see
 # the data, and finishes at init_params(), which for `bernoulli` reads only
-# ncol(X) and for `multinoulli` only ncol(X) and max(X) -- and every distinct
-# value survives collapsing. Asserted in test-lta-collapse.R rather than left
+# ncol(X) and for `multinoulli` only ncol(X) and each column's maximum, when it
+# is not handed the category counts outright -- and every distinct value
+# survives collapsing. Asserted in test-lta-collapse.R rather than left
 # to this argument.
 .lta_collapse <- function(state, X) {
   if (!is.null(state$Z_delta) || !is.null(state$Z_tau)) return(NULL)

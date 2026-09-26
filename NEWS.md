@@ -1,5 +1,32 @@
 # mixtureEM (development version)
 
+## Categorical items with different numbers of categories share one block
+
+`measurement = "categorical"` now counts each item's categories on its own.
+Before, one block had one category count, its widest item's, and every item
+was charged for it: a two-category item next to a four-category one cost
+three parameters per class instead of one. The log-likelihood was right, but
+`n_params` was too large, and with it AIC, BIC and the other information
+criteria, the degrees of freedom of `lr_test()`, and the known-class
+parameter count of a multiple-group fit. `measurement_summary()` also printed
+the extra categories as rows of zeros, and step 3's corrected standard errors
+were computed around them. Every fit whose items all have the same number of
+categories is unchanged, number for number. A fit that mixes counts in one
+block keeps its log-likelihood and loses the extra parameters, so every
+number built on the parameter count moves, and its starting values move
+with it, since the padding now starts at 0.
+
+An item's categories are its highest observed code or, for a factor, its
+number of levels, whichever is larger, so an unused level stays part of the
+item. In a multiple-group model, `fit_rmlca()` and `fit_lta()` the count is
+taken over every group and occasion together: the set of possible answers
+belongs to the item, and a category that one group or occasion never uses is
+estimated at 0 there, not removed. A warning names every category with no
+response in the whole sample, and every one with none in a single group or
+occasion when that item's probabilities are free to differ there. The mixed
+`measurement` list is no longer needed to get the count right. It still
+works and now gives the same fit as the single block.
+
 ## `outcome_contrasts()` compares class-specific slopes
 
 In a latent class moderation model -- a distal outcome regressed on a

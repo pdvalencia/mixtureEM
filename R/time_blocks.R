@@ -370,13 +370,17 @@ n_parameters.blocks <- function(model_state, ...) {
   # items with different category counts (a 3/3/2 block) cost differently.
   if (inherits(sub, c("ordinal", "ordinal_nan")))
     return(sub$n_components * (sub$cats - 1L))
+  # A nominal item is ragged the same way: a two-category item in a block whose
+  # widest item has four costs K, not 3K.
+  if (inherits(sub, c("multinoulli", "multinoulli_nan")))
+    return(sub$n_components * (.multinoulli_cats(sub) - 1L))
   if (!inherits(sub, "nested")) return(rep(n_parameters(sub) / J, J))
 
   out    <- numeric(J)
   offset <- 0L
   for (name in names(sub$models)) {
     n_j <- sub$columns_per_model[[name]]
-    out[(offset + 1L):(offset + n_j)] <- n_parameters(sub$models[[name]]) / n_j
+    out[(offset + 1L):(offset + n_j)] <- .per_item_nparams(sub$models[[name]], n_j)
     offset <- offset + n_j
   }
   out

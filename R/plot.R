@@ -126,12 +126,13 @@
     base    <- mm$item_names %||% paste0("Ord_", seq_len(n_items))
     if (length(base) != n_items) base <- paste0("Ord_", seq_len(n_items))
 
-    categories <- seq_len(M)
+    cats <- .multinoulli_cats(mm)
     for (j in seq_len(n_items)) {
-      item_probs <- pis[, ((j - 1) * M + 1):(j * M), drop = FALSE]
-      expected   <- rowSums(sweep(item_probs, 2, categories, "*"))
-      # Expected value ranges over [1, M]; map to [0, 1].
-      plot_data[[paste0(base[j], "*")]] <- (expected - 1) / (M - 1)
+      item_probs <- pis[, .multinoulli_item_cols(mm, j), drop = FALSE]
+      expected   <- rowSums(sweep(item_probs, 2, seq_len(cats[j]), "*"))
+      # Expected value ranges over [1, cats[j]], the item's own categories;
+      # map to [0, 1].
+      plot_data[[paste0(base[j], "*")]] <- (expected - 1) / max(cats[j] - 1, 1)
     }
   }
 

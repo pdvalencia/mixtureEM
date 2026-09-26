@@ -101,6 +101,8 @@ fit_rmlca <- function(indicators,
   engine <- .longitudinal_measurement_spec(measurement, prep$X, prep$n_items,
                                            prep$n_times)
   prep$X <- engine$X
+  .warn_empty_categories(engine$empty, prep$item_names, spec$invariant_items,
+                         prep$time_labels, "occasion")
 
   if (!is.null(predictors))
     predictors <- .as_named_covariates(predictors, substitute(predictors),
@@ -116,6 +118,7 @@ fit_rmlca <- function(indicators,
     sub_model       = engine$sub_model,
     invariant_items = spec$invariant_items,
     max_val         = engine$max_val,
+    cats            = engine$cats,
     ...
   )
 
@@ -170,11 +173,113 @@ fit_rmlca <- function(indicators,
   list(invariant_items = inv)
 }
 
+# Each categorical item's number of categories, pooled over every block (group
+# or occasion) of a J-item layout, and the cells with no response in them.
+#
+# The categories an item can take are a property of the item, not of the
+# sample one group or one occasion happens to supply. Counting them per block
+# would give the configural and the invariant model different response spaces,
+# and their likelihoods could no longer be compared. So an item's count is its
+# highest code anywhere, or `declared` -- a factor's full set of levels -- when
+# that is higher, and a category a block never uses is estimated at 0 there
+# rather than removed. `items` are positions in 1..n_items; `declared` is
+# aligned with `items`. Returned: `cats` (aligned with `items`), `pooled` (item,
+# category) with no response in any block, and `by_block` (item, block,
+# category) with none in that block although the item was observed there and
+# the category is used elsewhere.
+.pooled_block_cats <- function(X, items, n_items, n_blocks, declared = NULL) {
+  cats     <- integer(length(items))
+  pooled   <- list()
+  by_block <- list()
+  for (i in seq_along(items)) {
+    j    <- items[i]
+    cols <- (seq_len(n_blocks) - 1L) * n_items + j
+    v    <- X[, cols]
+    v    <- v[!is.na(v)]
+    d    <- if (is.null(declared) || is.na(declared[i])) 0L else as.integer(declared[i])
+    cats[i] <- max(2L, d, if (length(v)) as.integer(max(v)) else 0L)
+    # Codes that are not 1, 2, 3, ... are refused with their own message when
+    # the emission is fitted; reporting empty categories for them first would
+    # only bury it.
+    if (!length(v) || any(v < 1) || any(v != floor(v))) next
+    zero <- which(tabulate(v, nbins = cats[i]) == 0L)
+    if (length(zero))
+      pooled[[length(pooled) + 1L]] <- data.frame(item = j, category = zero)
+    if (n_blocks < 2L) next
+    for (b in seq_len(n_blocks)) {
+      vb <- X[, cols[b]]
+      vb <- vb[!is.na(vb)]
+      if (!length(vb)) next
+      zb <- setdiff(which(tabulate(vb, nbins = cats[i]) == 0L), zero)
+      if (length(zb))
+        by_block[[length(by_block) + 1L]] <-
+          data.frame(item = j, block = b, category = zb)
+    }
+  }
+  list(cats     = cats,
+       pooled   = if (length(pooled)) do.call(rbind, pooled) else NULL,
+       by_block = if (length(by_block)) do.call(rbind, by_block) else NULL)
+}
+
+# Say which categorical items have a category nobody used.
+#
+# Neither case is an error. A category with no response in the whole sample --
+# an unused factor level, or a gap in the codes -- is estimated at 0 in every
+# class and still counted, because it is part of the item's declared response
+# space. A category with no response in one group or occasion only matters
+# where that block's probabilities are free: there it is a boundary estimate
+# with no standard error. An item held equal across the blocks pools every
+# block's responses, so it is left out of that half of the report.
+.warn_empty_categories <- function(empty, item_names, invariant_items = integer(0),
+                                   block_labels = NULL, block_word = "group",
+                                   max_show = 6L) {
+  if (is.null(empty)) return(invisible(NULL))
+  nm <- function(j) item_names[j] %||% paste0("item ", j)
+  show <- function(lines) {
+    more <- length(lines) - max_show
+    paste0(paste(utils::head(lines, max_show), collapse = "; "),
+           if (more > 0L) sprintf("; and %d more", more) else "")
+  }
+
+  p <- empty$pooled
+  if (!is.null(p) && nrow(p)) {
+    lines <- vapply(split(p, p$item), function(d)
+      sprintf("%s (category %s)", nm(d$item[1L]), paste(d$category, collapse = ", ")),
+      character(1))
+    warning(paste0(
+      "Some categorical items have a category with no responses: ", show(lines),
+      ". Each is estimated at 0 in every class and still counted as a ",
+      "parameter. If the category is not part of the item, recode it (or drop ",
+      "the unused factor level) and refit."), call. = FALSE)
+  }
+
+  b <- empty$by_block
+  if (!is.null(b) && nrow(b)) b <- b[!b$item %in% invariant_items, , drop = FALSE]
+  if (!is.null(b) && nrow(b)) {
+    lab <- function(k) block_labels[k] %||% as.character(k)
+    lines <- vapply(split(b, list(b$item, b$block), drop = TRUE), function(d)
+      sprintf("%s in %s %s (category %s)", nm(d$item[1L]), block_word,
+              lab(d$block[1L]), paste(d$category, collapse = ", ")),
+      character(1))
+    warning(paste0(
+      "Some categories have no responses in one ", block_word, ": ", show(lines),
+      ". Where the item's probabilities differ by ", block_word, ", each of ",
+      "these is estimated at 0, a boundary estimate with no standard error. ",
+      "Holding the item equal across ", block_word, "s pools the responses."),
+      call. = FALSE)
+  }
+  invisible(NULL)
+}
+
 # Resolve the per-occasion measurement descriptor against the data: pick the
-# FIML variant when anything is missing, and fix a single max_val for polytomous
-# items so that every occasion shares the same category set (without which the
-# invariance test would be comparing models over different response spaces).
-.longitudinal_measurement_spec <- function(measurement, X, n_items, n_times) {
+# FIML variant when anything is missing, and fix each categorical item's number
+# of categories over every occasion, so all occasions share one response space
+# (without which the invariance test would be comparing models over different
+# response spaces). `declared` optionally gives each item's declared count, a
+# factor's number of levels, as a floor. `empty` reports the categories nobody
+# used, for .warn_empty_categories().
+.longitudinal_measurement_spec <- function(measurement, X, n_items, n_times,
+                                           declared = NULL) {
   sub_model <- .resolve_emission_descriptor(measurement, X)
 
   is_binary  <- function(d) is.character(d) &&
@@ -194,12 +299,15 @@ fit_rmlca <- function(indicators,
 
   max_val <- NULL
   cats    <- NULL
+  empty   <- NULL
   if (is_poly(sub_model)) {
     max_val <- max(X, na.rm = TRUE)
     if (!is.finite(max_val) || max_val != as.integer(max_val))
       stop('measurement = "categorical" requires integer-coded categories ',
            "(1, 2, 3, ...).", call. = FALSE)
-    max_val <- as.integer(max_val)
+    empty   <- .pooled_block_cats(X, seq_len(n_items), n_items, n_times, declared)
+    cats    <- empty$cats
+    max_val <- max(cats)
   } else if (is_ordinal(sub_model)) {
     # Per-item category counts, read across every occasion so all T columns
     # of one item share the same response space (### 14.18.6). Codes must be
@@ -233,9 +341,26 @@ fit_rmlca <- function(indicators,
     # so that block-wise FIML upgrading matches the data actually seen there.
     sub_model <- .resolve_emission_descriptor(
       measurement, X[, .time_block_cols(1L, n_items), drop = FALSE])
+    # A categorical sub-block's items get their counts pooled over occasions
+    # here too; left to each occasion's own data, a category one occasion
+    # happens not to use would change that occasion's response space.
+    offset <- 0L
+    for (key in names(sub_model)) {
+      n_j <- sub_model[[key]]$n_columns
+      if (is_poly(sub_model[[key]]$model)) {
+        items <- offset + seq_len(n_j)
+        pc <- .pooled_block_cats(X, items, n_items, n_times,
+                                 sub_model[[key]]$cats %||% declared[items])
+        sub_model[[key]]$cats <- pc$cats
+        empty <- list(pooled   = rbind(empty$pooled, pc$pooled),
+                      by_block = rbind(empty$by_block, pc$by_block))
+      }
+      offset <- offset + n_j
+    }
   }
 
-  list(sub_model = sub_model, max_val = max_val, cats = cats, X = X)
+  list(sub_model = sub_model, max_val = max_val, cats = cats, X = X,
+       empty = empty)
 }
 
 # Class-by-time-by-item array of the quantity that characterises each class at
