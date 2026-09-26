@@ -87,9 +87,9 @@ Fit the outcome with \code{slopes} naming the covariate, e.g.
 \code{add_outcome(fit, y, covariates = df["x"], slopes = "x")}, and pass
 \code{term = "x"}. That fit estimates every class's line in one regression, so
 its covariance includes the covariance between the slopes of different
-classes, which the contrast standard error needs. \code{slopes = "class_specific"} fits the same lines one class at a time and keeps no
-such covariance, so it cannot be contrasted; naming every covariate in
-\code{slopes} gives identical estimates with the covariance kept.
+classes, which the contrast standard error needs. On a continuous outcome
+\code{slopes = "class_specific"} is the same fit, with every covariate
+moderated, and can be contrasted the same way.
 
 With \code{term} left \code{NULL} on such a fit the contrasts are between the class
 intercepts, i.e. the class means at covariate values of zero; centring the

@@ -76,10 +76,10 @@ fit <- fit_mixture(items, n_classes = 4, measurement = "binary",
                    n_init = 20, random_state = 1)
 class_sizes(fit)
 #>   class proportion n_expected n_modal
-#> 1     1  0.4277345  171.09382     173
-#> 2     2  0.2698284  107.93136     106
-#> 3     3  0.1581316   63.25264      63
-#> 4     4  0.1443055   57.72219      58
+#> 1     1  0.4277322  171.09288     173
+#> 2     2  0.2698261  107.93044     106
+#> 3     3  0.1581291   63.25165      63
+#> 4     4  0.1443126   57.72503      58
 ```
 
 ``` r
@@ -109,7 +109,7 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                1.180  [    0.235,     5.935]     0.841
+#>   Intercept                1.180  [    0.234,     5.934]     0.841
 #>   sex.Female               2.641  [    1.104,     6.319]     0.029
 #>   age                      0.942  [    0.884,     1.003]     0.063
 #> 
@@ -150,11 +150,14 @@ summary(fit_cov)
 | Multiple-group LCA: do the classes mean the same thing in every group before comparing their prevalences? | `fit_mixture(group = )` | [`mglca_yrbs`](https://pdvalencia.github.io/mixtureEM/articles/mglca_yrbs.html) |
 | Choosing the number of classes (ICs, BLRT, fit diagnostics) | `compare_mixtures()`, `blrt()` | [`class_enumeration`](https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.html) |
 | Predictors of class membership (3-step ML) | `add_covariates()` | [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/articles/ventura_leon.html) |
-| Distal outcomes (BCH / ML) | `add_outcome()` | [`liang_park_lpa`](https://pdvalencia.github.io/mixtureEM/articles/liang_park_lpa.html) |
+| Distal outcomes (BCH / ML), alone or together with class predictors; class-specific slopes and which classes differ | `add_outcome()`, `outcome_contrasts()` | [`liang_park_lpa`](https://pdvalencia.github.io/mixtureEM/articles/liang_park_lpa.html) |
+| Items that work differently for different people (DIF): a covariate acting on the items as well as on the classes | `fit_mixture(predictors_items = )` | `?fit_mixture` |
 | Repeated-measures LCA: trajectory classes over time, e.g. “Stable Low”, “Escalating”, “Persistent” | `fit_rmlca()` | [`rmlca`](https://pdvalencia.github.io/mixtureEM/articles/rmlca.html) |
 | Latent transition analysis, mover-stayer models: if a child has low alphabet knowledge in the fall, what is the probability they are reading words by spring? | `fit_lta()` | [`lta`](https://pdvalencia.github.io/mixtureEM/articles/lta.html) |
+| Stepwise LTA (two-step, three-step ML or BCH): covariates on the statuses and the transitions, a distal outcome after the last occasion | `fit_lta(n_steps = )` | [`lta`](https://pdvalencia.github.io/mixtureEM/articles/lta.html) |
 | Random-intercept LTA: how much of that stability is a stable trait rather than a stage? | `fit_lta(random_intercept = )` | [`rilta`](https://pdvalencia.github.io/mixtureEM/articles/rilta.html) |
 | Latent class growth analysis, growth mixture models | `fit_lcga()`, `fit_gmm()` | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |
+| Linking two different mixture models by the three-step, e.g. early classes predicting later growth classes | `link_models()` | `?link_models` |
 | Complex survey designs (weights, strata, clusters) | every model | [`survey_lca`](https://pdvalencia.github.io/mixtureEM/articles/survey_lca.html) |
 
 Also included: mixed measurement models (binary + continuous + count
