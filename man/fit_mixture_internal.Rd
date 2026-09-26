@@ -139,7 +139,9 @@ group-varying measurement search to seed each fit from the pooled solution.
 structural model are computed when \code{n_steps} is \code{3}.
 \code{"corrected"} (default) is the first-order corrected estimator of
 Bakk et al. (2014): the step-3 sandwich plus the variance
-propagated from step 1. \code{"robust"} keeps only the sandwich.
+propagated from step 1; on a measurement model that term cannot be
+computed for, the sandwich alone is reported with a warning.
+\code{"robust"} keeps only the sandwich.
 \code{"hessian"} inverts the
 step-3 observed information alone. See \code{\link{covariate_se}} for the
 differences and when they matter. Ignored for other structural models and

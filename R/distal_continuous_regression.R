@@ -1,6 +1,11 @@
 # ==============================================================================
 # S3 Distal Continuous Regression (Y ~ Z * Class) - Model-Based SEs
 # ==============================================================================
+#
+# Reached only through the low-level descriptor. `slopes = "class_specific"`
+# fits the same model in distal_continuous_pooled with every covariate
+# moderated, whose case-clustered sandwich is the standard error to report;
+# the model-based one below understates it under BCH weights.
 
 distal_continuous_regression_model <- function(n_components, ...) {
   state <- list(n_components = n_components, parameters = list())

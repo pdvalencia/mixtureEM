@@ -63,7 +63,12 @@
 #'     \partial\theta_1'} the implicit derivative of the step-3 estimates with
 #'     respect to the step-1 parameters. This is the estimator their simulation
 #'     recommends; the second-order form of their eq. 18 adds a term that
-#'     vanishes asymptotically.}
+#'     vanishes asymptotically. \eqn{D_1} needs the step-1 model in an
+#'     unconstrained parameterisation, which exists for binary, categorical,
+#'     count and continuous indicators, alone, mixed, in time blocks, by
+#'     group, or with item DIF. For a growth mixture model or an LCGA as
+#'     step 1, the \code{"robust"} estimator is
+#'     reported instead, with a warning, and \code{summary()} names it.}
 #'   \item{\code{"robust"}}{The step-3 sandwich only,
 #'     \eqn{D_3 = (-H_3)^{-1} M (-H_3)^{-1}}, with \eqn{H_3} the marginal
 #'     step-3 Hessian and \eqn{M} the outer product of the case-level scores
@@ -711,7 +716,8 @@ NULL
     return(list(V = pad(D3),
                 method = sprintf(paste("Step-3 sandwich (%s); step-1 correction",
                                        "unavailable for this measurement model"),
-                                 label_D3)))
+                                 label_D3),
+                step1_unavailable = TRUE))
 
   p1 <- length(th1)
   h1 <- .step1_fd_step * pmax(1, abs(th1))
@@ -797,8 +803,25 @@ NULL
       NULL
     })
   if (is.null(res)) return(model_state)
+  if (identical(se, "corrected") && isTRUE(res$step1_unavailable))
+    .warn_step1_unavailable(model_state$mm)
 
   model_state$sm$parameters$V_robust <- res$V
   model_state$sm$parameters$V_method <- res$method
   model_state
+}
+
+# `se = "corrected"` asked for step 1's uncertainty and the measurement model
+# has no packing to carry it (`.step1_families`), so what is reported is the
+# estimator `se = "robust"` names. That substitution is said at fit time, not
+# left to the one line of summary() that labels it.
+.warn_step1_unavailable <- function(mm, reported = "the step-3 sandwich",
+                                     instead = "robust") {
+  warning(sprintf(paste(
+    "The corrected standard errors are not available for a `%s` measurement",
+    "model: the covariate standard errors reported are %s, which omits the",
+    "uncertainty in step 1's estimates and so is too narrow when the classes",
+    "are poorly separated. Set `se = \"%s\"` to request that estimator",
+    "explicitly. See ?covariate_se."),
+    class(mm)[1], reported, instead), call. = FALSE)
 }

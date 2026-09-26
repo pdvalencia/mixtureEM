@@ -412,7 +412,10 @@ add_covariates <- function(fit, predictors,
 #'   covariate names (or a one-sided formula naming them, e.g. `~ loc1 +
 #'   loc2`) giving a slope per class to just those covariates while the rest
 #'   stay pooled. The last form -- letting the class moderate some covariates
-#'   while adjusting for others -- is continuous-outcome only.
+#'   while adjusting for others -- is continuous-outcome only. For a
+#'   continuous outcome, `"class_specific"` is the same model as naming every
+#'   covariate, and is fitted as one: its standard errors are the sandwich
+#'   clustered on the case, and [outcome_contrasts()] can compare its slopes.
 #' @param predictors Optional covariates that predict class membership, in any
 #'   form [add_covariates()] accepts. When supplied, the class-membership
 #'   regression and the outcome are estimated together in one step-3 model:
@@ -455,7 +458,11 @@ add_covariates <- function(fit, predictors,
 #'   whatever this is set to, and so does a BCH model with `predictors`: the
 #'   expanded data set carries one weighted
 #'   record per class per case, so a case-clustered sandwich is the only
-#'   estimator that prices the information the correction gives up.
+#'   estimator that prices the information the correction gives up. A
+#'   distal outcome's standard errors, under BCH or ML, treat step 1's
+#'   estimates as known: the step-1 term `"corrected"` adds exists for class
+#'   predictors only (see [covariate_se]), so with poorly separated classes
+#'   an outcome's intervals are somewhat too narrow.
 #' @param assignment How step 1's posteriors are turned into the assigned-class
 #'   variable whose classification error the correction inverts.
 #'   `"proportional"` (default) gives every case a weight in every class equal
@@ -601,8 +608,8 @@ add_outcome <- function(fit, outcome, covariates = NULL,
   if (identical(variances, "class_specific") &&
       spec$engine != "continuous_outcome_adjusted")
     stop('`variances = "class_specific"` applies to a continuous outcome with ',
-         '`covariates` and pooled or partly pooled `slopes`. A continuous ',
-         'outcome without covariates already has one variance per class.',
+         '`covariates`. A continuous outcome without covariates already has ',
+         'one variance per class, and a categorical one has none.',
          call. = FALSE)
   spec$variances <- variances
   spec
@@ -660,9 +667,9 @@ add_outcome <- function(fit, outcome, covariates = NULL,
     s <- .build_outcome_spec(o, covariates, outcome_type, slopes, cov_expr)
     if (!s$engine %in% c("continuous_outcome", "continuous_outcome_adjusted",
                          "categorical_outcome", "categorical_outcome_adjusted"))
-      stop("With `predictors`, the outcome's covariate slopes must be pooled ",
-           '(`slopes = "pooled"`, or names for a continuous outcome); ',
-           '`slopes = "class_specific"` is not available in a joint model.',
+      stop("With `predictors`, a categorical outcome's covariate slopes must ",
+           'be pooled (`slopes = "pooled"`); `slopes = "class_specific"` is ',
+           "available in a joint model for a continuous outcome only.",
            call. = FALSE)
     # A categorical outcome has no residual variance, so `variances` speaks
     # only to the continuous outcomes among several.

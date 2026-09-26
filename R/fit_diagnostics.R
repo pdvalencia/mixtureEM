@@ -114,6 +114,49 @@
 # does.
 .is_group_blocks <- function(object) inherits(object$mm, "group_blocks")
 
+# Goodman's count for the measurement model: the response-pattern table has
+# W - 1 free cells (Q(W - 1) for Q groups), and a latent class model with more
+# free parameters than that cannot be identified however the search goes.
+# P is the step-1 count -- item parameters plus K - 1 class weights -- so a
+# stepwise fit is judged on the model its step 1 actually fitted. A one-step
+# fit whose class weights depend on covariates is skipped: its table is
+# conditional on them and the count does not apply as stated. Returns NULL
+# unless every indicator is categorical.
+.pattern_df <- function(fit) {
+  if (is.null(fit$data) || is.null(fit$mm)) return(NULL)
+  if (identical(as.integer(fit$n_steps %||% 1L), 1L) &&
+      .supplies_class_probs(fit$sm)) return(NULL)
+  if (.is_group_blocks(fit)) {
+    Q      <- fit$mm$n_blocks
+    levels <- .longitudinal_col_levels(.group_block_slices(fit)[[1L]]$mm,
+                                       fit$mm$n_items)
+  } else {
+    Q      <- 1L
+    levels <- .longitudinal_col_levels(fit$mm, ncol(fit$data))
+  }
+  if (is.null(levels)) return(NULL)
+  W <- prod(levels)
+  P <- n_parameters(fit$mm) + (fit$n_components - 1L)
+  list(df = Q * (W - 1) - P, cells = Q * (W - 1), n_params = P)
+}
+
+# The warning fit_mixture() gives when that count is negative. The estimates
+# are still a maximum of the penalised likelihood -- the priors make it
+# determinate -- which is why nothing else would show that the data cannot
+# decide between them.
+.warn_negative_df <- function(fit) {
+  pd <- tryCatch(.pattern_df(fit), error = function(e) NULL)
+  if (is.null(pd) || pd$df >= 0) return(invisible(NULL))
+  warning(sprintf(paste(
+    "This model has %d free parameters, but the table of response patterns",
+    "has only %s free cells (df = %s), so the parameters cannot all be",
+    "recovered from the data (Goodman, 1974). The estimates returned are",
+    "determined by the priors where the data are silent. Fit fewer classes,",
+    "or restrict parameters to be equal."),
+    as.integer(pd$n_params), format(pd$cells), format(pd$df)), call. = FALSE)
+  invisible(NULL)
+}
+
 # One entry per group: that group's own J-column slice of the padded data
 # (never NA-padded on its own account, since a case's own block is always
 # populated), its case weights, and its own block's measurement sub-model

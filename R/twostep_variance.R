@@ -156,7 +156,8 @@
   if (is.null(info$H12) || is.null(th1) || !length(th1))
     return(list(V = pad(V2),
                 method = paste("Two-step observed information (step 2 only);",
-                               "step-1 term unavailable for this measurement model")))
+                               "step-1 term unavailable for this measurement model"),
+                step1_unavailable = TRUE))
 
   p1 <- length(th1)
   d1_method <- if (p1 <= .step1_hessian_max) "hessian" else "outer"
@@ -198,6 +199,10 @@
       NULL
     })
   if (is.null(res)) return(model_state)
+  if (identical(se, "corrected") && isTRUE(res$step1_unavailable))
+    .warn_step1_unavailable(model_state$mm,
+                            reported = "step 2's observed information",
+                            instead  = "hessian")
 
   model_state$sm$parameters$V_robust <- res$V
   model_state$sm$parameters$V_method <- res$method

@@ -2017,7 +2017,9 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   structural model are computed when \code{n_steps} is \code{3}.
 #'   \code{"corrected"} (default) is the first-order corrected estimator of
 #'   Bakk et al. (2014): the step-3 sandwich plus the variance
-#'   propagated from step 1. \code{"robust"} keeps only the sandwich.
+#'   propagated from step 1; on a measurement model that term cannot be
+#'   computed for, the sandwich alone is reported with a warning.
+#'   \code{"robust"} keeps only the sandwich.
 #'   \code{"hessian"} inverts the
 #'   step-3 observed information alone. See \code{\link{covariate_se}} for the
 #'   differences and when they matter. Ignored for other structural models and
@@ -2862,7 +2864,9 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   them, e.g. \code{~ loc1 + loc2}) giving a separate slope per class to just
 #'   those covariates while the rest stay pooled -- letting the class moderate
 #'   some covariates while adjusting for others. The last form is
-#'   continuous-outcome only.
+#'   continuous-outcome only. For a continuous outcome,
+#'   \code{"class_specific"} is the same model as naming every covariate, and
+#'   is fitted as one.
 #' @param group Optional observed grouping variable for a multiple-group
 #'   model (Collins & Lanza, 2010, sec. 5.7-5.12), e.g. grade or gender.
 #'   Unlike \code{predictors}, which only ever shifts class membership, a
@@ -3248,7 +3252,9 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   over from step 1 to the step-3 sandwich, following Bakk et al.
 #'   (2014); \code{"robust"} reports the sandwich alone;
 #'   \code{"hessian"} inverts the step-3 observed
-#'   information only. See \code{\link{covariate_se}}.
+#'   information only. On a measurement model the step-1 term cannot be
+#'   computed for, \code{"corrected"} reports the uncorrected estimator with
+#'   a warning. See \code{\link{covariate_se}}.
 #' @param n_cores Positive integer. Number of processes to spread the random
 #'   starts over. The default, \code{1}, runs them one after another in the
 #'   current session. Restarts are independent, so raising this divides the
@@ -3838,6 +3844,11 @@ fit_mixture <- function(indicators = NULL,
   # interrupting for, so say it here rather than leaving it to be noticed.
   if (isFALSE(fit$converged)) .warn_non_convergence(max_iter)
 
+  # A model with more parameters than response-pattern cells still returns a
+  # determinate answer, because the priors decide what the data cannot, so
+  # nothing downstream would reveal that it is not identified.
+  .warn_negative_df(fit)
+
   # A maximum found by one start out of many is the other outcome worth
   # interrupting for, and it too was reported only by print(). The growth models
   # are the exception: `structured_normal` is fit_gmm()'s call into this
@@ -4221,6 +4232,23 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
                 paste(flagged, collapse = ", "),
                 .replication_advice(m1$n_requested %||% m1$n_starts)))
   }
+  # A sweep over K crosses the identification boundary without anyone
+  # looking, and the models past it still report a log-likelihood and a BIC.
+  neg_df <- Filter(function(k) {
+    pd <- tryCatch(.pattern_df(models[[paste0("K", k)]]),
+                   error = function(e) NULL)
+    !is.null(pd) && pd$df < 0
+  }, fit_table$Classes)
+  if (length(neg_df))
+    warning(sprintf(paste(
+      "The %s-class %s more free parameters than the table of response",
+      "patterns has free cells (negative df), so %s cannot be identified",
+      "(Goodman, 1974). Read %s fit statistics as those of models the data",
+      "cannot decide."),
+      paste(neg_df, collapse = ", "),
+      if (length(neg_df) > 1L) "models have" else "model has",
+      if (length(neg_df) > 1L) "they" else "it",
+      if (length(neg_df) > 1L) "their" else "its"), call. = FALSE)
   cat(sprintf("\n-> Best model according to BIC: %d classes\n", best_bic_k))
   # Classed purely so that plot() has something to dispatch on. The list is
   # unchanged otherwise, and `result$fit_table` behaves exactly as before.

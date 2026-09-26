@@ -123,12 +123,27 @@ test_that("unsupported combinations are refused", {
   expect_error(add_outcome(fit, s$d$y1, predictors = s$d$z, steps = 2),
                "three-step")
   expect_error(suppressMessages(
-    add_outcome(fit, s$d$y1, covariates = s$d["z"], predictors = s$d$z,
-                slopes = "class_specific", correction = "ML")),
+    add_outcome(fit, factor(s$d$y2), covariates = s$d["z"],
+                predictors = s$d$z, slopes = "class_specific",
+                correction = "ML")),
     "pooled")
   expect_error(suppressMessages(
     add_outcome(fit, s$d$y1, variances = "class_specific")),
     "class_specific")
+})
+
+test_that("a continuous class_specific outcome joins the joint model as its named form", {
+  s   <- .joint_sim(n = 300)
+  fit <- fit_mixture(s$X, n_classes = 2, measurement = "binary", n_init = 2,
+                     random_state = 1, n_cores = 1)
+  a <- suppressMessages(add_outcome(fit, s$d$y1, covariates = s$d["z"],
+                                    predictors = s$d$z,
+                                    slopes = "class_specific"))
+  b <- suppressMessages(add_outcome(fit, s$d$y1, covariates = s$d["z"],
+                                    predictors = s$d$z, slopes = "z"))
+  expect_equal(a$sm$models$distal$parameters$beta_pooled,
+               b$sm$models$distal$parameters$beta_pooled)
+  expect_equal(a$sm$parameters$vcov_joint, b$sm$parameters$vcov_joint)
 })
 
 test_that("variances = \"equal\" is the one-variance model", {

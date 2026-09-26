@@ -499,11 +499,13 @@
 
   # "moderated" reuses the pooled engine, generalised to accept a subset of
   # covariates as class-specific -- see distal_continuous_pooled_model()'s
-  # `moderated` argument.
+  # `moderated` argument. A continuous "class_specific" is the same model with
+  # every covariate named, and goes there too: fitted as K separate
+  # regressions it gives the same estimates, but standard errors that price
+  # the fit as ordinary least squares and so understate the BCH ones, and no
+  # covariance between classes to contrast them with.
   engine  <- if (otype == "continuous") {
-    if (!has_cov)                          "continuous_outcome"
-    else if (sv$mode == "class_specific")  "continuous_outcome_moderated"
-    else                                   "continuous_outcome_adjusted"
+    if (!has_cov) "continuous_outcome" else "continuous_outcome_adjusted"
   } else {
     if (!has_cov)                  "categorical_outcome"
     else if (sv$mode == "pooled")  "categorical_outcome_adjusted"
@@ -543,6 +545,8 @@
         paste(unresolved, collapse = ", "), avail), call. = FALSE)
     }
     moderated <- which(cov_terms %in% sv$terms)
+  } else if (sv$mode == "class_specific" && otype == "continuous" && has_cov) {
+    moderated <- seq_len(ncol(Y) - 1L)
   }
 
   list(engine = engine, Y = Y, otype = otype, moderated = moderated)

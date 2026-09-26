@@ -21,7 +21,12 @@ and \eqn{J = (-H_3)^{-1} \partial^2 L_3 / \partial\theta_3
     \partial\theta_1'} the implicit derivative of the step-3 estimates with
 respect to the step-1 parameters. This is the estimator their simulation
 recommends; the second-order form of their eq. 18 adds a term that
-vanishes asymptotically.}
+vanishes asymptotically. \eqn{D_1} needs the step-1 model in an
+unconstrained parameterisation, which exists for binary, categorical,
+count and continuous indicators, alone, mixed, in time blocks, by
+group, or with item DIF. For a growth mixture model or an LCGA as
+step 1, the \code{"robust"} estimator is
+reported instead, with a warning, and \code{summary()} names it.}
 \item{\code{"robust"}}{The step-3 sandwich only,
 \eqn{D_3 = (-H_3)^{-1} M (-H_3)^{-1}}, with \eqn{H_3} the marginal
 step-3 Hessian and \eqn{M} the outer product of the case-level scores

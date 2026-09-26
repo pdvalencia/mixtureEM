@@ -116,11 +116,15 @@
     list(fit = .cov_fm(X, measurement = "binary", outcome = rnorm(nrow(X)),
                        outcome_covariates = z, n_steps = 1), one_step = TRUE)
   },
+  # `slopes = "class_specific"` now fits distal_continuous_pooled, so this
+  # engine is reached through its descriptor only.
   distal_continuous_regression = function() {
-    X <- .cov_bin(); z <- data.frame(z = rnorm(nrow(X)))
-    list(fit = .cov_fm(X, measurement = "binary", outcome = rnorm(nrow(X)),
-                       outcome_covariates = z, slopes = "class_specific",
-                       n_steps = 1), one_step = TRUE)
+    X <- .cov_bin()
+    Y <- cbind(y = rnorm(nrow(X)), z = rnorm(nrow(X)))
+    list(fit = .cov_q(fit_mixture_internal(
+           X, Y, n_components = 2, measurement = "binary",
+           structural = "distal_continuous_regression", n_steps = 1,
+           n_init = 2, random_state = 1, n_cores = 1)), one_step = TRUE)
   },
   distal_categorical = function() {
     X <- .cov_bin()

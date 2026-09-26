@@ -410,10 +410,12 @@ test_that("a measurement model without an unconstrained packing falls back clean
     numeric(4)))
   Z <- data.frame(z = rnorm(n))
 
-  fit <- suppressMessages(fit_lcga(Y, n_classes = 2, times = 4,
-                                   family = "gaussian", predictors = Z,
-                                   n_steps = 3, correction = "ML",
-                                   n_init = 3, random_state = 1))
+  expect_warning(
+    fit <- suppressMessages(fit_lcga(Y, n_classes = 2, times = 4,
+                                     family = "gaussian", predictors = Z,
+                                     n_steps = 3, correction = "ML",
+                                     n_init = 3, random_state = 1)),
+    "not available for a `lcga`")
   expect_null(.step1_pack(fit))
   expect_false(is.null(fit$sm$parameters$V_robust))
   expect_match(fit$sm$parameters$V_method, "step-1 correction unavailable")

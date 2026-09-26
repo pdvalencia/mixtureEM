@@ -130,7 +130,9 @@ or a character vector of covariate names (or a one-sided formula naming
 them, e.g. \code{~ loc1 + loc2}) giving a separate slope per class to just
 those covariates while the rest stay pooled -- letting the class moderate
 some covariates while adjusting for others. The last form is
-continuous-outcome only.}
+continuous-outcome only. For a continuous outcome,
+\code{"class_specific"} is the same model as naming every covariate, and
+is fitted as one.}
 
 \item{group}{Optional observed grouping variable for a multiple-group
 model (Collins & Lanza, 2010, sec. 5.7-5.12), e.g. grade or gender.
@@ -517,7 +519,9 @@ This is not a tuning menu. The defaults are the intended settings.}
 over from step 1 to the step-3 sandwich, following Bakk et al.
 (2014); \code{"robust"} reports the sandwich alone;
 \code{"hessian"} inverts the step-3 observed
-information only. See \code{\link{covariate_se}}.}
+information only. On a measurement model the step-1 term cannot be
+computed for, \code{"corrected"} reports the uncorrected estimator with
+a warning. See \code{\link{covariate_se}}.}
 
 \item{n_cores}{Positive integer. Number of processes to spread the random
 starts over. The default, \code{1}, runs them one after another in the

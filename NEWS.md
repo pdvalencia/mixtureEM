@@ -1,5 +1,51 @@
 # mixtureEM (development version)
 
+## Class-specific slopes on a continuous outcome report the sandwich
+
+`slopes = "class_specific"` on a continuous distal outcome fitted each
+class's regression on its own and reported the standard error
+`sqrt(sigma2 * diag((Z'WZ)^-1))`, which prices the fit as ordinary least
+squares. Under BCH weights that understates every standard error, because
+inverting the classification table costs information that formula never
+charges for. The same model with every covariate named in `slopes` already
+reported the sandwich clustered on the case, and `"class_specific"` is now
+fitted as exactly that model. The estimates do not change. The standard
+errors do, and they are larger: by a factor of 1.3 to 2.1 on a three-class
+simulated example. `summary()` prints the result in the layout of a named
+`slopes` fit, one row per covariate and class (`loc1:Class2`), and
+`outcome_contrasts()` now accepts it, since the classes' covariance is kept.
+Two refusals that existed only because of the separate fit are gone: a
+continuous `"class_specific"` outcome can now be fitted with `predictors`, and
+with `variances = "class_specific"`. A categorical outcome's
+`"class_specific"` is unchanged.
+
+## A corrected standard error that cannot be computed now says so
+
+`se = "corrected"`, the default for class predictors in a two- or three-step
+fit, adds the uncertainty in step 1's estimates to the covariate standard
+errors. That needs the step-1 model in an unconstrained parameterisation, which
+a growth mixture model or an LCGA as step 1 does not have yet. Those fits have
+always reported the uncorrected estimator instead: the step-3 sandwich for a
+three-step fit, step 2's observed information for a two-step one. The only
+sign was the "Standard errors:" line of `summary()`. They now also warn at fit
+time, and `se = "robust"` (three-step) or `se = "hessian"` (two-step) asks for
+the reported estimator by name and does not warn. `?covariate_se` lists the
+measurement models that carry the correction. No number changes.
+
+## A model with negative degrees of freedom is warned about
+
+A latent class model with more free parameters than its table of response
+patterns has free cells cannot be identified (Goodman, 1974): four binary
+items give 15 free cells, and four classes on them cost 19 parameters. The
+package fitted such a model and returned it without comment, and because the
+priors make the answer determinate, nothing in the output showed that the
+data could not decide it. `fit_mixture()` now warns when every indicator is
+categorical and the count is negative, and `compare_mixtures()` gives one
+warning naming every K in the sweep that crosses the boundary. A stepwise fit
+is judged on its step-1 model. A one-step fit whose class weights depend on
+covariates is not counted, since the count does not apply to it as stated. No
+number changes.
+
 ## Categorical items with different numbers of categories share one block
 
 `measurement = "categorical"` now counts each item's categories on its own.

@@ -168,7 +168,7 @@ test_that("a fit with no outcome, and a bad reference, are refused", {
   expect_error(outcome_contrasts(fo, level = 1), "between 0 and 1")
 })
 
-test_that("a class-specific outcome model is refused, and says where to go", {
+test_that("class_specific slopes contrast; the separate-regressions engine refuses", {
   set.seed(10)
   n     <- 300
   z     <- rbinom(n, 1, 0.5)
@@ -176,11 +176,23 @@ test_that("a class-specific outcome model is refused, and says where to go", {
   y     <- rnorm(n, mean = 10 + 3 * z)
   cov1  <- rnorm(n)
   fit   <- fit_mixture(items, n_classes = 2, measurement = "binary", n_init = 5)
+  # The public route fits the stacked model, so it contrasts exactly as the
+  # same model with every covariate named does.
   fo    <- suppressMessages(add_outcome(fit, y, covariates = cbind(cov1 = cov1),
                                         slopes = "class_specific"))
+  fn    <- suppressMessages(add_outcome(fit, y, covariates = cbind(cov1 = cov1),
+                                        slopes = "cov1"))
+  expect_equal(outcome_contrasts(fo, term = "cov1"),
+               outcome_contrasts(fn, term = "cov1"))
 
-  expect_error(outcome_contrasts(fo), "no covariance between the classes")
-  expect_error(outcome_contrasts(fo), "naming every covariate")
+  # The separate-regressions engine is still reachable by its descriptor, and
+  # still refuses.
+  fr <- suppressMessages(suppressWarnings(fit_mixture_internal(
+    items, cbind(y = y, cov1 = cov1), n_components = 2,
+    measurement = "binary", structural = "distal_continuous_regression",
+    n_steps = 1, n_init = 2, random_state = 1)))
+  expect_error(outcome_contrasts(fr), "no covariance between the classes")
+  expect_error(outcome_contrasts(fr), "naming every covariate")
 })
 
 test_that("slope contrasts read the class-specific block of the joint covariance", {

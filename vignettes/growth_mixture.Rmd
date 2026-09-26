@@ -107,9 +107,15 @@ different questions:
 
 ```{r membership}
 x_member <- rnorm(n, mean = 0.7 * cls)
-fit_cov  <- add_covariates(fit_gmm2, x_member)
+fit_cov  <- add_covariates(fit_gmm2, x_member, se = "robust")
 results  <- summary(fit_cov)
 ```
+
+  The default `se = "corrected"` adds step 1's uncertainty to the
+  step-3 sandwich, and that correction is not yet available for a growth
+  model, so the sandwich is requested by name. Its intervals treat the
+  growth model as known and are too narrow when the classes overlap; see
+  `?covariate_se`.
 
 * **Who, within a class, starts higher or declines faster?** — covariates
   on the growth factors themselves, which are part of the measurement

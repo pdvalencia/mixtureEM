@@ -73,10 +73,14 @@ test_that("the effect-coded class deviations sum to zero within each item", {
 
 test_that("scale = \"effect\" refuses a polytomous item", {
   set.seed(3)
+  # Two binary items, not one: with one the model has more parameters than
+  # the 3 x 2 table has free cells and is not identified.
   X <- cbind(poly = sample(1:3, 200, replace = TRUE),
-            bin  = rbinom(200, 1, 0.5))
+            bin  = rbinom(200, 1, 0.5),
+            bin2 = rbinom(200, 1, 0.5))
   fit <- fit_mixture(X, n_classes = 2,
-                     measurement = list(categorical = "poly", binary = "bin"),
+                     measurement = list(categorical = "poly",
+                                        binary = c("bin", "bin2")),
                      n_init = 2)
   expect_error(measurement_summary(fit, scale = "effect"), "polytomous")
   # The logit scale has no such restriction.

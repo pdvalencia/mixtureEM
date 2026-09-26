@@ -82,7 +82,7 @@ test_that("Npar and the design layout are L = K + D_pool + K*D_mod", {
   expect_true(all(paste0("loc2:Class", 1:K) %in% nm))
 })
 
-test_that("naming every covariate reproduces slopes = 'class_specific'", {
+test_that("slopes = 'class_specific' is the model with every covariate named", {
   d <- .sim_moderation_data()
   covs <- data.frame(loc1 = d$loc1, loc2 = d$loc2, age = d$age, sex = d$sex)
 
@@ -97,20 +97,28 @@ test_that("naming every covariate reproduces slopes = 'class_specific'", {
     fit0, d$y, covariates = covs,
     slopes = c("loc1", "loc2", "age", "sex"), correction = "none"))
 
-  K <- fit0$n_components
-  D <- 4L
+  # Same engine, same design, so the case-clustered sandwich comes with it.
+  expect_s3_class(fit_cs$sm, "distal_continuous_pooled")
+  expect_identical(fit_cs$sm$moderated, 1:4)
+  expect_equal(fit_cs$sm$parameters$beta_pooled,
+               fit_all_mod$sm$parameters$beta_pooled)
+  expect_equal(fit_cs$sm$parameters$ses, fit_all_mod$sm$parameters$ses)
+  expect_equal(fit_cs$sm$parameters$cov_theta,
+               fit_all_mod$sm$parameters$cov_theta)
 
-  # fit_cs$sm$parameters$betas is K x (1 + D): intercept, then the 4 slopes.
-  # fit_all_mod's beta_pooled is [intercepts, moderated blocks in covariate
-  # order] since D_pool = 0. Reassemble class k's [intercept, slopes] vector
-  # from each and compare.
-  betas_cs <- fit_cs$sm$parameters$betas
-  theta    <- as.vector(fit_all_mod$sm$parameters$beta_pooled)
+  # With D_pool = 0 the stacked problem separates by class, so each class's
+  # [intercept, slopes] is its own weighted regression on the posteriors.
+  K     <- fit0$n_components
+  D     <- 4L
+  theta <- as.vector(fit_cs$sm$parameters$beta_pooled)
+  Z1    <- cbind(1, as.matrix(covs))
+  W     <- exp(fit0$log_resp)
   for (k in seq_len(K)) {
     est_mod <- c(theta[k],
                 vapply(seq_len(D), function(j) theta[K + (j - 1L) * K + k],
                        numeric(1)))
-    expect_equal(est_mod, unname(betas_cs[k, ]), tolerance = 1e-6)
+    ref <- stats::lm.wfit(x = Z1, y = d$y, w = W[, k])$coefficients
+    expect_equal(est_mod, unname(ref), tolerance = 1e-6)
   }
 })
 
