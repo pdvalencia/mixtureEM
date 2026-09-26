@@ -291,9 +291,11 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 # large sample cannot iterate indefinitely, but above |LL| = 100 it is the
 # clause that fires first: at |LL| ~ 4000 EM stops once a step gains ~4e-5. On
 # a categorical fit with cells on the 0/1 boundary that is still far from the
-# maximum (EM crawls there; see R/qn_finish.R), and those fits are taken the
-# rest of the way by the Newton-type finish rather than by a tighter rule
-# here, which would cost tens of thousands of iterations for the same point.
+# maximum (EM crawls there; see R/qn_finish.R), and on a growth mixture with
+# missing waves it left the growth means off in the second decimal. Every fit
+# is taken the rest of the way by the Newton-type finish rather than by a
+# tighter rule here, which would cost thousands of iterations for the same
+# point.
 .em_tol_unpolished <- list(abs = 1e-6, rel = 1e-8)
 
 # The log-prior term every m_step.<family>() and refine_lbfgs() already add to
@@ -306,12 +308,20 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 # that covers only some of the emissions creates the very defect it exists to
 # remove, once a fit of a covered kind is compared against a fit of an
 # uncovered kind.
+#
+# The two growth emissions are covered as flat models only. The growth mixture
+# (R/structured_normal.R) has no measurement prior, so its objective is the
+# likelihood plus the class-weight term; latent class growth (R/lcga.R) adds
+# its GLM pseudo-rows (.lcga_log_prior()). Neither is ever a block of a
+# composite model.
 .em_prior_supported <- c("bernoulli", "bernoulli_nan", "bernoulli_dif",
                          "multinoulli", "multinoulli_nan",
                          "ordinal", "ordinal_nan",
                          "poisson", "poisson_nan",
                          "gaussian_diag", "gaussian_diag_nan",
-                         "gaussian_unit", "gaussian_unit_nan")
+                         "gaussian_unit", "gaussian_unit_nan",
+                         "structured_normal", "lcga")
+.em_prior_flat_only <- c("structured_normal", "lcga")
 
 # The marginals every measurement prior is centred on. They are functions of the
 # data and the case weights and never of the parameters, so they are computed
@@ -355,6 +365,8 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
       function(j) .ordinal_item_cols(mm, j))),
     gaussian_diag     = ,
     gaussian_diag_nan = list(s2 = .marginal_var(X, wt)),
+    lcga              = list(m = .lcga_marginal(X, wt)),
+    structured_normal = list(),
     NULL)
 }
 
@@ -419,7 +431,8 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 .em_flat_family_log_prior_items <- function(sub, X_view, K, items, wt,
                                             scale = 1) {
   fam <- class(sub)[1]
-  if (!fam %in% .em_prior_supported) return(NA_real_)
+  if (!fam %in% .em_prior_supported || fam %in% .em_prior_flat_only)
+    return(NA_real_)
 
   cols <- .em_item_cols(sub, items)
   val  <- 0
@@ -510,8 +523,46 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
       s2 <- matrix(marginals$s2, nrow = K, ncol = ncol(v), byrow = TRUE)
       val <- val - 0.5 * (a / K) * sum(log(v) + s2 / v)
     }
+  } else if (fam == "lcga") {
+    val <- val + .lcga_log_prior(mm, marginals$m)
   }
+  # structured_normal: no measurement prior; its objective is the likelihood
+  # plus the class-weight term .em_log_prior() adds.
   val
+}
+
+# The separation-guarding pseudo-rows m_step.lcga() appends to every class's
+# GLM (.wglm_prior_rows(), R/glm_mstep.R): one row per occasion with a finite
+# observed marginal, holding that marginal, weighted 1 / K (the M-step's
+# alpha is fixed at 1, R/lcga.R). The GLM maximises them as data, so the
+# log-prior is their log-likelihood: the binomial and Poisson kernels (the
+# response is a fraction, so no normalising constant is defined, and none is
+# needed, since it does not depend on the parameters), and the full normal
+# density for the Gaussian family, whose dispersion is estimated over the
+# pseudo-rows too.
+.lcga_log_prior <- function(mm, m) {
+  keep <- is.finite(m)
+  if (!any(keep)) return(0)
+  K   <- mm$n_components
+  fam <- mm$fam
+  mu  <- fam$linkinv(mm$design[keep, , drop = FALSE] %*%
+                       t(mm$parameters$coefs))            # T' x K
+  y   <- matrix(m[keep], nrow = sum(keep), ncol = K)
+  val <- switch(fam$name,
+    binomial = {
+      mu <- pmin(pmax(mu, 1e-15), 1 - 1e-15)
+      sum(y * log(mu) + (1 - y) * log1p(-mu))
+    },
+    poisson = {
+      mu <- pmax(mu, 1e-15)
+      sum(y * log(mu) - mu)
+    },
+    gaussian = {
+      d <- matrix(mm$parameters$dispersion, nrow = sum(keep), ncol = K,
+                  byrow = TRUE)
+      sum(stats::dnorm(y, mu, sqrt(d), log = TRUE))
+    })
+  val / K
 }
 
 # `blocks` (time_blocks/group_blocks): a free item gets an ordinary per-block
@@ -524,13 +575,13 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 # distinct equations, so they do not get the multiplier).
 #
 # A block whose `invariant_params` is non-empty (the ECM path,
-# .blocks_gaussian_ecm() in R/blocks_constraints.R) is left uncovered: that
-# path is reachable only for continuous sub-models, and refine_lbfgs() already
-# declines to polish it (.refine_time_block_view() returns NULL whenever
-# `length(mm$invariant_params)`), so there is no existing penalised objective
-# to check a log-prior term against. See DECISIONS.md and RECORDS.md, Part 47.
+# .blocks_gaussian_ecm() in R/blocks_constraints.R) prices its prior the way
+# that M-step writes it: every block contributes its own flat term at its own
+# observed marginal variance, whether its variances are its own or shared with
+# the other blocks (.em_blocks_ecm_log_prior() below). Checked by the finish
+# landing on a long EM run of the same fit (internal/RECORDS.md, Part 53).
 .em_blocks_family_log_prior <- function(mm, X, K, wt) {
-  if (length(mm$invariant_params)) return(NA_real_)
+  if (length(mm$invariant_params)) return(.em_blocks_ecm_log_prior(mm, X, K, wt))
 
   J     <- mm$n_items
   Bn    <- mm$n_blocks
@@ -553,6 +604,23 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
     wt_pool <- if (is.null(wt)) NULL else rep(wt, Bn)
     fam_val <- .em_flat_family_log_prior_items(mm$models[[1]], X_pool, K, inv,
                                                wt_pool, scale = scale)
+    if (is.na(fam_val)) return(NA_real_)
+    val <- val + fam_val
+  }
+  val
+}
+
+# The ECM path's prior: block b's own gaussian term, on block b's own data,
+# summed over blocks. Under shared variances every block's term is evaluated at
+# the one shared matrix, which is the sum .blocks_gaussian_ecm() maximises
+# (`prior_obs * rep(s2_tot, each = K)` over `Bn * prior_obs`).
+.em_blocks_ecm_log_prior <- function(mm, X, K, wt) {
+  J   <- mm$n_items
+  val <- 0
+  for (b in seq_len(mm$n_blocks)) {
+    X_sub   <- .strip_block_prefix(X[, .time_block_cols(b, J), drop = FALSE])
+    fam_val <- .em_flat_family_log_prior_items(mm$models[[b]], X_sub, K,
+                                               seq_len(J), wt)
     if (is.na(fam_val)) return(NA_real_)
     val <- val + fam_val
   }

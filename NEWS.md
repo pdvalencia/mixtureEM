@@ -1,5 +1,36 @@
 # mixtureEM (development version)
 
+## Every fit is taken to the maximum after EM
+
+The Newton-type finish below now runs on every model the package fits, not
+only categorical ones: continuous, count and mixed indicators, multiple-group
+models with means or variances held equal across groups, growth mixtures and
+latent class growth models, one-step fits with a distal outcome or a
+prevalence held equal across groups, and latent transition models with
+continuous, nominal or count items, several chains or a mover-stayer class.
+The two-step estimator's second step and the three-step LTA's third step are
+finished over the structural parameters only. EM's stopping rule had left
+these fits short of their maximum too: by 0.017 on a growth mixture with
+missing waves, whose growth means moved in the second decimal, and by up to
+0.045 on a one-step fit with a distal outcome. Reported log-likelihoods rise
+by those amounts and the estimates move to the maximum a long EM run
+reaches. Latent transition models with a random intercept keep their own
+search and are unchanged, as is every `refine = FALSE` fit.
+
+Three changes to the finish itself come with it, and they apply to
+categorical fits as well, which still reach the same maximum. A step is now
+judged on its gain summed case by case, which near the maximum resolves gains
+the total log-likelihood rounds away, and a step whose gain is within that
+sum's own rounding is taken. A polytomous item is anchored on each
+class's most probable category rather than its last, so an item with an
+empty category no longer freezes the class's other probabilities. And the
+curvature now includes the prior's own, which is what matters for a class
+variance far below the item's variance.
+
+Growth mixtures, latent class growth models and latent transition models with
+continuous, nominal or count items now also rank their restarts and stop EM on
+the penalised objective EM climbs, as every other model already did.
+
 ## Categorical fits are taken to the maximum after EM
 
 A categorical model whose optimum has response probabilities at 0 or 1 sits
@@ -21,9 +52,9 @@ estimate moves to the maximum that a long EM run eventually reaches. A fit
 whose EM hit its iteration cap but whose finish ends with every gradient
 component below 1e-6 per case is now reported as converged, and `fit$qn_finish`
 records the iterations, the held cells and the final gradient. The
-replication count still describes EM's end points. Gaussian and count models,
-LTA models with a free random-intercept loading, and `refine = FALSE` fits
-(bootstrap replicates) are unchanged.
+replication count still describes EM's end points. LTA models with a free
+random-intercept loading and `refine = FALSE` fits (bootstrap replicates) are
+unchanged; the section above extends the finish to every other model.
 
 ## The three-step `fit_lta()` offers the BCH correction
 

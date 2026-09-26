@@ -1246,7 +1246,24 @@
   known <- c("bernoulli", "bernoulli_nan",     # marginal-preserving Beta prior
              "gaussian_unit", "gaussian_unit_nan",  # no measurement prior at all
              "ordinal", "ordinal_nan")          # marginal-preserving Dirichlet prior
-  if (!fam %in% known) return(NA_real_)
+  # Every other item family: the measurement M-step is m_step.blocks() on the
+  # occasion-stacked emission, so its prior is the one .em_log_prior() already
+  # prices for a `blocks` model -- one term per occasion for a free item, one
+  # pooled term scaled by the number of occasions for an invariant one -- with
+  # the case weights passed exactly when .lta_em() passes them. Gaussian
+  # variances, nominal and count items and a mixed item block all read it from
+  # there (Part 53; checked by the finish landing on a long EM run).
+  # A fixed emission (the three-step's step 3) keeps the rule it was validated
+  # on; the finish prices its structural term itself (.qn_lta_prior()).
+  if (!fam %in% known) {
+    if (inherits(state$mm, "blocks") && !isTRUE(state$mm_fixed)) {
+      w  <- state$weights_vec
+      mp <- .em_blocks_family_log_prior(state$mm, X, state$n_statuses,
+                                        if (all(w == 1)) NULL else w)
+      if (!is.na(mp)) return(.lta_log_prior_dt(state, alpha) + mp)
+    }
+    return(NA_real_)
+  }
 
   val <- .lta_log_prior_dt(state, alpha)
 

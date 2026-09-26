@@ -2357,7 +2357,8 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 
     model_state <- .apply_structural_steps(model_state, X, Y, n_steps,
                                            correction, max_iter, se,
-                                           assignment = assignment)
+                                           assignment = assignment,
+                                           refine = refine)
   }
 
   # Class sorting, display names, and combined-model metrics (see

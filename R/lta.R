@@ -1186,6 +1186,10 @@ fit_lta <- function(indicators,
   # carries `frozen` into .lta_em(), which skips the measurement M-step and
   # nothing else. Every E-step is still on the joint model, which is what makes
   # this the two-step and not an uncorrected assignment step.
+  # The Newton-type finish (R/qn_finish.R) follows the caller's `refine`, read
+  # here because the two-step turns `refine` off below for the polish alone:
+  # its step 2 is still taken to the maximum over the structural blocks.
+  finish_on <- isTRUE(refine)
   if (n_steps == 2L) {
     if (is.null(predictors_initial) && is.null(predictors_transition) &&
         is.null(predictors_random_intercept))
@@ -1504,6 +1508,7 @@ fit_lta <- function(indicators,
   }, n_cores = n_cores)
 
   best_score <- -Inf
+  survivors  <- NULL
   for (cand in cands) {
     if (inherits(cand, "try-error")) next
     if (staged) stage1[[length(stage1) + 1L]] <- cand
@@ -1566,6 +1571,11 @@ fit_lta <- function(indicators,
       cont$converged <- isTRUE(best$converged) || isTRUE(cont$converged)
       cont$n_iter    <- best$n_iter + cont$n_iter
       best <- cont
+      # The finish below compares its candidates with this score; left at the
+      # pre-continuation value, a finished lesser restart could displace the
+      # better continued winner (it did on the Reading covariate three-step,
+      # by 0.001; RECORDS.md, Part 53).
+      best_score <- score_of(best)
     }
   }
 
@@ -1573,14 +1583,14 @@ fit_lta <- function(indicators,
   # solution within reach of it, taken on from where EM stopped to the
   # maximum. Candidates compete only with others of the winner's degeneracy
   # status, so the ranking rule above still decides between the two kinds.
-  # Every fit it applies to took the unstaged search, so `cands` holds the
-  # converged restarts.
-  if (isTRUE(refine) && is.null(fixed_mm) && !staged &&
-      .qn_lta_supported(best)) {
+  # The converged restarts are `cands` on the unstaged search and the promoted
+  # `survivors` on the staged one (a mixture over chains, a mover-stayer
+  # model); a step-3 or two-step fit finishes its structural blocks only.
+  if (finish_on && .qn_lta_supported(best)) {
     pool <- Filter(function(cd) !inherits(cd, "try-error") &&
                      identical(!is.null(.categorical_boundary(cd, X_fit)),
                                best_degenerate),
-                   cands)
+                   if (staged) survivors else cands)
     if (!length(pool)) pool <- list(best)
     pick <- .qn_pick(vapply(pool, score_of, numeric(1)),
                      lapply(pool, `[[`, "ll_case"), best$weights_vec)

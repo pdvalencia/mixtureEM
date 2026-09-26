@@ -64,7 +64,8 @@
 # posteriors.
 .apply_structural_steps <- function(model_state, X, Y, n_steps, correction,
                                     max_iter, se,
-                                    assignment = "proportional") {
+                                    assignment = "proportional",
+                                    refine = TRUE) {
   if (is.null(Y) || is.null(model_state$sm)) return(model_state)
 
   if (n_steps == 2) {
@@ -97,6 +98,13 @@
     model_state$frozen <- c("mm", "weights")
     model_state <- fit_single_init(model_state, X, Y, max_iter = max_iter,
                                    refine = FALSE, init_state = model_state)
+    # EM gets the structural block into its basin and the Newton-type finish
+    # (R/qn_finish.R) takes it to the maximum, over the structural coordinates
+    # only: the frozen blocks stay exactly where step 1 left them.
+    if (isTRUE(refine)) {
+      fin <- .qn_finish_mixture(model_state, X, Y)
+      if (!is.null(fin)) model_state <- fin
+    }
     model_state$frozen <- NULL
     model_state <- .attach_twostep_covariate_vcov(
       model_state, X, Y, model_state$sample_weights, se = se)

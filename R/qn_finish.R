@@ -47,12 +47,23 @@
 #     |25| (a probability of 1e-11, the box R/lta_core.R's polish uses) and held
 #     there. At |25| its remaining contribution is below 1e-8 of log-likelihood
 #     at any sample size fitted here, and a free coordinate there only makes
-#     the curvature singular.
+#     the curvature singular. Only probabilities and rates have such a
+#     boundary; the coordinates of a continuous or count model are tagged by
+#     kind (.qn_wall_hit()) and a mean or a variance is never walled.
 #
 # Measured from each fit's own EM winner, the finish reaches the fully
 # converged maximum -- the one long EM runs reach -- on every benchmark fit, in
 # seconds rather than the tens of thousands of iterations EM would need
 # (RECORDS.md, same entry).
+#
+# The crawl is not a categorical peculiarity. A Gaussian growth mixture with
+# missing waves stopped 0.017 short under the same rule, its growth means off
+# in the second decimal, and continuous, count, mixed, outcome and
+# multiple-group fits all sat short of the maximum by amounts that moved
+# reported parameters in the third or fourth decimal (RECORDS.md, "Part 53").
+# So the finish covers every model the package fits: each measurement and
+# structural model describes its own parameters (R/qn_pack.R), and the one
+# model left to its own optimiser is named in .qn_refused with the reason.
 
 # Past this, on the logit scale, a coordinate is sent to `.qn_edge` and held.
 .qn_wall <- 15
@@ -93,6 +104,21 @@
   }, numeric(1))
 }
 
+# The same central differences, returning the diagonal second differences
+# too: the points are the ones the gradient already evaluates, so the
+# curvature costs one more evaluation in all.
+.qn_fd_grad2 <- function(f, par) {
+  h  <- 1e-5 * pmax(1, abs(par))
+  f0 <- f(par)
+  r  <- vapply(seq_along(par), function(i) {
+    a <- par; a[i] <- a[i] + h[i]
+    b <- par; b[i] <- b[i] - h[i]
+    fa <- f(a); fb <- f(b)
+    c((fa - fb) / (2 * h[i]), (fa - 2 * f0 + fb) / h[i]^2)
+  }, numeric(2))
+  list(g = r[1L, ], h = r[2L, ])
+}
+
 # Case-level scores of `case_ll` by central differences, for the coordinates
 # `idx` only: an n x length(idx) matrix.
 .qn_fd_scores <- function(case_ll, par, idx) {
@@ -105,16 +131,52 @@
   matrix(S, ncol = length(idx))
 }
 
+# What each coordinate of a packed vector is, which decides whether the wall
+# applies to it:
+#
+#   logit    a log-ratio of probabilities (response probabilities, class
+#            sizes, class-membership and categorical-outcome coefficients),
+#            whose boundary is at either infinity;
+#   log_pos  the log of a rate that can reach zero (a Poisson rate), whose
+#            boundary is at minus infinity only;
+#   scale    the log of a standard deviation, or of a Cholesky diagonal. Its
+#            boundary is a degenerate optimum, not a cell at 0 or 1, and it is
+#            never walled: a finish that shrinks one is refused instead (see
+#            .qn_scale_collapsed());
+#   free     anything else -- a mean, a growth coefficient, a regression slope.
+#
+# A packing that says nothing is all `logit`, which is what every coordinate of
+# the categorical fits the finish was first built for is.
+.qn_wall_hit <- function(x, kind) {
+  (kind == "logit" & abs(x) > .qn_wall) | (kind == "log_pos" & x < -.qn_wall)
+}
+
+# The largest fall in a `scale` coordinate the finish may make: log(10), a
+# variance divided by 100. The finish starts at a converged EM solution, and a
+# genuine move from there is a small correction; a standard deviation falling
+# by an order of magnitude is the likelihood's spike at a collapsed variance,
+# which EM had been kept out of. The same 1% ratio .gaussian_boundary()
+# (R/gaussian_boundary.R) reads as collapse.
+.qn_scale_drop <- log(10)
+
+.qn_scale_collapsed <- function(par0, par, kind) {
+  s <- which(kind == "scale")
+  length(s) > 0L && any(par[s] < par0[s] - .qn_scale_drop)
+}
+
 # The finish. `case_ll(par)` is the per-row log-likelihood, `w` the row
 # weights, `prior(par)` the log-prior (0 when there is none), and
 # `scores(par, idx)` the unweighted per-row scores for the coordinates `idx`
-# (central differences of `case_ll` when not supplied). Returns NULL when
-# nothing is free or the start is not finite, so every caller can fall back to
-# the EM solution.
+# (central differences of `case_ll` when not supplied). `kind` tags each
+# coordinate (see .qn_wall_hit()); `fixed` names coordinates that are held
+# where they are -- the measurement block of a two-step or three-step fit.
+# Returns NULL when nothing is free or the start is not finite, so every
+# caller can fall back to the EM solution.
 .qn_finish <- function(case_ll, w, par0, prior = function(p) 0,
                        scores = NULL, gtol_stop = .qn_gtol_stop,
-                       maxit = 500L) {
+                       maxit = 500L, kind = NULL, fixed = integer(0)) {
   scores <- scores %||% function(p, idx) .qn_fd_scores(case_ll, p, idx)
+  kind   <- kind %||% rep("logit", length(par0))
   value  <- function(p) {
     v <- sum(w * case_ll(p)) + prior(p)
     if (is.finite(v)) v else -Inf
@@ -123,7 +185,7 @@
   fx <- value(x)
   if (!is.finite(fx)) return(NULL)
   sw <- sum(w)
-  free <- which(is.finite(x) & abs(x) <= .qn_wall)
+  free <- setdiff(which(is.finite(x) & !.qn_wall_hit(x, kind)), fixed)
   if (!length(free)) return(NULL)
 
   # Coordinates already past the wall go to the edge, if that does not cost.
@@ -133,38 +195,82 @@
     fe <- value(e)
     if (fe >= fx) list(x = e, fx = fe) else list(x = x, fx = fx)
   }
-  held <- setdiff(seq_along(x), free)
+  held <- setdiff(seq_along(x), c(free, fixed))
   if (length(held)) { r <- to_edge(x, fx, held); x <- r$x; fx <- r$fx }
 
   it <- 0L
   g  <- NULL
+  best_g <- Inf
+  stale  <- 0L
   repeat {
     it <- it + 1L
     S  <- scores(x, free)
     fr <- function(v) { p <- x; p[free] <- v; prior(p) }
-    gp <- .qn_fd_grad(fr, x[free])
-    g  <- colSums(S * w) + gp
+    gp <- .qn_fd_grad2(fr, x[free])
+    g  <- colSums(S * w) + gp$g
     if (max(abs(g)) < gtol_stop * sw || it > maxit) break
+    # Ten steps in a row that gained no more than the rounding and left the
+    # gradient no smaller: the point is as good as the arithmetic allows. A
+    # measurable gain resets the count, since the max-norm of the gradient is
+    # not monotone along the way (a cell reaching the wall reshapes it).
+    if (max(abs(g)) < best_g) { best_g <- max(abs(g)); stale <- 0L }
+    else if ((stale <- stale + 1L) >= 10L) break
 
+    # The curvature is the data's outer product of scores plus the prior's
+    # own, which the scores know nothing about. Most priors here are a few
+    # pseudo-observations and add little, but the variance prior's curvature
+    # in a log standard deviation grows as s^2 / sigma^2, and a class variance
+    # far below the item's marginal -- a ceiling effect -- is where it
+    # decides the direction: without it the step points along the data's
+    # curvature alone, the line search rejects it, and the finish stalls with
+    # the gradient far from zero (a free-variance profile model, RECORDS.md,
+    # Part 53). Its diagonal, from the differences above, is enough: every
+    # measurement prior is separable across parameters. With the priors off
+    # it is exactly zero and the step is unchanged.
     B  <- crossprod(S * sqrt(w))
+    diag(B) <- diag(B) + pmax(-gp$h, 0)
     e  <- eigen(B, symmetric = TRUE)
     lam <- pmax(e$values, 1e-10 * max(e$values, 1e-300))
     d  <- as.vector(e$vectors %*% (crossprod(e$vectors, g) / lam))
     big <- max(abs(d))
     if (big > .qn_radius) d <- d * .qn_radius / big
 
+    # A step is judged on its gain summed case by case, not on the difference
+    # of two totals. Near the maximum a Newton step along a coordinate with a
+    # large curvature -- a Gaussian mean in a big class -- gains ~1e-15, below
+    # the rounding of a total of |LL| ~ 1e4 (~2e-12), and differencing the
+    # totals then reads it as a loss as often as a gain: the line search halves
+    # it to nothing and the iterations stall there with the gradient stuck
+    # (RECORDS.md, Part 53: a Gaussian LTA). The per-case differences are small
+    # numbers whose sum keeps that gain. Even that sum is exact only to the
+    # rounding of its terms, ~eps * sum(w |l_i|), and at the last few Newton
+    # steps the true gain is that small: a step within it is taken, since it
+    # can cost no more than that, and the gradient is what then says whether
+    # the finish is still getting anywhere (below). Without the allowance a
+    # three-step fit and the same fit on duplicated data stopped at gradients
+    # 1e-8 and 5e-7, their estimates 7e-9 apart.
+    lx <- case_ll(x)
+    px <- prior(x)
+    noise <- 4 * .Machine$double.eps * (sum(w * abs(lx)) + abs(px))
     a <- 1
     repeat {
       xn <- x
       xn[free] <- x[free] + a * d
-      fn <- value(xn)
-      if (fn >= fx) break
+      ln <- case_ll(xn)
+      pn <- prior(xn)
+      gain <- sum(w * (ln - lx)) + (pn - px)
+      fn <- sum(w * ln) + pn
+      if (is.finite(fn) && is.finite(gain) && gain >= -noise) break
       a <- a / 2
       if (a < 1e-10) break
     }
-    if (a < 1e-10) break
+    if (is.finite(gain) && gain > noise) stale <- 0L
+    # A step that no longer moves any coordinate beyond its last few digits
+    # leaves the point where it is, and so would every step after it.
+    if (a < 1e-10 ||
+        max(abs(xn - x)) <= 1e-14 * max(1, max(abs(x[free])))) break
 
-    hit <- free[abs(xn[free]) > .qn_wall]
+    hit <- free[.qn_wall_hit(xn[free], kind[free])]
     if (length(hit)) {
       r <- to_edge(xn, fn, hit); xn <- r$x; fn <- r$fx
       free <- setdiff(free, hit)
@@ -206,26 +312,71 @@
 }
 
 # ------------------------------------------------------------------------------
+# What the finish does not reach, and why
+# ------------------------------------------------------------------------------
+
+# Every model the package fits is either taken to the maximum by the finish or
+# named here with the reason it is not. The coverage test reads this list, so
+# a class that is neither packable nor listed fails it.
+.qn_refused <- c(
+  lta_random_intercept = paste(
+    "A latent transition model with a freely loading random intercept keeps",
+    "its own staged search and L-BFGS polish, validated on their own",
+    "benchmarks. The literature on multistage estimation for these models",
+    "(Asparouhov & Muthen 2019) covers the start funnel and",
+    "the forward-backward speed-ups, and says nothing about a Newton-type",
+    "final stage, so none is added until one is measured."))
+
+# ------------------------------------------------------------------------------
 # fit_mixture()
 # ------------------------------------------------------------------------------
 
-# The measurement families the finish is run for: categorical ones, where the
-# boundary crawl lives and the objective is bounded. A Gaussian or count model
-# is left to EM, whose rule was measured adequate there (RECORDS.md, "R3's
-# W1"), and where an unpenalised variance has no bound to stop a line search.
-.qn_mixture_families <- c("bernoulli", "multinoulli")
+# The packed vector of a fit and how to read it back: the measurement model,
+# then the pooled class sizes unless the structural model supplies the class
+# probabilities itself, then the structural model. NULL where any part has no
+# packing (R/qn_pack.R).
+.qn_mixture_layout <- function(model_state, Y) {
+  has_sm   <- !is.null(Y) && !is.null(model_state$sm)
+  sm_probs <- has_sm && .supplies_class_probs(model_state$sm)
+  K  <- model_state$n_components
+  pm <- .qn_pack_mm(model_state$mm)
+  if (is.null(pm)) return(NULL)
+  parts <- list(mm = pm)
+  if (!sm_probs) {
+    wts <- pmax(model_state$weights, 1e-12)
+    parts$weights <- .qn_part(log(wts[-K] / wts[K]), "logit")
+  }
+  if (has_sm) {
+    ps <- .qn_pack_sm(model_state$sm)
+    if (is.null(ps)) return(NULL)
+    parts$sm <- ps
+  }
+  len <- vapply(parts, .qn_len, integer(1))
+  end <- cumsum(len)
+  idx <- Map(function(e, l) seq_len(l) + e - l, end, len)
+  pk  <- .qn_join(parts)
+  list(par = pk$par, kind = pk$kind, idx = idx, has_sm = has_sm,
+       sm_probs = sm_probs)
+}
+
+.qn_mixture_unpack <- function(model_state, lay, par) {
+  st <- model_state
+  # A frozen block is carried over as it is, not rebuilt from its packing,
+  # whose round trip is exact only to the last bit.
+  frozen <- model_state$frozen
+  if (!"mm" %in% frozen) st$mm <- .qn_unpack_mm(st$mm, par[lay$idx$mm])
+  if (!is.null(lay$idx$weights) && !"weights" %in% frozen) {
+    lr <- c(par[lay$idx$weights], 0)
+    lr <- lr - max(lr)
+    st$weights <- exp(lr) / sum(exp(lr))
+  }
+  if (lay$has_sm) st$sm <- .qn_unpack_sm(st$sm, par[lay$idx$sm])
+  st
+}
 
 .qn_mixture_supported <- function(model_state, Y) {
-  if (length(model_state$frozen) || model_state$n_components < 2L) return(FALSE)
-  mm <- model_state$mm
-  subs <- if (inherits(mm, c("blocks", "nested"))) mm$models else list(mm)
-  ok <- vapply(subs, function(m)
-    inherits(m, "bernoulli_dif") || .step1_family(m) %in% .qn_mixture_families,
-    logical(1))
-  if (!all(ok)) return(FALSE)
-  # With structural data the structural model has to be the one the packing
-  # covers: a class-membership regression. Anything else is left to EM.
-  is.null(Y) || inherits(model_state$sm, "covariate")
+  model_state$n_components >= 2L &&
+    !is.null(.qn_mixture_layout(model_state, Y))
 }
 
 # The Dirichlet prior the covariate M-step writes as pseudo-rows (.fit_mnl(),
@@ -243,49 +394,67 @@
                                  1e-300)))
 }
 
-.qn_finish_mixture <- function(model_state, X, Y) {
-  use_sm <- !is.null(Y) && .supplies_class_probs(model_state$sm)
-  pm <- .step1_pack_mm(model_state$mm)
-  if (is.null(pm)) return(NULL)
-  par0 <- if (use_sm) {
-    ps <- .step1_pack_sm(model_state$sm)
-    if (is.null(ps)) return(NULL)
-    c(pm, ps)
-  } else .step1_pack(model_state)
-  nm <- length(pm)
+# The objective the finish climbs, as functions of the packed vector: the
+# per-case log-likelihood and the log-prior EM's own M-steps add.
+.qn_mixture_problem <- function(model_state, X, Y) {
+  lay <- .qn_mixture_layout(model_state, Y)
+  if (is.null(lay)) return(NULL)
+  Yp <- if (lay$has_sm) Y else NULL
+  w  <- model_state$sample_weights
+  wt <- if (!is.null(w) && length(w) == nrow(X) && any(w != 1)) w else NULL
 
-  unpack <- function(par) {
-    if (!use_sm) return(.step1_unpack(model_state, par))
-    st <- model_state
-    st$mm <- .step1_unpack_mm(st$mm, par[seq_len(nm)])
-    st$sm <- .step1_unpack_sm(st$sm, par[-seq_len(nm)])
-    st
-  }
-  Yp     <- if (use_sm) Y else NULL
+  # A frozen block (the two-step estimator's measurement model and pooled
+  # sizes, R/stepwise.R) stays exactly where it is.
+  frozen <- model_state$frozen
+  fixed  <- c(if ("mm" %in% frozen) lay$idx$mm,
+              if ("weights" %in% frozen) lay$idx$weights)
+
+  unpack <- function(par) .qn_mixture_unpack(model_state, lay, par)
   marg   <- tryCatch(.em_prior_marginals(model_state, X), error = function(e) NULL)
-  cprior <- if (use_sm) .qn_covariate_prior(model_state$sm, Y) else function(sm) 0
+  smp    <- if (lay$has_sm) .qn_sm_prior(model_state$sm, Y, wt) else
+    function(sm) 0
   case_ll <- function(par) {
     st <- unpack(par)
-    if (use_sm)
-      logsumexp(log_likelihood(st$mm, X) + log_likelihood(st$sm, Y), MARGIN = 1)
-    else
-      logsumexp(sweep(log_likelihood(st$mm, X), 2,
-                      log(pmax(st$weights, 1e-300)), "+"), MARGIN = 1)
+    L  <- log_likelihood(st$mm, X)
+    if (lay$has_sm) L <- L + log_likelihood(st$sm, Y)
+    if (!lay$sm_probs) L <- sweep(L, 2, log(pmax(st$weights, 1e-300)), "+")
+    logsumexp(L, MARGIN = 1)
   }
   prior <- function(par) {
     st <- unpack(par)
     lp <- .em_log_prior(st, X, Yp, marg)
-    if (is.na(lp)) NA_real_ else lp + cprior(st$sm)
+    if (is.na(lp)) NA_real_ else lp + smp(st$sm)
   }
-  if (is.na(prior(par0))) return(NULL)
-  w <- model_state$sample_weights
-  start <- sum(w * case_ll(par0)) + prior(par0)
-  if (!is.finite(start)) return(NULL)
-  res <- .qn_finish(case_ll, w, par0, prior, gtol_stop = .qn_gtol_stop_fd)
-  if (is.null(res) || res$value <= start) return(NULL)
+  list(lay = lay, par = lay$par, kind = lay$kind, fixed = fixed, w = w,
+       wt = wt, Yp = Yp, unpack = unpack, case_ll = case_ll, prior = prior,
+       value = function(par) sum(w * case_ll(par)) + prior(par))
+}
 
-  st <- unpack(res$par)
+.qn_finish_mixture <- function(model_state, X, Y) {
+  pr <- .qn_mixture_problem(model_state, X, Y)
+  if (is.null(pr)) return(NULL)
+  lay <- pr$lay; par0 <- pr$par; Yp <- pr$Yp; wt <- pr$wt
+  if (is.na(pr$prior(par0))) return(NULL)
+  start <- pr$value(par0)
+  if (!is.finite(start)) return(NULL)
+  res <- .qn_finish(pr$case_ll, pr$w, par0, pr$prior,
+                    gtol_stop = .qn_gtol_stop_fd, kind = lay$kind,
+                    fixed = pr$fixed)
+  if (is.null(res) || res$value <= start) return(NULL)
+  if (.qn_scale_collapsed(par0, res$par, lay$kind)) return(NULL)
+
+  st <- pr$unpack(res$par)
   e  <- e_step(st, X, Yp)
+  # An outcome model keeps quantities its M-step derives from the estimates
+  # (standard errors, the information matrix, the Wald covariance). One M-step
+  # at the finished posteriors rebuilds them there: the point is stationary,
+  # so the estimates themselves stay put to within the M-step's own tolerance.
+  if (lay$has_sm && !lay$sm_probs) {
+    resp  <- exp(e$log_resp)
+    st$sm <- if (is.null(wt)) m_step(st$sm, Y, resp) else
+      m_step(st$sm, Y, resp, weights = wt)
+    e <- e_step(st, X, Yp)
+  }
   st$log_resp    <- e$log_resp
   st$lower_bound <- e$log_prob_norm
   st$converged   <- isTRUE(model_state$converged) || res$converged
@@ -317,17 +486,48 @@
 # fit_lta()
 # ------------------------------------------------------------------------------
 
-# A latent transition model with categorical indicators and no free random
-# intercept loading. A continuous random intercept has its own search and
-# polish (R/lta.R), validated on their own benchmarks, and is left to them.
-.qn_lta_supported <- function(state) {
-  if (length(state$frozen) || isTRUE(state$mm_fixed)) return(FALSE)
-  if ((state$n_classes %||% 1L) > 1L) return(FALSE)
-  if (!is.null(state$ri) && .lta_ri_loading_free(state)) return(FALSE)
-  if (!.lta_scores_supported(state, shared_ok = TRUE)) return(FALSE)
-  class(state$mm$models[[1]])[1] %in%
-    c("bernoulli", "bernoulli_nan", "ordinal", "ordinal_nan")
+# Every latent transition model except one with a freely loading random
+# intercept (.qn_refused). Two routes to the scores:
+#
+#   * analytic, from .lta_score_matrix(), wherever its blocks describe the
+#     whole packed vector: binary, ordinal and Gaussian items, and a fixed
+#     emission (the three-step's step 3), whose vector is the structural
+#     block alone -- one forward-backward pass per iteration;
+#   * central differences of .lta_ll_case() for the rest: nominal and count
+#     items, a mixed item block, and a step-3 outcome the score blocks do not
+#     cover.
+#
+# A measurement model held at its step-1 estimate (the two-step's step 2) is
+# packed with the rest and its coordinates are `fixed`; the model itself is
+# carried over untouched, since the packing's round trip is exact only to the
+# last bit.
+.qn_lta_analytic_families <- c("bernoulli", "bernoulli_nan", "ordinal",
+                               "ordinal_nan", "gaussian_diag",
+                               "gaussian_diag_nan", "gaussian_unit",
+                               "gaussian_unit_nan")
+
+.qn_lta_measurement_fixed <- function(state)
+  isTRUE(state$mm_fixed) || "mm" %in% state$frozen
+
+.qn_lta_analytic <- function(state) {
+  .lta_scores_supported(state, shared_ok = TRUE) &&
+    (isTRUE(state$mm_fixed) ||
+       class(state$mm$models[[1]])[1] %in% .qn_lta_analytic_families)
 }
+
+.qn_lta_supported <- function(state) {
+  if (!is.null(state$ri) && .lta_ri_loading_free(state)) return(FALSE)
+  if (.qn_lta_analytic(state)) return(TRUE)
+  if (!is.null(state$ri)) return(FALSE)
+  .qn_lta_measurement_fixed(state) || !is.null(.qn_pack_mm(state$mm))
+}
+
+# What each block of .lta_par_layout()'s vector is (see .qn_wall_hit()).
+# Everything the finish covered before Gaussian items reached it stays a
+# logit, so those fits finish exactly as they did.
+.qn_lta_block_kind <- function(kind)
+  switch(kind, mu = , distal_mu = "free", log_sd = , distal_log_sd = "scale",
+         "logit")
 
 # The packed vector of an LTA state, reduced to the parameters it actually
 # has. The transition-free model (`tau_independent`) ties every origin row of
@@ -336,11 +536,15 @@
 # mapped back onto one free vector per occasion -- the reduction
 # .lta_threestep_vcov() uses for the same model. With a transition regression
 # the origin-free design already has one row per occasion and packs as it is.
-.qn_lta_reduction <- function(state) {
+# `structural_only` packs the structural blocks (and a step-3 distal outcome)
+# alone, which is .lta_par_layout()'s own reading of a fixed emission.
+.qn_lta_reduction <- function(state, structural_only = FALSE) {
   shared <- isTRUE(state$tau_independent) && is.null(state$tau_beta)
   st <- state
   if (shared) st$tau_independent <- FALSE
-  lay  <- .lta_par_layout(st)
+  lay_state <- st
+  if (structural_only) lay_state$mm_fixed <- TRUE
+  lay  <- .lta_par_layout(lay_state)
   full <- .lta_par_pack(st, lay)
   len  <- vapply(lay, function(b) as.integer(b$len), integer(1))
   if (sum(len) != length(full)) return(NULL)
@@ -361,40 +565,90 @@
     }
   }
   r0 <- full[match(seq_len(n_red), src)]
-  if (max(abs(r0[src] - full)) > 1e-8) return(NULL)
-  list(state = st, layout = lay, src = src, r0 = r0, shared = shared)
+  if (max(abs(r0[src] - full), 0) > 1e-8) return(NULL)
+  kind_full <- rep(vapply(lay, function(b) .qn_lta_block_kind(b$kind),
+                          character(1)), len)
+  list(state = st, layout = lay, src = src, r0 = r0, shared = shared,
+       kind = kind_full[match(seq_len(n_red), src)])
+}
+
+# The objective's prior. A fixed emission's measurement term is a constant, so
+# a step-3 fit carries the structural term alone; everything else is
+# .lta_log_prior()'s.
+.qn_lta_prior <- function(state, X, alpha, marginals) {
+  if (isTRUE(state$mm_fixed)) return(.lta_log_prior_dt(state, alpha))
+  .lta_log_prior(state, X, alpha, marginals)
 }
 
 .qn_finish_lta <- function(state, X, alpha, marginals) {
-  red <- .qn_lta_reduction(state)
+  frozen <- "mm" %in% state$frozen
+  red <- if (.qn_lta_analytic(state)) .qn_lta_reduction(state) else NULL
+  # The analytic route needs the score blocks to describe every coordinate.
+  if (!is.null(red)) {
+    sc0 <- .lta_score_matrix(state, X, shared_ok = TRUE)
+    if (is.null(sc0) || ncol(sc0$S) != length(red$src)) red <- NULL
+  }
+  analytic <- !is.null(red)
+  if (!analytic) red <- .qn_lta_reduction(state, structural_only = TRUE)
   if (is.null(red)) return(NULL)
+  mm_free <- !analytic && !.qn_lta_measurement_fixed(state)
+  pm <- if (mm_free) .qn_pack_mm(state$mm) else NULL
+  if (mm_free && is.null(pm)) return(NULL)
+  n_red <- length(red$r0)
+  r0    <- c(red$r0, pm$par)
+  kind  <- c(red$kind, pm$kind)
+  fixed <- if (analytic && frozen)
+    unique(red$src[.lta_par_split(red$layout)$measurement]) else integer(0)
   w <- state$weights_vec
-  unpack <- function(r) {
-    st <- .lta_par_unpack(r[red$src], red$state, red$layout)
-    if (red$shared) st$tau_independent <- TRUE
+
+  keep <- function(st) {
+    if (frozen) {
+      st$mm$models <- state$mm$models
+      if (!is.null(state$ri)) st$ri <- state$ri
+    }
     st
   }
-  # Per-row log-likelihood and analytic scores come from one forward-backward
-  # pass; the finish asks for both at the same point, so it is cached.
-  cache <- NULL
-  at <- function(r) {
-    if (!is.null(cache) && identical(cache$r, r)) return(cache)
-    st <- .lta_par_unpack(r[red$src], red$state, red$layout)
-    sc <- .lta_score_matrix(st, X, shared_ok = TRUE)
-    cache <<- if (is.null(sc)) list(r = r, ll = rep(NA_real_, nrow(X)), S = NULL)
-              else list(r = r, ll = sc$ll,
-                        # Shared rows fold onto their one free vector.
-                        S = t(rowsum(t(sc$S), red$src)))
-    cache
+  with_mm <- function(r) {
+    st <- red$state
+    if (mm_free) st$mm <- .qn_unpack_mm(st$mm, r[-seq_len(n_red)])
+    st
   }
-  case_ll <- function(r) at(r)$ll
-  scores  <- function(r, idx) at(r)$S[, idx, drop = FALSE]
-  prior   <- function(r) .lta_log_prior(unpack(r), X, alpha, marginals)
-  if (is.na(prior(red$r0))) return(NULL)
-  start <- sum(w * case_ll(red$r0)) + prior(red$r0)
+  unpack <- function(r) {
+    st <- .lta_par_unpack(r[seq_len(n_red)][red$src], with_mm(r), red$layout)
+    if (red$shared) st$tau_independent <- TRUE
+    keep(st)
+  }
+  if (analytic) {
+    # Per-row log-likelihood and analytic scores come from one forward-backward
+    # pass; the finish asks for both at the same point, so it is cached.
+    cache <- NULL
+    at <- function(r) {
+      if (!is.null(cache) && identical(cache$r, r)) return(cache)
+      st <- keep(.lta_par_unpack(r[red$src], red$state, red$layout))
+      sc <- .lta_score_matrix(st, X, shared_ok = TRUE)
+      cache <<- if (is.null(sc)) list(r = r, ll = rep(NA_real_, nrow(X)), S = NULL)
+                else list(r = r, ll = sc$ll,
+                          # Shared rows fold onto their one free vector.
+                          S = t(rowsum(t(sc$S), red$src)))
+      cache
+    }
+    case_ll <- function(r) at(r)$ll
+    scores  <- function(r, idx) at(r)$S[, idx, drop = FALSE]
+    gtol    <- .qn_gtol_stop
+  } else {
+    case_ll <- function(r)
+      .lta_ll_case(with_mm(r), X, r[seq_len(n_red)][red$src], red$layout)
+    scores  <- NULL
+    gtol    <- .qn_gtol_stop_fd
+  }
+  prior <- function(r) .qn_lta_prior(unpack(r), X, alpha, marginals)
+  if (is.na(prior(r0))) return(NULL)
+  start <- sum(w * case_ll(r0)) + prior(r0)
   if (!is.finite(start)) return(NULL)
-  res <- .qn_finish(case_ll, w, red$r0, prior, scores)
+  res <- .qn_finish(case_ll, w, r0, prior, scores, gtol_stop = gtol, kind = kind,
+                    fixed = fixed)
   if (is.null(res) || res$value <= start) return(NULL)
+  if (.qn_scale_collapsed(r0, res$par, kind)) return(NULL)
 
   # New parameters need their own E-step before anything reads a posterior off
   # them; `max_iter = 0` runs exactly that and no EM iteration.

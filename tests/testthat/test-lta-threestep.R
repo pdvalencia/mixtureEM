@@ -452,10 +452,14 @@ test_that("the grid is capped rather than allowed to explode", {
 test_that("proportional and modal are different estimators on the same data", {
   # A proportional table is softer than a modal one, so it applies less
   # correction; the two must not come out identical, or one of the rules is
-  # not reaching the fit.
-  a <- .ts3_step3(.ts3_s12())$delta
-  b <- .ts3_step3(.ts3_s12("proportional"))$delta
-  expect_gt(max(abs(a - b)), 1e-6)
+  # not reaching the fit. Read on the transitions: with nothing predicting it,
+  # the corrected initial-status distribution is step 1's own under either
+  # rule (the error table is built from step 1's posteriors, so the first
+  # occasion's margin is reproduced exactly), and taken to the maximum the two
+  # agree to 1e-9 there; they differed by 1e-6 only while EM stopped short.
+  a <- .ts3_step3(.ts3_s12())$tau
+  b <- .ts3_step3(.ts3_s12("proportional"))$tau
+  expect_gt(max(abs(unlist(a) - unlist(b))), 1e-3)
 })
 
 # ------------------------------------------------------------------------------
