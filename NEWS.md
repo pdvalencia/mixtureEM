@@ -1,5 +1,21 @@
 # mixtureEM (development version)
 
+## Linking two different mixture models by the three-step
+
+`link_models()` relates the latent classes of separately fitted mixture
+models -- a latent class analysis at one occasion and a growth mixture model
+at a later one, say -- with the bias-adjusted three-step estimator. The
+models may differ in family and in number of classes, which the three-step
+`fit_lta()` cannot express, since a latent transition model has one number
+of statuses at every occasion. Each fitted model is step 1; step 2 assigns
+every case to its most likely class under each model and forms that model's
+classification-error table; step 3 is a multinomial logistic regression of
+each occasion's class on the previous occasion's, with covariates on the
+first occasion's class and on the later ones, holding the error tables
+fixed. Standard errors come from step 3's observed information and treat the
+error tables as known. `correction = "none"` gives the naive
+classify-analyse baseline. Nothing already in the package changes.
+
 ## Every fit is taken to the maximum after EM
 
 The Newton-type finish below now runs on every model the package fits, not
