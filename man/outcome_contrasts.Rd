@@ -10,6 +10,7 @@ outcome_contrasts(
   adjust = c("none", "holm", "bonferroni"),
   level = 0.95,
   outcome = NULL,
+  term = NULL,
   ...
 )
 }
@@ -33,6 +34,11 @@ belongs on the all-pairs table read as a family.}
 in \code{\link[=add_outcome]{add_outcome()}}), the outcome to contrast, by name or position.
 \code{NULL} (the default) is the first; the \code{outcome} attribute of the result
 names the one used.}
+
+\item{term}{For an outcome regressed on covariates with class-specific
+slopes (\code{slopes} in \code{\link[=add_outcome]{add_outcome()}} naming the covariate), the covariate
+whose slopes to contrast, by its column name. \code{NULL} (the default)
+contrasts the class intercepts instead. See "Slope contrasts" below.}
 
 \item{...}{Currently unused.}
 }
@@ -66,6 +72,30 @@ and the naive version is conservative exactly when the correlation is
 positive. The full sandwich covariance the fit already carries is used
 wherever it is available.
 }
+\section{Slope contrasts}{
+
+When the class moderates a covariate's effect on the outcome -- each class
+has its own regression line -- the question after "do the slopes differ at
+all" (the Wald test printed by \code{\link[=summary]{summary()}}) is "which classes differ in
+slope". A slope contrast answers it: the estimate is how much more the
+outcome rises per unit of the covariate in \code{class} than in \code{reference}.
+This is the second stage of the test sequence for latent class moderation
+in Arch, Nylund-Gibson and Ing (2026); the first is the omnibus test and the
+third is each class's slope against zero, both already in \code{\link[=summary]{summary()}}.
+
+Fit the outcome with \code{slopes} naming the covariate, e.g.
+\code{add_outcome(fit, y, covariates = df["x"], slopes = "x")}, and pass
+\code{term = "x"}. That fit estimates every class's line in one regression, so
+its covariance includes the covariance between the slopes of different
+classes, which the contrast standard error needs. \code{slopes = "class_specific"} fits the same lines one class at a time and keeps no
+such covariance, so it cannot be contrasted; naming every covariate in
+\code{slopes} gives identical estimates with the covariance kept.
+
+With \code{term} left \code{NULL} on such a fit the contrasts are between the class
+intercepts, i.e. the class means at covariate values of zero; centring the
+covariate first moves that comparison to its mean.
+}
+
 \examples{
 set.seed(1)
 items <- matrix(rbinom(300, 1, 0.5), nrow = 100)
@@ -74,6 +104,16 @@ fit   <- fit_mixture(items, n_classes = 2, measurement = "binary")
 fit_out <- add_outcome(fit, bmi)
 outcome_contrasts(fit_out)
 
+# Which classes differ in the slope of the outcome on a covariate
+x     <- rnorm(100)
+fit_m <- add_outcome(fit, bmi + x, covariates = data.frame(x = x),
+                     slopes = "x")
+outcome_contrasts(fit_m, term = "x")
+
+}
+\references{
+Arch, D. A. N., Nylund-Gibson, K., & Ing, M. (2026). Moderation with a
+latent class variable. \emph{Behavior Research Methods}, 58, 108.
 }
 \seealso{
 \code{\link[=add_outcome]{add_outcome()}} for fitting the outcome model and \code{\link[=summary]{summary()}} for

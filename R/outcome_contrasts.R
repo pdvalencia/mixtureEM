@@ -139,7 +139,38 @@
 #'   in [add_outcome()]), the outcome to contrast, by name or position.
 #'   `NULL` (the default) is the first; the `outcome` attribute of the result
 #'   names the one used.
+#' @param term For an outcome regressed on covariates with class-specific
+#'   slopes (`slopes` in [add_outcome()] naming the covariate), the covariate
+#'   whose slopes to contrast, by its column name. `NULL` (the default)
+#'   contrasts the class intercepts instead. See "Slope contrasts" below.
 #' @param ... Currently unused.
+#'
+#' @section Slope contrasts:
+#' When the class moderates a covariate's effect on the outcome -- each class
+#' has its own regression line -- the question after "do the slopes differ at
+#' all" (the Wald test printed by [summary()]) is "which classes differ in
+#' slope". A slope contrast answers it: the estimate is how much more the
+#' outcome rises per unit of the covariate in `class` than in `reference`.
+#' This is the second stage of the test sequence for latent class moderation
+#' in Arch, Nylund-Gibson and Ing (2026); the first is the omnibus test and the
+#' third is each class's slope against zero, both already in [summary()].
+#'
+#' Fit the outcome with `slopes` naming the covariate, e.g.
+#' `add_outcome(fit, y, covariates = df["x"], slopes = "x")`, and pass
+#' `term = "x"`. That fit estimates every class's line in one regression, so
+#' its covariance includes the covariance between the slopes of different
+#' classes, which the contrast standard error needs. `slopes =
+#' "class_specific"` fits the same lines one class at a time and keeps no
+#' such covariance, so it cannot be contrasted; naming every covariate in
+#' `slopes` gives identical estimates with the covariance kept.
+#'
+#' With `term` left `NULL` on such a fit the contrasts are between the class
+#' intercepts, i.e. the class means at covariate values of zero; centring the
+#' covariate first moves that comparison to its mean.
+#'
+#' @references
+#' Arch, D. A. N., Nylund-Gibson, K., & Ing, M. (2026). Moderation with a
+#' latent class variable. \emph{Behavior Research Methods}, 58, 108.
 #'
 #' @return A data frame of class `outcome_contrasts`, one row per contrast, with
 #'   columns `category` (the outcome category the contrast is on, `NA` for a
@@ -162,15 +193,27 @@
 #' fit_out <- add_outcome(fit, bmi)
 #' outcome_contrasts(fit_out)
 #'
+#' # Which classes differ in the slope of the outcome on a covariate
+#' x     <- rnorm(100)
+#' fit_m <- add_outcome(fit, bmi + x, covariates = data.frame(x = x),
+#'                      slopes = "x")
+#' outcome_contrasts(fit_m, term = "x")
+#'
 #' @export
 outcome_contrasts <- function(fit, ref = NULL,
                               adjust = c("none", "holm", "bonferroni"),
-                              level = 0.95, outcome = NULL, ...) {
+                              level = 0.95, outcome = NULL, term = NULL,
+                              ...) {
   adjust <- match.arg(adjust)
+  if (!is.null(term) && (!is.character(term) || length(term) != 1L))
+    stop("`term` must be a single covariate name.", call. = FALSE)
   lta <- inherits(fit, "lta_model")
   if (!inherits(fit, "mixture_model") && !lta)
     stop("`fit` must be a fitted mixture model.", call. = FALSE)
   if (lta) {
+    if (!is.null(term))
+      stop("`term` applies to an outcome with class-specific slopes; a ",
+           "fit_lta() distal outcome has none.", call. = FALSE)
     built <- .lta_distal_contrast_parts(fit, outcome)
     attr(fit, "distal_label") <- built$label
     K <- fit$n_statuses
@@ -190,7 +233,7 @@ outcome_contrasts <- function(fit, ref = NULL,
     stop("`level` must be a confidence level strictly between 0 and 1.",
          call. = FALSE)
 
-  if (!lta) built <- .outcome_contrast_parts(fit, K)
+  if (!lta) built <- .outcome_contrast_parts(fit, K, term)
   pairs <- .contrast_pairs(K, ref)
 
   rows <- list()
@@ -239,7 +282,16 @@ outcome_contrasts <- function(fit, ref = NULL,
 # parameter vector, its covariance, and the positions in that covariance the
 # classes occupy. One "part" per outcome category, so a polytomous outcome is a
 # stack of the same contrasts on each of its non-reference categories.
-.outcome_contrast_parts <- function(fit, K) {
+.outcome_contrast_parts <- function(fit, K, term = NULL) {
+
+  cpool <- .distal_submodel(fit$sm, "distal_continuous_pooled")
+  if (!is.null(term)) {
+    if (is.null(cpool) || is.null(cpool$parameters$cov_theta))
+      stop("`term` names a class-specific slope, and this outcome model has ",
+           "none. Fit the outcome with `slopes` naming the covariate.",
+           call. = FALSE)
+    return(.slope_contrast_parts(cpool, K, term))
+  }
 
   # --- Continuous outcome: class means -----------------------------------
   cont <- .distal_submodel(fit$sm, "distal_continuous")
@@ -271,7 +323,6 @@ outcome_contrasts <- function(fit, ref = NULL,
   # The first K entries of beta_pooled are the class intercepts, and cov_theta
   # is their covariance with the slopes; the difference of two intercepts is
   # the difference of the class means at equal covariate values.
-  cpool <- .distal_submodel(fit$sm, "distal_continuous_pooled")
   if (!is.null(cpool) && !is.null(cpool$parameters$cov_theta)) {
     return(list(
       type   = "continuous",
@@ -315,8 +366,18 @@ outcome_contrasts <- function(fit, ref = NULL,
   }
 
   # --- Everything else ----------------------------------------------------
-  if (!is.null(.distal_submodel(fit$sm, "distal_regression")) ||
-      !is.null(.distal_submodel(fit$sm, "distal_continuous_regression")))
+  # slopes = "class_specific" fits each class's regression on its own and
+  # keeps no covariance between classes. The same model fitted with every
+  # covariate named in `slopes` is one stacked regression whose sandwich
+  # carries that covariance, so that is where a continuous outcome is sent.
+  if (!is.null(.distal_submodel(fit$sm, "distal_continuous_regression")))
+    stop("This outcome model estimates each class's regression separately ",
+         "and stores no covariance between the classes, so class-vs-class ",
+         "contrasts cannot be formed from it. Refit with `slopes` naming ",
+         "every covariate (e.g. `slopes = c(\"x1\", \"x2\")`), which gives ",
+         "the same estimates and keeps that covariance; then use `term` ",
+         "to contrast a slope.", call. = FALSE)
+  if (!is.null(.distal_submodel(fit$sm, "distal_regression")))
     stop("This outcome model estimates a separate parameter block per class ",
          "and stores no covariance between the blocks, so class-vs-class ",
          "contrasts cannot be formed from it. Fit the outcome with ",
@@ -325,6 +386,34 @@ outcome_contrasts <- function(fit, ref = NULL,
 
   stop("No distal outcome found on this fit. Attach one with add_outcome() ",
        "first.", call. = FALSE)
+}
+
+# The class-specific slopes on one covariate: a block of K entries of
+# beta_pooled, located by the "term:Class{k}" column names R/stepwise.R gives
+# it, and the matching K x K block of cov_theta. The block is taken from the
+# joint covariance, so the covariance between two classes' slopes -- which
+# the stacked regression estimates -- enters every contrast.
+.slope_contrast_parts <- function(cpool, K, term) {
+  beta <- cpool$parameters$beta_pooled
+  nm   <- colnames(beta)
+  idx  <- match(paste0(term, ":Class", seq_len(K)), nm)
+  if (anyNA(idx)) {
+    mods <- unique(sub(":Class[0-9]+$", "",
+                       grep(":Class[0-9]+$", nm, value = TRUE)))
+    stop(sprintf(paste0("`term` \"%s\" has no class-specific slopes on this ",
+                        "fit. Class-specific: %s. A covariate with one slope ",
+                        "shared by every class has nothing to contrast."),
+                 term, if (length(mods)) paste(mods, collapse = ", ")
+                       else "(none)"),
+         call. = FALSE)
+  }
+  list(
+    type   = "continuous",
+    method = sprintf("covariance of the class-specific slopes on %s", term),
+    parts  = list(list(category = NA_integer_,
+                       theta = as.vector(beta)[idx],
+                       V     = cpool$parameters$cov_theta[idx, idx, drop = FALSE],
+                       index = seq_len(K))))
 }
 
 #' @export

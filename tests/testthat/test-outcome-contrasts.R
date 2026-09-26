@@ -179,6 +179,36 @@ test_that("a class-specific outcome model is refused, and says where to go", {
   fo    <- suppressMessages(add_outcome(fit, y, covariates = cbind(cov1 = cov1),
                                         slopes = "class_specific"))
 
-  expect_error(outcome_contrasts(fo), "no covariance between the blocks")
-  expect_error(outcome_contrasts(fo), "bootstrap_covariates")
+  expect_error(outcome_contrasts(fo), "no covariance between the classes")
+  expect_error(outcome_contrasts(fo), "naming every covariate")
+})
+
+test_that("slope contrasts read the class-specific block of the joint covariance", {
+  set.seed(11)
+  n     <- 400
+  z     <- rbinom(n, 1, 0.5)
+  items <- matrix(rbinom(n * 5, 1, ifelse(z == 1, 0.85, 0.15)), nrow = n)
+  x     <- rnorm(n)
+  w     <- rnorm(n)
+  y     <- 10 + 3 * z + (0.5 + 1.5 * z) * x + 0.3 * w + rnorm(n)
+  fit   <- fit_mixture(items, n_classes = 2, measurement = "binary", n_init = 5)
+  fo    <- suppressMessages(add_outcome(fit, y, covariates = data.frame(x = x, w = w),
+                                        slopes = "x", correction = "BCH"))
+  th <- fo$sm$parameters$beta_pooled[1, ]
+  V  <- fo$sm$parameters$cov_theta
+  ix <- match(c("x:Class1", "x:Class2"), names(th))
+
+  cs <- outcome_contrasts(fo, term = "x")
+  expect_equal(cs$estimate, unname(th[ix[2]] - th[ix[1]]))
+  expect_equal(cs$se, sqrt(V[ix[1], ix[1]] + V[ix[2], ix[2]] - 2 * V[ix[1], ix[2]]))
+  expect_match(attr(cs, "method"), "slopes on x")
+
+  # term = NULL is still the intercept contrast.
+  ci <- outcome_contrasts(fo)
+  expect_equal(ci$estimate, unname(th[2] - th[1]))
+
+  expect_error(outcome_contrasts(fo, term = "w"), "no class-specific slopes")
+  expect_error(outcome_contrasts(fo, term = "w"), "Class-specific: x")
+  f0 <- suppressMessages(add_outcome(fit, y))
+  expect_error(outcome_contrasts(f0, term = "x"), "has none")
 })

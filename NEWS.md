@@ -1,5 +1,21 @@
 # mixtureEM (development version)
 
+## `outcome_contrasts()` compares class-specific slopes
+
+In a latent class moderation model -- a distal outcome regressed on a
+covariate with a separate slope in each class -- `outcome_contrasts(fit,
+term = "x")` now reports every pairwise difference between the classes'
+slopes on `x`, with standard errors, intervals and p-values: which classes
+the covariate predicts the outcome differently in, the step after the
+omnibus test of equal slopes that `summary()` prints (Arch, Nylund-Gibson &
+Ing, 2026). The fit must name the covariate in `slopes` of `add_outcome()`.
+That model estimates every class's line in one regression, so its sandwich
+covariance holds the covariance between different classes' slopes, and the
+contrast standard errors use it. `slopes = "class_specific"`, which fits the
+same lines one class at a time and keeps no such covariance, is still
+refused, now with a message that says to name the covariates instead. No
+fitted number changes.
+
 ## Linking two different mixture models by the three-step
 
 `link_models()` relates the latent classes of separately fitted mixture
