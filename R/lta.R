@@ -229,7 +229,12 @@
 #'   rule is a relative one and would otherwise stop the fit mid-climb. The
 #'   restarts are then staged - a short first pass ranks them and only the
 #'   top tenth (floor of 3) run on to convergence - so the tighter rule does
-#'   not multiply the cost of the search. Supplying either argument overrides all of this. (Unlike [`fit_mixture()`],
+#'   not multiply the cost of the search. A random intercept with a free
+#'   loading is staged the same way; on binary items its survivors keep the
+#'   ordinary `tol` of 1e-8 and a Newton-type finish takes them to the
+#'   maximum, which reaches the same optimum as the tighter rule several
+#'   times faster, while on ordinal items they run to 1e-11 as above.
+#'   Supplying either argument overrides all of this. (Unlike [`fit_mixture()`],
 #'   whose EM tolerance is fixed and not user-adjustable, `tol` here is a
 #'   real, respected argument, because a chain mixture converges slowly
 #'   enough that the fixed rule would not do.)
@@ -1307,8 +1312,16 @@ fit_lta <- function(indicators,
   # plain-LTA speed, so it must keep plain LTA's unstaged search and its
   # untightened defaults rather than inheriting an RI fit's.
   staged <- C > 1L || (!is.null(state$ri) && .lta_ri_loading_free(state))
+  # A freely loading random intercept on binary items is taken to the maximum
+  # by the Newton-type finish instead (R/qn_finish.R), so its survivors stop
+  # EM at the ordinary rule and skip the L-BFGS polish: from the same states
+  # the finish lands where the 1e-11 run lands, never below it, in a fraction
+  # of the time (RECORDS.md, "BHHH finish for RI-LTA"). Only the default
+  # moves; an explicit `tol` is still respected.
+  ri_finish <- finish_on && !is.null(state$ri) && .lta_ri_loading_free(state) &&
+    .qn_lta_ri_finished(state)
   if (staged) {
-    if (missing(tol))      tol      <- 1e-11
+    if (missing(tol))      tol      <- if (ri_finish) 1e-8 else 1e-11
     if (missing(max_iter)) max_iter <- 5000
   }
   if (!is.null(state$ri) && .lta_ri_loading_free(state) && n_init_default)
@@ -1500,7 +1513,7 @@ fit_lta <- function(indicators,
   # the staged ranking pass: that pass stops at 250 iterations and its
   # log-likelihoods are, as the comment above says, not the maxima of anything.
   polish <- function(cand) {
-    if (!isTRUE(refine) || inherits(cand, "try-error")) return(cand)
+    if (!isTRUE(refine) || ri_finish || inherits(cand, "try-error")) return(cand)
     out <- try(.lta_refine_lbfgs(cand, X_fit, alpha = alpha), silent = TRUE)
     if (inherits(out, "try-error")) cand else out
   }

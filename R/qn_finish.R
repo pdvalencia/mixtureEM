@@ -320,12 +320,12 @@
 # a class that is neither packable nor listed fails it.
 .qn_refused <- c(
   lta_random_intercept = paste(
-    "A latent transition model with a freely loading random intercept keeps",
-    "its own staged search and L-BFGS polish, validated on their own",
-    "benchmarks. The literature on multistage estimation for these models",
-    "(Asparouhov & Muthen 2019) covers the start funnel and",
-    "the forward-backward speed-ups, and says nothing about a Newton-type",
-    "final stage, so none is added until one is measured."))
+    "A latent transition model with ordinal items and a freely loading",
+    "random intercept keeps its own staged search and L-BFGS polish. With",
+    "binary items the finish lands on the same optimum and is faster, but",
+    "with ordinal items it was slower on every benchmark and landed below",
+    "the optimum on one: that optimum has thresholds beyond the logit wall,",
+    "which the finish holds at the edge (RECORDS.md, Part 55)."))
 
 # ------------------------------------------------------------------------------
 # fit_mixture()
@@ -486,8 +486,8 @@
 # fit_lta()
 # ------------------------------------------------------------------------------
 
-# Every latent transition model except one with a freely loading random
-# intercept (.qn_refused). Two routes to the scores:
+# Every latent transition model except one with ordinal items and a freely
+# loading random intercept (.qn_refused). Two routes to the scores:
 #
 #   * analytic, from .lta_score_matrix(), wherever its blocks describe the
 #     whole packed vector: binary, ordinal and Gaussian items, and a fixed
@@ -515,8 +515,24 @@
        class(state$mm$models[[1]])[1] %in% .qn_lta_analytic_families)
 }
 
+# A freely loading random intercept is finished on binary items only. Its
+# survivors then run EM to the ordinary rule rather than 1e-11, and skip the
+# L-BFGS polish (fit_lta()): the finish lands where the long EM run lands,
+# from the same states, in a fraction of the time, measured on seven
+# benchmark fits. Ordinal items are refused (.qn_refused). The analytic
+# scores cover every coordinate of a binary-item random intercept -- the
+# loadings, the node masses, the factor regression -- and nothing else may
+# stand in for them: the finite-difference route packs the measurement model
+# without the factor.
+.qn_lta_ri_finished <- function(state) {
+  !is.null(state$ri) && is.null(state$ri$theta) &&
+    class(state$mm$models[[1]])[1] %in% c("bernoulli", "bernoulli_nan") &&
+    .qn_lta_analytic(state)
+}
+
 .qn_lta_supported <- function(state) {
-  if (!is.null(state$ri) && .lta_ri_loading_free(state)) return(FALSE)
+  if (!is.null(state$ri) && .lta_ri_loading_free(state))
+    return(.qn_lta_ri_finished(state))
   if (.qn_lta_analytic(state)) return(TRUE)
   if (!is.null(state$ri)) return(FALSE)
   .qn_lta_measurement_fixed(state) || !is.null(.qn_pack_mm(state$mm))
@@ -524,10 +540,12 @@
 
 # What each block of .lta_par_layout()'s vector is (see .qn_wall_hit()).
 # Everything the finish covered before Gaussian items reached it stays a
-# logit, so those fits finish exactly as they did.
+# logit, so those fits finish exactly as they did. A random intercept's
+# loadings, its item-bias shifts and its regression on covariates are
+# coefficients with no boundary to head for, so they are never walled.
 .qn_lta_block_kind <- function(kind)
-  switch(kind, mu = , distal_mu = "free", log_sd = , distal_log_sd = "scale",
-         "logit")
+  switch(kind, mu = , distal_mu = , lambda = , dif = , ri_beta = "free",
+         log_sd = , distal_log_sd = "scale", "logit")
 
 # The packed vector of an LTA state, reduced to the parameters it actually
 # has. The transition-free model (`tau_independent`) ties every origin row of

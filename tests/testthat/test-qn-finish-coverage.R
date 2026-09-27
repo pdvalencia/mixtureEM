@@ -246,8 +246,13 @@ test_that("every latent transition model is finished, or refused by name", {
                  .lta_emission_loglik(mm, fits[[nm]]$data), tolerance = 1e-10,
                  label = nm)
   }
-  # A freely loading random intercept is the refusal on the list.
-  ri <- .cov_lta(bin, measurement = "binary", random_intercept = "binary")
-  expect_false(.qn_lta_supported(ri))
+  # A freely loading random intercept is finished on binary items and is the
+  # refusal on the list on ordinal ones.
+  for (kind in c("binary", "continuous")) {
+    ri <- .cov_lta(bin, measurement = "binary", random_intercept = kind)
+    expect_true(.qn_lta_supported(ri), label = paste("binary items,", kind, "RI"))
+  }
+  ri_ord <- .cov_lta(cat3, measurement = "ordinal", random_intercept = "continuous")
+  expect_false(.qn_lta_supported(ri_ord))
   expect_true("lta_random_intercept" %in% names(.qn_refused))
 })

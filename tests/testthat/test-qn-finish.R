@@ -67,6 +67,23 @@ test_that("a transition-free LTA is finished to the maximum a long EM run reache
   expect_gt(f$loglik, f0$loglik + 1e-3)
 })
 
+test_that("a freely loading random intercept on binary items is finished to the long-EM maximum", {
+  sim  <- .lta_ri_sim(n = 400, Tn = 3, J = 4, seed = 11)
+  args <- list(sim$X, n_statuses = 2, times = 3, measurement = "binary",
+               measurement_invariance = "full", random_intercept = "continuous",
+               n_quadrature = 10, n_init = 3, random_state = 1, n_cores = 1,
+               smoothing = 0, bayes_constants = list(categorical = 0),
+               standard_errors = FALSE)
+  f <- suppressWarnings(do.call(fit_lta, args))
+  expect_false(is.null(f$qn_finish))
+  expect_true(f$qn_finish$converged)
+  # EM from the same fit on a strict rule reaches the same maximum.
+  long <- .lta_em(f, f$data, max_iter = 200000L, tol = 1e-15, alpha = 0)
+  expect_true(long$converged)
+  expect_lt(abs(f$loglik - long$loglik), 1e-6)
+  expect_equal(as.vector(f$ri$L), as.vector(long$ri$L), tolerance = 1e-4)
+})
+
 test_that("the shared-row scores fold to the gradient of the reduced vector", {
   args <- list(.qn_lta_data(), n_statuses = 3, times = 2,
                measurement = "binary", measurement_invariance = "full",

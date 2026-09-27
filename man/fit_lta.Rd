@@ -263,7 +263,12 @@ defaults to a tighter \code{tol} of 1e-11 and 5000 iterations, since the shared
 rule is a relative one and would otherwise stop the fit mid-climb. The
 restarts are then staged - a short first pass ranks them and only the
 top tenth (floor of 3) run on to convergence - so the tighter rule does
-not multiply the cost of the search. Supplying either argument overrides all of this. (Unlike \code{\link[=fit_mixture]{fit_mixture()}},
+not multiply the cost of the search. A random intercept with a free
+loading is staged the same way; on binary items its survivors keep the
+ordinary \code{tol} of 1e-8 and a Newton-type finish takes them to the
+maximum, which reaches the same optimum as the tighter rule several
+times faster, while on ordinal items they run to 1e-11 as above.
+Supplying either argument overrides all of this. (Unlike \code{\link[=fit_mixture]{fit_mixture()}},
 whose EM tolerance is fixed and not user-adjustable, \code{tol} here is a
 real, respected argument, because a chain mixture converges slowly
 enough that the fixed rule would not do.)}
