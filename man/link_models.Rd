@@ -43,7 +43,7 @@ not include the uncertainty of the step-1 estimates.}
 An object of class \code{linked_model} with the step-3 log-likelihood
 (\code{loglik}), the number of parameters, BIC, the coefficients and their
 covariance matrix, the implied initial class proportions (\code{initial}) and
-transition probabilities (\code{transitions}, one K_t x K_{t+1} matrix per pair
+transition probabilities (\code{transitions}, one K_t x K_(t+1) matrix per pair
 of occasions, averaged over cases), the classification-error tables (rows
 the assigned class, columns the true class) and the modal assignments.
 }

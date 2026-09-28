@@ -66,7 +66,7 @@
 #' @return An object of class `linked_model` with the step-3 log-likelihood
 #'   (`loglik`), the number of parameters, BIC, the coefficients and their
 #'   covariance matrix, the implied initial class proportions (`initial`) and
-#'   transition probabilities (`transitions`, one K_t x K_{t+1} matrix per pair
+#'   transition probabilities (`transitions`, one K_t x K_(t+1) matrix per pair
 #'   of occasions, averaged over cases), the classification-error tables (rows
 #'   the assigned class, columns the true class) and the modal assignments.
 #'
