@@ -216,7 +216,7 @@ fit
 #> 
 #> GROWTH COEFFICIENTS (link scale)
 #>         intercept linear
-#> Class 1    -0.732 -0.055
+#> Class 1    -0.732 -0.054
 #> Class 2    -0.048  1.125
 #> 
 #> FITTED TRAJECTORY (probability)
@@ -228,11 +228,11 @@ fit
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 87 iterations)
+#> Converged          : TRUE (in 61 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1032.42
 #>   Parameters     : 5
-#>   AIC            : 2074.84
+#>   AIC            : 2074.83
 #>   BIC            : 2094.79
 #>   SABIC          : 2078.93
 #>   Rel. Entropy   : 0.6319

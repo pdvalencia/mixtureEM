@@ -39,7 +39,7 @@ wherever it is available."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -105,6 +105,8 @@ wherever it is available.</p>
 <span>  ref <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  adjust <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"holm"</span>, <span class="st">"bonferroni"</span><span class="op">)</span>,</span>
 <span>  level <span class="op">=</span> <span class="fl">0.95</span>,</span>
+<span>  outcome <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  term <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -115,7 +117,8 @@ wherever it is available.</p>
 
 <dl><dt id="arg-fit">fit<a class="anchor" aria-label="anchor" href="#arg-fit"></a></dt>
 <dd><p>A fitted model with a distal outcome attached, as returned by
-<code><a href="add_outcome.html">add_outcome()</a></code>.</p></dd>
+<code><a href="add_outcome.html">add_outcome()</a></code>, or a three-step <code><a href="fit_lta.html">fit_lta()</a></code> fit with <code>distal</code>, where the
+classes are the statuses at the last occasion.</p></dd>
 
 
 <dt id="arg-ref">ref<a class="anchor" aria-label="anchor" href="#arg-ref"></a></dt>
@@ -135,6 +138,20 @@ belongs on the all-pairs table read as a family.</p></dd>
 <dd><p>Confidence level for the intervals. Default <code>0.95</code>.</p></dd>
 
 
+<dt id="arg-outcome">outcome<a class="anchor" aria-label="anchor" href="#arg-outcome"></a></dt>
+<dd><p>For a fit holding several distal outcomes (see <code>predictors</code>
+in <code><a href="add_outcome.html">add_outcome()</a></code>), the outcome to contrast, by name or position.
+<code>NULL</code> (the default) is the first; the <code>outcome</code> attribute of the result
+names the one used.</p></dd>
+
+
+<dt id="arg-term">term<a class="anchor" aria-label="anchor" href="#arg-term"></a></dt>
+<dd><p>For an outcome regressed on covariates with class-specific
+slopes (<code>slopes</code> in <code><a href="add_outcome.html">add_outcome()</a></code> naming the covariate), the covariate
+whose slopes to contrast, by its column name. <code>NULL</code> (the default)
+contrasts the class intercepts instead. See "Slope contrasts" below.</p></dd>
+
+
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Currently unused.</p></dd>
 
@@ -148,6 +165,34 @@ continuous outcome), <code>class</code>, <code>reference</code>, <code>estimate<
 <code>OR</code>, <code>OR_lower</code>, <code>OR_upper</code> for a categorical outcome, whose estimates are
 log odds. The <code>method</code> attribute names the covariance the standard errors
 came from.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="slope-contrasts">Slope contrasts<a class="anchor" aria-label="anchor" href="#slope-contrasts"></a></h2>
+
+
+<p>When the class moderates a covariate's effect on the outcome – each class
+has its own regression line – the question after "do the slopes differ at
+all" (the Wald test printed by <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>) is "which classes differ in
+slope". A slope contrast answers it: the estimate is how much more the
+outcome rises per unit of the covariate in <code>class</code> than in <code>reference</code>.
+This is the second stage of the test sequence for latent class moderation
+in Arch, Nylund-Gibson and Ing (2026); the first is the omnibus test and the
+third is each class's slope against zero, both already in <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>.</p>
+<p>Fit the outcome with <code>slopes</code> naming the covariate, e.g.
+<code>add_outcome(fit, y, covariates = df["x"], slopes = "x")</code>, and pass
+<code>term = "x"</code>. That fit estimates every class's line in one regression, so
+its covariance includes the covariance between the slopes of different
+classes, which the contrast standard error needs. On a continuous outcome
+<code>slopes = "class_specific"</code> is the same fit, with every covariate
+moderated, and can be contrasted the same way.</p>
+<p>With <code>term</code> left <code>NULL</code> on such a fit the contrasts are between the class
+intercepts, i.e. the class means at covariate values of zero; centring the
+covariate first moves that comparison to its mean.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
+    <p>Arch, D. A. N., Nylund-Gibson, K., &amp; Ing, M. (2026). Moderation with a
+latent class variable. <em>Behavior Research Methods</em>, 58, 108.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -171,7 +216,20 @@ are estimated one class at a time.</p></div>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Standard errors: sandwich covariance of the class means</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Contrast       Estimate        SE  [95% CI]            P-Value</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   2 vs 1           -0.096     0.454  [ -0.986,   0.794]     0.832</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   2 vs 1           -0.096     0.454  [ -0.987,   0.794]     0.832</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Which classes differ in the slope of the outcome on a covariate</span></span></span>
+<span class="r-in"><span><span class="va">x</span>     <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">100</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">fit_m</span> <span class="op">&lt;-</span> <span class="fu"><a href="add_outcome.html">add_outcome</a></span><span class="op">(</span><span class="va">fit</span>, <span class="va">bmi</span> <span class="op">+</span> <span class="va">x</span>, covariates <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">x</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>                     slopes <span class="op">=</span> <span class="st">"x"</span><span class="op">)</span></span></span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Outcome treated as continuous (set `outcome_type` to override).</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Using 'BCH' bias correction (set `correction` to override).</span>
+<span class="r-in"><span><span class="fu">outcome_contrasts</span><span class="op">(</span><span class="va">fit_m</span>, term <span class="op">=</span> <span class="st">"x"</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Class contrasts on the distal outcome</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Standard errors: covariance of the class-specific slopes on x</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Contrast       Estimate        SE  [95% CI]            P-Value</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   2 vs 1           -0.063     0.410  [ -0.867,   0.741]     0.877</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

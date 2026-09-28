@@ -24,6 +24,8 @@ fit_mixture(
   group_invariant_items = NULL,
   group_invariant_params = NULL,
   group_prevalence_equal = NULL,
+  predictors_items = NULL,
+  predictors_items_by_class = NULL,
   start_from = NULL,
   refine_from = NULL,
   variances_equal = NULL,
@@ -97,18 +99,19 @@ fit_mixture(
   0-based item. `"count"` fits a Poisson model, one rate per item and
   class, and needs non-negative integers.
 
-  **Known issue: a single `"categorical"` block charges every item the
-  same parameter count.** It uses one `max_val` for the whole block —
-  the number of levels in whichever item has the most — so any item with
-  fewer levels than that maximum is still costed as if it had that many.
-  A block mixing a two-level item with a four-level one charges the
-  two-level item for four, inflating `n_params` and, with it, AIC and
-  BIC. The remedy is the mixed `list` spelling above: give items with
-  different numbers of levels their own entries — a two-level item as
-  its own `"binary"` entry, or several `"categorical"` entries grouped
-  by level count — rather than putting them all in one `"categorical"`
-  block. Per-item level counting inside a single polytomous block is not
-  implemented.
+  **Items in one `"categorical"` block may have different numbers of
+  categories.** Two-, three- and four-category items can share a block,
+  and each item is charged for its own categories only: \\K(C_j - 1)\\
+  parameters for an item with \\C_j\\ categories. An item's categories
+  are its highest observed code or, for a factor, its number of levels,
+  whichever is larger, so an unused factor level stays part of the item.
+  In a multiple-group or longitudinal model the count is taken over
+  every group and occasion together. The set of possible answers belongs
+  to the item, and every group and occasion shares it, so a category
+  missing from one group is estimated at 0 there rather than removed. A
+  category with no response at all, or none in one group or occasion
+  where the item's probabilities are free to differ, gives a warning
+  naming it.
 
 - predictors:
 
@@ -153,7 +156,9 @@ fit_mixture(
   naming them, e.g. `~ loc1 + loc2`) giving a separate slope per class
   to just those covariates while the rest stay pooled – letting the
   class moderate some covariates while adjusting for others. The last
-  form is continuous-outcome only.
+  form is continuous-outcome only. For a continuous outcome,
+  `"class_specific"` is the same model as naming every covariate, and is
+  fitted as one.
 
 - group:
 
@@ -279,6 +284,30 @@ fit_mixture(
   `start_from`; see there for why a search cannot answer the per-class
   question on its own.
 
+- predictors_items:
+
+  Optional direct effects of covariates on the indicators, for testing
+  measurement invariance (differential item functioning): a named list
+  mapping an item to a one-sided formula or column names in `data`, e.g.
+  `list(item3 = ~ female)`. Each named covariate shifts the log-odds of
+  endorsing that item for people in the same class. Unlike `predictors`,
+  which only changes who is in which class, this changes what an item
+  means. Binary indicators and one-step fits only; `n_steps` defaults to
+  1 when this is given. The covariates must be complete and take few
+  distinct values (see `options(mixtureEM.dif_max_patterns = )`). The
+  item probabilities the fit reports are those of a case with these
+  covariates at zero. The slopes are reported by
+  [`dif_effects`](https://pdvalencia.github.io/mixtureEM/reference/dif_effects.md);
+  compare nested fits with
+  [`lr_test`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md).
+
+- predictors_items_by_class:
+
+  Names of items in `predictors_items` whose slopes differ by class.
+  Every other named item gets one slope shared by all classes (uniform
+  DIF), the default because a class-specific slope needs much more data
+  to estimate.
+
 - start_from:
 
   A fitted model to start from, in place of the random restarts.
@@ -350,9 +379,30 @@ fit_mixture(
 
 - n_steps:
 
-  Estimation strategy: 1 (simultaneous), 2, or 3 (recommended when a
-  structural model is present). Defaults to 3 when `predictors` or
-  `outcome` is supplied and left unset, otherwise 1.
+  Estimation strategy: 1 (simultaneous), 2 (two-step), or 3
+  (bias-adjusted three-step; recommended when a structural model is
+  present). Defaults to 3 when `predictors` or `outcome` is supplied and
+  left unset, otherwise 1.
+
+  `n_steps = 2` is the two-step estimator of Bakk and Kuha (2018). The
+  measurement model is fitted alone and then held fixed at that
+  estimate; the structural model is estimated by maximising the full
+  likelihood with the measurement parameters as constants, so each
+  case's class probabilities are recomputed under the joint model at
+  every iteration. There is no classification step and no classification
+  table: the covariates or outcome cannot redefine the classes, and
+  several structural models can be compared on one fixed measurement
+  model. Like every stepwise estimator it is biased toward zero when the
+  classes are poorly separated and the sample is small (Bakk and Kuha,
+  2018, Tables 1 and 3). With class predictors its standard errors are
+  the pseudo-maximum- likelihood ones of Bakk and Kuha (2018, eq. 5),
+  which add the sampling variance of the step-1 estimate to the step-2
+  information; `se` selects among them, see
+  [`covariate_se`](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md).
+  With a distal outcome the standard errors come from the Q-function
+  Hessian and do not yet carry the step-1 uncertainty, which the printed
+  output states. The uncorrected third step that `n_steps = 2` used to
+  run is `n_steps = 3, correction = "none"`.
 
 - correction:
 
@@ -555,7 +605,9 @@ fit_mixture(
   model. `"corrected"` (the default) adds the variance carried over from
   step 1 to the step-3 sandwich, following Bakk et al. (2014);
   `"robust"` reports the sandwich alone; `"hessian"` inverts the step-3
-  observed information only. See
+  observed information only. On a measurement model the step-1 term
+  cannot be computed for, `"corrected"` reports the uncorrected
+  estimator with a warning. See
   [`covariate_se`](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md).
 
 - n_cores:
@@ -641,6 +693,12 @@ multivariate Gaussian mixture models. *Computational Statistics & Data
 Analysis*, *41*(3-4), 561-575.
 [doi:10.1016/S0167-9473(02)00163-9](https://doi.org/10.1016/S0167-9473%2802%2900163-9)
 (the iteration budget behind `max_iter`).
+
+Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between
+latent classes and external variables. *Psychometrika*, *83*(4),
+871-892.
+[doi:10.1007/s11336-017-9592-7](https://doi.org/10.1007/s11336-017-9592-7)
+(the estimator behind `n_steps = 2`).
 
 Hipp, J. R., & Bauer, D. J. (2006). Local solutions in the estimation of
 growth mixture models. *Psychological Methods*, *11*(1), 36-53.

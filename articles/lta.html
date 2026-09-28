@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -218,31 +218,31 @@ occasion and the transition matrices:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/status_prevalences.html">status_prevalences</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
 <span><span class="co">#&gt;      Status 1  Status 2   Status 3</span></span>
-<span><span class="co">#&gt; T1 0.69399011 0.2832214 0.02278852</span></span>
-<span><span class="co">#&gt; T2 0.23497446 0.6349012 0.13012436</span></span>
-<span><span class="co">#&gt; T3 0.14193312 0.6260570 0.23200986</span></span>
-<span><span class="co">#&gt; T4 0.04073899 0.1539705 0.80529048</span></span>
+<span><span class="co">#&gt; T1 0.69398810 0.2832223 0.02278957</span></span>
+<span><span class="co">#&gt; T2 0.23497414 0.6348993 0.13012652</span></span>
+<span><span class="co">#&gt; T3 0.14193267 0.6260555 0.23201187</span></span>
+<span><span class="co">#&gt; T4 0.04073975 0.1539687 0.80529156</span></span>
 <span><span class="fu"><a href="../reference/transition_matrix.html">transition_matrix</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
 <span><span class="co">#&gt; $`T1 -&gt; T2`</span></span>
 <span><span class="co">#&gt;           to</span></span>
 <span><span class="co">#&gt; from           Status 1    Status 2   Status 3</span></span>
-<span><span class="co">#&gt;   Status 1 0.3382356436 0.649249800 0.01251456</span></span>
-<span><span class="co">#&gt;   Status 2 0.0007444998 0.650710622 0.34854488</span></span>
-<span><span class="co">#&gt;   Status 3 0.0013783983 0.001451868 0.99716973</span></span>
+<span><span class="co">#&gt;   Status 1 0.3382359842 0.649248739 0.01251528</span></span>
+<span><span class="co">#&gt;   Status 2 0.0007449381 0.650709101 0.34854596</span></span>
+<span><span class="co">#&gt;   Status 3 0.0013783180 0.001451812 0.99716987</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $`T2 -&gt; T3`</span></span>
 <span><span class="co">#&gt;           to</span></span>
 <span><span class="co">#&gt; from          Status 1    Status 2   Status 3</span></span>
-<span><span class="co">#&gt;   Status 1 0.596461229 0.401018731 0.00252004</span></span>
-<span><span class="co">#&gt;   Status 2 0.002267740 0.836830349 0.16090191</span></span>
-<span><span class="co">#&gt;   Status 3 0.002614207 0.004021418 0.99336437</span></span>
+<span><span class="co">#&gt;   Status 1 0.596458646 0.401020704 0.00252065</span></span>
+<span><span class="co">#&gt;   Status 2 0.002268312 0.836829503 0.16090218</span></span>
+<span><span class="co">#&gt;   Status 3 0.002614106 0.004022732 0.99336316</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $`T3 -&gt; T4`</span></span>
 <span><span class="co">#&gt;           to</span></span>
 <span><span class="co">#&gt; from          Status 1     Status 2  Status 3</span></span>
-<span><span class="co">#&gt;   Status 1 0.262659309 0.5045597415 0.2327809</span></span>
-<span><span class="co">#&gt;   Status 2 0.005135405 0.1314960969 0.8633685</span></span>
-<span><span class="co">#&gt;   Status 3 0.001051163 0.0001410823 0.9988078</span></span></code></pre></div>
+<span><span class="co">#&gt;   Status 1 0.262665573 0.5045539603 0.2327805</span></span>
+<span><span class="co">#&gt;   Status 2 0.005135153 0.1314951800 0.8633697</span></span>
+<span><span class="co">#&gt;   Status 3 0.001051789 0.0001410658 0.9988071</span></span></code></pre></div>
 <p>Rows are where children start, columns where they end up, so the
 diagonal holds the probability of staying put. Seven in ten enter
 kindergarten in the low-alphabet stage; by the spring of first grade
@@ -272,9 +272,9 @@ a likelihood-ratio test of a time-homogeneous process:</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Likelihood-ratio test for nested models</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
-<span><span class="co">#&gt;   Restricted : LL =  -22935.6517   parameters = 23</span></span>
-<span><span class="co">#&gt;   Full       : LL =  -21794.4010   parameters = 35</span></span>
-<span><span class="co">#&gt;   -2 x diff  : 2282.5016   df = 12   p = &lt; 1e-16</span></span>
+<span><span class="co">#&gt;   Restricted : LL =  -22935.6518   parameters = 23</span></span>
+<span><span class="co">#&gt;   Full       : LL =  -21794.4012   parameters = 35</span></span>
+<span><span class="co">#&gt;   -2 x diff  : 2282.5012   df = 12   p = &lt; 1e-16</span></span>
 <span><span class="co">#&gt;   The restriction is rejected: the full model fits significantly better.</span></span></code></pre></div>
 <p>It is rejected decisively. That is the summer: a school year moves
 children forward at a rate a vacation does not, and one shared matrix
@@ -345,7 +345,7 @@ sparse.</p>
 <span>                   n_init <span class="op">=</span> <span class="fl">20</span>, random_state <span class="op">=</span> <span class="fl">7</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>no_covariate <span class="op">=</span> <span class="va">fit</span><span class="op">$</span><span class="va">metrics</span><span class="op">$</span><span class="va">bic</span>, poverty <span class="op">=</span> <span class="va">fit_pov</span><span class="op">$</span><span class="va">metrics</span><span class="op">$</span><span class="va">bic</span><span class="op">)</span></span>
 <span><span class="co">#&gt; no_covariate      poverty </span></span>
-<span><span class="co">#&gt;     43875.16     43521.11</span></span></code></pre></div>
+<span><span class="co">#&gt;     43875.16     43521.09</span></span></code></pre></div>
 <p>Poverty improves BIC by some 350 points. One thing to check before
 reading the coefficients: once covariates index the statuses,
 <code><a href="../reference/fit_lta.html">fit_lta()</a></code> no longer relabels them by prevalence, so the
@@ -374,44 +374,44 @@ every contrast is <em>relative to the low-alphabet stage</em>:</p>
 <span><span class="co">#&gt; PREDICTING LATENT STATUS AT THE FIRST OCCASION</span></span>
 <span><span class="co">#&gt;    Status      Term Estimate    SE      z        p    OR</span></span>
 <span><span class="co">#&gt;  Status 1 Intercept   -3.169 0.115 -27.47  &lt; 1e-16 0.042</span></span>
-<span><span class="co">#&gt;  Status 1   poverty   -2.088 0.574  -3.64 0.000274 0.124</span></span>
+<span><span class="co">#&gt;  Status 1   poverty   -2.088 0.574  -3.64 0.000273 0.124</span></span>
 <span><span class="co">#&gt;  Status 2 Intercept   -0.677 0.040 -16.96  &lt; 1e-16 0.508</span></span>
 <span><span class="co">#&gt;  Status 2   poverty   -1.462 0.131 -11.17  &lt; 1e-16 0.232</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; PREDICTING TRANSITIONS</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;   [occasion 1 -&gt; 2]</span></span>
-<span><span class="co">#&gt;       Status      Term Estimate     SE      z        p          OR</span></span>
-<span><span class="co">#&gt;  to Status 1 Intercept   -3.069  0.194 -15.86  &lt; 1e-16       0.046</span></span>
-<span><span class="co">#&gt;  to Status 1    from:1   14.142 27.479   0.51 0.606807 1386050.213</span></span>
-<span><span class="co">#&gt;  to Status 1    from:2    9.379  1.204   7.79 6.68e-15   11834.170</span></span>
-<span><span class="co">#&gt;  to Status 1   poverty   -0.772  0.231  -3.34 0.000824       0.462</span></span>
-<span><span class="co">#&gt;  to Status 2 Intercept    0.979  0.052  18.73  &lt; 1e-16       2.663</span></span>
-<span><span class="co">#&gt;  to Status 2    from:1   -0.031 32.634   0.00 0.999237       0.969</span></span>
-<span><span class="co">#&gt;  to Status 2    from:2    5.995  1.190   5.04 4.68e-07     401.388</span></span>
-<span><span class="co">#&gt;  to Status 2   poverty   -1.185  0.097 -12.26  &lt; 1e-16       0.306</span></span>
+<span><span class="co">#&gt;       Status      Term Estimate     SE      z        p           OR</span></span>
+<span><span class="co">#&gt;  to Status 1 Intercept   -3.069  0.194 -15.86  &lt; 1e-16 4.600000e-02</span></span>
+<span><span class="co">#&gt;  to Status 1    from:1   25.000 27.479   0.91 0.362944 7.200490e+10</span></span>
+<span><span class="co">#&gt;  to Status 1    from:2    9.371  1.204   7.78 7.03e-15 1.174187e+04</span></span>
+<span><span class="co">#&gt;  to Status 1   poverty   -0.772  0.231  -3.35 0.000821 4.620000e-01</span></span>
+<span><span class="co">#&gt;  to Status 2 Intercept    0.979  0.052  18.73  &lt; 1e-16 2.663000e+00</span></span>
+<span><span class="co">#&gt;  to Status 2    from:1   -0.755 32.634  -0.02 0.981532 4.700000e-01</span></span>
+<span><span class="co">#&gt;  to Status 2    from:2    5.988  1.190   5.03 4.84e-07 3.984350e+02</span></span>
+<span><span class="co">#&gt;  to Status 2   poverty   -1.186  0.097 -12.26  &lt; 1e-16 3.060000e-01</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;   [occasion 2 -&gt; 3]</span></span>
 <span><span class="co">#&gt;       Status      Term Estimate    SE     z        p         OR</span></span>
-<span><span class="co">#&gt;  to Status 1 Intercept   -5.148 0.784 -6.57 5.13e-11      0.006</span></span>
-<span><span class="co">#&gt;  to Status 1    from:1   11.732 1.248  9.40  &lt; 1e-16 124473.951</span></span>
-<span><span class="co">#&gt;  to Status 1    from:2    9.610 0.888 10.82  &lt; 1e-16  14912.375</span></span>
-<span><span class="co">#&gt;  to Status 1   poverty   -2.163 0.285 -7.60 3.02e-14      0.115</span></span>
+<span><span class="co">#&gt;  to Status 1 Intercept   -5.147 0.784 -6.56 5.21e-11      0.006</span></span>
+<span><span class="co">#&gt;  to Status 1    from:1   11.730 1.248  9.40  &lt; 1e-16 124283.965</span></span>
+<span><span class="co">#&gt;  to Status 1    from:2    9.606 0.888 10.82  &lt; 1e-16  14857.136</span></span>
+<span><span class="co">#&gt;  to Status 1   poverty   -2.162 0.285 -7.60 3.06e-14      0.115</span></span>
 <span><span class="co">#&gt;  to Status 2 Intercept   -0.030 0.089 -0.34    0.733      0.970</span></span>
-<span><span class="co">#&gt;  to Status 2    from:1    0.570 1.299  0.44    0.661      1.768</span></span>
-<span><span class="co">#&gt;  to Status 2    from:2    6.032 0.422 14.29  &lt; 1e-16    416.548</span></span>
+<span><span class="co">#&gt;  to Status 2    from:1    0.573 1.299  0.44    0.659      1.773</span></span>
+<span><span class="co">#&gt;  to Status 2    from:2    6.030 0.422 14.28  &lt; 1e-16    415.774</span></span>
 <span><span class="co">#&gt;  to Status 2   poverty   -0.920 0.149 -6.18 6.33e-10      0.399</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;   [occasion 3 -&gt; 4]</span></span>
 <span><span class="co">#&gt;       Status      Term Estimate     SE     z        p       OR</span></span>
-<span><span class="co">#&gt;  to Status 1 Intercept    0.276  0.161  1.71  0.08693    1.318</span></span>
-<span><span class="co">#&gt;  to Status 1    from:1    9.043  3.487  2.59  0.00951 8459.614</span></span>
-<span><span class="co">#&gt;  to Status 1    from:2    4.993  0.316 15.80  &lt; 1e-16  147.444</span></span>
-<span><span class="co">#&gt;  to Status 1   poverty   -0.929  0.210 -4.43 9.40e-06    0.395</span></span>
-<span><span class="co">#&gt;  to Status 2 Intercept    0.696  0.152  4.59 4.40e-06    2.006</span></span>
-<span><span class="co">#&gt;  to Status 2    from:1   -3.815 17.057 -0.22  0.82301    0.022</span></span>
-<span><span class="co">#&gt;  to Status 2    from:2    2.532  0.314  8.07 7.14e-16   12.582</span></span>
-<span><span class="co">#&gt;  to Status 2   poverty   -0.108  0.198 -0.55  0.58486    0.897</span></span>
+<span><span class="co">#&gt;  to Status 1 Intercept    0.276  0.161  1.71   0.0873    1.318</span></span>
+<span><span class="co">#&gt;  to Status 1    from:1    8.940  3.487  2.56   0.0104 7633.697</span></span>
+<span><span class="co">#&gt;  to Status 1    from:2    4.995  0.316 15.81  &lt; 1e-16  147.640</span></span>
+<span><span class="co">#&gt;  to Status 1   poverty   -0.929  0.210 -4.43 9.47e-06    0.395</span></span>
+<span><span class="co">#&gt;  to Status 2 Intercept    0.696  0.152  4.59 4.43e-06    2.006</span></span>
+<span><span class="co">#&gt;  to Status 2    from:1  -11.806 17.057 -0.69   0.4888    0.000</span></span>
+<span><span class="co">#&gt;  to Status 2    from:2    2.534  0.314  8.07 6.91e-16   12.598</span></span>
+<span><span class="co">#&gt;  to Status 2   poverty   -0.108  0.198 -0.54   0.5860    0.898</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
 <p>Poverty lowers the odds of starting kindergarten beyond the
@@ -423,9 +423,112 @@ times the odds of reaching comprehension, relative to staying in low
 alphabet. The <code>from:</code> terms are the origin-status intercepts
 and are not of interest in themselves; the ones with enormous standard
 errors belong to cells almost nobody occupies.</p>
+<div class="section level3">
+<h3 id="the-same-question-in-three-steps">The same question in three steps<a class="anchor" aria-label="anchor" href="#the-same-question-in-three-steps"></a>
+</h3>
+<p>In the fit above the covariate and the statuses are estimated
+together, so poverty has a say in what the statuses <em>are</em>: a
+status is partly defined by who is poor. Usually that pull is small, but
+nothing guarantees it, and it means adding or dropping a covariate can
+quietly change the statuses whose prevalences you are comparing. The
+stepwise estimators remove it. With <code>n_steps = 3</code> (Vermunt,
+2010; Nylund-Gibson et al., 2014) <code><a href="../reference/fit_lta.html">fit_lta()</a></code> first fits the
+LTA with no covariates, then assigns every child a status at every
+occasion, and finally regresses those assigned statuses on poverty while
+correcting for the children the assignment gets wrong. The statuses are
+fixed before poverty is ever looked at.</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit_pov3</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_lta.html">fit_lta</a></span><span class="op">(</span><span class="va">items</span>, n_statuses <span class="op">=</span> <span class="fl">3</span>, times <span class="op">=</span> <span class="fl">4</span>, measurement <span class="op">=</span> <span class="st">"binary"</span>,</span>
+<span>                    predictors_initial <span class="op">=</span> <span class="va">ecls_reading</span><span class="op">[</span><span class="st">"poverty"</span><span class="op">]</span>,</span>
+<span>                    predictors_transition <span class="op">=</span> <span class="va">ecls_reading</span><span class="op">[</span><span class="st">"poverty"</span><span class="op">]</span>,</span>
+<span>                    n_steps <span class="op">=</span> <span class="fl">3</span>, n_init <span class="op">=</span> <span class="fl">20</span>, random_state <span class="op">=</span> <span class="fl">7</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="../reference/status_prevalences.html">status_prevalences</a></span><span class="op">(</span><span class="va">fit_pov3</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
+<span><span class="co">#&gt;    Status 1 Status 2 Status 3</span></span>
+<span><span class="co">#&gt; T1    0.683    0.296    0.021</span></span>
+<span><span class="co">#&gt; T2    0.220    0.635    0.144</span></span>
+<span><span class="co">#&gt; T3    0.118    0.646    0.235</span></span>
+<span><span class="co">#&gt; T4    0.033    0.146    0.821</span></span></code></pre></div>
+<p>Here status 1 is the low-alphabet stage, status 2 early word reading
+and status 3 comprehension, so the contrasts below are all against
+comprehension:</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/lta_covariate_summary.html">lta_covariate_summary</a></span><span class="op">(</span><span class="va">fit_pov3</span><span class="op">)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; =========================================================</span></span>
+<span><span class="co">#&gt;    LATENT TRANSITION MODEL - COVARIATE EFFECTS (logits)</span></span>
+<span><span class="co">#&gt; =========================================================</span></span>
+<span><span class="co">#&gt; Reference status: 3. Coefficients are contrasts against it;</span></span>
+<span><span class="co">#&gt; exp(coefficient) is an odds ratio.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; PREDICTING LATENT STATUS AT THE FIRST OCCASION</span></span>
+<span><span class="co">#&gt;    Status      Term Estimate    SE     z       p     OR</span></span>
+<span><span class="co">#&gt;  Status 1 Intercept    3.253 0.152 21.42 &lt; 1e-16 25.880</span></span>
+<span><span class="co">#&gt;  Status 1   poverty    1.929 0.704  2.74 0.00611  6.884</span></span>
+<span><span class="co">#&gt;  Status 2 Intercept    2.625 0.158 16.60 &lt; 1e-16 13.798</span></span>
+<span><span class="co">#&gt;  Status 2   poverty    0.524 0.728  0.72 0.47112  1.690</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; PREDICTING TRANSITIONS</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;   [occasion 1 -&gt; 2]</span></span>
+<span><span class="co">#&gt;       Status      Term Estimate      SE     z      p          OR</span></span>
+<span><span class="co">#&gt;  to Status 1 Intercept  -11.134  32.993 -0.34 0.7358       0.000</span></span>
+<span><span class="co">#&gt;  to Status 1    from:1   15.268  33.004  0.46 0.6436 4275457.527</span></span>
+<span><span class="co">#&gt;  to Status 1    from:2  -10.283 111.444 -0.09 0.9265       0.000</span></span>
+<span><span class="co">#&gt;  to Status 1   poverty    0.749   0.349  2.15 0.0318       2.115</span></span>
+<span><span class="co">#&gt;  to Status 2 Intercept   -9.962  21.492 -0.46 0.6430       0.000</span></span>
+<span><span class="co">#&gt;  to Status 2    from:1   15.086  21.510  0.70 0.4831 3562888.447</span></span>
+<span><span class="co">#&gt;  to Status 2    from:2   10.423  21.492  0.48 0.6277   33635.718</span></span>
+<span><span class="co">#&gt;  to Status 2   poverty   -0.433   0.326 -1.33 0.1835       0.649</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;   [occasion 2 -&gt; 3]</span></span>
+<span><span class="co">#&gt;       Status      Term Estimate     SE     z        p           OR</span></span>
+<span><span class="co">#&gt;  to Status 1 Intercept  -11.644 12.750 -0.91  0.36110 0.000000e+00</span></span>
+<span><span class="co">#&gt;  to Status 1    from:1   21.014 17.009  1.24  0.21666 1.337465e+09</span></span>
+<span><span class="co">#&gt;  to Status 1    from:2   -8.551 99.533 -0.09  0.93154 0.000000e+00</span></span>
+<span><span class="co">#&gt;  to Status 1   poverty    2.265  0.524  4.33 1.52e-05 9.630000e+00</span></span>
+<span><span class="co">#&gt;  to Status 2 Intercept  -11.391 19.597 -0.58  0.56105 0.000000e+00</span></span>
+<span><span class="co">#&gt;  to Status 2    from:1   20.782 22.818  0.91  0.36241 1.060398e+09</span></span>
+<span><span class="co">#&gt;  to Status 2    from:2   13.008 19.597  0.66  0.50683 4.460691e+05</span></span>
+<span><span class="co">#&gt;  to Status 2   poverty    1.335  0.482  2.77  0.00567 3.798000e+00</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;   [occasion 3 -&gt; 4]</span></span>
+<span><span class="co">#&gt;       Status      Term Estimate     SE     z        p          OR</span></span>
+<span><span class="co">#&gt;  to Status 1 Intercept   -6.648  1.186 -5.60 2.09e-08       0.001</span></span>
+<span><span class="co">#&gt;  to Status 1    from:1    6.494  1.201  5.41 6.41e-08     660.833</span></span>
+<span><span class="co">#&gt;  to Status 1    from:2    0.652  1.494  0.44 0.662675       1.919</span></span>
+<span><span class="co">#&gt;  to Status 1   poverty    0.914  0.252  3.63 0.000286       2.495</span></span>
+<span><span class="co">#&gt;  to Status 2 Intercept  -14.972 65.353 -0.23 0.818802       0.000</span></span>
+<span><span class="co">#&gt;  to Status 2    from:1   15.470 65.354  0.24 0.812879 5230820.592</span></span>
+<span><span class="co">#&gt;  to Status 2    from:2   12.947 65.354  0.20 0.842966  419404.828</span></span>
+<span><span class="co">#&gt;  to Status 2   poverty    0.804  0.151  5.34 9.30e-08       2.234</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Standard errors are the three-step (pseudo-maximum-likelihood) ones:</span></span>
+<span><span class="co">#&gt; the curvature of step 3's likelihood in these coefficients, plus the</span></span>
+<span><span class="co">#&gt; sampling uncertainty of the step-1 estimates the classification</span></span>
+<span><span class="co">#&gt; error was computed from. See `?fit_lta`.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
+<p>Turned around to be against low alphabet, as above, the answer barely
+moves. A child in poverty has 0.25 times the odds of starting
+kindergarten in early word reading (0.23 in one step) and 0.15 times the
+odds of starting in comprehension (0.12). Over the summer those odds are
+0.39 and 0.10 (0.40 and 0.12). The poverty effect was not an artefact of
+letting poverty shape the statuses. When the two routes disagree, the
+three-step answer is the one to trust about the covariate, because its
+statuses are the ones the indicators alone define.</p>
+<p>The standard errors account both for the assignments being uncertain
+and for the first step’s estimates being estimates. Other stepwise
+options work the same way: <code>correction = "BCH"</code> reweights the
+cases instead of modelling the misassignment, <code>n_steps = 2</code>
+holds the step-1 measurement model fixed and fits the covariates on the
+full likelihood, and <code>distal =</code> (with
+<code>assignment = "modal"</code>) adds an outcome measured after the
+last occasion, modelled by the status reached there.
+<code><a href="../reference/fit_lta.html">?fit_lta</a></code> has the details.</p>
 <p>Whether the poverty effect on the <em>transitions</em> survives once
 stable between-child differences in reading readiness are modelled
 directly is the question <code><a href="../articles/rilta.html">vignette("rilta")</a></code> takes up.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
@@ -436,9 +539,15 @@ and health sciences</em>. Wiley.</p>
 <p>Kaplan, D. (2008). An overview of Markov chain methods for the study
 of stage-sequential developmental processes. <em>Developmental
 Psychology</em>, <em>44</em>(2), 457–467. <a href="https://doi.org/10.1037/0012-1649.44.2.457" class="external-link uri">https://doi.org/10.1037/0012-1649.44.2.457</a></p>
+<p>Nylund-Gibson, K., Grimm, R., Quirk, M., &amp; Furlong, M. (2014). A
+latent transition mixture model using the three-step specification.
+<em>Structural Equation Modeling</em>, <em>21</em>(3), 439–454. <a href="https://doi.org/10.1080/10705511.2014.915375" class="external-link uri">https://doi.org/10.1080/10705511.2014.915375</a></p>
 <p>Vermunt, J. K. (2004). Mover-stayer models. In M. S. Lewis-Beck, A.
 Bryman, &amp; T. F. Liao (Eds.), <em>The SAGE encyclopedia of social
 science research methods</em> (Vol. 3, p. 666). SAGE Publications. <a href="https://doi.org/10.4135/9781412950589.n583" class="external-link uri">https://doi.org/10.4135/9781412950589.n583</a></p>
+<p>Vermunt, J. K. (2010). Latent class modeling with covariates: Two
+improved three-step approaches. <em>Political Analysis</em>,
+<em>18</em>(4), 450–469. <a href="https://doi.org/10.1093/pan/mpq025" class="external-link uri">https://doi.org/10.1093/pan/mpq025</a></p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

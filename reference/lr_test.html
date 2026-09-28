@@ -12,6 +12,16 @@ Equal prevalences across groups (sec. 5.11): compare
 group_effects = &quot;none&quot; against &quot;prevalence&quot;.
 Measurement invariance across time (sec. 7.11): fit fit_lta()
 with measurement_invariance = &quot;full&quot; and &quot;none&quot; and compare.
+The same question before any transitions are modelled: the
+configural against the invariant measurement model, with the occasions
+unlinked, which is how a three-step analysis settles invariance before
+step 3 (Nylund-Gibson, Arch &amp;amp; Carter, 2026). A three-step fit's $step1
+is exactly that model, so fit fit_lta() with n_steps = 3 and
+measurement_invariance = &quot;full&quot; and &quot;none&quot;, and test
+lr_test(fit_full$step1, fit_none$step1). With &quot;none&quot; the step-1
+model is one free latent class model per occasion; with &quot;full&quot; the
+item probabilities are shared, so the degrees of freedom are the item
+parameters freed at every occasion after the first.
 A time-homogeneous transition matrix (sec. 7.14): fit
 fit_lta() with transition_invariance = &quot;full&quot; and &quot;none&quot;.
 
@@ -19,6 +29,11 @@ fit_lta() with transition_invariance = &quot;full&quot; and &quot;none&quot;.
 The models must be nested and fitted to the same data. That is not checked
 beyond the parameter counts and sample size, so it remains the analyst's
 responsibility.
+A three-step fit (fit_lta(n_steps = 3)) reports the log-likelihood of its
+third step, which models the assigned statuses rather than the items, so it
+is refused beside a one- or two-step fit. Two three-step fits are tested only
+when their third steps saw the same data: the same assigned statuses and the
+same classification-error matrices.
 Because full strictly nests restricted, its log-likelihood can never
 be genuinely lower — if it comes out that way here, the full model's
 random-restart search landed on a worse local optimum than the
@@ -36,6 +51,16 @@ Equal prevalences across groups (sec. 5.11): compare
 group_effects = &quot;none&quot; against &quot;prevalence&quot;.
 Measurement invariance across time (sec. 7.11): fit fit_lta()
 with measurement_invariance = &quot;full&quot; and &quot;none&quot; and compare.
+The same question before any transitions are modelled: the
+configural against the invariant measurement model, with the occasions
+unlinked, which is how a three-step analysis settles invariance before
+step 3 (Nylund-Gibson, Arch &amp;amp; Carter, 2026). A three-step fit's $step1
+is exactly that model, so fit fit_lta() with n_steps = 3 and
+measurement_invariance = &quot;full&quot; and &quot;none&quot;, and test
+lr_test(fit_full$step1, fit_none$step1). With &quot;none&quot; the step-1
+model is one free latent class model per occasion; with &quot;full&quot; the
+item probabilities are shared, so the degrees of freedom are the item
+parameters freed at every occasion after the first.
 A time-homogeneous transition matrix (sec. 7.14): fit
 fit_lta() with transition_invariance = &quot;full&quot; and &quot;none&quot;.
 
@@ -43,6 +68,11 @@ fit_lta() with transition_invariance = &quot;full&quot; and &quot;none&quot;.
 The models must be nested and fitted to the same data. That is not checked
 beyond the parameter counts and sample size, so it remains the analyst's
 responsibility.
+A three-step fit (fit_lta(n_steps = 3)) reports the log-likelihood of its
+third step, which models the assigned statuses rather than the items, so it
+is refused beside a one- or two-step fit. Two three-step fits are tested only
+when their third steps saw the same data: the same assigned statuses and the
+same classification-error matrices.
 Because full strictly nests restricted, its log-likelihood can never
 be genuinely lower — if it comes out that way here, the full model's
 random-restart search landed on a worse local optimum than the
@@ -55,7 +85,7 @@ case; refitting full with a larger n_init is the usual fix."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -107,11 +137,26 @@ significantly better fit?"</p>
 <code>group_effects = "none"</code> against <code>"prevalence"</code>.</p></li>
 <li><p><strong>Measurement invariance across time</strong> (sec. 7.11): fit <code><a href="fit_lta.html">fit_lta()</a></code>
 with <code>measurement_invariance = "full"</code> and <code>"none"</code> and compare.</p></li>
+<li><p><strong>The same question before any transitions are modelled</strong>: the
+configural against the invariant measurement model, with the occasions
+unlinked, which is how a three-step analysis settles invariance before
+step 3 (Nylund-Gibson, Arch &amp; Carter, 2026). A three-step fit's <code>$step1</code>
+is exactly that model, so fit <code><a href="fit_lta.html">fit_lta()</a></code> with <code>n_steps = 3</code> and
+<code>measurement_invariance = "full"</code> and <code>"none"</code>, and test
+<code>lr_test(fit_full$step1, fit_none$step1)</code>. With <code>"none"</code> the step-1
+model is one free latent class model per occasion; with <code>"full"</code> the
+item probabilities are shared, so the degrees of freedom are the item
+parameters freed at every occasion after the first.</p></li>
 <li><p><strong>A time-homogeneous transition matrix</strong> (sec. 7.14): fit
 <code><a href="fit_lta.html">fit_lta()</a></code> with <code>transition_invariance = "full"</code> and <code>"none"</code>.</p></li>
 </ul><p>The models must be nested and fitted to the same data. That is not checked
 beyond the parameter counts and sample size, so it remains the analyst's
 responsibility.</p>
+<p>A three-step fit (<code>fit_lta(n_steps = 3)</code>) reports the log-likelihood of its
+third step, which models the assigned statuses rather than the items, so it
+is refused beside a one- or two-step fit. Two three-step fits are tested only
+when their third steps saw the same data: the same assigned statuses and the
+same classification-error matrices.</p>
 <p>Because <code>full</code> strictly nests <code>restricted</code>, its log-likelihood can never
 be genuinely lower — if it comes out that way here, the <code>full</code> model's
 random-restart search landed on a worse local optimum than the
@@ -155,6 +200,10 @@ for that pair, and <code>statistic_raw</code> should be reported instead.</p></d
     <p>Collins, L. M., &amp; Lanza, S. T. (2010). <em>Latent Class and Latent
 Transition Analysis: With Applications in the Social, Behavioral, and Health
 Sciences</em>. Wiley.</p>
+<p>Nylund-Gibson, K., Arch, D. A. N., &amp; Carter, D. (2026). Latent transition
+analysis with auxiliary variables: A demonstration of the ML 3-step and BCH
+in Mplus. <em>The Quantitative Methods for Psychology</em>, <em>22</em>(1).
+<a href="https://doi.org/10.20982/tqmp.22.1.p001" class="external-link">doi:10.20982/tqmp.22.1.p001</a></p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

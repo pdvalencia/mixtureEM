@@ -15,7 +15,7 @@ conceptually cleaner than re-specifying the model with predictors."></head><body
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -68,6 +68,7 @@ conceptually cleaner than re-specifying the model with <code>predictors</code>.<
 <span>  <span class="va">fit</span>,</span>
 <span>  <span class="va">predictors</span>,</span>
 <span>  correction <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ML"</span>, <span class="st">"BCH"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
+<span>  steps <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">2</span><span class="op">)</span>,</span>
 <span>  se <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"corrected"</span>, <span class="st">"robust"</span>, <span class="st">"hessian"</span><span class="op">)</span>,</span>
 <span>  assignment <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proportional"</span>, <span class="st">"modal"</span><span class="op">)</span>,</span>
 <span>  max_iter <span class="op">=</span> <span class="fl">1000</span>,</span>
@@ -94,12 +95,26 @@ fit to.</p></dd>
 
 <dt id="arg-correction">correction<a class="anchor" aria-label="anchor" href="#arg-correction"></a></dt>
 <dd><p>Bias correction for the third step: <code>"ML"</code> (default;
-Vermunt, 2010), <code>"BCH"</code>, or <code>"none"</code>.</p></dd>
+Vermunt, 2010), <code>"BCH"</code>, or <code>"none"</code>. Three-step only; an error with
+<code>steps = 2</code>.</p></dd>
+
+
+<dt id="arg-steps">steps<a class="anchor" aria-label="anchor" href="#arg-steps"></a></dt>
+<dd><p><code>3</code> (default) for the bias-adjusted three-step, or <code>2</code> for
+the two-step estimator of Bakk and Kuha (2018): <code>fit</code>'s measurement
+model is held fixed and the class-membership regression is estimated by
+maximising the full likelihood, with every case's class probabilities
+recomputed under the joint model at each iteration. No classification
+step, no correction. <code>fit</code> is exactly the step-1 estimate the two-step
+starts from. See <code>n_steps</code> in <code><a href="fit_mixture.html">fit_mixture()</a></code> for what the two-step is
+and is not. Its standard errors carry the step-1 uncertainty (Bakk and
+Kuha, 2018, eq. 5); see <a href="covariate_se.html">covariate_se</a>.</p></dd>
 
 
 <dt id="arg-se">se<a class="anchor" aria-label="anchor" href="#arg-se"></a></dt>
-<dd><p>Standard-error estimator passed on to the third step:
-<code>"corrected"</code> (default), <code>"robust"</code>, or <code>"hessian"</code>.</p></dd>
+<dd><p>Standard-error estimator for the structural coefficients:
+<code>"corrected"</code> (default), <code>"robust"</code>, or <code>"hessian"</code>. What each is under
+the three-step and under the two-step is in <a href="covariate_se.html">covariate_se</a>.</p></dd>
 
 
 <dt id="arg-assignment">assignment<a class="anchor" aria-label="anchor" href="#arg-assignment"></a></dt>
@@ -111,11 +126,11 @@ likely class outright. The default follows Bakk, Tekle and Vermunt (2013),
 who compared the two rules across 54 simulation conditions and found
 proportional at least as accurate everywhere and clearly better when the
 classes are poorly separated. Use <code>"modal"</code> when reproducing an analysis
-whose classes were assigned that way.</p></dd>
+whose classes were assigned that way. Three-step only.</p></dd>
 
 
 <dt id="arg-max-iter">max_iter<a class="anchor" aria-label="anchor" href="#arg-max-iter"></a></dt>
-<dd><p>Maximum iterations for the step-3 estimation.</p></dd>
+<dd><p>Maximum iterations for the structural estimation.</p></dd>
 
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
@@ -178,6 +193,9 @@ models with categorical variables: One-step versus three-step estimators.
 between latent class membership and external variables using bias-adjusted
 three-step approaches. <em>Sociological Methodology</em>, <em>43</em>(1),
 272–311. <a href="https://doi.org/10.1177/0081175012470644" class="external-link">doi:10.1177/0081175012470644</a></p>
+<p>Bakk, Z., &amp; Kuha, J. (2018). Two-step estimation of models between latent
+classes and external variables. <em>Psychometrika</em>, <em>83</em>(4),
+871–892. <a href="https://doi.org/10.1007/s11336-017-9592-7" class="external-link">doi:10.1007/s11336-017-9592-7</a></p>
 <p>Jiang, Y., Elliott, M. R., Sammel, M. D., &amp; Wang, N. (2016). Joint modeling
 of cross-sectional health outcomes and longitudinal predictors via mixtures
 of latent classes. <em>Statistics and Its Interface</em>, <em>9</em>, 183–201.</p>
@@ -208,8 +226,8 @@ unconditional model.</p></div>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                               OR         [95% CI]         P-Value</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Class 2 ON</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Intercept                0.761  [    0.000, 18742.480]     0.958</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   age                      0.929  [    0.280,     3.080]     0.904</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Intercept                0.761  [    0.000, 18438.513]     0.958</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   age                      0.929  [    0.280,     3.076]     0.904</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># The same covariate named in a formula against its data frame</span></span></span>

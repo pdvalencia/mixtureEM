@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -133,16 +133,21 @@ the information criteria side by side:</p>
 <span><span class="co">#&gt;   Fitting 2-class model...</span></span>
 <span><span class="co">#&gt;   Fitting 3-class model...</span></span>
 <span><span class="co">#&gt;   Fitting 4-class model...</span></span>
-<span><span class="co">#&gt; Warning: EM did not converge within max_iter = 1000 iterations. The estimates</span></span>
-<span><span class="co">#&gt; are wherever the algorithm had reached, which need not be a maximum. Refit with</span></span>
-<span><span class="co">#&gt; `max_iter = 2000`, doubling again if that is still not enough; if doubling does</span></span>
-<span><span class="co">#&gt; not help, the model is probably weakly identified at this number of classes.</span></span>
+<span><span class="co">#&gt; Warning: This model has 19 free parameters, but the table of response patterns</span></span>
+<span><span class="co">#&gt; has only 15 free cells (df = -4), so the parameters cannot all be recovered</span></span>
+<span><span class="co">#&gt; from the data (Goodman, 1974). The estimates returned are determined by the</span></span>
+<span><span class="co">#&gt; priors where the data are silent. Fit fewer classes, or restrict parameters to</span></span>
+<span><span class="co">#&gt; be equal.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; === Model Selection Summary ===</span></span>
-<span><span class="co">#&gt;   Classes    LL Params  AIC  BIC CAIC AIC3  ICL SABIC Entropy Unreplicated</span></span>
-<span><span class="co">#&gt; 1       2 -2001      9 4021 4064 4073 4030 4406  4035  0.7261        FALSE</span></span>
-<span><span class="co">#&gt; 2       3 -1981     14 3991 4058 4072 4005 4759  4013  0.6456        FALSE</span></span>
-<span><span class="co">#&gt; 3       4 -1980     19 3998 4089 4108 4017 5120  4028  0.5868        FALSE</span></span>
+<span><span class="co">#&gt;   Classes    LL Params  AIC  BIC CAIC  AWE AIC3  ICL SABIC Entropy Unreplicated</span></span>
+<span><span class="co">#&gt; 1       2 -2001      9 4021 4064 4073 4152 4030 4406  4035  0.7261        FALSE</span></span>
+<span><span class="co">#&gt; 2       3 -1981     14 3991 4058 4072 4195 4005 4759  4013  0.6456        FALSE</span></span>
+<span><span class="co">#&gt; 3       4 -1980     19 3998 4089 4108 4275 4017 5121  4028  0.5863        FALSE</span></span>
+<span><span class="co">#&gt;          BF       cmP</span></span>
+<span><span class="co">#&gt; 1 4.913e-02 4.683e-02</span></span>
+<span><span class="co">#&gt; 2 5.241e+06 9.532e-01</span></span>
+<span><span class="co">#&gt; 3        NA 1.819e-07</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; -&gt; Best model according to BIC: 3</span></span></code></pre></div>
 <p>BIC correctly picks the three classes we generated.</p>
@@ -172,13 +177,13 @@ the information criteria side by side:</p>
 <span><span class="co">#&gt;   AIC            : 3990.65</span></span>
 <span><span class="co">#&gt;   BIC            : 4057.88</span></span>
 <span><span class="co">#&gt;   SABIC          : 4013.42</span></span>
-<span><span class="co">#&gt;   Rel. Entropy   : 0.6455</span></span>
+<span><span class="co">#&gt;   Rel. Entropy   : 0.6456</span></span>
 <span><span class="co">#&gt;   Best solution  : found by 20 of 20 starts</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; Class Weights (Sizes):</span></span>
 <span><span class="co">#&gt;   Class 1: 46.17%</span></span>
-<span><span class="co">#&gt;   Class 2: 35.01%</span></span>
-<span><span class="co">#&gt;   Class 3: 18.82%</span></span>
+<span><span class="co">#&gt;   Class 2: 35.02%</span></span>
+<span><span class="co">#&gt;   Class 3: 18.81%</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span></code></pre></div>
 <p>The item-response probabilities per wave — the trajectories
@@ -241,17 +246,17 @@ raises the odds of the Escalating pathway:</p>
 <span><span class="co">#&gt;                               OR         [95% CI]         P-Value</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 2 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.604  [    0.285,     1.282]     0.189</span></span>
+<span><span class="co">#&gt;   Intercept                0.605  [    0.286,     1.283]     0.190</span></span>
 <span><span class="co">#&gt;   risk                     1.891  [    1.410,     2.535]    &lt; .001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 3 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.409  [    0.197,     0.852]     0.017</span></span>
-<span><span class="co">#&gt;   risk                     0.982  [    0.720,     1.341]     0.910</span></span>
+<span><span class="co">#&gt;   Intercept                0.409  [    0.196,     0.853]     0.017</span></span>
+<span><span class="co">#&gt;   risk                     0.982  [    0.719,     1.341]     0.909</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;                          Wald Chi2   df  P-Value</span></span>
-<span><span class="co">#&gt;   risk                      21.245    2    &lt; .001</span></span>
+<span><span class="co">#&gt;   risk                      21.246    2    &lt; .001</span></span>
 <span><span class="co">#&gt;   Note: a non-significant test beside large coefficients can be the</span></span>
 <span><span class="co">#&gt;         Hauck-Donner effect; confirm with wald_omnibus_test().</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>

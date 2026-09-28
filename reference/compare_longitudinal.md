@@ -112,15 +112,18 @@ compare_longitudinal(
   else. Ram and Grimm (2009, p. 571) state the same rule for the tests:
   they "compare models that differ only in the number of classes ... but
   are not appropriate for comparing models that allow for different
-  types of between-class differences".
+  types of between-class differences". With `n_steps = 3` every row
+  reads the step-1 measurement model's criteria, since step 3's
+  log-likelihood is of the assigned statuses.
 
 ## Value
 
 An object of class `mixture_comparison`, a list with `fit_table`
-(columns `Classes`, `LL`, `Params`, `AIC`, `BIC`, `CAIC`, `AIC3`, `ICL`,
-`SABIC`, `Entropy` and `Unreplicated`), the fitted `models` (named
-`"K2"`, `"K3"`, ...) and `best_k`, the class count with the lowest BIC.
-It indexes exactly as a plain list;
+(columns `Classes`, `LL`, `Params`, `AIC`, `BIC`, `CAIC`, `AWE`, `AIC3`,
+`ICL`, `SABIC`, `Entropy`, `Unreplicated`, `BF` and `cmP`, defined as in
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)),
+the fitted `models` (named `"K2"`, `"K3"`, ...) and `best_k`, the class
+count with the lowest BIC. It indexes exactly as a plain list;
 [`plot()`](https://pdvalencia.github.io/mixtureEM/reference/plot.mixture_comparison.md)
 draws the criteria against K.
 

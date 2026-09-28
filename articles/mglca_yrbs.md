@@ -82,11 +82,11 @@ m_free
 #> Converged          : TRUE (in 73 iterations)
 #> Missing Data       : 7186 / 166080 cells (4.3%) in 12 items — FIML (MAR assumption)
 #> ---------------------------------------------------------
-#>   Log-Likelihood : -48032.87
+#>   Log-Likelihood : -48032.86
 #>   Parameters     : 76
-#>   AIC            : 96217.73
-#>   BIC            : 96790.42
-#>   SABIC          : 96548.90
+#>   AIC            : 96217.72
+#>   BIC            : 96790.41
+#>   SABIC          : 96548.89
 #>   Rel. Entropy   : 0.8046
 #>   Best solution  : found by 6 of 20 starts
 #>   (Known-class scale, counting the grouping variable's own proportions: metrics$ll_knownclass = -67215.74, metrics$n_params_knownclass = 79.)
@@ -124,9 +124,9 @@ lr_test(m_free, m_both)
 #> 
 #> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
-#>   Restricted : LL =  -48032.8665   parameters = 76
-#>   Full       : LL =  -47528.9778   parameters = 256
-#>   -2 x diff  : 1007.7775   df = 180   p = < 1e-16
+#>   Restricted : LL =  -48032.8623   parameters = 76
+#>   Full       : LL =  -47528.9716   parameters = 256
+#>   -2 x diff  : 1007.7815   df = 180   p = < 1e-16
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 
@@ -195,18 +195,18 @@ measurement_summary(m_free)
 #> CATEGORICAL PROBABILITIES
 #> Indicator             | Overall | Class 1 | Class 2 | Class 3 | Class 4 | Class 5
 #> --------------------------------------------------------------------------------- 
-#> smoked_before_13      |   0.154 |   0.037 |   0.125 |   0.631 |   0.639 |   0.256
-#> smoked_daily_30d      |   0.120 |   0.018 |   0.282 |   0.247 |   0.653 |   0.169
-#> drove_drinking        |   0.105 |   0.005 |   0.441 |   0.107 |   0.452 |   0.131
-#> first_drink_before_13 |   0.255 |   0.134 |   0.175 |   0.772 |   0.683 |   0.429
-#> binge_drink_30d       |   0.247 |   0.078 |   0.744 |   0.438 |   0.788 |   0.212
-#> marijuana_before_13   |   0.089 |   0.005 |   0.026 |   0.379 |   0.549 |   0.263
-#> cocaine_ever          |   0.083 |   0.004 |   0.181 |   0.069 |   0.838 |   0.030
+#> smoked_before_13      |   0.154 |   0.037 |   0.125 |   0.629 |   0.639 |   0.257
+#> smoked_daily_30d      |   0.120 |   0.018 |   0.283 |   0.246 |   0.653 |   0.170
+#> drove_drinking        |   0.105 |   0.005 |   0.442 |   0.107 |   0.452 |   0.131
+#> first_drink_before_13 |   0.255 |   0.134 |   0.175 |   0.771 |   0.683 |   0.430
+#> binge_drink_30d       |   0.247 |   0.078 |   0.745 |   0.437 |   0.788 |   0.213
+#> marijuana_before_13   |   0.089 |   0.005 |   0.026 |   0.378 |   0.549 |   0.263
+#> cocaine_ever          |   0.083 |   0.004 |   0.182 |   0.069 |   0.838 |   0.030
 #> glue_ever             |   0.116 |   0.053 |   0.151 |   0.256 |   0.564 |   0.037
 #> meth_ever             |   0.058 |   0.004 |   0.087 |   0.030 |   0.692 |   0.008
-#> ecstasy_ever          |   0.061 |   0.004 |   0.100 |   0.048 |   0.624 |   0.066
-#> sex_before_13         |   0.074 |   0.016 |   0.001 |   0.141 |   0.288 |   0.704
-#> sex_4plus_partners    |   0.170 |   0.060 |   0.312 |   0.125 |   0.558 |   0.927
+#> ecstasy_ever          |   0.061 |   0.004 |   0.100 |   0.048 |   0.624 |   0.067
+#> sex_before_13         |   0.074 |   0.016 |   0.001 |   0.141 |   0.288 |   0.701
+#> sex_4plus_partners    |   0.170 |   0.060 |   0.312 |   0.123 |   0.558 |   0.928
 #> 
 #> Missing data: 7186 of 166080 cells (4.3%) across 12 items, handled via FIML (MAR assumption).
 #> 
@@ -263,9 +263,9 @@ lr_test(m_none, m_free)
 #> 
 #> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
-#>   Restricted : LL =  -48345.2597   parameters = 64
-#>   Full       : LL =  -48032.8665   parameters = 76
-#>   -2 x diff  : 624.7864   df = 12   p = < 1e-16
+#>   Restricted : LL =  -48345.2587   parameters = 64
+#>   Full       : LL =  -48032.8623   parameters = 76
+#>   -2 x diff  : 624.7928   df = 12   p = < 1e-16
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 
@@ -350,11 +350,11 @@ data.frame(class = class_labels,
            df = vapply(per_class, function(t) t$df, numeric(1)),
            p_value = vapply(per_class, function(t) t$p_value, numeric(1)))
 #>                 class         dG2 df       p_value
-#> 1            Low Risk  61.2455464  3  3.184937e-13
-#> 2      Binge Drinkers 468.0644561  3 3.972945e-101
-#> 3 Early Experimenters 176.4350900  3  5.191352e-38
-#> 4           High Risk   0.4155445  3  9.370130e-01
-#> 5  Sexual Risk-Takers   5.6788943  3  1.283218e-01
+#> 1            Low Risk  61.2475764  3  3.181757e-13
+#> 2      Binge Drinkers 468.0496546  3 4.002394e-101
+#> 3 Early Experimenters 176.4257982  3  5.215390e-38
+#> 4           High Risk   0.4158324  3  9.369528e-01
+#> 5  Sexual Risk-Takers   5.6715481  3  1.287307e-01
 ```
 
 Each row matches Collins and Lanza’s Table 5.24 to about one decimal

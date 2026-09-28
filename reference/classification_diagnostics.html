@@ -47,7 +47,7 @@ Both tables use the case weights when the model was fitted with any.'></head><bo
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -115,7 +115,14 @@ carried as the <code>Entropy</code> column of <code><a href="compare_mixtures.ht
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">classification_diagnostics</span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Default S3 method</span></span>
-<span><span class="fu">classification_diagnostics</span><span class="op">(</span><span class="va">object</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">classification_diagnostics</span><span class="op">(</span></span>
+<span>  <span class="va">object</span>,</span>
+<span>  n_boot <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  level <span class="op">=</span> <span class="fl">0.95</span>,</span>
+<span>  random_state <span class="op">=</span> <span class="fl">123</span>,</span>
+<span>  n_cores <span class="op">=</span> <span class="fu">.default_n_cores</span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -130,12 +137,40 @@ carried as the <code>Entropy</code> column of <code><a href="compare_mixtures.ht
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Passed to methods.</p></dd>
 
+
+<dt id="arg-n-boot">n_boot<a class="anchor" aria-label="anchor" href="#arg-n-boot"></a></dt>
+<dd><p>Non-negative integer. Number of case-resampling bootstrap
+draws behind a percentile interval for each class proportion; <code>0</code> (the
+default) skips it. Each draw continues the fitted solution on the
+resampled cases (one EM run from the fitted parameters, no restarts), so
+its classes keep the fitted labels. Available for an unconditional,
+unweighted, single-group, one-step fit.</p></dd>
+
+
+<dt id="arg-level">level<a class="anchor" aria-label="anchor" href="#arg-level"></a></dt>
+<dd><p>Confidence level of that interval. Default <code>0.95</code>.</p></dd>
+
+
+<dt id="arg-random-state">random_state<a class="anchor" aria-label="anchor" href="#arg-random-state"></a></dt>
+<dd><p>Integer seed for the resampling. Default <code>123</code>.</p></dd>
+
+
+<dt id="arg-n-cores">n_cores<a class="anchor" aria-label="anchor" href="#arg-n-cores"></a></dt>
+<dd><p>Positive integer. Processes to spread the draws over.
+Default <code>1</code>, or <code>options(mixtureEM.n_cores = )</code> where set.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>Invisibly, a list with <code>ave_pp</code> (the K x K matrix), <code>table</code> (the
-classification table) and <code>error</code> (the classification error). All are also
-printed to the console.</p>
+classification table), <code>error</code> (the classification error) and <code>classes</code>,
+Masyn's (2013) per-class table: <code>Proportion</code> (the model's class
+proportion), <code>Lower</code> and <code>Upper</code> (its bootstrap interval, when <code>n_boot &gt; 0</code>), <code>mcaP</code> (the share of cases modally assigned to the class), <code>AvePP</code>
+(the diagonal of the AvePP matrix) and <code>OCC</code>, the odds of correct
+classification, \([\mathrm{AvePP}_k/(1-\mathrm{AvePP}_k)] /
+  [\pi_k/(1-\pi_k)]\): how much better modal assignment does than guessing
+from the class proportion alone. Masyn suggests values above 5 indicate
+good separation. All are also printed to the console.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -148,6 +183,9 @@ Education</em> (4th ed., Vol. 14, pp. 646-655). Elsevier.
 <a href="https://doi.org/10.1016/B978-0-12-818630-5.10076-4" class="external-link">doi:10.1016/B978-0-12-818630-5.10076-4</a></p>
 <p>Nagin, D. S. (2005). <em>Group-Based Modeling of Development</em>. Harvard
 University Press.</p>
+<p>Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
+T. D. Little (Ed.), <em>The Oxford Handbook of Quantitative Methods</em>
+(Vol. 2, pp. 551-611). Oxford University Press.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -178,12 +216,17 @@ diagnostics summarise.</p></div>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Rows: model-expected membership | Columns: modal assignment</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>         Modal 1 Modal 2    Total</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Class 1   46.07 12.4191  58.4892</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Class 2    9.93 31.5809  41.5108</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Total     56.00 44.0000 100.0000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Class 1 46.0756 12.4153  58.4908</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Class 2  9.9244 31.5847  41.5092</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Total   56.0000 44.0000 100.0000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Classification error: 0.2235 (22.35% of 100 cases)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Classification error: 0.2234 (22.34% of 100 cases)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Class sizes and classification quality (Masyn, 2013)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  Class Proportion mcaP AvePP   OCC</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      1      0.584 0.56 0.823 3.306</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>      2      0.416 0.44 0.718 3.572</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

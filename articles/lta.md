@@ -156,31 +156,31 @@ occasion and the transition matrices:
 
 status_prevalences(fit)
 #>      Status 1  Status 2   Status 3
-#> T1 0.69399011 0.2832214 0.02278852
-#> T2 0.23497446 0.6349012 0.13012436
-#> T3 0.14193312 0.6260570 0.23200986
-#> T4 0.04073899 0.1539705 0.80529048
+#> T1 0.69398810 0.2832223 0.02278957
+#> T2 0.23497414 0.6348993 0.13012652
+#> T3 0.14193267 0.6260555 0.23201187
+#> T4 0.04073975 0.1539687 0.80529156
 transition_matrix(fit)
 #> $`T1 -> T2`
 #>           to
 #> from           Status 1    Status 2   Status 3
-#>   Status 1 0.3382356436 0.649249800 0.01251456
-#>   Status 2 0.0007444998 0.650710622 0.34854488
-#>   Status 3 0.0013783983 0.001451868 0.99716973
+#>   Status 1 0.3382359842 0.649248739 0.01251528
+#>   Status 2 0.0007449381 0.650709101 0.34854596
+#>   Status 3 0.0013783180 0.001451812 0.99716987
 #> 
 #> $`T2 -> T3`
 #>           to
 #> from          Status 1    Status 2   Status 3
-#>   Status 1 0.596461229 0.401018731 0.00252004
-#>   Status 2 0.002267740 0.836830349 0.16090191
-#>   Status 3 0.002614207 0.004021418 0.99336437
+#>   Status 1 0.596458646 0.401020704 0.00252065
+#>   Status 2 0.002268312 0.836829503 0.16090218
+#>   Status 3 0.002614106 0.004022732 0.99336316
 #> 
 #> $`T3 -> T4`
 #>           to
 #> from          Status 1     Status 2  Status 3
-#>   Status 1 0.262659309 0.5045597415 0.2327809
-#>   Status 2 0.005135405 0.1314960969 0.8633685
-#>   Status 3 0.001051163 0.0001410823 0.9988078
+#>   Status 1 0.262665573 0.5045539603 0.2327805
+#>   Status 2 0.005135153 0.1314951800 0.8633697
+#>   Status 3 0.001051789 0.0001410658 0.9988071
 ```
 
 Rows are where children start, columns where they end up, so the
@@ -217,9 +217,9 @@ lr_test(fit_hom, fit)
 #> 
 #> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
-#>   Restricted : LL =  -22935.6517   parameters = 23
-#>   Full       : LL =  -21794.4010   parameters = 35
-#>   -2 x diff  : 2282.5016   df = 12   p = < 1e-16
+#>   Restricted : LL =  -22935.6518   parameters = 23
+#>   Full       : LL =  -21794.4012   parameters = 35
+#>   -2 x diff  : 2282.5012   df = 12   p = < 1e-16
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 
@@ -298,7 +298,7 @@ fit_pov <- fit_lta(items, n_statuses = 3, times = 4, measurement = "binary",
                    n_init = 20, random_state = 7)
 c(no_covariate = fit$metrics$bic, poverty = fit_pov$metrics$bic)
 #> no_covariate      poverty 
-#>     43875.16     43521.11
+#>     43875.16     43521.09
 ```
 
 Poverty improves BIC by some 350 points. One thing to check before
@@ -337,44 +337,44 @@ lta_covariate_summary(fit_pov)
 #> PREDICTING LATENT STATUS AT THE FIRST OCCASION
 #>    Status      Term Estimate    SE      z        p    OR
 #>  Status 1 Intercept   -3.169 0.115 -27.47  < 1e-16 0.042
-#>  Status 1   poverty   -2.088 0.574  -3.64 0.000274 0.124
+#>  Status 1   poverty   -2.088 0.574  -3.64 0.000273 0.124
 #>  Status 2 Intercept   -0.677 0.040 -16.96  < 1e-16 0.508
 #>  Status 2   poverty   -1.462 0.131 -11.17  < 1e-16 0.232
 #> 
 #> PREDICTING TRANSITIONS
 #> 
 #>   [occasion 1 -> 2]
-#>       Status      Term Estimate     SE      z        p          OR
-#>  to Status 1 Intercept   -3.069  0.194 -15.86  < 1e-16       0.046
-#>  to Status 1    from:1   14.142 27.479   0.51 0.606807 1386050.213
-#>  to Status 1    from:2    9.379  1.204   7.79 6.68e-15   11834.170
-#>  to Status 1   poverty   -0.772  0.231  -3.34 0.000824       0.462
-#>  to Status 2 Intercept    0.979  0.052  18.73  < 1e-16       2.663
-#>  to Status 2    from:1   -0.031 32.634   0.00 0.999237       0.969
-#>  to Status 2    from:2    5.995  1.190   5.04 4.68e-07     401.388
-#>  to Status 2   poverty   -1.185  0.097 -12.26  < 1e-16       0.306
+#>       Status      Term Estimate     SE      z        p           OR
+#>  to Status 1 Intercept   -3.069  0.194 -15.86  < 1e-16 4.600000e-02
+#>  to Status 1    from:1   25.000 27.479   0.91 0.362944 7.200490e+10
+#>  to Status 1    from:2    9.371  1.204   7.78 7.03e-15 1.174187e+04
+#>  to Status 1   poverty   -0.772  0.231  -3.35 0.000821 4.620000e-01
+#>  to Status 2 Intercept    0.979  0.052  18.73  < 1e-16 2.663000e+00
+#>  to Status 2    from:1   -0.755 32.634  -0.02 0.981532 4.700000e-01
+#>  to Status 2    from:2    5.988  1.190   5.03 4.84e-07 3.984350e+02
+#>  to Status 2   poverty   -1.186  0.097 -12.26  < 1e-16 3.060000e-01
 #> 
 #>   [occasion 2 -> 3]
 #>       Status      Term Estimate    SE     z        p         OR
-#>  to Status 1 Intercept   -5.148 0.784 -6.57 5.13e-11      0.006
-#>  to Status 1    from:1   11.732 1.248  9.40  < 1e-16 124473.951
-#>  to Status 1    from:2    9.610 0.888 10.82  < 1e-16  14912.375
-#>  to Status 1   poverty   -2.163 0.285 -7.60 3.02e-14      0.115
+#>  to Status 1 Intercept   -5.147 0.784 -6.56 5.21e-11      0.006
+#>  to Status 1    from:1   11.730 1.248  9.40  < 1e-16 124283.965
+#>  to Status 1    from:2    9.606 0.888 10.82  < 1e-16  14857.136
+#>  to Status 1   poverty   -2.162 0.285 -7.60 3.06e-14      0.115
 #>  to Status 2 Intercept   -0.030 0.089 -0.34    0.733      0.970
-#>  to Status 2    from:1    0.570 1.299  0.44    0.661      1.768
-#>  to Status 2    from:2    6.032 0.422 14.29  < 1e-16    416.548
+#>  to Status 2    from:1    0.573 1.299  0.44    0.659      1.773
+#>  to Status 2    from:2    6.030 0.422 14.28  < 1e-16    415.774
 #>  to Status 2   poverty   -0.920 0.149 -6.18 6.33e-10      0.399
 #> 
 #>   [occasion 3 -> 4]
 #>       Status      Term Estimate     SE     z        p       OR
-#>  to Status 1 Intercept    0.276  0.161  1.71  0.08693    1.318
-#>  to Status 1    from:1    9.043  3.487  2.59  0.00951 8459.614
-#>  to Status 1    from:2    4.993  0.316 15.80  < 1e-16  147.444
-#>  to Status 1   poverty   -0.929  0.210 -4.43 9.40e-06    0.395
-#>  to Status 2 Intercept    0.696  0.152  4.59 4.40e-06    2.006
-#>  to Status 2    from:1   -3.815 17.057 -0.22  0.82301    0.022
-#>  to Status 2    from:2    2.532  0.314  8.07 7.14e-16   12.582
-#>  to Status 2   poverty   -0.108  0.198 -0.55  0.58486    0.897
+#>  to Status 1 Intercept    0.276  0.161  1.71   0.0873    1.318
+#>  to Status 1    from:1    8.940  3.487  2.56   0.0104 7633.697
+#>  to Status 1    from:2    4.995  0.316 15.81  < 1e-16  147.640
+#>  to Status 1   poverty   -0.929  0.210 -4.43 9.47e-06    0.395
+#>  to Status 2 Intercept    0.696  0.152  4.59 4.43e-06    2.006
+#>  to Status 2    from:1  -11.806 17.057 -0.69   0.4888    0.000
+#>  to Status 2    from:2    2.534  0.314  8.07 6.91e-16   12.598
+#>  to Status 2   poverty   -0.108  0.198 -0.54   0.5860    0.898
 #> 
 #> =========================================================
 ```
@@ -388,6 +388,118 @@ comprehension, relative to staying in low alphabet. The `from:` terms
 are the origin-status intercepts and are not of interest in themselves;
 the ones with enormous standard errors belong to cells almost nobody
 occupies.
+
+### The same question in three steps
+
+In the fit above the covariate and the statuses are estimated together,
+so poverty has a say in what the statuses *are*: a status is partly
+defined by who is poor. Usually that pull is small, but nothing
+guarantees it, and it means adding or dropping a covariate can quietly
+change the statuses whose prevalences you are comparing. The stepwise
+estimators remove it. With `n_steps = 3` (Vermunt, 2010; Nylund-Gibson
+et al., 2014)
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+first fits the LTA with no covariates, then assigns every child a status
+at every occasion, and finally regresses those assigned statuses on
+poverty while correcting for the children the assignment gets wrong. The
+statuses are fixed before poverty is ever looked at.
+
+``` r
+
+fit_pov3 <- fit_lta(items, n_statuses = 3, times = 4, measurement = "binary",
+                    predictors_initial = ecls_reading["poverty"],
+                    predictors_transition = ecls_reading["poverty"],
+                    n_steps = 3, n_init = 20, random_state = 7)
+round(status_prevalences(fit_pov3), 3)
+#>    Status 1 Status 2 Status 3
+#> T1    0.683    0.296    0.021
+#> T2    0.220    0.635    0.144
+#> T3    0.118    0.646    0.235
+#> T4    0.033    0.146    0.821
+```
+
+Here status 1 is the low-alphabet stage, status 2 early word reading and
+status 3 comprehension, so the contrasts below are all against
+comprehension:
+
+``` r
+
+lta_covariate_summary(fit_pov3)
+#> 
+#> =========================================================
+#>    LATENT TRANSITION MODEL - COVARIATE EFFECTS (logits)
+#> =========================================================
+#> Reference status: 3. Coefficients are contrasts against it;
+#> exp(coefficient) is an odds ratio.
+#> 
+#> PREDICTING LATENT STATUS AT THE FIRST OCCASION
+#>    Status      Term Estimate    SE     z       p     OR
+#>  Status 1 Intercept    3.253 0.152 21.42 < 1e-16 25.880
+#>  Status 1   poverty    1.929 0.704  2.74 0.00611  6.884
+#>  Status 2 Intercept    2.625 0.158 16.60 < 1e-16 13.798
+#>  Status 2   poverty    0.524 0.728  0.72 0.47112  1.690
+#> 
+#> PREDICTING TRANSITIONS
+#> 
+#>   [occasion 1 -> 2]
+#>       Status      Term Estimate      SE     z      p          OR
+#>  to Status 1 Intercept  -11.134  32.993 -0.34 0.7358       0.000
+#>  to Status 1    from:1   15.268  33.004  0.46 0.6436 4275457.527
+#>  to Status 1    from:2  -10.283 111.444 -0.09 0.9265       0.000
+#>  to Status 1   poverty    0.749   0.349  2.15 0.0318       2.115
+#>  to Status 2 Intercept   -9.962  21.492 -0.46 0.6430       0.000
+#>  to Status 2    from:1   15.086  21.510  0.70 0.4831 3562888.447
+#>  to Status 2    from:2   10.423  21.492  0.48 0.6277   33635.718
+#>  to Status 2   poverty   -0.433   0.326 -1.33 0.1835       0.649
+#> 
+#>   [occasion 2 -> 3]
+#>       Status      Term Estimate     SE     z        p           OR
+#>  to Status 1 Intercept  -11.644 12.750 -0.91  0.36110 0.000000e+00
+#>  to Status 1    from:1   21.014 17.009  1.24  0.21666 1.337465e+09
+#>  to Status 1    from:2   -8.551 99.533 -0.09  0.93154 0.000000e+00
+#>  to Status 1   poverty    2.265  0.524  4.33 1.52e-05 9.630000e+00
+#>  to Status 2 Intercept  -11.391 19.597 -0.58  0.56105 0.000000e+00
+#>  to Status 2    from:1   20.782 22.818  0.91  0.36241 1.060398e+09
+#>  to Status 2    from:2   13.008 19.597  0.66  0.50683 4.460691e+05
+#>  to Status 2   poverty    1.335  0.482  2.77  0.00567 3.798000e+00
+#> 
+#>   [occasion 3 -> 4]
+#>       Status      Term Estimate     SE     z        p          OR
+#>  to Status 1 Intercept   -6.648  1.186 -5.60 2.09e-08       0.001
+#>  to Status 1    from:1    6.494  1.201  5.41 6.41e-08     660.833
+#>  to Status 1    from:2    0.652  1.494  0.44 0.662675       1.919
+#>  to Status 1   poverty    0.914  0.252  3.63 0.000286       2.495
+#>  to Status 2 Intercept  -14.972 65.353 -0.23 0.818802       0.000
+#>  to Status 2    from:1   15.470 65.354  0.24 0.812879 5230820.592
+#>  to Status 2    from:2   12.947 65.354  0.20 0.842966  419404.828
+#>  to Status 2   poverty    0.804  0.151  5.34 9.30e-08       2.234
+#> 
+#> Standard errors are the three-step (pseudo-maximum-likelihood) ones:
+#> the curvature of step 3's likelihood in these coefficients, plus the
+#> sampling uncertainty of the step-1 estimates the classification
+#> error was computed from. See `?fit_lta`.
+#> 
+#> =========================================================
+```
+
+Turned around to be against low alphabet, as above, the answer barely
+moves. A child in poverty has 0.25 times the odds of starting
+kindergarten in early word reading (0.23 in one step) and 0.15 times the
+odds of starting in comprehension (0.12). Over the summer those odds are
+0.39 and 0.10 (0.40 and 0.12). The poverty effect was not an artefact of
+letting poverty shape the statuses. When the two routes disagree, the
+three-step answer is the one to trust about the covariate, because its
+statuses are the ones the indicators alone define.
+
+The standard errors account both for the assignments being uncertain and
+for the first step’s estimates being estimates. Other stepwise options
+work the same way: `correction = "BCH"` reweights the cases instead of
+modelling the misassignment, `n_steps = 2` holds the step-1 measurement
+model fixed and fits the covariates on the full likelihood, and
+`distal =` (with `assignment = "modal"`) adds an outcome measured after
+the last occasion, modelled by the status reached there.
+[`?fit_lta`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+has the details.
 
 Whether the poverty effect on the *transitions* survives once stable
 between-child differences in reading readiness are modelled directly is
@@ -405,7 +517,16 @@ Kaplan, D. (2008). An overview of Markov chain methods for the study of
 stage-sequential developmental processes. *Developmental Psychology*,
 *44*(2), 457–467. <https://doi.org/10.1037/0012-1649.44.2.457>
 
+Nylund-Gibson, K., Grimm, R., Quirk, M., & Furlong, M. (2014). A latent
+transition mixture model using the three-step specification. *Structural
+Equation Modeling*, *21*(3), 439–454.
+<https://doi.org/10.1080/10705511.2014.915375>
+
 Vermunt, J. K. (2004). Mover-stayer models. In M. S. Lewis-Beck, A.
 Bryman, & T. F. Liao (Eds.), *The SAGE encyclopedia of social science
 research methods* (Vol. 3, p. 666). SAGE Publications.
 <https://doi.org/10.4135/9781412950589.n583>
+
+Vermunt, J. K. (2010). Latent class modeling with covariates: Two
+improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
+<https://doi.org/10.1093/pan/mpq025>

@@ -99,7 +99,7 @@ fit_lta0
 #>    Status 1 Status 2 Status 3
 #> T1   0.6937   0.2836   0.0227
 #> T2   0.2348   0.6353   0.1299
-#> T3   0.1417   0.6266   0.2318
+#> T3   0.1417   0.6266   0.2317
 #> T4   0.0406   0.1542   0.8052
 #> 
 #> Note: 3 transition(s) estimated at the zero boundary; see $boundary.
@@ -121,23 +121,23 @@ transition_matrix(fit_lta0)
 #> $`T1 -> T2`
 #>           to
 #> from           Status 1     Status 2   Status 3
-#>   Status 1 3.382748e-01 6.493184e-01 0.01240686
-#>   Status 2 5.390649e-04 6.517036e-01 0.34775735
-#>   Status 3 1.388794e-11 1.388794e-11 1.00000000
+#>   Status 1 3.382792e-01 6.493230e-01 0.01239781
+#>   Status 2 5.355704e-04 6.517031e-01 0.34776137
+#>   Status 3 1.388794e-11 1.152489e-11 1.00000000
 #> 
 #> $`T2 -> T3`
 #>           to
-#> from          Status 1   Status 2    Status 3
-#>   Status 1 0.596264013 0.40147254 0.002263452
-#>   Status 2 0.002124324 0.83720306 0.160672614
-#>   Status 3 0.002361944 0.00347309 0.994164966
+#> from          Status 1    Status 2    Status 3
+#>   Status 1 0.596282809 0.401458457 0.002258734
+#>   Status 2 0.002122304 0.837211552 0.160666145
+#>   Status 3 0.002362264 0.003464333 0.994173403
 #> 
 #> $`T3 -> T4`
 #>           to
 #> from           Status 1     Status 2  Status 3
-#>   Status 1 0.2626498893 5.050921e-01 0.2322580
-#>   Status 2 0.0051735930 1.318729e-01 0.8629535
-#>   Status 3 0.0006931915 9.999485e-13 0.9993068
+#>   Status 1 0.2626346418 5.051280e-01 0.2322373
+#>   Status 2 0.0051796287 1.318744e-01 0.8629459
+#>   Status 3 0.0006784104 9.421726e-15 0.9993216
 ```
 
 ## Step 2: add a continuous random intercept
@@ -171,7 +171,7 @@ fit_ri
 #> Items x Occasions  : 5 x 4
 #> Item parameters    : binary, held equal across occasions
 #> Transitions        : 3 tables, one per pair of occasions
-#> Converged          : TRUE (in 270 iterations)
+#> Converged          : TRUE (in 149 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -20328.51
 #>   Parameters     : 40
@@ -222,11 +222,11 @@ usual chi-squared reference does not apply. Compare by BIC.
 
 random_intercept_loadings(fit_ri)
 #>        item  loading se  z
-#> 1   letters 3.489279 NA NA
-#> 2 beginning 2.740160 NA NA
-#> 3    ending 2.569065 NA NA
-#> 4     sight 3.752312 NA NA
-#> 5   context 3.724026 NA NA
+#> 1   letters 3.489282 NA NA
+#> 2 beginning 2.740166 NA NA
+#> 3    ending 2.569071 NA NA
+#> 4     sight 3.752326 NA NA
+#> 5   context 3.724041 NA NA
 ```
 
 Every loading is large — on the logit scale, a child one standard
@@ -299,24 +299,24 @@ different times.
 transition_matrix(fit_ri)
 #> $`T1 -> T2`
 #>           to
-#> from            Status 1      Status 2   Status 3
-#>   Status 1  1.700197e-01  8.197157e-01 0.01026464
-#>   Status 2  3.663895e-83  8.110397e-01 0.18896028
-#>   Status 3 1.357844e-301 2.085369e-301 1.00000000
+#> from           Status 1     Status 2  Status 3
+#>   Status 1 1.700196e-01 8.197158e-01 0.0102646
+#>   Status 2 9.957693e-13 8.110426e-01 0.1889574
+#>   Status 3 1.000000e-12 1.000000e-12 1.0000000
 #> 
 #> $`T2 -> T3`
 #>           to
-#> from          Status 1      Status 2   Status 3
-#>   Status 1 0.242938406  7.384875e-01 0.01857410
-#>   Status 2 0.001283205  9.303203e-01 0.06839652
-#>   Status 3 0.021901171 1.740573e-173 0.97809883
+#> from          Status 1     Status 2   Status 3
+#>   Status 1 0.242937009 7.384889e-01 0.01857410
+#>   Status 2 0.001283216 9.303204e-01 0.06839641
+#>   Status 3 0.021901966 9.998155e-13 0.97809803
 #> 
 #> $`T3 -> T4`
 #>           to
-#> from          Status 1      Status 2  Status 3
-#>   Status 1 0.165948500  4.653395e-07 0.8340510
-#>   Status 2 0.003912383  1.896301e-02 0.9771246
-#>   Status 3 0.008504389 1.357289e-270 0.9914956
+#> from          Status 1     Status 2  Status 3
+#>   Status 1 0.165944119 1.158332e-11 0.8340559
+#>   Status 2 0.003912394 1.896336e-02 0.9771242
+#>   Status 3 0.008504421 9.999939e-13 0.9914956
 ```
 
 The transition matrices now describe a cohort moving almost as one: 82%
@@ -332,14 +332,14 @@ paths <- function(fit, n = 3)
   head(transition_patterns(fit)[order(-transition_patterns(fit)$proportion), ], n)
 paths(fit_lta0)
 #>    T1 T2 T3 T4     count proportion
-#> 15  1  2  2  3 1163.3742 0.32541935
-#> 42  2  2  2  3  477.4005 0.13353860
-#> 54  2  3  3  3  350.3065 0.09798783
+#> 15  1  2  2  3 1163.4163 0.32543112
+#> 42  2  2  2  3  477.3770 0.13353203
+#> 54  2  3  3  3  350.3013 0.09798637
 paths(fit_ri)
 #>    T1 T2 T3 T4     count proportion
-#> 15  1  2  2  3 2525.5556 0.70644911
-#> 6   1  1  2  3  415.8182 0.11631278
-#> 18  1  2  3  3  188.4080 0.05270153
+#> 15  1  2  2  3 2525.5560 0.70644923
+#> 6   1  1  2  3  415.8188 0.11631294
+#> 18  1  2  3  3  188.4078 0.05270147
 ```
 
 In the ordinary LTA the most common path accounts for a third of the
@@ -369,7 +369,7 @@ round(cbind(nodes_30 = random_intercept_loadings(fit_ri)$loading,
 #> [1,]    3.489    3.499
 #> [2,]    2.740    2.752
 #> [3,]    2.569    2.575
-#> [4,]    3.752    3.737
+#> [4,]    3.752    3.736
 #> [5,]    3.724    3.759
 ```
 
@@ -480,8 +480,8 @@ lr_test(fit_pov_ri, fit_pov_tr)
 #> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
 #>   Restricted : LL =  -20127.6888   parameters = 41
-#>   Full       : LL =  -20106.2426   parameters = 47
-#>   -2 x diff  : 42.8924   df = 6   p = 1.225e-07
+#>   Full       : LL =  -20106.2306   parameters = 47
+#>   -2 x diff  : 42.9163   df = 6   p = 1.212e-07
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 
@@ -505,37 +505,37 @@ lta_covariate_summary(fit_pov_tr)
 #> PREDICTING TRANSITIONS
 #> 
 #>   [occasion 1 -> 2]
-#>       Status      Term Estimate     SE     z      p          OR
-#>  to Status 1 Intercept   -8.602 15.539 -0.55 0.5799       0.000
-#>  to Status 1    from:1   11.474 15.540  0.74 0.4603   96199.286
-#>  to Status 1    from:2   -1.875 33.144 -0.06 0.9549       0.153
-#>  to Status 1   poverty    0.005  0.303  0.02 0.9857       1.005
-#>  to Status 2 Intercept  -10.487 41.486 -0.25 0.8004       0.000
-#>  to Status 2    from:1   15.006 41.486  0.36 0.7176 3289186.085
-#>  to Status 2    from:2   11.748 41.486  0.28 0.7770  126502.204
-#>  to Status 2   poverty   -0.648  0.290 -2.23 0.0255       0.523
+#>       Status      Term Estimate     SE      z      p          OR
+#>  to Status 1 Intercept  -13.000 84.646  -0.15 0.8779       0.000
+#>  to Status 1    from:1   15.872 84.646   0.19 0.8513 7820096.147
+#>  to Status 1    from:2  -10.464  0.359 -29.12 <1e-16       0.000
+#>  to Status 1   poverty    0.002  0.302   0.01 0.9951       1.002
+#>  to Status 2 Intercept  -10.784 47.972  -0.22 0.8221       0.000
+#>  to Status 2    from:1   15.303 47.973   0.32 0.7497 4424166.603
+#>  to Status 2    from:2   12.048 47.973   0.25 0.8017  170737.339
+#>  to Status 2   poverty   -0.652  0.289  -2.25 0.0244       0.521
 #> 
 #>   [occasion 2 -> 3]
 #>       Status      Term Estimate     SE     z        p          OR
-#>  to Status 1 Intercept   -5.124  0.906 -5.66 1.53e-08       0.006
-#>  to Status 1    from:1    7.346  0.949  7.74 1.02e-14    1549.762
-#>  to Status 1    from:2   -0.011  1.128 -0.01    0.992       0.989
-#>  to Status 1   poverty    1.870  0.271  6.90 5.34e-12       6.488
-#>  to Status 2 Intercept  -11.129 26.139 -0.43    0.670       0.000
-#>  to Status 2    from:1   14.778 26.140  0.57    0.572 2617054.928
-#>  to Status 2    from:2   13.728 26.139  0.53    0.599  916596.076
-#>  to Status 2   poverty    0.109  0.197  0.55    0.579       1.116
+#>  to Status 1 Intercept   -5.117  0.909 -5.63 1.79e-08       0.006
+#>  to Status 1    from:1    7.338  0.953  7.70 1.33e-14    1536.958
+#>  to Status 1    from:2   -0.044  1.132 -0.04    0.969       0.957
+#>  to Status 1   poverty    1.870  0.271  6.89 5.51e-12       6.488
+#>  to Status 2 Intercept  -11.911 38.384 -0.31    0.756       0.000
+#>  to Status 2    from:1   15.558 38.385  0.41    0.685 5713715.231
+#>  to Status 2    from:2   14.511 38.384  0.38    0.705 2004912.909
+#>  to Status 2   poverty    0.109  0.197  0.55    0.581       1.115
 #> 
 #>   [occasion 3 -> 4]
-#>       Status      Term Estimate     SE     z        p      OR
-#>  to Status 1 Intercept   -4.814  0.635 -7.58 3.51e-14   0.008
-#>  to Status 1    from:1    3.823  0.661  5.78 7.35e-09  45.728
-#>  to Status 1    from:2   -0.777  0.697 -1.11 0.265169   0.460
-#>  to Status 1   poverty    0.181  0.293  0.62 0.535262   1.199
-#>  to Status 2 Intercept  -10.946 11.783 -0.93 0.352909   0.000
-#>  to Status 2    from:1    2.471 12.499  0.20 0.843314  11.829
-#>  to Status 2    from:2    6.560 11.783  0.56 0.577702 706.285
-#>  to Status 2   poverty    1.105  0.294  3.75 0.000174   3.018
+#>       Status      Term Estimate     SE       z        p        OR
+#>  to Status 1 Intercept   -4.816  0.636   -7.57 3.64e-14     0.008
+#>  to Status 1    from:1    3.824  0.662    5.78 7.46e-09    45.806
+#>  to Status 1    from:2   -0.775  0.698   -1.11 0.266797     0.461
+#>  to Status 1   poverty    0.182  0.292    0.62 0.534064     1.199
+#>  to Status 2 Intercept  -15.116 94.543   -0.16 0.872968     0.000
+#>  to Status 2    from:1   -8.623  0.045 -193.05  < 1e-16     0.000
+#>  to Status 2    from:2   10.731 94.543    0.11 0.909633 45740.840
+#>  to Status 2   poverty    1.105  0.296    3.73 0.000192     3.018
 #> 
 #> PREDICTING THE RANDOM INTERCEPT (linear regression, residual variance fixed at 1)
 #> The factor's sign is fixed by making the largest loading positive;
@@ -563,11 +563,11 @@ come with theirs:
 
 random_intercept_loadings(fit_pov_tr)
 #>        item  loading         se        z
-#> 1   letters 3.099459 0.11866953 26.11841
-#> 2 beginning 2.440210 0.07678495 31.77980
-#> 3    ending 2.308522 0.06589985 35.03076
-#> 4     sight 3.412716 0.14178025 24.07046
-#> 5   context 3.469310 0.15731501 22.05326
+#> 1   letters 3.099271 0.11864327 26.12261
+#> 2 beginning 2.440198 0.07677824 31.78242
+#> 3    ending 2.308574 0.06589727 35.03292
+#> 4     sight 3.412924 0.14178355 24.07137
+#> 5   context 3.469340 0.15730671 22.05462
 ```
 
 [`random_intercept_scores()`](https://pdvalencia.github.io/mixtureEM/reference/random_intercept_scores.md)

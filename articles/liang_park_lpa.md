@@ -80,18 +80,18 @@ comp <- compare_mixtures(ind, k_range = 1:5, measurement = "continuous",
 #> Fitting 5-class model...
 #> 
 #> === Model Selection Summary ===
-#>   Classes        LL Params      AIC      BIC     CAIC     AIC3      ICL
-#> 1       1 -2504.138     10 5028.276 5065.314 5075.314 5038.276 5065.314
-#> 2       2 -2218.115     16 4468.231 4527.491 4543.491 4484.231 4578.576
-#> 3       3 -2093.758     22 4231.516 4312.999 4334.999 4253.516 4378.826
-#> 4       4 -2066.064     28 4188.127 4291.833 4319.833 4216.127 4399.884
-#> 5       5 -2029.260     34 4126.521 4252.449 4286.449 4160.521 4370.798
-#>      SABIC Entropy Unreplicated
-#> 1 5033.600   1.000        FALSE
-#> 2 4476.749   0.877        FALSE
-#> 3 4243.228   0.900        FALSE
-#> 4 4203.034   0.870        FALSE
-#> 5 4144.621   0.877        FALSE
+#>   Classes        LL Params      AIC      BIC     CAIC      AWE     AIC3
+#> 1       1 -2504.138     10 5028.276 5065.314 5075.314 5152.352 5038.276
+#> 2       2 -2218.115     16 4468.230 4527.491 4543.491 4666.751 4484.230
+#> 3       3 -2093.758     22 4231.516 4312.999 4334.999 4504.482 4253.516
+#> 4       4 -2066.064     28 4188.128 4291.834 4319.834 4535.540 4216.128
+#> 5       5 -2029.261     34 4126.521 4252.450 4286.450 4548.378 4160.521
+#>        ICL    SABIC Entropy Unreplicated BF cmP
+#> 1 5065.314 5033.600   1.000        FALSE  0   0
+#> 2 4578.554 4476.748   0.877        FALSE  0   0
+#> 3 4378.817 4243.228   0.900        FALSE  0   0
+#> 4 4400.106 4203.034   0.870        FALSE  0   0
+#> 5 4370.826 4144.622   0.877        FALSE NA   1
 #> 
 #> -> Best model according to BIC: 5 classes
 plot(comp)
@@ -142,16 +142,16 @@ free_v_fixed
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1929.58
 #>   Parameters     : 32
-#>   AIC            : 3923.17
+#>   AIC            : 3923.16
 #>   BIC            : 4041.69
 #>   SABIC          : 3940.20
-#>   Rel. Entropy   : 0.8733
+#>   Rel. Entropy   : 0.8732
 #>   Best solution  : found by 26 of 30 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 41.20%
 #>   Class 2: 30.11%
-#>   Class 3: 28.70%
+#>   Class 3: 28.69%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 ```
@@ -181,13 +181,13 @@ fit
 #>   AIC            : 4231.52
 #>   BIC            : 4313.00
 #>   SABIC          : 4243.23
-#>   Rel. Entropy   : 0.9001
+#>   Rel. Entropy   : 0.9002
 #>   Best solution  : found by 20 of 20 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 42.27%
-#>   Class 2: 29.59%
-#>   Class 3: 28.14%
+#>   Class 2: 29.60%
+#>   Class 3: 28.13%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 params <- measurement_summary(fit)
@@ -200,7 +200,7 @@ params <- measurement_summary(fit)
 #> ------------------------------------------------------------ 
 #> confront             |   2.228 |   1.816 |   1.350 |   3.770
 #> distract             |   2.524 |   2.327 |   1.706 |   3.682
-#> support              |   3.615 |   4.217 |   1.672 |   4.753
+#> support              |   3.615 |   4.218 |   1.672 |   4.753
 #> report               |   2.330 |   2.015 |   1.228 |   3.963
 #> discuss              |   2.483 |   2.514 |   1.448 |   3.527
 #> =========================================================
@@ -251,12 +251,12 @@ summary(covs)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept               15.245  [    0.459,   506.777]     0.128
+#>   Intercept               15.253  [    0.459,   506.966]     0.127
 #>   age                      0.987  [    0.955,     1.020]     0.446
-#>   male                     4.509  [    2.253,     9.025]    < .001
+#>   male                     4.509  [    2.253,     9.024]    < .001
 #>   sh_experience            0.538  [    0.239,     1.213]     0.135
 #>   org_intolerance_sh       1.823  [    1.111,     2.990]     0.017
-#>   masc_job_context         0.630  [    0.154,     2.577]     0.521
+#>   masc_job_context         0.630  [    0.154,     2.576]     0.520
 #>   anger                    0.577  [    0.333,     1.000]     0.050
 #>   empathy                  0.874  [    0.489,     1.563]     0.650
 #>   curb_expectancy          0.608  [    0.385,     0.959]     0.032
@@ -265,24 +265,24 @@ summary(covs)
 #>   Intercept                0.000  [    0.000,     0.059]     0.002
 #>   age                      0.968  [    0.935,     1.001]     0.059
 #>   male                     1.413  [    0.659,     3.028]     0.374
-#>   sh_experience            1.637  [    0.891,     3.007]     0.112
+#>   sh_experience            1.636  [    0.891,     3.006]     0.112
 #>   org_intolerance_sh       1.576  [    1.053,     2.359]     0.027
 #>   masc_job_context         0.339  [    0.085,     1.356]     0.126
 #>   anger                    2.778  [    1.234,     6.252]     0.014
 #>   empathy                  1.125  [    0.605,     2.093]     0.710
-#>   curb_expectancy          1.346  [    0.797,     2.274]     0.266
+#>   curb_expectancy          1.346  [    0.797,     2.275]     0.266
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
 #>   age                        3.583    2     0.167
-#>   male                      18.906    2    < .001
-#>   sh_experience              6.416    2     0.040
-#>   org_intolerance_sh         8.666    2     0.013
+#>   male                      18.904    2    < .001
+#>   sh_experience              6.415    2     0.040
+#>   org_intolerance_sh         8.663    2     0.013
 #>   masc_job_context           2.354    2     0.308
 #>   anger                     14.485    2    < .001
 #>   empathy                    0.563    2     0.755
-#>   curb_expectancy            8.449    2     0.015
+#>   curb_expectancy            8.450    2     0.015
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================
@@ -320,7 +320,7 @@ summary(add_outcome(fit, liang_park_sim$harasser_aggression,
 #> CONTINUOUS DISTAL OUTCOME (MEANS)
 #> ---------------------------------------------------------
 #> 
-#> Omnibus test (class differences): Wald chi^2(2) = 218.90, p  < .001
+#> Omnibus test (class differences): Wald chi^2(2) = 218.91, p  < .001
 #> 
 #>                  Mean       [95% CI]        SE
 #>   Class 1        2.622  [ 2.414,  2.831]     0.106
@@ -346,13 +346,13 @@ summary(add_outcome(fit, liang_park_sim$target_gratitude,
 #> Omnibus test (class differences): Wald chi^2(2) = 94.62, p  < .001
 #> 
 #>                  Mean       [95% CI]        SE
-#>   Class 1        3.179  [ 2.980,  3.377]     0.101
+#>   Class 1        3.179  [ 2.981,  3.377]     0.101
 #>   Class 2        1.942  [ 1.696,  2.188]     0.126
 #>   Class 3        3.591  [ 3.339,  3.843]     0.129
 #> 
 #> Pairwise class differences:
 #>                     Difference       [95% CI]        P-Value
-#>   Class 2 vs 1        -1.237  [-1.558, -0.916]    < .001
+#>   Class 2 vs 1        -1.237  [-1.558, -0.915]    < .001
 #>   Class 3 vs 1         0.413  [ 0.083,  0.743]     0.014
 #>   Class 3 vs 2         1.649  [ 1.297,  2.002]    < .001
 #> =========================================================
@@ -370,7 +370,7 @@ summary(add_outcome(fit, liang_park_sim$third_party_elevation,
 #> 
 #>                  Mean       [95% CI]        SE
 #>   Class 1        2.385  [ 2.215,  2.556]     0.087
-#>   Class 2        1.651  [ 1.435,  1.866]     0.110
+#>   Class 2        1.651  [ 1.436,  1.866]     0.110
 #>   Class 3        3.072  [ 2.857,  3.286]     0.109
 #> 
 #> Pairwise class differences:
@@ -434,13 +434,19 @@ classification_diagnostics(fit)
 #> Rows: model-expected membership | Columns: modal assignment
 #> 
 #>          Modal 1 Modal 2 Modal 3    Total
-#> Class 1 120.2806  3.0031  3.6092 126.8929
-#> Class 2   2.4429 85.9750  0.3330  88.7509
-#> Class 3   4.2765  0.0219 80.0578  84.3562
+#> Class 1 120.2802  2.9999  3.6110 126.8912
+#> Class 2   2.4448 85.9782  0.3339  88.7570
+#> Class 3   4.2749  0.0218 80.0551  84.3519
 #> Total   127.0000 89.0000 84.0000 300.0000
 #> 
 #> Classification error: 0.0456 (4.56% of 300 cases)
 #> =========================================================
+#> 
+#> Class sizes and classification quality (Masyn, 2013)
+#>  Class Proportion  mcaP AvePP    OCC
+#>      1      0.423 0.423 0.947 24.449
+#>      2      0.296 0.297 0.966 67.678
+#>      3      0.281 0.280 0.953 51.836
 ```
 
 ## References

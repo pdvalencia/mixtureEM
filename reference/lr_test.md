@@ -23,6 +23,18 @@ significantly better fit?"
   [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
   with `measurement_invariance = "full"` and `"none"` and compare.
 
+- **The same question before any transitions are modelled**: the
+  configural against the invariant measurement model, with the occasions
+  unlinked, which is how a three-step analysis settles invariance before
+  step 3 (Nylund-Gibson, Arch & Carter, 2026). A three-step fit's
+  `$step1` is exactly that model, so fit
+  [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+  with `n_steps = 3` and `measurement_invariance = "full"` and `"none"`,
+  and test `lr_test(fit_full$step1, fit_none$step1)`. With `"none"` the
+  step-1 model is one free latent class model per occasion; with
+  `"full"` the item probabilities are shared, so the degrees of freedom
+  are the item parameters freed at every occasion after the first.
+
 - **A time-homogeneous transition matrix** (sec. 7.14): fit
   [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
   with `transition_invariance = "full"` and `"none"`.
@@ -30,6 +42,12 @@ significantly better fit?"
 The models must be nested and fitted to the same data. That is not
 checked beyond the parameter counts and sample size, so it remains the
 analyst's responsibility.
+
+A three-step fit (`fit_lta(n_steps = 3)`) reports the log-likelihood of
+its third step, which models the assigned statuses rather than the
+items, so it is refused beside a one- or two-step fit. Two three-step
+fits are tested only when their third steps saw the same data: the same
+assigned statuses and the same classification-error matrices.
 
 Because `full` strictly nests `restricted`, its log-likelihood can never
 be genuinely lower — if it comes out that way here, the `full` model's
@@ -73,3 +91,9 @@ A list of class `"lr_test"`.
 Collins, L. M., & Lanza, S. T. (2010). *Latent Class and Latent
 Transition Analysis: With Applications in the Social, Behavioral, and
 Health Sciences*. Wiley.
+
+Nylund-Gibson, K., Arch, D. A. N., & Carter, D. (2026). Latent
+transition analysis with auxiliary variables: A demonstration of the ML
+3-step and BCH in Mplus. *The Quantitative Methods for Psychology*,
+*22*(1).
+[doi:10.20982/tqmp.22.1.p001](https://doi.org/10.20982/tqmp.22.1.p001)

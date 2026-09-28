@@ -6,7 +6,13 @@ models (like Bernoulli or Multinoulli) before the EM algorithm runs.
 ## Usage
 
 ``` r
-categorical_model(n_components, type = "bernoulli", max_val = NULL, ...)
+categorical_model(
+  n_components,
+  type = "bernoulli",
+  max_val = NULL,
+  cats = NULL,
+  ...
+)
 ```
 
 ## Arguments
@@ -22,6 +28,12 @@ categorical_model(n_components, type = "bernoulli", max_val = NULL, ...)
 - max_val:
 
   Integer or NULL. The maximum category value (used for multinoulli).
+
+- cats:
+
+  Integer vector or NULL. The number of categories of each item (used
+  for multinoulli). When NULL, each item's count is its own highest
+  observed code, or `max_val` for every item when that is given.
 
 - ...:
 

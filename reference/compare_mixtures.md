@@ -73,15 +73,25 @@ An object of class `mixture_comparison`: a named list with three
 elements, which can be indexed exactly as a plain list.
 
 - `fit_table` Data frame with one row per K and columns `Classes`, `LL`,
-  `Params`, `AIC`, `BIC`, `CAIC`, `AIC3`, `ICL`, `SABIC`, `Entropy` and
-  `Unreplicated`. `CAIC` and `AIC3` apply a heavier parameter penalty
-  than `BIC`; `ICL` is `BIC` penalised further by classification entropy
-  (Baudry). The `-> Best model` line and `best_k` below are always
-  chosen by `BIC` alone; the other indices are printed for comparison,
-  not used to pick a model. With `vlmr` set it also carries `VLMR_LR`
-  and one p-value column per requested form (`VLMR_p`, `VLMR_p_robust`);
-  each row tests its own K against the next one in the table, so the
-  last row is `NA`.
+  `Params`, `AIC`, `BIC`, `CAIC`, `AWE`, `AIC3`, `ICL`, `SABIC`,
+  `Entropy`, `Unreplicated`, `BF` and `cmP`. `CAIC` and `AIC3` apply a
+  heavier parameter penalty than `BIC`; `ICL` is `BIC` penalised further
+  by classification entropy (Baudry). `AWE`, the approximate weight of
+  evidence, is \\-2\ell + 2p(\log n + 1.5)\\ (Banfield & Raftery, 1993,
+  in the form Masyn, 2013, gives), the heaviest penalty of the set. `BF`
+  is the approximate Bayes factor of the row's model against the *next*
+  row's, \\\exp(\mathrm{SIC}\_K - \mathrm{SIC}\_{K+1})\\ with
+  \\\mathrm{SIC} = -\mathrm{BIC}/2\\: above 1 favours the smaller model,
+  above 10 strongly (Wagenmakers, 2007). The last row is `NA`. `cmP` is
+  the approximate probability that the row's model is the correct one
+  *among the models in the table*, \\\exp(\mathrm{SIC}\_K -
+  \max\mathrm{SIC}) / \sum_j \exp(\mathrm{SIC}\_j - \max\mathrm{SIC})\\,
+  so it changes when the range of K does (Masyn, 2013). The
+  `-> Best model` line and `best_k` below are always chosen by `BIC`
+  alone; the other indices are printed for comparison, not used to pick
+  a model. With `vlmr` set it also carries `VLMR_LR` and one p-value
+  column per requested form (`VLMR_p`, `VLMR_p_robust`); each row tests
+  its own K against the next one in the table, so the last row is `NA`.
 
 - `models` Named list of fitted `mixture_model` objects, one per K
   (names are `"K1"`, `"K2"`, etc.).
@@ -191,6 +201,14 @@ Masyn, K. E. (2013). Latent class analysis and finite mixture modeling.
 In T. D. Little (Ed.), *The Oxford Handbook of Quantitative Methods*
 (Vol. 2, pp. 551-611). Oxford University Press.
 
+Banfield, J. D., & Raftery, A. E. (1993). Model-based Gaussian and
+non-Gaussian clustering. *Biometrics*, *49*(3), 803-821.
+[doi:10.2307/2532201](https://doi.org/10.2307/2532201)
+
+Wagenmakers, E.-J. (2007). A practical solution to the pervasive
+problems of p values. *Psychonomic Bulletin & Review*, *14*(5), 779-804.
+[doi:10.3758/BF03194105](https://doi.org/10.3758/BF03194105)
+
 Vermunt, J. K. (2024). The Vuong-Lo-Mendell-Rubin test for latent class
 and latent profile analysis. *Methodology*, *20*(1), e12467.
 [doi:10.5964/meth.12467](https://doi.org/10.5964/meth.12467)
@@ -227,29 +245,29 @@ result <- compare_mixtures(X, k_range = 1:4, measurement = "binary",
 #> Fitting 4-class model...
 #> 
 #> === Model Selection Summary ===
-#>   Classes       LL Params     AIC     BIC    CAIC    AIC3     ICL   SABIC
-#> 1       1 -342.102      5 694.203 707.229 712.229 699.203 707.229 691.438
-#> 2       2 -340.085     11 702.170 730.827 741.827 713.170 827.464 696.086
-#> 3       3 -337.019     17 708.039 752.327 769.327 725.039 871.466 698.636
-#> 4       4 -334.543     23 715.086 775.005 798.005 738.086 888.720 702.365
-#>   Entropy Unreplicated
-#> 1   1.000        FALSE
-#> 2   0.303        FALSE
-#> 3   0.458        FALSE
-#> 4   0.590        FALSE
+#>   Classes       LL Params     AIC     BIC    CAIC     AWE    AIC3     ICL
+#> 1       1 -342.102      5 694.203 707.229 712.229 745.255 699.203 707.229
+#> 2       2 -340.085     11 702.170 730.826 741.826 814.483 713.170 827.423
+#> 3       3 -337.019     17 708.038 752.326 769.326 881.614 725.038 871.443
+#> 4       4 -334.543     23 715.086 775.005 798.005 949.923 738.086 888.727
+#>     SABIC Entropy Unreplicated        BF cmP
+#> 1 691.438   1.000        FALSE 133077.96   1
+#> 2 696.086   0.303        FALSE  46627.99   0
+#> 3 698.636   0.458        FALSE  84045.07   0
+#> 4 702.365   0.590        FALSE        NA   0
 #> 
 #> -> Best model according to BIC: 1 classes
 result$fit_table
-#>   Classes        LL Params      AIC      BIC     CAIC     AIC3      ICL
-#> 1       1 -342.1016      5 694.2032 707.2290 712.2290 699.2032 707.2290
-#> 2       2 -340.0851     11 702.1702 730.8271 741.8271 713.1702 827.4638
-#> 3       3 -337.0194     17 708.0389 752.3268 769.3268 725.0389 871.4656
-#> 4       4 -334.5429     23 715.0857 775.0046 798.0046 738.0857 888.7195
-#>      SABIC   Entropy Unreplicated
-#> 1 691.4378 1.0000000        FALSE
-#> 2 696.0863 0.3029134        FALSE
-#> 3 698.6365 0.4577758        FALSE
-#> 4 702.3649 0.5898603        FALSE
+#>   Classes        LL Params      AIC      BIC     CAIC      AWE     AIC3
+#> 1       1 -342.1016      5 694.2032 707.2290 712.2290 745.2549 699.2032
+#> 2       2 -340.0848     11 702.1695 730.8264 741.8264 814.4833 713.1695
+#> 3       3 -337.0192     17 708.0384 752.3263 769.3263 881.6142 725.0384
+#> 4       4 -334.5428     23 715.0856 775.0045 798.0045 949.9234 738.0856
+#>        ICL    SABIC   Entropy Unreplicated        BF          cmP
+#> 1 707.2290 691.4378 1.0000000        FALSE 133077.96 9.999925e-01
+#> 2 827.4228 696.0856 0.3032045        FALSE  46627.99 7.514336e-06
+#> 3 871.4431 698.6360 0.4578760        FALSE  84045.07 1.611550e-10
+#> 4 888.7271 702.3648 0.5898324        FALSE        NA 1.917484e-15
 result$best_k
 #> [1] 1
 ```

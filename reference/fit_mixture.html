@@ -15,7 +15,7 @@ by the classes."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -79,6 +79,8 @@ by the classes.</p>
 <span>  group_invariant_items <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  group_invariant_params <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  group_prevalence_equal <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  predictors_items <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  predictors_items_by_class <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  start_from <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  refine_from <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  variances_equal <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -148,18 +150,18 @@ that is what the reported probabilities refer to.</p>
 <p><code>"categorical"</code> expects integer codes running 1, 2, 3, ...; add 1 to a
 0-based item. <code>"count"</code> fits a Poisson model, one rate per item and
 class, and needs non-negative integers.</p>
-<p><strong>Known issue: a single <code>"categorical"</code> block charges every
-item the same parameter count.</strong> It uses one <code>max_val</code> for the whole
-block — the number of levels in whichever item has the most — so any item
-with fewer levels than that maximum is still costed as if it had that
-many. A block mixing a two-level item with a four-level one charges the
-two-level item for four, inflating <code>n_params</code> and, with it, AIC and
-BIC. The remedy is the mixed <code>list</code> spelling above: give items with
-different numbers of levels their own entries — a two-level item as its
-own <code>"binary"</code> entry, or several <code>"categorical"</code> entries
-grouped by level count — rather than putting them all in one
-<code>"categorical"</code> block. Per-item level counting inside a single
-polytomous block is not implemented.</p></dd>
+<p><strong>Items in one <code>"categorical"</code> block may have different numbers
+of categories.</strong> Two-, three- and four-category items can share a block,
+and each item is charged for its own categories only: \(K(C_j - 1)\)
+parameters for an item with \(C_j\) categories. An item's categories
+are its highest observed code or, for a factor, its number of levels,
+whichever is larger, so an unused factor level stays part of the item.
+In a multiple-group or longitudinal model the count is taken over every
+group and occasion together. The set of possible answers belongs to the
+item, and every group and occasion shares it, so a category missing from
+one group is estimated at 0 there rather than removed. A category with no
+response at all, or none in one group or occasion where the item's
+probabilities are free to differ, gives a warning naming it.</p></dd>
 
 
 <dt id="arg-predictors">predictors<a class="anchor" aria-label="anchor" href="#arg-predictors"></a></dt>
@@ -204,7 +206,9 @@ or a character vector of covariate names (or a one-sided formula naming
 them, e.g. <code>~ loc1 + loc2</code>) giving a separate slope per class to just
 those covariates while the rest stay pooled – letting the class moderate
 some covariates while adjusting for others. The last form is
-continuous-outcome only.</p></dd>
+continuous-outcome only. For a continuous outcome,
+<code>"class_specific"</code> is the same model as naming every covariate, and
+is fitted as one.</p></dd>
 
 
 <dt id="arg-group">group<a class="anchor" aria-label="anchor" href="#arg-group"></a></dt>
@@ -320,6 +324,29 @@ Naming a strict subset of the classes also needs <code>start_from</code>; see
 there for why a search cannot answer the per-class question on its own.</p></dd>
 
 
+<dt id="arg-predictors-items">predictors_items<a class="anchor" aria-label="anchor" href="#arg-predictors-items"></a></dt>
+<dd><p>Optional direct effects of covariates on the
+indicators, for testing measurement invariance (differential item
+functioning): a named list mapping an item to a one-sided formula or
+column names in <code>data</code>, e.g. <code>list(item3 = ~ female)</code>. Each named
+covariate shifts the log-odds of endorsing that item for people in the same
+class. Unlike <code>predictors</code>, which only changes who is in which class,
+this changes what an item means. Binary indicators and one-step fits only;
+<code>n_steps</code> defaults to 1 when this is given. The covariates must be
+complete and take few distinct values (see
+<code>options(mixtureEM.dif_max_patterns = )</code>). The item probabilities the
+fit reports are those of a case with these covariates at zero. The slopes
+are reported by <code><a href="dif_effects.html">dif_effects</a></code>; compare nested fits with
+<code><a href="lr_test.html">lr_test</a></code>.</p></dd>
+
+
+<dt id="arg-predictors-items-by-class">predictors_items_by_class<a class="anchor" aria-label="anchor" href="#arg-predictors-items-by-class"></a></dt>
+<dd><p>Names of items in <code>predictors_items</code>
+whose slopes differ by class. Every other named item gets one slope shared
+by all classes (uniform DIF), the default because a class-specific slope
+needs much more data to estimate.</p></dd>
+
+
 <dt id="arg-start-from">start_from<a class="anchor" aria-label="anchor" href="#arg-start-from"></a></dt>
 <dd><p>A fitted model to start from, in place of the random
 restarts. Available only alongside <code>group_prevalence_equal</code>: pass the
@@ -384,9 +411,28 @@ up as a finding.</p></dd>
 
 
 <dt id="arg-n-steps">n_steps<a class="anchor" aria-label="anchor" href="#arg-n-steps"></a></dt>
-<dd><p>Estimation strategy: 1 (simultaneous), 2, or 3 (recommended
-when a structural model is present). Defaults to 3 when <code>predictors</code>
-or <code>outcome</code> is supplied and left unset, otherwise 1.</p></dd>
+<dd><p>Estimation strategy: 1 (simultaneous), 2 (two-step), or 3
+(bias-adjusted three-step; recommended when a structural model is
+present). Defaults to 3 when <code>predictors</code> or <code>outcome</code> is
+supplied and left unset, otherwise 1.</p>
+<p><code>n_steps = 2</code> is the two-step estimator of Bakk and Kuha (2018). The
+measurement model is fitted alone and then held fixed at that estimate;
+the structural model is estimated by maximising the full likelihood with
+the measurement parameters as constants, so each case's class
+probabilities are recomputed under the joint model at every iteration.
+There is no classification step and no classification table: the
+covariates or outcome cannot redefine the classes, and several structural
+models can be compared on one fixed measurement model. Like every
+stepwise estimator it is biased toward zero when the classes are poorly
+separated and the sample is small (Bakk and Kuha, 2018, Tables 1 and 3).
+With class predictors its standard errors are the pseudo-maximum-
+likelihood ones of Bakk and Kuha (2018, eq. 5), which add the sampling
+variance of the step-1 estimate to the step-2 information; <code>se</code>
+selects among them, see <code><a href="covariate_se.html">covariate_se</a></code>. With a distal outcome
+the standard errors come from the Q-function Hessian and do not yet carry
+the step-1 uncertainty, which the printed output states. The uncorrected
+third step that <code>n_steps = 2</code> used to run is <code>n_steps = 3,
+  correction = "none"</code>.</p></dd>
 
 
 <dt id="arg-correction">correction<a class="anchor" aria-label="anchor" href="#arg-correction"></a></dt>
@@ -566,7 +612,9 @@ mind when comparing <code>$loglik</code> across two fits with different
 over from step 1 to the step-3 sandwich, following Bakk et al.
 (2014); <code>"robust"</code> reports the sandwich alone;
 <code>"hessian"</code> inverts the step-3 observed
-information only. See <code><a href="covariate_se.html">covariate_se</a></code>.</p></dd>
+information only. On a measurement model the step-1 term cannot be
+computed for, <code>"corrected"</code> reports the uncorrected estimator with
+a warning. See <code><a href="covariate_se.html">covariate_se</a></code>.</p></dd>
 
 
 <dt id="arg-n-cores">n_cores<a class="anchor" aria-label="anchor" href="#arg-n-cores"></a></dt>
@@ -647,6 +695,11 @@ mixture models. <em>Computational Statistics &amp; Data Analysis</em>,
 <em>41</em>(3-4), 561-575. <a href="https://doi.org/10.1016/S0167-9473%2802%2900163-9" class="external-link">doi:10.1016/S0167-9473(02)00163-9</a>
 
 (the iteration budget behind <code>max_iter</code>).</p>
+<p>Bakk, Z., &amp; Kuha, J. (2018). Two-step estimation of models between latent
+classes and external variables. <em>Psychometrika</em>, <em>83</em>(4),
+871-892. <a href="https://doi.org/10.1007/s11336-017-9592-7" class="external-link">doi:10.1007/s11336-017-9592-7</a>
+ (the estimator behind
+<code>n_steps = 2</code>).</p>
 <p>Hipp, J. R., &amp; Bauer, D. J. (2006). Local solutions in the estimation of
 growth mixture models. <em>Psychological Methods</em>, <em>11</em>(1), 36-53.
 <a href="https://doi.org/10.1037/1082-989X.11.1.36" class="external-link">doi:10.1037/1082-989X.11.1.36</a>

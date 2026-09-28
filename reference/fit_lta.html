@@ -69,7 +69,7 @@ them with lr_test().'></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -180,11 +180,16 @@ them with <code><a href="lr_test.html">lr_test()</a></code>.</p>
 <span>  predictors_initial <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  predictors_transition <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  predictors_items <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  predictors_items_by_status <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  predictors_random_intercept <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  n_steps <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  transition_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"common"</span>, <span class="st">"by_origin"</span><span class="op">)</span>,</span>
 <span>  group <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  group_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"both"</span>, <span class="st">"initial"</span>, <span class="st">"transitions"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
 <span>  bayes_constants <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  correction <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ML"</span>, <span class="st">"BCH"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
+<span>  assignment <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proportional"</span>, <span class="st">"modal"</span><span class="op">)</span>,</span>
+<span>  distal <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -285,7 +290,8 @@ parameters, so the model is nested in the unrestricted mixture and
 <dd><p>For a mover-stayer fit, hold the occasion-1
 status distribution equal across the latent classes instead of
 estimating one per class. Drops the initial-status parameter count from
-<code>(K - 1) * C</code> to <code>K - 1</code>. Default <code>FALSE</code>.</p></dd>
+<code>(K - 1) * C</code> to <code>K - 1</code>. Default <code>FALSE</code>. With a single latent class
+there is nothing to tie, so it has no effect and a warning says so.</p></dd>
 
 
 <dt id="arg-random-intercept">random_intercept<a class="anchor" aria-label="anchor" href="#arg-random-intercept"></a></dt>
@@ -435,7 +441,12 @@ defaults to a tighter <code>tol</code> of 1e-11 and 5000 iterations, since the s
 rule is a relative one and would otherwise stop the fit mid-climb. The
 restarts are then staged - a short first pass ranks them and only the
 top tenth (floor of 3) run on to convergence - so the tighter rule does
-not multiply the cost of the search. Supplying either argument overrides all of this. (Unlike <code><a href="fit_mixture.html">fit_mixture()</a></code>,
+not multiply the cost of the search. A random intercept with a free
+loading is staged the same way; on binary items its survivors keep the
+ordinary <code>tol</code> of 1e-8 and a Newton-type finish takes them to the
+maximum, which reaches the same optimum as the tighter rule several
+times faster, while on ordinal items they run to 1e-11 as above.
+Supplying either argument overrides all of this. (Unlike <code><a href="fit_mixture.html">fit_mixture()</a></code>,
 whose EM tolerance is fixed and not user-adjustable, <code>tol</code> here is a
 real, respected argument, because a chain mixture converges slowly
 enough that the fixed rule would not do.)</p></dd>
@@ -532,7 +543,21 @@ groups, which is the assumption this argument exists to relax. Requires
 <code>measurement = "ordinal"</code> and <code>measurement_invariance = "full"</code>.
 Restricted to covariates taking few distinct values - see
 <code>options(mixtureEM.dif_max_patterns = )</code>. The item probabilities the fit
-reports are those of a case with every one of these covariates at zero.</p></dd>
+reports are those of a case with every one of these covariates at zero.</p>
+<p>Alternatively a named list, item name = a data frame (or a matrix with
+column names) of the covariates acting on that item, e.g.
+<code>list(item3 = data.frame(female))</code>, which frees slopes on the named items
+only. Items are named as the fit names them (occasion 1's column names
+with the occasion marker dropped), and a covariate is matched across
+items by its column name. Each slope is then shared by every status
+(uniform DIF, one parameter) unless the item is named in
+<code>predictors_items_by_status</code>.</p></dd>
+
+
+<dt id="arg-predictors-items-by-status">predictors_items_by_status<a class="anchor" aria-label="anchor" href="#arg-predictors-items-by-status"></a></dt>
+<dd><p>Names of items in the list form of
+<code>predictors_items</code> whose slopes differ by status (non-uniform DIF, one
+slope per status). The matrix form is already by status.</p></dd>
 
 
 <dt id="arg-predictors-random-intercept">predictors_random_intercept<a class="anchor" aria-label="anchor" href="#arg-predictors-random-intercept"></a></dt>
@@ -545,6 +570,22 @@ one parameter. Requires <code>random_intercept = "continuous"</code>. The factor
 orientation is arbitrary - the fit pins it by making the largest loading
 positive - so the sign of every coefficient is meaningful only relative to
 the loadings.</p></dd>
+
+
+<dt id="arg-n-steps">n_steps<a class="anchor" aria-label="anchor" href="#arg-n-steps"></a></dt>
+<dd><p>How the measurement model and the structural model are
+estimated relative to each other. <code>1</code> (default) fits both at once: the
+covariates and the latent statuses are estimated in one likelihood, so the
+covariates help decide what the statuses are. <code>2</code> is the two-step
+estimator (Bakk &amp; Kuha, 2018; Bartolucci, Montanari &amp; Pandolfi, 2015): the
+measurement model is fitted first on the indicators alone, held fixed, and
+<code>predictors_initial</code> / <code>predictors_transition</code> /
+<code>predictors_random_intercept</code> are then fitted on the full likelihood with
+the statuses no longer free to move. <code>3</code> is the bias-adjusted three-step
+estimator (Vermunt, 2010; Nylund-Gibson et al., 2014): the statuses are
+estimated, assigned, and the transitions are then estimated from the
+assignments with their classification error corrected for. See the two
+sections below.</p></dd>
 
 
 <dt id="arg-transition-effects">transition_effects<a class="anchor" aria-label="anchor" href="#arg-transition-effects"></a></dt>
@@ -576,6 +617,46 @@ Fitting the same data under two of these and comparing them with
 <em>measurement</em> model (<code>categorical</code>, <code>poisson</code>, <code>variances</code>); see
 <code><a href="fit_mixture.html">fit_mixture()</a></code>. The status and transition probabilities are governed by
 <code>smoothing</code> instead, so <code>latent</code> is not read here.</p></dd>
+
+
+<dt id="arg-correction">correction<a class="anchor" aria-label="anchor" href="#arg-correction"></a></dt>
+<dd><p>Three-step only. <code>"ML"</code> (default; Vermunt, 2010) holds
+each occasion's classification-error matrix fixed while the transitions
+are estimated, which is what removes the bias. <code>"none"</code> sets every matrix
+to the identity, which is the naive classify-analyse estimate: useful as
+the baseline the correction is measured against, and biased towards
+whatever the classification gets wrong. <code>"BCH"</code> (Bolck, Croon and
+Hagenaars, 2004) reweights instead: each case is spread over the status
+paths by the product, over occasions, of the rows of the inverted
+error tables for the statuses it was assigned, and step 3 fits the
+initial status and the transitions to those weighted paths. Some weights
+are negative and are kept. It uses modal assignment, reports the
+BCH-weighted log-likelihood, and its standard errors are the
+case-clustered sandwich; it does not yet support <code>distal</code>,
+<code>predictors_items</code>, <code>strata</code> or <code>cluster</code>.</p></dd>
+
+
+<dt id="arg-assignment">assignment<a class="anchor" aria-label="anchor" href="#arg-assignment"></a></dt>
+<dd><p>Three-step only. How each occasion's posteriors become
+the assigned status step 3 reads. <code>"proportional"</code> (default) spreads every
+case over the statuses in proportion to its posterior; <code>"modal"</code> assigns
+each case to its most likely status. The same argument, with the same
+default and for the same reason, as in <code><a href="add_covariates.html">add_covariates()</a></code>.</p></dd>
+
+
+<dt id="arg-distal">distal<a class="anchor" aria-label="anchor" href="#arg-distal"></a></dt>
+<dd><p>Three-step only, with <code>assignment = "modal"</code>. A distal
+outcome measured after the last occasion: a vector or a data frame with
+one row per case, in the rows of <code>indicators</code>. Each column is modelled by
+the status at the last occasion – a 0/1, logical or two-level factor
+column as binary with a status-specific probability, any other numeric
+column as Gaussian with a status-specific mean and variance – and is
+estimated jointly with the structural model in step 3, so the outcome
+informs the last occasion's posteriors and the transitions (Vermunt,
+2010). A missing value contributes nothing to that case's likelihood.
+The estimates, with standard errors that carry step 1's uncertainty, are
+returned as <code>distal</code>; <code><a href="outcome_contrasts.html">outcome_contrasts()</a></code> gives the pairwise status
+differences. <code>NULL</code> (the default) fits no outcome.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -615,6 +696,127 @@ is the entropy of that occasion's estimated status proportions (from
 <code><a href="status_prevalences.html">status_prevalences()</a></code>).</p>
     </div>
     <div class="section level2">
+    <h2 id="the-two-step-estimator-n-steps-">The two-step estimator (<code>n_steps = 2</code>)<a class="anchor" aria-label="anchor" href="#the-two-step-estimator-n-steps-"></a></h2>
+
+
+
+<p>A latent transition model is two models stacked: a measurement model
+saying what the statuses are, and a structural model saying who starts in
+which one and who moves. Fitting both at once (<code>n_steps = 1</code>) lets the
+covariates take part in defining the statuses, so adding or dropping a
+covariate can change what the statuses mean. The two-step estimator
+removes that: step 1 fits the measurement model on the indicators alone,
+step 2 holds it fixed and maximises the same full likelihood over the
+structural coefficients only. Each E-step still runs on the joint model,
+so this is one-step estimation with one block pinned – there is no class
+assignment and no classification table anywhere in it.</p>
+<p>What that buys: the statuses are fixed before any covariate is looked at,
+so several structural models can be compared on one measurement model and
+none of them can redefine it. What it costs: like every stepwise
+estimator, the coefficients are biased towards zero when the statuses are
+poorly separated or the sample is small (Bakk &amp; Kuha, 2018, Tables 1 and
+3). With well-separated statuses the two estimators agree closely.</p>
+<p>Step 1 is this same call with the structural predictors dropped, so it
+takes the same <code>n_init</code>, <code>random_state</code>, invariance constraints and
+priors; it is returned on the fitted object as <code>$step1</code>, and the item
+parameters of the returned fit are identical to its. Step 2 runs no
+restarts of its own – with the measurement block fixed there is nothing
+left for a restart to search.</p>
+<p>Standard errors for the structural coefficients carry the step-1
+uncertainty. Step 2 holds the measurement parameters fixed, but they were
+estimated rather than known, and their sampling error propagates into
+everything built on top of them. What is reported is therefore the
+pseudo-maximum-likelihood variance of Bakk &amp; Kuha's equation 5,
+\(V = V_2 + V_1\): \(V_2\) is the inverse observed information of the
+full likelihood in the structural coefficients, and \(V_1\) carries the
+step-1 variance across through the cross-curvature between the two
+blocks. \(V_1\) is negligible when the statuses are well separated and
+is most of the variance when they are not, which is the same condition
+that governs the attenuation above. The measurement parameters of a
+two-step fit report the step-1 fit's own standard errors, since that is
+the fit that estimated them.</p>
+<p>Two costs come with it. The information matrices are differenced
+numerically, which is a few thousand likelihood evaluations and can take
+minutes on a large model; pass <code>standard_errors = FALSE</code> to skip it.
+And <code>standard_errors = "robust"</code> is the sandwich on the case-level
+scores, which is a step-2-only estimator and does not include
+\(V_1\). <code>n_steps = 1</code> is unaffected by any of this.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="the-three-step-estimator-n-steps-">The three-step estimator (<code>n_steps = 3</code>)<a class="anchor" aria-label="anchor" href="#the-three-step-estimator-n-steps-"></a></h2>
+
+
+
+<p>Step 1 fits the measurement model with no transitions at all: each
+occasion gets its own status prevalences and nothing links one occasion's
+status to the next. That is deliberate. A model with transitions smooths
+each occasion's posterior along the chain, so the status assigned at
+occasion 2 would carry information about occasions 1 and 3, and step 3
+could no longer treat it as a lone, imperfect measurement of the status
+at occasion 2. <code>measurement_invariance</code> applies to step 1 as usual.</p>
+<p>Step 2 assigns a status at every occasion (see <code>assignment</code>) and records,
+for each occasion separately, how often an assigned status differs from
+the true one. The matrices differ by occasion because the error depends
+on the base rates, and in a transition model the base rates move: on the
+<code><a href="ecls_reading.html">ecls_reading</a></code> panel one status holds 1.8% of the children at the first
+occasion and 81% at the last, and it is misclassified two times in five at
+the first occasion against one in fifty averaged over all four. A cell the
+data leave empty is held at 1e-6 rather than zero, so no transition is
+ruled out by a classification table.</p>
+<p>Step 3 is a latent transition model with one indicator per occasion, the
+assigned status, whose response probabilities are those matrices held
+fixed. It takes <code>predictors_initial</code>, <code>predictors_transition</code>,
+<code>transition_effects</code>, <code>transition_invariance</code> and <code>forbidden_transitions</code>
+exactly as a one-step fit does. The returned object is the step-3 fit;
+<code>$step1</code> is step 1, and <code>$threestep</code> holds the error matrices (rows the
+assigned status, columns the true one), the step-1 prevalences by
+occasion and the modal assignments.</p>
+<p>The step-3 fit's <code>loglik</code> and <code>metrics</code> are the likelihood of the
+assigned statuses, not of the items, and are on a different scale from a
+one- or two-step fit's. <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> and <code><a href="compare_longitudinal.html">compare_longitudinal()</a></code>
+therefore report step 1's criteria, labelled as such, and <code><a href="lr_test.html">lr_test()</a></code>
+refuses a three-step fit beside a one- or two-step one.</p>
+<p>With <code>measurement_invariance = "none"</code> and no transitions, nothing in
+step 1 says which status at occasion 2 is the same as a given status at
+occasion 1. The labels are matched: status \(k\) at every occasion is
+the one whose item profile is closest, in summed squared distance, to
+status \(k\)'s at occasion 1. <code>$threestep$alignment</code> records the match.
+With <code>transition_invariance = "none"</code> step 3's likelihood does not depend
+on the labels, only its reading does; with <code>"full"</code> or <code>"slopes"</code> it does,
+so inspect the step-1 profiles before relying on those.</p>
+<p>Step 3's standard errors carry step 1's uncertainty. The error matrices
+are computed from step 1's estimates, which have sampling error of their
+own, so treating them as known understates every standard error in step
+3. The reported variance is the first-order pseudo-maximum-likelihood
+one of Bakk, Oberski and Vermunt (2014): step 3's own inverse information
+plus the variance of step 1's estimates, carried through the error
+matrices (and, under proportional assignment, through the weights the
+posteriors give the reduced data). The step-3-only part is kept as
+<code>$se$threestep_V2</code> and step 1's variance as <code>$se$step1_vcov</code>. Under
+<code>correction = "none"</code> with modal assignment step 1 never reaches step 3,
+and the standard errors are step 3's own.</p>
+<p>With <code>strata</code> or <code>cluster</code> and <code>assignment = "modal"</code>, the variance is
+the design-based sandwich over both steps at once: each case's scores in
+step 1 and in step 3 are combined through the same first-order term,
+summed within primary sampling units and compared across them within
+strata. Clustering therefore widens the step-1 part as well as step 3's
+own, and any correlation between the two steps' scores within a cluster
+is counted rather than assumed away. Proportional assignment refuses a
+design, because its step-3 rows are status combinations, not cases.</p>
+<p>Two more things to know when reading the result. Step 3's log-likelihood
+is that of the assigned statuses, not of the items, so it must never be
+compared with a one- or two-step fit's. And the estimator covers one
+chain of statuses on a measurement model every case shares: random
+intercepts, <code>n_classes &gt; 1</code>, <code>mover_stayer</code> and <code>group</code> are refused.</p>
+<p><code>predictors_items</code> is accepted and acts in step 1 only, where the status
+at every occasion is also regressed on the same covariates (without that
+regression the item slope would have to carry the whole association
+between the covariate and the status). Step 3 fits whatever
+<code>predictors_initial</code> and <code>predictors_transition</code> ask for. Step 1 has no
+standard errors in this case, so step 3's treat the classification error
+as known rather than adding step 1's uncertainty.</p>
+    </div>
+    <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
     <p>Collins, L. M., &amp; Lanza, S. T. (2010). <em>Latent Class and Latent
 Transition Analysis: With Applications in the Social, Behavioral, and Health
@@ -633,7 +835,29 @@ Association</em>, <em>68</em>(343), 683-691.
 <p>Muthen, B., &amp; Asparouhov, T. (2022). Latent transition analysis with random
 intercepts (RI-LTA). <em>Psychological Methods</em>, <em>27</em>(1), 1-16.
 <a href="https://doi.org/10.1037/met0000370" class="external-link">doi:10.1037/met0000370</a></p>
-<p>Tseng, M.-C. (2024). Latent profile transition analysis with random
+<p>Bakk, Z., &amp; Kuha, J. (2018). Two-step estimation of models between latent
+classes and external variables. <em>Psychometrika</em>, <em>83</em>(4),
+871-892. <a href="https://doi.org/10.1007/s11336-017-9592-7" class="external-link">doi:10.1007/s11336-017-9592-7</a>
+ - the estimator behind
+<code>n_steps = 2</code>.</p>
+<p>Bartolucci, F., Montanari, G. E., &amp; Pandolfi, S. (2015). Three-step
+estimation of latent Markov models with covariates. <em>Computational
+Statistics &amp; Data Analysis</em>, <em>83</em>, 287-301.
+<a href="https://doi.org/10.1016/j.csda.2014.10.017" class="external-link">doi:10.1016/j.csda.2014.10.017</a>
+ - the longitudinal case. Their step 1
+pools the occasions into one cross-sectional latent class model; the step 1
+here is the latent transition model's own measurement block, which already
+carries whatever invariance constraints the fit asks for. Both hold the
+measurement parameters fixed and maximise the full likelihood over the
+structural ones.</p>
+<p>Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
+three-step approaches. <em>Political Analysis</em>, <em>18</em>(4), 450-469.
+<a href="https://doi.org/10.1093/pan/mpq025" class="external-link">doi:10.1093/pan/mpq025</a>
+ - the correction behind <code>n_steps = 3</code>.</p>
+<p>Bakk, Z., Oberski, D. L., &amp; Vermunt, J. K. (2014). Relating latent class
+assignments to external variables: Standard errors for correct inference.
+<em>Political Analysis</em>, <em>22</em>(4), 520–540. <a href="https://doi.org/10.1093/pan/mpu003" class="external-link">doi:10.1093/pan/mpu003</a></p><ul><li><p>the standard errors of <code>n_steps = 3</code>.</p></li>
+</ul><p>Tseng, M.-C. (2024). Latent profile transition analysis with random
 intercepts (RI-LPTA). <em>Structural Equation Modeling</em>, <em>31</em>(4),
 626-634. <a href="https://doi.org/10.1080/10705511.2023.2284671" class="external-link">doi:10.1080/10705511.2023.2284671</a>
  - the sample-size analysis

@@ -280,12 +280,12 @@ fit
 #> 
 #> GROWTH FACTOR MEANS
 #>         intercept linear
-#> Class 1     1.025  0.178
-#> Class 2     2.946  1.002
+#> Class 1     1.023  0.177
+#> Class 2     2.943  1.001
 #> 
 #> GROWTH FACTOR (CO)VARIANCE (held equal across classes)
 #>           intercept linear
-#> intercept     1.204  0.005
+#> intercept     1.205  0.005
 #> linear        0.005  0.189
 #> 
 #> RESIDUAL VARIANCE (held equal across classes)
@@ -294,26 +294,26 @@ fit
 #> 
 #> FITTED TRAJECTORY (mean)
 #>            T1    T2    T3    T4
-#> Class 1 1.025 1.203 1.381 1.559
-#> Class 2 2.946 3.948 4.950 5.951
+#> Class 1 1.023 1.200 1.376 1.553
+#> Class 2 2.943 3.943 4.944 5.944
 #> =========================================================
 #>                   LATENT MIXTURE MODEL                   
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 158 iterations)
+#> Converged          : TRUE (in 162 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -2598.50
 #>   Parameters     : 12
 #>   AIC            : 5221.00
 #>   BIC            : 5268.90
 #>   SABIC          : 5230.82
-#>   Rel. Entropy   : 0.6344
+#>   Rel. Entropy   : 0.6341
 #>   Best solution  : found by 2 of 4 starts that ran to convergence (of 10 requested)
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 54.62%
-#>   Class 2: 45.38%
+#>   Class 1: 54.53%
+#>   Class 2: 45.47%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 # }

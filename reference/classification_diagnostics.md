@@ -41,7 +41,14 @@ Both tables use the case weights when the model was fitted with any.
 classification_diagnostics(object, ...)
 
 # Default S3 method
-classification_diagnostics(object, ...)
+classification_diagnostics(
+  object,
+  n_boot = 0,
+  level = 0.95,
+  random_state = 123,
+  n_cores = .default_n_cores(),
+  ...
+)
 ```
 
 ## Arguments
@@ -55,11 +62,40 @@ classification_diagnostics(object, ...)
 
   Passed to methods.
 
+- n_boot:
+
+  Non-negative integer. Number of case-resampling bootstrap draws behind
+  a percentile interval for each class proportion; `0` (the default)
+  skips it. Each draw continues the fitted solution on the resampled
+  cases (one EM run from the fitted parameters, no restarts), so its
+  classes keep the fitted labels. Available for an unconditional,
+  unweighted, single-group, one-step fit.
+
+- level:
+
+  Confidence level of that interval. Default `0.95`.
+
+- random_state:
+
+  Integer seed for the resampling. Default `123`.
+
+- n_cores:
+
+  Positive integer. Processes to spread the draws over. Default `1`, or
+  `options(mixtureEM.n_cores = )` where set.
+
 ## Value
 
 Invisibly, a list with `ave_pp` (the K x K matrix), `table` (the
-classification table) and `error` (the classification error). All are
-also printed to the console.
+classification table), `error` (the classification error) and `classes`,
+Masyn's (2013) per-class table: `Proportion` (the model's class
+proportion), `Lower` and `Upper` (its bootstrap interval, when
+`n_boot > 0`), `mcaP` (the share of cases modally assigned to the
+class), `AvePP` (the diagonal of the AvePP matrix) and `OCC`, the odds
+of correct classification, \\\[\mathrm{AvePP}\_k/(1-\mathrm{AvePP}\_k)\]
+/ \[\pi_k/(1-\pi_k)\]\\: how much better modal assignment does than
+guessing from the class proportion alone. Masyn suggests values above 5
+indicate good separation. All are also printed to the console.
 
 ## References
 
@@ -75,6 +111,10 @@ Education* (4th ed., Vol. 14, pp. 646-655). Elsevier.
 
 Nagin, D. S. (2005). *Group-Based Modeling of Development*. Harvard
 University Press.
+
+Masyn, K. E. (2013). Latent class analysis and finite mixture modeling.
+In T. D. Little (Ed.), *The Oxford Handbook of Quantitative Methods*
+(Vol. 2, pp. 551-611). Oxford University Press.
 
 ## See also
 
@@ -105,10 +145,15 @@ classification_diagnostics(fit)
 #> Rows: model-expected membership | Columns: modal assignment
 #> 
 #>         Modal 1 Modal 2    Total
-#> Class 1   46.07 12.4191  58.4892
-#> Class 2    9.93 31.5809  41.5108
-#> Total     56.00 44.0000 100.0000
+#> Class 1 46.0756 12.4153  58.4908
+#> Class 2  9.9244 31.5847  41.5092
+#> Total   56.0000 44.0000 100.0000
 #> 
-#> Classification error: 0.2235 (22.35% of 100 cases)
+#> Classification error: 0.2234 (22.34% of 100 cases)
 #> =========================================================
+#> 
+#> Class sizes and classification quality (Masyn, 2013)
+#>  Class Proportion mcaP AvePP   OCC
+#>      1      0.584 0.56 0.823 3.306
+#>      2      0.416 0.44 0.718 3.572
 ```

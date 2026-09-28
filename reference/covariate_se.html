@@ -17,7 +17,7 @@ estimators of the covariate covariance matrix."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -78,7 +78,12 @@ and \(J = (-H_3)^{-1} \partial^2 L_3 / \partial\theta_3
     \partial\theta_1'\) the implicit derivative of the step-3 estimates with
 respect to the step-1 parameters. This is the estimator their simulation
 recommends; the second-order form of their eq. 18 adds a term that
-vanishes asymptotically.</p></dd>
+vanishes asymptotically. \(D_1\) needs the step-1 model in an
+unconstrained parameterisation, which exists for binary, categorical,
+count and continuous indicators, alone, mixed, in time blocks, by
+group, or with item DIF. For a growth mixture model or an LCGA as
+step 1, the <code>"robust"</code> estimator is
+reported instead, with a warning, and <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> names it.</p></dd>
 
 <dt><code>"robust"</code></dt>
 <dd><p>The step-3 sandwich only,
@@ -125,22 +130,64 @@ be treated with suspicion however wide its interval.</p>
 produced the numbers they show.</p>
     </div>
     <div class="section level2">
+    <h2 id="the-two-step-estimator">The two-step estimator<a class="anchor" aria-label="anchor" href="#the-two-step-estimator"></a></h2>
+
+
+<p>A two-step fit (<code>n_steps = 2</code>, or <code>steps = 2</code> in
+<code><a href="add_covariates.html">add_covariates</a></code>) has no assigned classes and no classification
+table: the class-prediction coefficients maximise the joint log-likelihood
+with the measurement parameters held at their step-1 estimate. The same
+three <code>se</code> values select among the pseudo-maximum-likelihood estimators
+of Gong and Samaniego (1981) as written for this case by Bakk and Kuha
+(2018, eq. 5):</p><dl><dt><code>"corrected"</code> (default)</dt>
+<dd><p>\(V = V_2 + V_1\), where
+\(V_2 = I_{22}^{-1}\) is the inverse observed information of the joint
+log-likelihood in the structural parameters, and
+\(V_1 = I_{22}^{-1} I_{12}' \Sigma_{11} I_{12} I_{22}^{-1}\) carries the
+sampling variance \(\Sigma_{11}\) of the step-1 measurement parameters
+through the cross-information \(I_{12}\). Both blocks of the
+information matrix are differenced numerically from the joint
+log-likelihood; \(\Sigma_{11}\) is the step-1 observed information
+inverted, or the outer product of the step-1 scores above 100
+measurement parameters.</p></dd>
+
+<dt><code>"robust"</code></dt>
+<dd><p>The sandwich \(V_2 M V_2\) with \(M\) the outer
+product of the case-level scores of the joint log-likelihood (PSU-level
+within strata under a survey design), without the step-1 term.</p></dd>
+
+<dt><code>"hessian"</code></dt>
+<dd><p>\(V_2\) alone: what an analysis that treats the
+step-1 estimate as known would report.</p></dd>
+
+
+</dl><p>The step-1 term is not small when the classes are poorly separated. Bakk
+and Kuha (2018, Table 2) put the step-2-only standard error at 40 to 60
+percent of the whole at entropy R-squared near 0.36, 73 to 88 percent near
+0.65 and 98 to 99 percent near 0.90, with the 95 percent intervals of the
+step-2-only estimator covering 77 to 86 percent at the lowest separation.
+Under a survey design <code>"corrected"</code> uses the model-based \(V_2\),
+not the linearised one; <code>"robust"</code> is the design-based choice there.</p>
+    </div>
+    <div class="section level2">
     <h2 id="scope">Scope<a class="anchor" aria-label="anchor" href="#scope"></a></h2>
 
 
 <p>The corrected and robust estimators cover a covariate (class-prediction)
-structural model estimated with <code>n_steps = 2</code>, or with
-<code>n_steps = 3</code> and <code>correction = "none"</code> or <code>"ML"</code>. Three cases
-fall back to the uncorrected Hessian, and say so in the printed output:
-<code>correction = "BCH"</code> (whose weights need their own variance treatment,
-and which is not recommended for covariates in any case);
+structural model estimated with <code>n_steps = 3</code> and
+<code>correction = "none"</code> or <code>"ML"</code>, and with <code>n_steps = 2</code>. Four
+cases fall back to the uncorrected Hessian, and say so in the printed
+output: <code>correction = "BCH"</code> (whose weights need their own variance
+treatment, and which is not recommended for covariates in any case);
 <code>n_steps = 1</code>, where measurement and structural parameters are estimated
-jointly and no carry-over correction applies; and a covariate combined with a
-distal outcome in one nested structural model. The step-1 term additionally
-requires a measurement model whose parameters this package can put on an
-unconstrained scale — binary, polytomous, Gaussian, count, mixed, and
-repeated-measures models qualify; growth models do not, and there the robust
-sandwich is reported instead.</p>
+jointly and no carry-over correction applies; a two-step fit whose
+structural model is a distal outcome rather than class predictors; and a
+covariate combined with a distal outcome in one nested structural model.
+The step-1 term additionally requires a measurement model whose parameters
+this package can put on an unconstrained scale — binary, polytomous,
+Gaussian, count, mixed, and repeated-measures models qualify; growth models
+do not, and there the robust sandwich (three-step) or \(V_2\) (two-step)
+is reported instead.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -151,6 +198,9 @@ assignments to external variables: Standard errors for correct inference.
 three-step approaches. <em>Political Analysis</em>, <em>18</em>(4), 450-469.</p>
 <p>Gong, G., &amp; Samaniego, F. J. (1981). Pseudo maximum likelihood estimation:
 Theory and applications. <em>The Annals of Statistics</em>, <em>9</em>(4), 861-869.</p>
+<p>Bakk, Z., &amp; Kuha, J. (2018). Two-step estimation of models between latent
+classes and external variables. <em>Psychometrika</em>, <em>83</em>(4), 871-892.
+<a href="https://doi.org/10.1007/s11336-017-9592-7" class="external-link">doi:10.1007/s11336-017-9592-7</a></p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

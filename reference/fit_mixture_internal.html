@@ -13,7 +13,7 @@ estimation with optional bias correction."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -81,6 +81,7 @@ estimation with optional bias correction.</p>
 <span>  refine <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  bayes_constants <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  warm_start <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  dif <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  se <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"corrected"</span>, <span class="st">"robust"</span>, <span class="st">"hessian"</span><span class="op">)</span>,</span>
 <span>  n_cores <span class="op">=</span> <span class="fu">.default_n_cores</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  <span class="va">...</span></span>
@@ -140,7 +141,9 @@ One of <code>"covariate"</code>, <code>"distal_regression"</code>,
 
 <dt id="arg-n-steps">n_steps<a class="anchor" aria-label="anchor" href="#arg-n-steps"></a></dt>
 <dd><p>Integer. Estimation approach: <code>1</code> for simultaneous
-1-step, <code>2</code> for 2-step, or <code>3</code> for bias-corrected 3-step.
+1-step, <code>2</code> for the two-step estimator of Bakk and Kuha (2018;
+measurement model fixed at its step-1 estimate, structural model
+maximised on the full likelihood), or <code>3</code> for bias-corrected 3-step.
 Default is <code>1</code>.</p></dd>
 
 
@@ -225,16 +228,25 @@ group-varying measurement search to seed each fit from the pooled solution.
 <code>NULL</code> (default) uses only the usual random initializations.</p></dd>
 
 
+<dt id="arg-dif">dif<a class="anchor" aria-label="anchor" href="#arg-dif"></a></dt>
+<dd><p>Optional direct covariate effects on binary items, as built by
+<code><a href="fit_mixture.html">fit_mixture()</a></code> from <code>predictors_items</code>: a list of <code>Z</code>
+(the covariates), <code>free</code> (items by covariates, which slopes exist) and
+<code>by_class</code> (which items' slopes differ by class). One-step fits only.</p></dd>
+
+
 <dt id="arg-se">se<a class="anchor" aria-label="anchor" href="#arg-se"></a></dt>
 <dd><p>Character. How standard errors for a covariate (class-prediction)
-structural model are computed when <code>n_steps</code> is <code>2</code> or <code>3</code>.
+structural model are computed when <code>n_steps</code> is <code>3</code>.
 <code>"corrected"</code> (default) is the first-order corrected estimator of
 Bakk et al. (2014): the step-3 sandwich plus the variance
-propagated from step 1. <code>"robust"</code> keeps only the sandwich.
+propagated from step 1; on a measurement model that term cannot be
+computed for, the sandwich alone is reported with a warning.
+<code>"robust"</code> keeps only the sandwich.
 <code>"hessian"</code> inverts the
 step-3 observed information alone. See <code><a href="covariate_se.html">covariate_se</a></code> for the
 differences and when they matter. Ignored for other structural models and
-for <code>n_steps = 1</code>.</p></dd>
+for <code>n_steps = 1</code> and <code>2</code>.</p></dd>
 
 
 <dt id="arg-n-cores">n_cores<a class="anchor" aria-label="anchor" href="#arg-n-cores"></a></dt>
@@ -285,13 +297,13 @@ Use <code>exp(fit$log_resp)</code> to obtain posterior probabilities.</p></li>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   AIC            : 708.04</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   BIC            : 752.33</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   SABIC          : 698.64</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Rel. Entropy   : 0.4578</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Rel. Entropy   : 0.4579</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Best solution  : found by 5 of 5 starts</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> ---------------------------------------------------------</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Class Weights (Sizes):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Class 1: 47.49%</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Class 2: 29.86%</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 3: 22.64%</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 3: 22.65%</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></span>
@@ -336,8 +348,8 @@ Use <code>exp(fit$log_resp)</code> to obtain posterior probabilities.</p></li>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                               OR         [95% CI]         P-Value</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Class 2 ON</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Intercept                0.725  [    0.014,    37.712]     0.873</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   V1                       0.780  [    0.288,     2.114]     0.625</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Intercept                0.725  [    0.014,    37.564]     0.873</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   V1                       0.780  [    0.288,     2.113]     0.626</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

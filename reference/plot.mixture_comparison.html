@@ -25,7 +25,7 @@ alongside class size, interpretability and the substantive question.'></head><bo
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -149,16 +149,16 @@ identifying differences in longitudinal change among unobserved groups.
 <span class="r-out co"><span class="r-pr">#&gt;</span> Fitting 4-class model...</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> === Model Selection Summary ===</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Classes       LL Params     AIC     BIC    CAIC    AIC3     ICL   SABIC</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1       1 -342.102      5 694.203 707.229 712.229 699.203 707.229 691.438</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2       2 -340.085     11 702.170 730.827 741.827 713.170 827.464 696.086</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3       3 -337.019     17 708.039 752.327 769.327 725.039 871.466 698.636</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4       4 -334.543     23 715.086 775.005 798.005 738.086 888.720 702.365</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Entropy Unreplicated</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1   1.000        FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2   0.303        FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3   0.458        FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4   0.590        FALSE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Classes       LL Params     AIC     BIC    CAIC     AWE    AIC3     ICL</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1       1 -342.102      5 694.203 707.229 712.229 745.255 699.203 707.229</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2       2 -340.085     11 702.170 730.826 741.826 814.483 713.170 827.423</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3       3 -337.019     17 708.038 752.326 769.326 881.614 725.038 871.443</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4       4 -334.543     23 715.086 775.005 798.005 949.923 738.086 888.727</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     SABIC Entropy Unreplicated        BF cmP</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 691.438   1.000        FALSE 133077.96   1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 696.086   0.303        FALSE  46627.99   0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 698.636   0.458        FALSE  84045.07   0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4 702.365   0.590        FALSE        NA   0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> -&gt; Best model according to BIC: 1 classes</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span></span>

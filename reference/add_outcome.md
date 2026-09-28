@@ -14,7 +14,10 @@ add_outcome(
   covariates = NULL,
   outcome_type = c("auto", "continuous", "categorical"),
   slopes = "pooled",
+  predictors = NULL,
+  variances = c("equal", "class_specific"),
   correction = c("auto", "BCH", "ML", "none"),
+  steps = c(3, 2),
   se = c("corrected", "robust", "hessian"),
   assignment = c("proportional", "modal"),
   max_iter = 1000,
@@ -58,13 +61,62 @@ add_outcome(
   `~ loc1 + loc2`) giving a slope per class to just those covariates
   while the rest stay pooled. The last form – letting the class moderate
   some covariates while adjusting for others – is continuous-outcome
-  only.
+  only. For a continuous outcome, `"class_specific"` is the same model
+  as naming every covariate, and is fitted as one: its standard errors
+  are the sandwich clustered on the case, and
+  [`outcome_contrasts()`](https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.md)
+  can compare its slopes.
+
+- predictors:
+
+  Optional covariates that predict class membership, in any form
+  [`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md)
+  accepts. When supplied, the class-membership regression and the
+  outcome are estimated together in one step-3 model: each case's
+  contribution is \\\sum_k P(k \mid z) f(y \mid k, x)\\ times the
+  classification-error term, so the class probabilities the outcome is
+  related to are the covariate-specific ones rather than the overall
+  class sizes (Vermunt, 2010). `outcome` may then name several distal
+  outcomes (a data frame, or a formula naming several columns of
+  `data`); each is specified as it would be on its own and all share
+  `covariates`. Estimated separately, the outcomes and the predictors
+  would each answer a different question from different class
+  probabilities; estimated jointly, the paths from the predictors to the
+  classes, from the classes to each outcome, and from the covariates to
+  each outcome are adjusted for one another. Available with
+  `correction = "ML"` (the default here) or `"BCH"`, and pooled slopes.
+  Under ML the standard errors are those of the joint step-3
+  log-likelihood (`se = "hessian"` for the inverse observed information,
+  otherwise the sandwich); under BCH the model is fitted to the
+  BCH-weighted log-likelihood and its standard errors are always the
+  sandwich clustered on the case. Both treat the step-1 estimates as
+  known.
+
+- variances:
+
+  For a continuous outcome with `covariates`: `"equal"` (default; one
+  residual variance shared by the classes) or `"class_specific"` (one
+  per class). A continuous outcome without covariates always has one
+  variance per class.
 
 - correction:
 
   Bias correction for the third step: `"auto"` (default) picks `"BCH"`
   for continuous outcomes (Bakk & Vermunt, 2016) and `"ML"` for
   categorical outcomes; or set `"BCH"`, `"ML"`, `"none"` directly.
+  Three-step only; an error with `steps = 2`.
+
+- steps:
+
+  `3` (default) for the bias-adjusted three-step, or `2` for the
+  two-step estimator of Bakk and Kuha (2018): `fit`'s measurement model
+  and class sizes are held fixed and the outcome model is estimated by
+  maximising the full likelihood, every case's class probabilities
+  recomputed under the joint model at each iteration. No classification
+  step, no correction. See `n_steps` in
+  [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md);
+  for a distal outcome the two-step's standard errors do not yet carry
+  the step-1 uncertainty, and the printed output says so.
 
 - se:
 
@@ -72,9 +124,15 @@ add_outcome(
   (default), `"robust"`, or `"hessian"`. It governs the covariate part
   of the third step. A continuous distal outcome under
   `correction = "BCH"` always reports a sandwich clustered on the case,
-  whatever this is set to: the expanded data set carries one weighted
-  record per class per case, so a case-clustered sandwich is the only
-  estimator that prices the information the correction gives up.
+  whatever this is set to, and so does a BCH model with `predictors`:
+  the expanded data set carries one weighted record per class per case,
+  so a case-clustered sandwich is the only estimator that prices the
+  information the correction gives up. A distal outcome's standard
+  errors, under BCH or ML, treat step 1's estimates as known: the step-1
+  term `"corrected"` adds exists for class predictors only (see
+  [covariate_se](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md)),
+  so with poorly separated classes an outcome's intervals are somewhat
+  too narrow.
 
 - assignment:
 
@@ -112,6 +170,10 @@ means or probabilities and their tests, and
 for which classes differ from which, rather than whether any of them do.
 
 ## References
+
+Vermunt, J. K. (2010). Latent class modeling with covariates: Two
+improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
+[doi:10.1093/pan/mpq025](https://doi.org/10.1093/pan/mpq025)
 
 Bakk, Z., & Vermunt, J. K. (2016). Robustness of stepwise latent class
 modeling with continuous distal outcomes. *Structural Equation
@@ -164,7 +226,7 @@ summary(fit_out)
 #> 
 #> Pairwise class differences:
 #>                     Difference       [95% CI]        P-Value
-#>   Class 2 vs 1        -0.096  [-0.986,  0.794]     0.832
+#>   Class 2 vs 1        -0.096  [-0.987,  0.794]     0.832
 #> =========================================================
 
 # The same outcome named in a formula against its data frame

@@ -14,6 +14,7 @@ add_covariates(
   fit,
   predictors,
   correction = c("ML", "BCH", "none"),
+  steps = c(3, 2),
   se = c("corrected", "robust", "hessian"),
   assignment = c("proportional", "modal"),
   max_iter = 1000,
@@ -43,12 +44,28 @@ add_covariates(
 - correction:
 
   Bias correction for the third step: `"ML"` (default; Vermunt, 2010),
-  `"BCH"`, or `"none"`.
+  `"BCH"`, or `"none"`. Three-step only; an error with `steps = 2`.
+
+- steps:
+
+  `3` (default) for the bias-adjusted three-step, or `2` for the
+  two-step estimator of Bakk and Kuha (2018): `fit`'s measurement model
+  is held fixed and the class-membership regression is estimated by
+  maximising the full likelihood, with every case's class probabilities
+  recomputed under the joint model at each iteration. No classification
+  step, no correction. `fit` is exactly the step-1 estimate the two-step
+  starts from. See `n_steps` in
+  [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+  for what the two-step is and is not. Its standard errors carry the
+  step-1 uncertainty (Bakk and Kuha, 2018, eq. 5); see
+  [covariate_se](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md).
 
 - se:
 
-  Standard-error estimator passed on to the third step: `"corrected"`
-  (default), `"robust"`, or `"hessian"`.
+  Standard-error estimator for the structural coefficients:
+  `"corrected"` (default), `"robust"`, or `"hessian"`. What each is
+  under the three-step and under the two-step is in
+  [covariate_se](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md).
 
 - assignment:
 
@@ -60,11 +77,11 @@ add_covariates(
   who compared the two rules across 54 simulation conditions and found
   proportional at least as accurate everywhere and clearly better when
   the classes are poorly separated. Use `"modal"` when reproducing an
-  analysis whose classes were assigned that way.
+  analysis whose classes were assigned that way. Three-step only.
 
 - max_iter:
 
-  Maximum iterations for the step-3 estimation.
+  Maximum iterations for the structural estimation.
 
 - data:
 
@@ -140,6 +157,11 @@ bias-adjusted three-step approaches. *Sociological Methodology*,
 *43*(1), 272–311.
 [doi:10.1177/0081175012470644](https://doi.org/10.1177/0081175012470644)
 
+Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between
+latent classes and external variables. *Psychometrika*, *83*(4),
+871–892.
+[doi:10.1007/s11336-017-9592-7](https://doi.org/10.1007/s11336-017-9592-7)
+
 Jiang, Y., Elliott, M. R., Sammel, M. D., & Wang, N. (2016). Joint
 modeling of cross-sectional health outcomes and longitudinal predictors
 via mixtures of latent classes. *Statistics and Its Interface*, *9*,
@@ -173,8 +195,8 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.761  [    0.000, 18742.480]     0.958
-#>   age                      0.929  [    0.280,     3.080]     0.904
+#>   Intercept                0.761  [    0.000, 18438.513]     0.958
+#>   age                      0.929  [    0.280,     3.076]     0.904
 #> =========================================================
 
 # The same covariate named in a formula against its data frame

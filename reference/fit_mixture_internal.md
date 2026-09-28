@@ -28,6 +28,7 @@ fit_mixture_internal(
   refine = TRUE,
   bayes_constants = NULL,
   warm_start = NULL,
+  dif = NULL,
   se = c("corrected", "robust", "hessian"),
   n_cores = .default_n_cores(),
   ...
@@ -84,8 +85,10 @@ fit_mixture_internal(
 
 - n_steps:
 
-  Integer. Estimation approach: `1` for simultaneous 1-step, `2` for
-  2-step, or `3` for bias-corrected 3-step. Default is `1`.
+  Integer. Estimation approach: `1` for simultaneous 1-step, `2` for the
+  two-step estimator of Bakk and Kuha (2018; measurement model fixed at
+  its step-1 estimate, structural model maximised on the full
+  likelihood), or `3` for bias-corrected 3-step. Default is `1`.
 
 - correction:
 
@@ -172,17 +175,26 @@ fit_mixture_internal(
   measurement search to seed each fit from the pooled solution. `NULL`
   (default) uses only the usual random initializations.
 
+- dif:
+
+  Optional direct covariate effects on binary items, as built by
+  [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+  from `predictors_items`: a list of `Z` (the covariates), `free` (items
+  by covariates, which slopes exist) and `by_class` (which items' slopes
+  differ by class). One-step fits only.
+
 - se:
 
   Character. How standard errors for a covariate (class-prediction)
-  structural model are computed when `n_steps` is `2` or `3`.
-  `"corrected"` (default) is the first-order corrected estimator of Bakk
-  et al. (2014): the step-3 sandwich plus the variance propagated from
-  step 1. `"robust"` keeps only the sandwich. `"hessian"` inverts the
-  step-3 observed information alone. See
+  structural model are computed when `n_steps` is `3`. `"corrected"`
+  (default) is the first-order corrected estimator of Bakk et al.
+  (2014): the step-3 sandwich plus the variance propagated from step 1;
+  on a measurement model that term cannot be computed for, the sandwich
+  alone is reported with a warning. `"robust"` keeps only the sandwich.
+  `"hessian"` inverts the step-3 observed information alone. See
   [`covariate_se`](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md)
   for the differences and when they matter. Ignored for other structural
-  models and for `n_steps = 1`.
+  models and for `n_steps = 1` and `2`.
 
 - n_cores:
 
@@ -242,13 +254,13 @@ print(fit)
 #>   AIC            : 708.04
 #>   BIC            : 752.33
 #>   SABIC          : 698.64
-#>   Rel. Entropy   : 0.4578
+#>   Rel. Entropy   : 0.4579
 #>   Best solution  : found by 5 of 5 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 47.49%
 #>   Class 2: 29.86%
-#>   Class 3: 22.64%
+#>   Class 3: 22.65%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 summary(fit)
@@ -293,7 +305,7 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.725  [    0.014,    37.712]     0.873
-#>   V1                       0.780  [    0.288,     2.114]     0.625
+#>   Intercept                0.725  [    0.014,    37.564]     0.873
+#>   V1                       0.780  [    0.288,     2.113]     0.626
 #> =========================================================
 ```

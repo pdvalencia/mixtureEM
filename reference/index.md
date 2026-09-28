@@ -37,6 +37,8 @@
   : Confidence Intervals for Odds Ratios in a Mixture Model
 - [`covariate_se`](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md)
   : Standard Errors for Covariate Effects in Three-Step Models
+- [`dif_effects()`](https://pdvalencia.github.io/mixtureEM/reference/dif_effects.md)
+  : Direct covariate effects on the indicators
 - [`ecls_reading`](https://pdvalencia.github.io/mixtureEM/reference/ecls_reading.md)
   : Reading proficiency from kindergarten to first grade (ECLS-K)
 - [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
@@ -58,6 +60,8 @@
 - [`liang_park_sim`](https://pdvalencia.github.io/mixtureEM/reference/liang_park_sim.md)
   : Simulated bystander intervention data (Liang & Park, Study 2
   analogue)
+- [`link_models()`](https://pdvalencia.github.io/mixtureEM/reference/link_models.md)
+  : Link separately fitted mixture models by the three-step
 - [`longitudinal_lrt()`](https://pdvalencia.github.io/mixtureEM/reference/longitudinal_lrt.md)
   : Likelihood-Ratio Test for Two Nested Models (deprecated name)
 - [`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)

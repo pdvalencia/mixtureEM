@@ -1,5 +1,594 @@
 # Changelog
 
+## mixtureEM (development version)
+
+### Class-specific slopes on a continuous outcome report the sandwich
+
+`slopes = "class_specific"` on a continuous distal outcome fitted each
+class’s regression on its own and reported the standard error
+`sqrt(sigma2 * diag((Z'WZ)^-1))`, which prices the fit as ordinary least
+squares. Under BCH weights that understates every standard error,
+because inverting the classification table costs information that
+formula never charges for. The same model with every covariate named in
+`slopes` already reported the sandwich clustered on the case, and
+`"class_specific"` is now fitted as exactly that model. The estimates do
+not change. The standard errors do, and they are larger: by a factor of
+1.3 to 2.1 on a three-class simulated example.
+[`summary()`](https://rdrr.io/r/base/summary.html) prints the result in
+the layout of a named `slopes` fit, one row per covariate and class
+(`loc1:Class2`), and
+[`outcome_contrasts()`](https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.md)
+now accepts it, since the classes’ covariance is kept. Two refusals that
+existed only because of the separate fit are gone: a continuous
+`"class_specific"` outcome can now be fitted with `predictors`, and with
+`variances = "class_specific"`. A categorical outcome’s
+`"class_specific"` is unchanged.
+
+### A corrected standard error that cannot be computed now says so
+
+`se = "corrected"`, the default for class predictors in a two- or
+three-step fit, adds the uncertainty in step 1’s estimates to the
+covariate standard errors. That needs the step-1 model in an
+unconstrained parameterisation, which a growth mixture model or an LCGA
+as step 1 does not have yet. Those fits have always reported the
+uncorrected estimator instead: the step-3 sandwich for a three-step fit,
+step 2’s observed information for a two-step one. The only sign was the
+“Standard errors:” line of
+[`summary()`](https://rdrr.io/r/base/summary.html). They now also warn
+at fit time, and `se = "robust"` (three-step) or `se = "hessian"`
+(two-step) asks for the reported estimator by name and does not warn.
+[`?covariate_se`](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md)
+lists the measurement models that carry the correction. No number
+changes.
+
+### A model with negative degrees of freedom is warned about
+
+A latent class model with more free parameters than its table of
+response patterns has free cells cannot be identified (Goodman, 1974):
+four binary items give 15 free cells, and four classes on them cost 19
+parameters. The package fitted such a model and returned it without
+comment, and because the priors make the answer determinate, nothing in
+the output showed that the data could not decide it.
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+now warns when every indicator is categorical and the count is negative,
+and
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+gives one warning naming every K in the sweep that crosses the boundary.
+A stepwise fit is judged on its step-1 model. A one-step fit whose class
+weights depend on covariates is not counted, since the count does not
+apply to it as stated. No number changes.
+
+### Categorical items with different numbers of categories share one block
+
+`measurement = "categorical"` now counts each item’s categories on its
+own. Before, one block had one category count, its widest item’s, and
+every item was charged for it: a two-category item next to a
+four-category one cost three parameters per class instead of one. The
+log-likelihood was right, but `n_params` was too large, and with it AIC,
+BIC and the other information criteria, the degrees of freedom of
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md),
+and the known-class parameter count of a multiple-group fit.
+[`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
+also printed the extra categories as rows of zeros, and step 3’s
+corrected standard errors were computed around them. Every fit whose
+items all have the same number of categories is unchanged, number for
+number. A fit that mixes counts in one block keeps its log-likelihood
+and loses the extra parameters, so every number built on the parameter
+count moves, and its starting values move with it, since the padding now
+starts at 0.
+
+An item’s categories are its highest observed code or, for a factor, its
+number of levels, whichever is larger, so an unused level stays part of
+the item. In a multiple-group model,
+[`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md)
+and
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+the count is taken over every group and occasion together: the set of
+possible answers belongs to the item, and a category that one group or
+occasion never uses is estimated at 0 there, not removed. A warning
+names every category with no response in the whole sample, and every one
+with none in a single group or occasion when that item’s probabilities
+are free to differ there. The mixed `measurement` list is no longer
+needed to get the count right. It still works and now gives the same fit
+as the single block.
+
+### `outcome_contrasts()` compares class-specific slopes
+
+In a latent class moderation model – a distal outcome regressed on a
+covariate with a separate slope in each class –
+`outcome_contrasts(fit, term = "x")` now reports every pairwise
+difference between the classes’ slopes on `x`, with standard errors,
+intervals and p-values: which classes the covariate predicts the outcome
+differently in, the step after the omnibus test of equal slopes that
+[`summary()`](https://rdrr.io/r/base/summary.html) prints (Arch,
+Nylund-Gibson & Ing, 2026). The fit must name the covariate in `slopes`
+of
+[`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md).
+That model estimates every class’s line in one regression, so its
+sandwich covariance holds the covariance between different classes’
+slopes, and the contrast standard errors use it.
+`slopes = "class_specific"`, which fits the same lines one class at a
+time and keeps no such covariance, is still refused, now with a message
+that says to name the covariates instead. No fitted number changes.
+
+### Linking two different mixture models by the three-step
+
+[`link_models()`](https://pdvalencia.github.io/mixtureEM/reference/link_models.md)
+relates the latent classes of separately fitted mixture models – a
+latent class analysis at one occasion and a growth mixture model at a
+later one, say – with the bias-adjusted three-step estimator. The models
+may differ in family and in number of classes, which the three-step
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+cannot express, since a latent transition model has one number of
+statuses at every occasion. Each fitted model is step 1; step 2 assigns
+every case to its most likely class under each model and forms that
+model’s classification-error table; step 3 is a multinomial logistic
+regression of each occasion’s class on the previous occasion’s, with
+covariates on the first occasion’s class and on the later ones, holding
+the error tables fixed. Standard errors come from step 3’s observed
+information and treat the error tables as known. `correction = "none"`
+gives the naive classify-analyse baseline. Nothing already in the
+package changes.
+
+### Every fit is taken to the maximum after EM
+
+The Newton-type finish below now runs on every model the package fits,
+not only categorical ones: continuous, count and mixed indicators,
+multiple-group models with means or variances held equal across groups,
+growth mixtures and latent class growth models, one-step fits with a
+distal outcome or a prevalence held equal across groups, and latent
+transition models with continuous, nominal or count items, several
+chains or a mover-stayer class. The two-step estimator’s second step and
+the three-step LTA’s third step are finished over the structural
+parameters only. EM’s stopping rule had left these fits short of their
+maximum too: by 0.017 on a growth mixture with missing waves, whose
+growth means moved in the second decimal, and by up to 0.045 on a
+one-step fit with a distal outcome. Reported log-likelihoods rise by
+those amounts and the estimates move to the maximum a long EM run
+reaches. Latent transition models with a random intercept keep their own
+search and are unchanged, as is every `refine = FALSE` fit.
+
+Three changes to the finish itself come with it, and they apply to
+categorical fits as well, which still reach the same maximum. A step is
+now judged on its gain summed case by case, which near the maximum
+resolves gains the total log-likelihood rounds away, and a step whose
+gain is within that sum’s own rounding is taken. A polytomous item is
+anchored on each class’s most probable category rather than its last, so
+an item with an empty category no longer freezes the class’s other
+probabilities. And the curvature now includes the prior’s own, which is
+what matters for a class variance far below the item’s variance.
+
+Growth mixtures, latent class growth models and latent transition models
+with continuous, nominal or count items now also rank their restarts and
+stop EM on the penalised objective EM climbs, as every other model
+already did.
+
+### Categorical fits are taken to the maximum after EM
+
+A categorical model whose optimum has response probabilities at 0 or 1
+sits on a ridge: the likelihood is almost flat along those cells, and EM
+crawls along it. The EM stopping rule, which fires once a step gains
+less than about 4e-5 at the sample sizes typical here, used to leave
+such fits 0.002 to 0.02 below their maximum. That is enough to move a
+classification table by 2e-3 and a three-step estimate built on it by up
+to 0.3 in log-likelihood.
+
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+and
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+now finish every categorical fit with Newton-type steps after EM. The
+steps use the outer product of the case-level scores as the curvature
+(BHHH), a trust region of one unit per coordinate, and the same
+penalised objective EM climbs. The finish covers binary and polytomous
+items, direct item effects, a class-membership regression, and the
+three-step LTA’s transition-free step 1. A logit that passes 15 is sent
+to the edge of the scale (25, a probability of 1e-11) and held there.
+Where EM stopped short, the reported log-likelihood rises by up to 0.02,
+and every estimate moves to the maximum that a long EM run eventually
+reaches. A fit whose EM hit its iteration cap but whose finish ends with
+every gradient component below 1e-6 per case is now reported as
+converged, and `fit$qn_finish` records the iterations, the held cells
+and the final gradient. The replication count still describes EM’s end
+points. LTA models with a free random-intercept loading and
+`refine = FALSE` fits (bootstrap replicates) are unchanged; the section
+above extends the finish to every other model.
+
+### The three-step `fit_lta()` offers the BCH correction
+
+`fit_lta(n_steps = 3, correction = "BCH")` was refused and now fits.
+Each occasion’s classification-error table is inverted, and each case is
+spread over the status paths by the product, over occasions, of the rows
+for the statuses it was assigned (Bolck, Croon and Hagenaars, 2004).
+Step 3 then fits the initial-status and transition models, with any
+covariates on them, to those weighted paths. The weights are not
+clipped, although many of them are negative. The fit reports the
+BCH-weighted log-likelihood, standard errors from the case-clustered
+sandwich, which leaves out step 1’s uncertainty, and the path weights as
+`threestep$bch_weights`. Assignment is modal; `distal`,
+`predictors_items`, `strata` and `cluster` are refused with BCH for now.
+Nothing changes for `"ML"` or `"none"`.
+
+### `fit_lta()` tests items for DIF one at a time, and inside the three-step
+
+`predictors_items` in
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+now also takes a named list, item name = the covariates acting on that
+item, as
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)’s
+does. A slope listed this way is shared by every status (uniform DIF,
+one parameter) unless the item is named in the new
+`predictors_items_by_status`, and items left out of the list get no
+slope at all. The matrix form keeps its meaning, a slope on every item
+for every status, and its fits are unchanged.
+
+`fit_lta(n_steps = 3)` no longer refuses `predictors_items`. The item
+slopes live in step 1, which then also regresses the status at each
+occasion on the same covariates, one regression per occasion with the
+occasions independent given the covariates; step 3 fits the structural
+model the call asks for, as before. Step 3’s standard errors in this
+case treat the classification error as known. Nothing changes
+numerically for a fit without `predictors_items`.
+
+### The three-step `fit_lta()` models a distal outcome off the last occasion
+
+`fit_lta(n_steps = 3, assignment = "modal")` gains `distal`, one or more
+outcomes measured after the last occasion. A binary column gets a
+status-specific probability and a continuous one a status-specific mean
+and variance, all by the status at the last occasion, and they are
+estimated in step 3 jointly with the initial-status and transition
+models, including any covariates on them. The outcome therefore informs
+who is in which status at the last occasion, and through that the
+transitions. The fit carries the estimates as `distal`, with standard
+errors that include step 1’s uncertainty, and
+[`outcome_contrasts()`](https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.md)
+now accepts such a fit and gives the pairwise status differences.
+Proportional assignment and survey designs are refused for now. Nothing
+changes for a fit without `distal`.
+
+### `fit_mixture()` models direct covariate effects on binary items
+
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+gains `predictors_items` and `predictors_items_by_class`, which let a
+covariate act on an item directly, inside each class: the item’s
+log-odds of endorsement shift with the covariate for people in the same
+class, which is differential item functioning. The analyst names each
+covariate-item pair; a slope is shared by every class unless the item is
+named in `predictors_items_by_class`, in which case each class gets its
+own. The fit is one-step, and the class-membership regression in
+`predictors` is estimated jointly with the direct effects. The reported
+item probabilities are those of a case with the item covariates at zero.
+The new
+[`dif_effects()`](https://pdvalencia.github.io/mixtureEM/reference/dif_effects.md)
+reports the slopes with standard errors from the observed information of
+the full model, and nested fits are compared with
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md).
+A class-specific slope on an item whose probability is 0 or 1 in some
+class is not identified there, and the fit warns when that happens.
+Binary indicators only for now. Nothing changes for a model without
+`predictors_items`.
+
+### `add_outcome()` estimates class predictors and distal outcomes together
+
+[`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md)
+gains `predictors`. With it, the class-membership regression and the
+distal outcome are one ML-corrected step-3 model, in which each outcome
+is related to the classes through the covariate-specific class
+probabilities, and `outcome` may name several distal outcomes, each with
+the same `covariates` and a pooled slope on them. The paths from the
+predictors to the classes, from the classes to each outcome and from the
+covariates to each outcome are then adjusted for one another, which
+fitting them one at a time does not do. The standard errors are those of
+the joint step-3 log-likelihood: `se = "hessian"` is its inverse
+observed information and the other settings the sandwich around it, and
+all of them treat the step-1 estimates as known.
+[`outcome_contrasts()`](https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.md)
+gains `outcome` to pick one of several outcomes, and now also contrasts
+a covariate-adjusted continuous outcome’s class intercepts;
+[`summary()`](https://rdrr.io/r/base/summary.html) shows each outcome in
+turn.
+
+A continuous outcome adjusted for covariates can now have one residual
+variance per class, `variances = "class_specific"`; the default
+`"equal"` is the existing single-variance model and gives the same
+numbers as before.
+
+The log-likelihood a joint fit reports is the step-3 likelihood written
+out term by term from its own estimates, and the tests check it that
+way.
+
+`correction = "BCH"` is also available with `predictors`. The joint
+model is then fitted to the BCH-weighted log-likelihood, the sum over
+cases and classes of each case’s BCH weight times the log of its class
+probability and outcome densities, with the M-step repeated on the fixed
+weights until that sum settles; it is the log-likelihood the fit
+reports. Its standard errors are always the sandwich with the scores
+summed per case, whatever `se` says, the rule a single BCH outcome
+already follows: the BCH weights are not frequencies, many of them are
+negative, and the inverse Hessian alone understates the class-specific
+variances by up to a third. The default correction with `predictors`
+stays `"ML"`. Nothing changes for a fit without `predictors`.
+
+Not yet covered: `correction = "none"` with `predictors`, class-specific
+covariate slopes in the joint model, and step-1 uncertainty in its
+standard errors.
+
+The legacy `fit_mixture(X, n_components =, predictors =, outcome =)`
+call ran this same model but reported a log-likelihood that left out the
+outcome densities; it now reports the full step-3 log-likelihood. Its
+estimates do not change, and its standard errors are now the joint ones
+described above.
+
+### The enumeration table gains AWE, BF and cmP; `classification_diagnostics()` gains Masyn’s class table
+
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+and
+[`compare_longitudinal()`](https://pdvalencia.github.io/mixtureEM/reference/compare_longitudinal.md)
+carry three more columns, the ones published class-enumeration tables
+report beside BIC. `AWE`, the approximate weight of evidence, is -2LL +
+2p(log n + 1.5) (Banfield & Raftery, 1993; Masyn, 2013), and is also
+stored on every fit as `fit$metrics$awe`. `BF` is the approximate Bayes
+factor of each row’s model against the next row’s, exp(SIC_K -
+SIC\_{K+1}) with SIC = -BIC/2, so a value above 1 favours the smaller
+model and the last row is `NA`. `cmP` is each model’s approximate
+probability of being the correct one among the models in the table
+(Wagenmakers, 2007; Masyn, 2013). The best-K line is still chosen by
+BIC, and no existing column changes.
+
+[`classification_diagnostics()`](https://pdvalencia.github.io/mixtureEM/reference/classification_diagnostics.md)
+now also returns and prints, as `classes`, the per-class table of Masyn
+(2013): the model’s class proportion, the share of cases modally
+assigned to each class (`mcaP`), the diagonal of the AvePP matrix and
+the odds of correct classification (`OCC`). With `n_boot > 0` it adds a
+percentile bootstrap interval for each class proportion, from case
+resampling that continues the fitted solution on every draw, for
+unconditional, unweighted, single-group fits. The existing `ave_pp`,
+`table` and `error` elements are unchanged.
+
+The
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+documentation now spells out how to compare the configural and the
+invariant measurement model before any transitions are modelled: the
+`$step1` of two `fit_lta(n_steps = 3)` fits.
+
+### `n_steps = 2` is now the two-step estimator, and its numbers change
+
+Every fit made with `n_steps = 2` returns different coefficients from
+before. What that setting used to run was not a two-step estimator: it
+took the step-1 class posteriors as fixed weights and fitted the
+structural model on them once, which is the uncorrected third step, the
+same code that `n_steps = 3, correction = "none"` runs and the estimator
+the literature describes as severely biased. `n_steps = 2` now runs the
+two-step of Bakk and Kuha (2018): the measurement model is fitted alone
+and then held fixed at that estimate, and the class predictors or the
+distal outcome are estimated by maximising the full likelihood with the
+measurement parameters as constants, so each case’s class probabilities
+are recomputed under the joint model at every iteration. There is no
+classification step and no classification table. The measurement
+parameters and class sizes of a two-step fit are bit-identical to its
+step-1 fit, and a test holds that for binary, continuous and polytomous
+indicators with the priors on and off. The uncorrected third step
+remains available where it always was,
+`n_steps = 3, correction = "none"`. Defaults do not move: the
+bias-adjusted three-step is still what a structural model gets when
+`n_steps` is left unset.
+
+[`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md)
+and
+[`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md)
+gain `steps = 2` for the same estimator on an already-fitted model,
+which is exactly the shape the two-step wants: the fitted object is the
+step-1 estimate. `correction` is a property of the third step and is an
+error alongside `steps = 2`.
+
+Three exact properties of the estimator are tested. With no class
+predictors the two-step reproduces the step-1 class sizes to machine
+precision, which is what Bakk and Kuha’s definition requires. Freeing
+the measurement block from the two-step solution and continuing EM lands
+on the one-step maximum, so the freeze is the only difference between
+the two. And when the classes are almost perfectly separated the
+one-step, two-step and ML three-step coefficients agree, as they must
+when a covariate can move no class probability.
+
+Standard errors for a two-step fit with class predictors are the
+pseudo-maximum-likelihood ones of Bakk and Kuha (2018, eq. 5): the
+inverse observed information of the joint likelihood in the structural
+coefficients, plus the sampling variance of the step-1 measurement
+parameters carried through the cross-information between the two blocks.
+Both blocks are differenced numerically from the joint likelihood; the
+step-1 variance is the same estimator the three-step correction already
+uses. The `se` argument selects the full variance (`"corrected"`, the
+default), the sandwich on the case-level scores (`"robust"`), or the
+step-2-only information (`"hessian"`), and
+[`?covariate_se`](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md)
+says what each is. The step-1 term is what an analysis that treats the
+step-1 estimate as known omits, and it is not small when the classes are
+poorly separated: on a two-class fixture with entropy R-squared 0.60 the
+step-2-only standard error of the intercept is 60 percent of the whole,
+and at entropy near 1 the two agree to four decimals. A test holds the
+step-2-only block against an independent numerical Hessian of the joint
+likelihood, and another holds the ordering and the two limits. A
+two-step fit with a distal outcome still reports the Q-function Hessian,
+labelled as such. Nothing changes numerically for `n_steps = 1` or `3`.
+
+### `fit_lta()` gains the two-step estimator
+
+`fit_lta(n_steps = 2)` fits the measurement model on the indicators
+alone, holds it there, and estimates `predictors_initial`,
+`predictors_transition` and `predictors_random_intercept` by maximising
+the full likelihood with the item parameters as constants. Every E-step
+still runs on the joint model, so this is one-step estimation with one
+block pinned rather than any kind of class assignment: there is no
+classification table in it. The estimator is Bakk and Kuha’s (2018), in
+the form Bartolucci, Montanari and Pandolfi (2015) give it for latent
+Markov models. Step 1 is the same call with the structural predictors
+dropped, so it inherits the restart budget, the seed, the invariance
+constraints and the priors; it is returned as `$step1`, and the item
+parameters of the returned fit are identical to its.
+
+What this is for: with the statuses fixed before any covariate is looked
+at, adding or dropping a predictor cannot redefine what the statuses
+mean, and several structural models can be compared on one measurement
+model. The price is the one every stepwise estimator pays, attenuation
+towards zero when the statuses are poorly separated or the sample is
+small. A test holds the three properties that define the estimator: the
+item parameters after step 2 are step 1’s to machine precision, the
+two-step log-likelihood sits between its own starting point and the
+one-step maximum, and freeing the measurement block from the two-step
+solution climbs to the one-step maximum, so the freeze is the only
+difference between them.
+
+Standard errors under `n_steps = 2` are the pseudo-maximum-likelihood
+ones of Bakk and Kuha (2018, eq. 5), the same variance the
+cross-sectional two-step reports: the inverse observed information of
+the full likelihood in the structural coefficients, plus the sampling
+variance of the measurement parameters step 2 held fixed, carried across
+by the cross-curvature between the two blocks. Both blocks are
+differenced numerically from the joint likelihood, and the (measurement,
+structural) partition is read off the tag each block of the parameter
+layout already carries, so it cannot drift from the layout that defines
+it. The measurement parameters themselves report the step-1 fit’s own
+standard errors, which is the fit that estimated them.
+[`lta_covariate_summary()`](https://pdvalencia.github.io/mixtureEM/reference/lta_covariate_summary.md)
+prints the corrected standard errors and says which they are.
+
+The step-2-only part is checked against an independent numerical Hessian
+of a from-scratch joint likelihood, to 4e-5 on both fixtures. The step-1
+part is what an analysis that treats the measurement model as known
+omits, and how much it matters depends entirely on separation: on a
+deliberately weakly separated two-status fixture the step-2-only
+standard error of the initial-status intercept is 0.18 of the whole, and
+on a well-separated one every coordinate is within 1.5 percent of it.
+The numerical Hessian is the one real cost, a few thousand likelihood
+evaluations; `standard_errors = FALSE` skips it and
+`standard_errors = "robust"` is the sandwich on the case-level scores,
+which is a step-2-only estimator.
+
+Nothing changes numerically for `n_steps = 1`, which is every
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+fit made before this release. A two-step fit no longer reorders its
+statuses by size: its measurement block is step 1’s and the two have to
+stay in the same order.
+
+### `fit_lta()` gains the bias-adjusted three-step estimator
+
+`fit_lta(n_steps = 3)` estimates a latent transition model in three
+steps (Vermunt, 2010; Nylund-Gibson, Grimm, Quirk and Furlong, 2014).
+Step 1 fits the measurement model with no transitions, each occasion
+carrying its own status prevalences, so that every occasion’s posterior
+depends on that occasion’s items alone. Step 2 assigns a status at every
+occasion and forms that occasion’s own classification-error matrix. Step
+3 estimates the initial-status distribution and the transitions from the
+assigned statuses, with those matrices held fixed. It takes
+`predictors_initial`, `predictors_transition`, `transition_effects`,
+`transition_invariance` and `forbidden_transitions` as a one-step fit
+does. The returned object is the step-3 fit, with `$step1` and
+`$threestep` (the error matrices, the step-1 prevalences, the modal
+assignments) attached.
+
+The error matrix is formed per occasion rather than pooled because the
+classification error depends on the base rates, and in a transition
+model the base rates move. On `ecls_reading` one status holds 1.8% of
+the children at the first occasion and 81% at the last; a pooled matrix
+believes that status is misclassified one time in fifty, when at the
+first occasion it is misclassified two times in five, and it recovers
+that occasion’s prevalence at 39% of its value where the per-occasion
+matrices recover it to 2e-4.
+
+Two new arguments, both three-step only and an error otherwise.
+`assignment` is `"proportional"` (default) or `"modal"`, with the
+meaning and default it has in
+[`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md).
+`correction` is `"ML"` (default) or `"none"`, the naive classify-analyse
+estimate with every error matrix set to the identity, which is what the
+correction is measured against; `"BCH"` is not available for latent
+transition models. `measurement_invariance = "none"` and `"partial"`
+apply to step 1. Under `"none"` step 1 cannot tell one occasion’s labels
+from another’s, so they are matched to occasion 1 by item profile and
+the match is returned as `$threestep$alignment`.
+
+Refused, with a message: random intercepts, `n_classes > 1`,
+`mover_stayer`, `group` and `predictors_items`. The estimator here
+covers one chain of statuses on a measurement model every case shares,
+and each of those changes that. Two limits to read the output by. Step
+3’s log-likelihood is that of the assigned statuses rather than the
+items and must not be compared with a one- or two-step fit’s, so the
+package does not: [`print()`](https://rdrr.io/r/base/print.html) and
+`compare_longitudinal(n_steps = 3)` report step 1’s criteria, labelled
+`(Step 1)` in the print, and
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+refuses a three-step fit beside a one- or two-step one, and two
+three-step fits whose step 3 saw different assigned statuses or error
+matrices. Its standard errors include step 1’s sampling variance: the
+first-order pseudo-maximum-likelihood correction of Bakk, Oberski and
+Vermunt (2014), carried through each occasion’s error matrix and, under
+proportional assignment, through the weights of the reduced data. The
+step-3-only part is kept as `$se$threestep_V2`, step 1’s variance as
+`$se$step1_vcov`. Tested piece by piece: step 1’s variance against the
+Hessian of a transition-free likelihood written independently of the
+package, and the propagation term against the slope of step 3’s estimate
+when step 3 is refitted at a nudged step 1. On a weakly separated panel
+the corrected standard errors are up to 2.3 times the step-3-only ones.
+
+`strata` and `cluster` are carried through both steps under
+`assignment = "modal"`. The variance is then the design-based sandwich
+over the two steps stacked: each case’s step-1 and step-3 scores are
+combined through the same first-order term, summed within primary
+sampling units and compared across them within strata, so clustering
+widens step 1’s contribution as well as step 3’s own. Proportional
+assignment refuses a design, because its step-3 rows are status
+combinations rather than cases. Tested on the estimator’s own terms:
+with every case its own sampling unit the design variance agrees with
+the model-based one to sampling error, and duplicating every case inside
+its own cluster leaves every standard error where it was, since a copy
+adds no information. Nothing changes numerically for a fit without a
+design.
+
+Tested on the estimator’s own terms: with no transitions step 1’s
+log-likelihood factorises exactly into the per-occasion ones; with the
+identity matrix and modal assignment step 3 returns the raw
+cross-tabulation of the assigned statuses, and with proportional
+assignment the mean occasion-1 posterior; with the real matrices it
+moves towards step 1’s own prevalences; a scrambled occasion is put back
+by the label matching; and the public call reproduces the internal
+pipeline exactly. Nothing changes numerically for `n_steps = 1` or
+`n_steps = 2`.
+
+### Covariate standard errors on the Hessian-based paths were too small
+
+Standard errors, confidence intervals and Wald p-values for
+class-predictor coefficients change on every covariate fit whose
+standard errors come from the Q-function Hessian: one-step fits
+(`n_steps = 1`), BCH-corrected three-step fits, and models that combine
+class predictors with a distal outcome. They were understated, by a
+factor that depends on the covariates’ scale and was about 2.3 on the
+fit that exposed it. The default path – `n_steps = 3` with
+`correction = "ML"`, and any fit with `se = "robust"` or
+`se = "corrected"` – is unaffected: those store a covariance computed
+separately and never read the Hessian for it.
+
+The cause was in the inversion. The stored Hessian keeps the reference
+class’s block padded with a very large fixed-parameter marker, and the
+pseudo-inverse’s cutoff is relative to the largest singular value, so
+the marker set a cutoff below which every genuinely nonzero but small
+direction of curvature was dropped as if it were zero. A covariate on a
+small scale has exactly that kind of curvature.
+[`confint()`](https://rdrr.io/r/stats/confint.html),
+[`vcov()`](https://rdrr.io/r/stats/vcov.html),
+[`analytical_wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/analytical_wald_test.md)
+and the table printed by
+[`summary()`](https://rdrr.io/r/base/summary.html) now invert the free
+block on its own, and a test checks the result against a plain
+[`solve()`](https://rdrr.io/r/base/solve.html) of the same block, which
+has no relative cutoff.
+
+Separately, a fitted covariate model’s reference class is now always the
+last class. The estimation always anchored on the last class, but the
+size ordering applied at the end of the fit carried that anchor to
+whichever rank its class landed on, so `fit$sm$parameters$beta`’s zero
+row could sit anywhere from one fit to the next. The re-anchoring is a
+reparameterisation: no log-likelihood, class probability, assignment or
+reported standard error changes because of it.
+
 ## mixtureEM 0.4.1
 
 `ecls_reading.Rd` documented four of its five indicator groups with an
@@ -56,6 +645,35 @@ way.
 sample-size guidance now cites Tseng (2024) for what it is – the
 continuous-indicator analogue, at a between-profile separation of d =
 0.75 – rather than as a loading. Nothing numeric changes.
+
+### Covariate LTA fits with `smoothing = 0` are now plain maximum likelihood
+
+The regressions
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+fits for `predictors_initial` and `predictors_transition` carried a
+small numerical guard against complete separation: a handful of
+pseudo-observations of weight 0.01 at the covariate means. The guard
+also entered the likelihood being maximised, so a fit asked for with
+`smoothing = 0`, meant to be plain maximum likelihood, stopped a
+fraction short of the maximum. It is now off at `smoothing = 0`. With
+the default `smoothing`, nothing changes.
+
+Numbers move for covariate LTA fits at `smoothing = 0` only, and only
+slightly: on the reading panel the log-likelihood rises by 0.008 to
+0.04, and the largest movement is in weakly identified coefficients,
+such as a rare status’s covariate slope. Standard errors were already
+computed without the guard.
+
+### `tie_initial_status` warns when there is nothing to tie
+
+`tie_initial_status = TRUE` holds the occasion-1 status distribution
+equal across the latent classes of a mover-stayer or multi-class
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md).
+With a single latent class there is nothing to tie, and the option was
+accepted and silently ignored, so a fit could be reported as carrying a
+restriction it never had. It now gives a warning saying the fit is
+unrestricted. No estimate changes: the fit is the same one it always
+was.
 
 ### Printing an unconverged LTA fit no longer crashes
 

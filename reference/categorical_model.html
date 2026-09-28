@@ -9,7 +9,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -55,7 +55,13 @@
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">categorical_model</span><span class="op">(</span><span class="va">n_components</span>, type <span class="op">=</span> <span class="st">"bernoulli"</span>, max_val <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">categorical_model</span><span class="op">(</span></span>
+<span>  <span class="va">n_components</span>,</span>
+<span>  type <span class="op">=</span> <span class="st">"bernoulli"</span>,</span>
+<span>  max_val <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  cats <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -72,6 +78,12 @@
 
 <dt id="arg-max-val">max_val<a class="anchor" aria-label="anchor" href="#arg-max-val"></a></dt>
 <dd><p>Integer or NULL. The maximum category value (used for multinoulli).</p></dd>
+
+
+<dt id="arg-cats">cats<a class="anchor" aria-label="anchor" href="#arg-cats"></a></dt>
+<dd><p>Integer vector or NULL. The number of categories of each item
+(used for multinoulli). When NULL, each item's count is its own highest
+observed code, or <code>max_val</code> for every item when that is given.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>

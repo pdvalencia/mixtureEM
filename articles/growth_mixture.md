@@ -61,23 +61,23 @@ fit_lcga2
 #> 
 #> GROWTH COEFFICIENTS (link scale)
 #>         intercept linear
-#> Class 1     1.825  0.037
-#> Class 2     5.768 -0.592
+#> Class 1     1.824  0.037
+#> Class 2     5.766 -0.592
 #> 
 #> FITTED TRAJECTORY (mean)
 #>            T1    T2    T3    T4    T5
-#> Class 1 1.825 1.862 1.899 1.936 1.973
-#> Class 2 5.768 5.176 4.583 3.991 3.399
+#> Class 1 1.824 1.861 1.898 1.935 1.972
+#> Class 2 5.766 5.174 4.582 3.991 3.399
 #> 
 #> RESIDUAL VARIANCE (within class, constant over occasions)
 #>          Class 1 Class 2
-#> Variance   1.513   1.753
+#> Variance   1.513   1.754
 #> =========================================================
 #>                   LATENT MIXTURE MODEL                   
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 11 iterations)
+#> Converged          : TRUE (in 19 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -6245.41
 #>   Parameters     : 7
@@ -88,8 +88,8 @@ fit_lcga2
 #>   Best solution  : found by 15 of 15 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 55.66%
-#>   Class 2: 44.34%
+#>   Class 1: 55.63%
+#>   Class 2: 44.37%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 ```
@@ -116,11 +116,11 @@ fit_gmm2
 #> GROWTH FACTOR MEANS
 #>         intercept linear
 #> Class 1     1.898  0.089
-#> Class 2     6.017 -0.724
+#> Class 2     6.016 -0.724
 #> 
 #> GROWTH FACTOR (CO)VARIANCE (held equal across classes)
 #>           intercept linear
-#> intercept     0.766  0.009
+#> intercept     0.765  0.009
 #> linear        0.009  0.056
 #> 
 #> RESIDUAL VARIANCE (held equal across classes)
@@ -129,26 +129,26 @@ fit_gmm2
 #> 
 #> FITTED TRAJECTORY (mean)
 #>            T1    T2    T3    T4    T5
-#> Class 1 1.898 1.988 2.077 2.166 2.255
-#> Class 2 6.017 5.293 4.569 3.845 3.121
+#> Class 1 1.898 1.987 2.076 2.165 2.254
+#> Class 2 6.016 5.292 4.568 3.844 3.120
 #> =========================================================
 #>                   LATENT MIXTURE MODEL                   
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 49 iterations)
+#> Converged          : TRUE (in 50 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -5570.91
 #>   Parameters     : 13
 #>   AIC            : 11167.82
 #>   BIC            : 11226.98
 #>   SABIC          : 11185.71
-#>   Rel. Entropy   : 0.9113
+#>   Rel. Entropy   : 0.9114
 #>   Best solution  : found by 4 of 4 starts that ran to convergence (of 15 requested)
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 59.30%
-#>   Class 2: 40.70%
+#>   Class 1: 59.29%
+#>   Class 2: 40.71%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 ```
@@ -192,7 +192,7 @@ different questions:
 ``` r
 
 x_member <- rnorm(n, mean = 0.7 * cls)
-fit_cov  <- add_covariates(fit_gmm2, x_member)
+fit_cov  <- add_covariates(fit_gmm2, x_member, se = "robust")
 #> Using 'ML' bias correction (set `correction` to override).
 results  <- summary(fit_cov)
 #> =========================================================
@@ -201,15 +201,21 @@ results  <- summary(fit_cov)
 #> 
 #> CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)
 #> Reference Class: 1
-#> Standard errors: Step-3 sandwich (robust); step-1 correction unavailable for this measurement model
+#> Standard errors: Step-3 sandwich (robust)
 #> ---------------------------------------------------------
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.562  [    0.471,     0.671]    < .001
+#>   Intercept                0.562  [    0.472,     0.671]    < .001
 #>   x_member                 1.817  [    1.537,     2.148]    < .001
 #> =========================================================
 ```
+
+The default `se = "corrected"` adds step 1’s uncertainty to the step-3
+sandwich, and that correction is not yet available for a growth model,
+so the sandwich is requested by name. Its intervals treat the growth
+model as known and are too narrow when the classes overlap; see
+[`?covariate_se`](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md).
 
 - **Who, within a class, starts higher or declines faster?** —
   covariates on the growth factors themselves, which are part of the
@@ -234,8 +240,8 @@ print(fit_gp)
 #> 
 #> GROWTH FACTOR INTERCEPTS
 #>         intercept linear
-#> Class 1     1.898  0.089
-#> Class 2     6.012 -0.723
+#> Class 1     1.897  0.089
+#> Class 2     6.011 -0.723
 #> 
 #> GROWTH FACTORS ON COVARIATES (held equal across classes)
 #>           x_growth
@@ -245,7 +251,7 @@ print(fit_gp)
 #> GROWTH FACTOR (CO)VARIANCE (held equal across classes)
 #>           intercept linear
 #> intercept     0.766  0.010
-#> linear        0.010  0.056
+#> linear        0.010  0.055
 #> 
 #> RESIDUAL VARIANCE (held equal across classes)
 #>             T1    T2    T3    T4    T5
@@ -253,8 +259,8 @@ print(fit_gp)
 #> 
 #> FITTED TRAJECTORY (at the mean of the covariates)
 #>            T1    T2    T3    T4    T5
-#> Class 1 1.898 1.988 2.077 2.166 2.256
-#> Class 2 6.011 5.288 4.565 3.841 3.118
+#> Class 1 1.897 1.987 2.076 2.166 2.255
+#> Class 2 6.011 5.287 4.564 3.841 3.117
 #> =========================================================
 #>                   LATENT MIXTURE MODEL                   
 #> =========================================================
@@ -295,13 +301,13 @@ params <- measurement_summary(fit_gmm2)
 #> GROWTH FACTOR MEANS
 #> Parameter            | Class 1 | Class 2
 #> ---------------------------------------- 
-#> intercept            |   1.898 |   6.017
+#> intercept            |   1.898 |   6.016
 #> linear               |   0.089 |  -0.724
 #> 
 #> GROWTH FACTOR VARIANCES (held equal across classes)
 #> Parameter            | Class 1 | Class 2
 #> ---------------------------------------- 
-#> intercept            |   0.766 |   0.766
+#> intercept            |   0.765 |   0.765
 #> linear               |   0.056 |   0.056
 #> 
 #> GROWTH FACTOR COVARIANCES (held equal across classes)
@@ -321,18 +327,18 @@ params <- measurement_summary(fit_gmm2)
 #> FITTED TRAJECTORY
 #> Parameter            | Class 1 | Class 2
 #> ---------------------------------------- 
-#> T1                   |   1.898 |   6.017
-#> T2                   |   1.988 |   5.293
-#> T3                   |   2.077 |   4.569
-#> T4                   |   2.166 |   3.845
-#> T5                   |   2.255 |   3.121
+#> T1                   |   1.898 |   6.016
+#> T2                   |   1.987 |   5.292
+#> T3                   |   2.076 |   4.568
+#> T4                   |   2.165 |   3.844
+#> T5                   |   2.254 |   3.120
 #> =========================================================
 head(params[params$parameter == "growth_mean", ])
 #>   block   parameter      item category class    estimate overall
-#> 1  <NA> growth_mean intercept       NA     1  1.89849326      NA
-#> 2  <NA> growth_mean intercept       NA     2  6.01658224      NA
-#> 3  <NA> growth_mean    linear       NA     1  0.08913785      NA
-#> 4  <NA> growth_mean    linear       NA     2 -0.72399247      NA
+#> 1  <NA> growth_mean intercept       NA     1  1.89764005      NA
+#> 2  <NA> growth_mean intercept       NA     2  6.01585549      NA
+#> 3  <NA> growth_mean    linear       NA     1  0.08906937      NA
+#> 4  <NA> growth_mean    linear       NA     2 -0.72402202      NA
 ```
 
 Class enumeration has its own two functions.

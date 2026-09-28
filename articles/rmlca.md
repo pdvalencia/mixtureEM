@@ -61,16 +61,21 @@ selection <- compare_longitudinal(drink, k_range = 2:4, model = "rmlca",
 #>   Fitting 2-class model...
 #>   Fitting 3-class model...
 #>   Fitting 4-class model...
-#> Warning: EM did not converge within max_iter = 1000 iterations. The estimates
-#> are wherever the algorithm had reached, which need not be a maximum. Refit with
-#> `max_iter = 2000`, doubling again if that is still not enough; if doubling does
-#> not help, the model is probably weakly identified at this number of classes.
+#> Warning: This model has 19 free parameters, but the table of response patterns
+#> has only 15 free cells (df = -4), so the parameters cannot all be recovered
+#> from the data (Goodman, 1974). The estimates returned are determined by the
+#> priors where the data are silent. Fit fewer classes, or restrict parameters to
+#> be equal.
 #> 
 #> === Model Selection Summary ===
-#>   Classes    LL Params  AIC  BIC CAIC AIC3  ICL SABIC Entropy Unreplicated
-#> 1       2 -2001      9 4021 4064 4073 4030 4406  4035  0.7261        FALSE
-#> 2       3 -1981     14 3991 4058 4072 4005 4759  4013  0.6456        FALSE
-#> 3       4 -1980     19 3998 4089 4108 4017 5120  4028  0.5868        FALSE
+#>   Classes    LL Params  AIC  BIC CAIC  AWE AIC3  ICL SABIC Entropy Unreplicated
+#> 1       2 -2001      9 4021 4064 4073 4152 4030 4406  4035  0.7261        FALSE
+#> 2       3 -1981     14 3991 4058 4072 4195 4005 4759  4013  0.6456        FALSE
+#> 3       4 -1980     19 3998 4089 4108 4275 4017 5121  4028  0.5863        FALSE
+#>          BF       cmP
+#> 1 4.913e-02 4.683e-02
+#> 2 5.241e+06 9.532e-01
+#> 3        NA 1.819e-07
 #> 
 #> -> Best model according to BIC: 3
 ```
@@ -102,13 +107,13 @@ fit
 #>   AIC            : 3990.65
 #>   BIC            : 4057.88
 #>   SABIC          : 4013.42
-#>   Rel. Entropy   : 0.6455
+#>   Rel. Entropy   : 0.6456
 #>   Best solution  : found by 20 of 20 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 46.17%
-#>   Class 2: 35.01%
-#>   Class 3: 18.82%
+#>   Class 2: 35.02%
+#>   Class 3: 18.81%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 ```
@@ -184,17 +189,17 @@ results <- summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.604  [    0.285,     1.282]     0.189
+#>   Intercept                0.605  [    0.286,     1.283]     0.190
 #>   risk                     1.891  [    1.410,     2.535]    < .001
 #> 
 #> Class 3 ON
-#>   Intercept                0.409  [    0.197,     0.852]     0.017
-#>   risk                     0.982  [    0.720,     1.341]     0.910
+#>   Intercept                0.409  [    0.196,     0.853]     0.017
+#>   risk                     0.982  [    0.719,     1.341]     0.909
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   risk                      21.245    2    < .001
+#>   risk                      21.246    2    < .001
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================

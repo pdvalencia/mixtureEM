@@ -13,7 +13,7 @@ risk of landing on a different solution."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.1.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -67,7 +67,10 @@ risk of landing on a different solution.</p>
 <span>  covariates <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  outcome_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"continuous"</span>, <span class="st">"categorical"</span><span class="op">)</span>,</span>
 <span>  slopes <span class="op">=</span> <span class="st">"pooled"</span>,</span>
+<span>  predictors <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  variances <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"equal"</span>, <span class="st">"class_specific"</span><span class="op">)</span>,</span>
 <span>  correction <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"BCH"</span>, <span class="st">"ML"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
+<span>  steps <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">2</span><span class="op">)</span>,</span>
 <span>  se <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"corrected"</span>, <span class="st">"robust"</span>, <span class="st">"hessian"</span><span class="op">)</span>,</span>
 <span>  assignment <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proportional"</span>, <span class="st">"modal"</span><span class="op">)</span>,</span>
 <span>  max_iter <span class="op">=</span> <span class="fl">1000</span>,</span>
@@ -106,13 +109,57 @@ case of the data the model was fit to.</p></dd>
 (every covariate gets its own slope per class), or a character vector of
 covariate names (or a one-sided formula naming them, e.g. <code>~ loc1 + loc2</code>) giving a slope per class to just those covariates while the rest
 stay pooled. The last form – letting the class moderate some covariates
-while adjusting for others – is continuous-outcome only.</p></dd>
+while adjusting for others – is continuous-outcome only. For a
+continuous outcome, <code>"class_specific"</code> is the same model as naming every
+covariate, and is fitted as one: its standard errors are the sandwich
+clustered on the case, and <code><a href="outcome_contrasts.html">outcome_contrasts()</a></code> can compare its slopes.</p></dd>
+
+
+<dt id="arg-predictors">predictors<a class="anchor" aria-label="anchor" href="#arg-predictors"></a></dt>
+<dd><p>Optional covariates that predict class membership, in any
+form <code><a href="add_covariates.html">add_covariates()</a></code> accepts. When supplied, the class-membership
+regression and the outcome are estimated together in one step-3 model:
+each case's contribution is \(\sum_k P(k \mid z) f(y \mid k, x)\) times
+the classification-error term, so the class probabilities the outcome is
+related to are the covariate-specific ones rather than the overall class
+sizes (Vermunt, 2010). <code>outcome</code> may then name several distal outcomes (a
+data frame, or a formula naming several columns of <code>data</code>); each is
+specified as it would be on its own and all share <code>covariates</code>. Estimated
+separately, the outcomes and the predictors would each answer a
+different question from different class probabilities; estimated jointly,
+the paths from the predictors to the classes, from the classes to each
+outcome, and from the covariates to each outcome are adjusted for one
+another. Available with <code>correction = "ML"</code> (the default here) or
+<code>"BCH"</code>, and pooled slopes. Under ML the standard errors are those of the
+joint step-3 log-likelihood (<code>se = "hessian"</code> for the inverse observed
+information, otherwise the sandwich); under BCH the model is fitted to
+the BCH-weighted log-likelihood and its standard errors are always the
+sandwich clustered on the case. Both treat the step-1 estimates as known.</p></dd>
+
+
+<dt id="arg-variances">variances<a class="anchor" aria-label="anchor" href="#arg-variances"></a></dt>
+<dd><p>For a continuous outcome with <code>covariates</code>: <code>"equal"</code>
+(default; one residual variance shared by the classes) or
+<code>"class_specific"</code> (one per class). A continuous outcome without
+covariates always has one variance per class.</p></dd>
 
 
 <dt id="arg-correction">correction<a class="anchor" aria-label="anchor" href="#arg-correction"></a></dt>
 <dd><p>Bias correction for the third step: <code>"auto"</code> (default)
 picks <code>"BCH"</code> for continuous outcomes (Bakk &amp; Vermunt, 2016) and <code>"ML"</code>
-for categorical outcomes; or set <code>"BCH"</code>, <code>"ML"</code>, <code>"none"</code> directly.</p></dd>
+for categorical outcomes; or set <code>"BCH"</code>, <code>"ML"</code>, <code>"none"</code> directly.
+Three-step only; an error with <code>steps = 2</code>.</p></dd>
+
+
+<dt id="arg-steps">steps<a class="anchor" aria-label="anchor" href="#arg-steps"></a></dt>
+<dd><p><code>3</code> (default) for the bias-adjusted three-step, or <code>2</code> for
+the two-step estimator of Bakk and Kuha (2018): <code>fit</code>'s measurement
+model and class sizes are held fixed and the outcome model is estimated
+by maximising the full likelihood, every case's class probabilities
+recomputed under the joint model at each iteration. No classification
+step, no correction. See <code>n_steps</code> in <code><a href="fit_mixture.html">fit_mixture()</a></code>; for a distal
+outcome the two-step's standard errors do not yet carry the step-1
+uncertainty, and the printed output says so.</p></dd>
 
 
 <dt id="arg-se">se<a class="anchor" aria-label="anchor" href="#arg-se"></a></dt>
@@ -120,9 +167,14 @@ for categorical outcomes; or set <code>"BCH"</code>, <code>"ML"</code>, <code>"n
 <code>"corrected"</code> (default), <code>"robust"</code>, or <code>"hessian"</code>. It governs the
 covariate part of the third step. A continuous distal outcome under
 <code>correction = "BCH"</code> always reports a sandwich clustered on the case,
-whatever this is set to: the expanded data set carries one weighted
+whatever this is set to, and so does a BCH model with <code>predictors</code>: the
+expanded data set carries one weighted
 record per class per case, so a case-clustered sandwich is the only
-estimator that prices the information the correction gives up.</p></dd>
+estimator that prices the information the correction gives up. A
+distal outcome's standard errors, under BCH or ML, treat step 1's
+estimates as known: the step-1 term <code>"corrected"</code> adds exists for class
+predictors only (see <a href="covariate_se.html">covariate_se</a>), so with poorly separated classes
+an outcome's intervals are somewhat too narrow.</p></dd>
 
 
 <dt id="arg-assignment">assignment<a class="anchor" aria-label="anchor" href="#arg-assignment"></a></dt>
@@ -160,7 +212,10 @@ whether any of them do.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
-    <p>Bakk, Z., &amp; Vermunt, J. K. (2016). Robustness of stepwise latent class
+    <p>Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
+three-step approaches. <em>Political Analysis</em>, <em>18</em>(4), 450–469.
+<a href="https://doi.org/10.1093/pan/mpq025" class="external-link">doi:10.1093/pan/mpq025</a></p>
+<p>Bakk, Z., &amp; Vermunt, J. K. (2016). Robustness of stepwise latent class
 modeling with continuous distal outcomes. <em>Structural Equation
 Modeling</em>, <em>23</em>(1), 20–31. <a href="https://doi.org/10.1080/10705511.2014.955104" class="external-link">doi:10.1080/10705511.2014.955104</a></p>
 <p>Bolck, A., Croon, M., &amp; Hagenaars, J. (2004). Estimating latent structure
@@ -203,7 +258,7 @@ outcome; <code><a href="add_covariates.html">add_covariates()</a></code> for pre
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Pairwise class differences:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                     Difference       [95% CI]        P-Value</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 2 vs 1        -0.096  [-0.986,  0.794]     0.832</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 2 vs 1        -0.096  [-0.987,  0.794]     0.832</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># The same outcome named in a formula against its data frame</span></span></span>
