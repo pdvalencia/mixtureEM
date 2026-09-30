@@ -126,11 +126,11 @@ table(class_assignments(fit))
 #> 56 44 
 head(class_assignments(fit, "both"))
 #>   class probability   Class 1    Class 2
-#> 1     1   0.9468153 0.9468153 0.05318466
-#> 2     1   0.8102216 0.8102216 0.18977840
-#> 3     2   0.8449810 0.1550190 0.84498100
-#> 4     2   0.5584400 0.4415600 0.55843997
-#> 5     1   0.9031225 0.9031225 0.09687747
+#> 1     1   0.9468153 0.9468153 0.05318465
+#> 2     1   0.8102216 0.8102216 0.18977836
+#> 3     2   0.8449810 0.1550190 0.84498099
+#> 4     2   0.5584400 0.4415600 0.55843998
+#> 5     1   0.9031226 0.9031226 0.09687745
 #> 6     2   0.7405528 0.2594472 0.74055278
 # To relate the classes to an external variable, do not regress on the
 # assigned class - use the bias-adjusted third step instead:

@@ -193,13 +193,13 @@ results <- summary(fit_cov)
 #>   risk                     1.891  [    1.410,     2.535]    < .001
 #> 
 #> Class 3 ON
-#>   Intercept                0.409  [    0.196,     0.853]     0.017
+#>   Intercept                0.409  [    0.196,     0.854]     0.017
 #>   risk                     0.982  [    0.719,     1.341]     0.909
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   risk                      21.246    2    < .001
+#>   risk                      21.240    2    < .001
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================

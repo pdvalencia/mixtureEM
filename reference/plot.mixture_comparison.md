@@ -97,9 +97,9 @@ result <- compare_mixtures(X, k_range = 1:4, measurement = "binary",
 #> 3       3 -337.019     17 708.038 752.326 769.326 881.614 725.038 871.443
 #> 4       4 -334.543     23 715.086 775.005 798.005 949.923 738.086 888.727
 #>     SABIC Entropy Unreplicated        BF cmP
-#> 1 691.438   1.000        FALSE 133077.96   1
+#> 1 691.438   1.000        FALSE 133077.95   1
 #> 2 696.086   0.303        FALSE  46627.99   0
-#> 3 698.636   0.458        FALSE  84045.07   0
+#> 3 698.636   0.458        FALSE  84045.13   0
 #> 4 702.365   0.590        FALSE        NA   0
 #> 
 #> -> Best model according to BIC: 1 classes

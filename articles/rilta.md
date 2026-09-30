@@ -123,7 +123,7 @@ transition_matrix(fit_lta0)
 #> from           Status 1     Status 2   Status 3
 #>   Status 1 3.382792e-01 6.493230e-01 0.01239781
 #>   Status 2 5.355704e-04 6.517031e-01 0.34776137
-#>   Status 3 1.388794e-11 1.152489e-11 1.00000000
+#>   Status 3 1.388794e-11 1.153347e-11 1.00000000
 #> 
 #> $`T2 -> T3`
 #>           to
@@ -301,22 +301,22 @@ transition_matrix(fit_ri)
 #>           to
 #> from           Status 1     Status 2  Status 3
 #>   Status 1 1.700196e-01 8.197158e-01 0.0102646
-#>   Status 2 9.957693e-13 8.110426e-01 0.1889574
+#>   Status 2 9.957691e-13 8.110426e-01 0.1889574
 #>   Status 3 1.000000e-12 1.000000e-12 1.0000000
 #> 
 #> $`T2 -> T3`
 #>           to
 #> from          Status 1     Status 2   Status 3
-#>   Status 1 0.242937009 7.384889e-01 0.01857410
+#>   Status 1 0.242936997 7.384889e-01 0.01857410
 #>   Status 2 0.001283216 9.303204e-01 0.06839641
-#>   Status 3 0.021901966 9.998155e-13 0.97809803
+#>   Status 3 0.021901956 9.998155e-13 0.97809804
 #> 
 #> $`T3 -> T4`
 #>           to
 #> from          Status 1     Status 2  Status 3
-#>   Status 1 0.165944119 1.158332e-11 0.8340559
+#>   Status 1 0.165944031 1.158332e-11 0.8340560
 #>   Status 2 0.003912394 1.896336e-02 0.9771242
-#>   Status 3 0.008504421 9.999939e-13 0.9914956
+#>   Status 3 0.008504424 9.999939e-13 0.9914956
 ```
 
 The transition matrices now describe a cohort moving almost as one: 82%
@@ -506,35 +506,35 @@ lta_covariate_summary(fit_pov_tr)
 #> 
 #>   [occasion 1 -> 2]
 #>       Status      Term Estimate     SE      z      p          OR
-#>  to Status 1 Intercept  -13.000 84.646  -0.15 0.8779       0.000
-#>  to Status 1    from:1   15.872 84.646   0.19 0.8513 7820096.147
-#>  to Status 1    from:2  -10.464  0.359 -29.12 <1e-16       0.000
+#>  to Status 1 Intercept  -13.002 84.665  -0.15 0.8779       0.000
+#>  to Status 1    from:1   15.874 84.665   0.19 0.8513 7836149.727
+#>  to Status 1    from:2  -10.394  0.360 -28.85 <1e-16       0.000
 #>  to Status 1   poverty    0.002  0.302   0.01 0.9951       1.002
-#>  to Status 2 Intercept  -10.784 47.972  -0.22 0.8221       0.000
-#>  to Status 2    from:1   15.303 47.973   0.32 0.7497 4424166.603
-#>  to Status 2    from:2   12.048 47.973   0.25 0.8017  170737.339
-#>  to Status 2   poverty   -0.652  0.289  -2.25 0.0244       0.521
+#>  to Status 2 Intercept  -10.788 48.033  -0.22 0.8223       0.000
+#>  to Status 2    from:1   15.307 48.033   0.32 0.7500 4442242.944
+#>  to Status 2    from:2   12.052 48.033   0.25 0.8019  171435.041
+#>  to Status 2   poverty   -0.652  0.290  -2.25 0.0244       0.521
 #> 
 #>   [occasion 2 -> 3]
 #>       Status      Term Estimate     SE     z        p          OR
-#>  to Status 1 Intercept   -5.117  0.909 -5.63 1.79e-08       0.006
-#>  to Status 1    from:1    7.338  0.953  7.70 1.33e-14    1536.958
-#>  to Status 1    from:2   -0.044  1.132 -0.04    0.969       0.957
-#>  to Status 1   poverty    1.870  0.271  6.89 5.51e-12       6.488
-#>  to Status 2 Intercept  -11.911 38.384 -0.31    0.756       0.000
-#>  to Status 2    from:1   15.558 38.385  0.41    0.685 5713715.231
-#>  to Status 2    from:2   14.511 38.384  0.38    0.705 2004912.909
-#>  to Status 2   poverty    0.109  0.197  0.55    0.581       1.115
+#>  to Status 1 Intercept   -5.117  0.909 -5.63 1.81e-08       0.006
+#>  to Status 1    from:1    7.338  0.953  7.70 1.34e-14    1536.961
+#>  to Status 1    from:2   -0.044  1.133 -0.04    0.969       0.957
+#>  to Status 1   poverty    1.870  0.271  6.89 5.56e-12       6.488
+#>  to Status 2 Intercept  -11.911 38.372 -0.31    0.756       0.000
+#>  to Status 2    from:1   15.558 38.373  0.41    0.685 5711371.236
+#>  to Status 2    from:2   14.511 38.372  0.38    0.705 2004089.903
+#>  to Status 2   poverty    0.109  0.198  0.55    0.581       1.115
 #> 
 #>   [occasion 3 -> 4]
 #>       Status      Term Estimate     SE       z        p        OR
-#>  to Status 1 Intercept   -4.816  0.636   -7.57 3.64e-14     0.008
-#>  to Status 1    from:1    3.824  0.662    5.78 7.46e-09    45.806
-#>  to Status 1    from:2   -0.775  0.698   -1.11 0.266797     0.461
-#>  to Status 1   poverty    0.182  0.292    0.62 0.534064     1.199
-#>  to Status 2 Intercept  -15.116 94.543   -0.16 0.872968     0.000
-#>  to Status 2    from:1   -8.623  0.045 -193.05  < 1e-16     0.000
-#>  to Status 2    from:2   10.731 94.543    0.11 0.909633 45740.840
+#>  to Status 1 Intercept   -4.816  0.636   -7.57 3.68e-14     0.008
+#>  to Status 1    from:1    3.824  0.662    5.78 7.51e-09    45.806
+#>  to Status 1    from:2   -0.775  0.698   -1.11 0.266879     0.461
+#>  to Status 1   poverty    0.182  0.292    0.62 0.534036     1.199
+#>  to Status 2 Intercept  -15.115 94.451   -0.16 0.872861     0.000
+#>  to Status 2    from:1   -8.590  0.045 -192.52  < 1e-16     0.000
+#>  to Status 2    from:2   10.729 94.451    0.11 0.909561 45658.338
 #>  to Status 2   poverty    1.105  0.296    3.73 0.000192     3.018
 #> 
 #> PREDICTING THE RANDOM INTERCEPT (linear regression, residual variance fixed at 1)
@@ -563,11 +563,11 @@ come with theirs:
 
 random_intercept_loadings(fit_pov_tr)
 #>        item  loading         se        z
-#> 1   letters 3.099271 0.11864327 26.12261
-#> 2 beginning 2.440198 0.07677824 31.78242
+#> 1   letters 3.099271 0.11864326 26.12261
+#> 2 beginning 2.440198 0.07677823 31.78242
 #> 3    ending 2.308574 0.06589727 35.03292
 #> 4     sight 3.412924 0.14178355 24.07137
-#> 5   context 3.469340 0.15730671 22.05462
+#> 5   context 3.469340 0.15730670 22.05462
 ```
 
 [`random_intercept_scores()`](https://pdvalencia.github.io/mixtureEM/reference/random_intercept_scores.md)
@@ -582,7 +582,9 @@ boxplot(scores$mean_score ~ ecls_reading$poverty, horizontal = TRUE,
         xlab = "Reading readiness (posterior mean factor score)", ylab = "")
 ```
 
-![](rilta_files/figure-html/scores-1.png)
+![plot of chunk scores](rilta-scores-1.png)
+
+plot of chunk scores
 
 ## Practical notes
 

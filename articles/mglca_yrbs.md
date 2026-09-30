@@ -125,8 +125,8 @@ lr_test(m_free, m_both)
 #> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
 #>   Restricted : LL =  -48032.8623   parameters = 76
-#>   Full       : LL =  -47528.9716   parameters = 256
-#>   -2 x diff  : 1007.7815   df = 180   p = < 1e-16
+#>   Full       : LL =  -47528.7781   parameters = 256
+#>   -2 x diff  : 1008.1685   df = 180   p = < 1e-16
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 
@@ -236,7 +236,9 @@ plot(m_free, class_labels = class_labels,
      main = "Health-risk behavior classes by grade\n(YRBS 2005, unweighted)")
 ```
 
-![](mglca_yrbs_files/figure-html/plot-1.png)
+![plot of chunk plot](mglca_yrbs-plot-1.png)
+
+plot of chunk plot
 
 Class 2 (Binge Drinkers) stands out on `drove_drinking` and
 `binge_drink_30d` specifically; class 3 (Early Experimenters) stands out

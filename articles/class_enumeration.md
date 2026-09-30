@@ -86,8 +86,8 @@ selection <- compare_mixtures(ratings, k_range = 1:5,
 #>      SABIC Entropy Unreplicated           BF   cmP
 #> 1 1060.196   1.000        FALSE        0.000 0.000
 #> 2  660.460   0.963        FALSE        0.016 0.016
-#> 3  626.886   0.915        FALSE  2919580.141 0.984
-#> 4  631.370   0.852        FALSE 20934145.143 0.000
+#> 3  626.886   0.915        FALSE  2919580.443 0.984
+#> 4  631.370   0.852        FALSE 20933986.839 0.000
 #> 5  639.794   0.862        FALSE           NA 0.000
 #> 
 #> -> Best model according to BIC: 3 classes

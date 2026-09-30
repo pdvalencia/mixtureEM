@@ -2,6 +2,72 @@
 
 ## mixtureEM (development version)
 
+### The finish takes the exact curvature when it crawls
+
+The Newton-type finish after EM steps with the outer product of the
+cases’ scores for curvature. That is cheap and serves most fits well:
+they finish in ten to fifty iterations. Along a flat ridge it can serve
+badly. The `mglca_yrbs` vignette’s five-class, four-group model with
+every item free by group (256 parameters, default priors) shrank its
+gradient by one part in a thousand per iteration, reached the iteration
+cap after five and a half minutes, and stopped 0.0015 below its maximum
+without saying so. A finish still running after 100 iterations now
+builds the exact Hessian from the analytic gradient, as long as it is
+negative definite, and takes Newton steps on it. It goes back to the
+outer product if the Newton steps stop paying. That model now converges
+in 104 iterations, its finish taking two minutes, and its log-likelihood
+is −47528.778 (was −47528.781).
+
+Fits whose finish converges within 100 iterations are unchanged, and so
+are fits without analytic scores (growth mixtures and latent class
+growth models). On simulated data across thirteen model families, the
+finishes that did cross 100 iterations ended no further from their
+maximum than before, and most ended closer. None was more than 20% and a
+second slower, and at the median they were 2.9 times faster. Every
+benchmark log-likelihood is unchanged to its printed digits.
+
+### A group-varying item’s prior no longer grows with the number of groups
+
+With `group =` and items free by group (`group_effects = "both"` or
+`"measurement"`), each group’s copy of a categorical or count item
+carried a full prior of its own, `bayes_constants$categorical / K`
+pseudo-cases per class centred on that group’s own response rates. An
+item free across four groups therefore carried four times the prior of
+the same item held equal, and freeing it changed the amount of prior
+information as well as the model. The item’s prior is now one prior,
+spread evenly over the groups and centred on the item’s pooled response
+rates. At equal parameters across groups it is exactly the invariant
+item’s prior. The L-BFGS polish (`group_effects = "measurement"`) and
+the Newton-type finish carry the same prior. Fits with priors off, fits
+whose items are held equal across groups, continuous items and
+repeated-measures (time-block) models do not change. Default-prior fits
+with group-varying items do: on the `mglca_yrbs` vignette’s five-class,
+four-group model the log-prior goes from −32.97 to −10.11 and the
+log-likelihood from −47528.971 to −47528.781.
+
+A count item’s prior under case weights and missing values is now
+centred on the weighted mean of its observed cells, as its M-step
+already was; the prior used to rank restarts divided by the weight of
+every case, observed or not. Without missing counts nothing changes.
+
+### The finish after EM is fast on large models
+
+The Newton-type finish (below) needs every case’s score in every
+parameter at each step.
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+took them by differencing the likelihood, two passes over the data per
+parameter per step, and differenced the prior the same way, so the
+finish’s cost grew with the square of the number of parameters. On a
+five-class, four-group model with every item free by group (256
+parameters) it had not finished after half an hour, following an EM
+search of four minutes. The scores and the prior’s gradient now come
+from one E-step, as they already did for
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md),
+and that fit takes 8.6 minutes in all. Growth mixtures and latent class
+growth models still difference, and are small enough not to notice. The
+finished estimates are the same: every benchmark log-likelihood is
+unchanged to its printed digits.
+
 ### Class-specific slopes on a continuous outcome report the sandwich
 
 `slopes = "class_specific"` on a continuous distal outcome fitted each

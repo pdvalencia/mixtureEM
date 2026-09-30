@@ -209,8 +209,8 @@ making:</p>
 <span><span class="co">#&gt; Likelihood-ratio test for nested models</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Restricted : LL =  -48032.8623   parameters = 76</span></span>
-<span><span class="co">#&gt;   Full       : LL =  -47528.9716   parameters = 256</span></span>
-<span><span class="co">#&gt;   -2 x diff  : 1007.7815   df = 180   p = &lt; 1e-16</span></span>
+<span><span class="co">#&gt;   Full       : LL =  -47528.7781   parameters = 256</span></span>
+<span><span class="co">#&gt;   -2 x diff  : 1008.1685   df = 180   p = &lt; 1e-16</span></span>
 <span><span class="co">#&gt;   The restriction is rejected: the full model fits significantly better.</span></span></code></pre></div>
 <p><code><a href="../reference/lr_test.html">lr_test()</a></code> takes the restricted model first and the full
 model second — reversing the order is an error.</p>
@@ -311,7 +311,9 @@ Risk-Takers</strong>:</p>
 <span>                  <span class="st">"High Risk"</span>, <span class="st">"Sexual Risk-Takers"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">m_free</span>, class_labels <span class="op">=</span> <span class="va">class_labels</span>,</span>
 <span>     main <span class="op">=</span> <span class="st">"Health-risk behavior classes by grade\n(YRBS 2005, unweighted)"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="mglca_yrbs_files/figure-html/plot-1.png" class="r-plt" alt="" width="672"></p>
+<div class="float">
+<img src="mglca_yrbs-plot-1.png" alt="plot of chunk plot"><div class="figcaption">plot of chunk plot</div>
+</div>
 <p>Class 2 (Binge Drinkers) stands out on <code>drove_drinking</code>
 and <code>binge_drink_30d</code> specifically; class 3 (Early
 Experimenters) stands out on the two early-onset items,
