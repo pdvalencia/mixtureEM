@@ -98,6 +98,37 @@
 # fit ended up.
 .qn_gtol <- 1e-6
 
+# When BHHH crawls, the finish switches to the exact curvature. BHHH converges
+# linearly, at a rate set by how well the outer product of scores stands in for
+# the objective's curvature. On most fits that is well, and the finish ends in
+# ten to fifty iterations. Along a flat ridge it is not. A five-class, four-group
+# model with every item free by group (256 parameters) shrank its gradient by a
+# factor of 0.999 per BHHH iteration, stopped at the iteration cap 0.0015 below
+# its maximum, and had spent 330 s getting there. Its exact Hessian was negative
+# definite from where the finish started, and ten Newton steps on it reached
+# the maximum (RECORDS.md, "Part 57 graded").
+#
+# So a finish still running at iteration `.qn_newton_after` builds the Hessian
+# by differencing the analytic gradient (2p gradient passes) and takes Newton
+# steps on it. It keeps that curvature for as long as each step is taken at
+# full length and gains at least `.qn_newton_keep` of what the quadratic model
+# predicts. Otherwise it goes back to BHHH, and tries once more no sooner than
+# `.qn_newton_after` iterations later, `.qn_newton_hessians` Hessians in all.
+# A Hessian that is not negative definite is not used. The switch is made only
+# when the scores are analytic: with differenced scores, a differenced gradient
+# is too rough to difference again. Everything a Newton step does besides
+# choosing its direction -- the radius, the line search, the wall -- is the
+# BHHH step's. A finish that converges before iteration 100 never reaches the
+# switch and is unchanged. On 160 simulated data sets over thirteen model
+# families, the finishes that ran past 100 BHHH iterations held 87% of the
+# finish time and every shortfall above 1e-10. On those, the switch cut the
+# time 2.9-fold at the median and left no finish more than 1e-6 from its
+# maximum, where BHHH alone had left some 5e-4 short; none was slower by more
+# than 20% and a second (RECORDS.md, "Part 58 round 3").
+.qn_newton_after    <- 100L
+.qn_newton_hessians <- 2L
+.qn_newton_keep     <- 0.1
+
 .qn_fd_grad <- function(f, par) {
   h <- 1e-5 * pmax(1, abs(par))
   vapply(seq_along(par), function(i) {
@@ -181,6 +212,7 @@
                        scores = NULL, gtol_stop = .qn_gtol_stop,
                        maxit = 500L, kind = NULL, fixed = integer(0),
                        prior_grad = NULL) {
+  analytic <- !is.null(scores)
   scores <- scores %||% function(p, idx) .qn_fd_scores(case_ll, p, idx)
   kind   <- kind %||% rep("logit", length(par0))
   value  <- function(p) {
@@ -203,6 +235,17 @@
   }
   held <- setdiff(seq_along(x), c(free, fixed))
   if (length(held)) { r <- to_edge(x, fx, held); x <- r$x; fx <- r$fx }
+
+  # The gradient at any point, for differencing into the exact curvature.
+  grad_at <- function(p) {
+    gp <- if (is.null(prior_grad)) {
+      fr <- function(v) { q <- p; q[free] <- v; prior(q) }
+      .qn_fd_grad2(fr, p[free])$g
+    } else prior_grad(p)$g[free]
+    colSums(scores(p, free) * w) + gp
+  }
+  H <- NULL; H_free <- NULL
+  n_hess <- 0L; next_hess <- .qn_newton_after
 
   it <- 0L
   g  <- NULL
@@ -238,8 +281,34 @@
     # Part 53). Its diagonal, from the differences above, is enough: every
     # measurement prior is separable across parameters. With the priors off
     # it is exactly zero and the step is unchanged.
-    B  <- crossprod(S * sqrt(w))
-    diag(B) <- diag(B) + pmax(-gp$h, 0)
+    #
+    # Past `.qn_newton_after` iterations the curvature is the exact one instead
+    # (see `.qn_newton_after` above), once it has been found to be negative
+    # definite; the eigenvalue floor, the radius and everything after are
+    # the same for both.
+    if (is.null(H) && analytic && n_hess < .qn_newton_hessians &&
+        it >= next_hess) {
+      n_hess <- n_hess + 1L
+      Hn <- vapply(seq_along(free), function(i) {
+        e <- rep(0, length(x)); e[free[i]] <- 1e-5
+        (grad_at(x + e) - grad_at(x - e)) / 2e-5
+      }, numeric(length(free)))
+      Hn <- -(Hn + t(Hn)) / 2
+      if (all(is.finite(Hn)) &&
+          min(eigen(Hn, symmetric = TRUE, only.values = TRUE)$values) > 0) {
+        H <- Hn; H_free <- free
+      } else {
+        next_hess <- it + .qn_newton_after
+      }
+    }
+    newton <- !is.null(H)
+    if (newton) {
+      keep <- match(free, H_free)
+      B <- H[keep, keep, drop = FALSE]
+    } else {
+      B <- crossprod(S * sqrt(w))
+      diag(B) <- diag(B) + pmax(-gp$h, 0)
+    }
     e  <- eigen(B, symmetric = TRUE)
     lam <- pmax(e$values, 1e-10 * max(e$values, 1e-300))
     d  <- as.vector(e$vectors %*% (crossprod(e$vectors, g) / lam))
@@ -276,10 +345,21 @@
       if (a < 1e-10) break
     }
     if (is.finite(gain) && gain > noise) stale <- 0L
+    # The exact curvature is kept while its steps are taken whole and gain
+    # what its quadratic model says they should.
+    if (newton && (a < 1 || !is.finite(gain) ||
+                   gain < .qn_newton_keep * 0.5 * sum(g * d))) {
+      H <- NULL
+      next_hess <- it + .qn_newton_after
+    }
     # A step that no longer moves any coordinate beyond its last few digits
-    # leaves the point where it is, and so would every step after it.
+    # leaves the point where it is, and so would every step after it -- unless
+    # it was a Newton step, and BHHH now takes over.
     if (a < 1e-10 ||
-        max(abs(xn - x)) <= 1e-14 * max(1, max(abs(x[free])))) break
+        max(abs(xn - x)) <= 1e-14 * max(1, max(abs(x[free])))) {
+      if (newton && is.null(H)) next
+      break
+    }
 
     hit <- free[.qn_wall_hit(xn[free], kind[free])]
     if (length(hit)) {
@@ -293,7 +373,8 @@
   list(par = x, value = fx,
        max_gradient = if (length(free)) max(abs(g)) else 0,
        converged = !length(free) || max(abs(g)) < .qn_gtol * sw,
-       iterations = it, n_held = length(x) - length(free))
+       iterations = it, n_held = length(x) - length(free),
+       n_hessian = n_hess)
 }
 
 # Which of several EM solutions to finish. The restart that EM ranked first is

@@ -1,5 +1,28 @@
 # mixtureEM (development version)
 
+## The finish takes the exact curvature when it crawls
+
+The Newton-type finish after EM steps with the outer product of the cases'
+scores for curvature. That is cheap and serves most fits well: they finish
+in ten to fifty iterations. Along a flat ridge it can serve badly. The
+`mglca_yrbs` vignette's five-class, four-group model with every item free by
+group (256 parameters, default priors) shrank its gradient by one part in a
+thousand per iteration, reached the iteration cap after five and a half
+minutes, and stopped 0.0015 below its maximum without saying so. A finish
+still running after 100 iterations now builds the exact Hessian from the
+analytic gradient, as long as it is negative definite, and takes Newton
+steps on it. It goes back to the outer product if the Newton steps stop
+paying. That model now converges in 104 iterations, its finish taking two
+minutes, and its log-likelihood is −47528.778 (was −47528.781).
+
+Fits whose finish converges within 100 iterations are unchanged, and so are
+fits without analytic scores (growth mixtures and latent class growth
+models). On simulated data across thirteen model families, the finishes
+that did cross 100 iterations ended no further from their maximum than
+before, and most ended closer. None was more than 20% and a second slower,
+and at the median they were 2.9 times faster. Every benchmark log-likelihood
+is unchanged to its printed digits.
+
 ## A group-varying item's prior no longer grows with the number of groups
 
 With `group = ` and items free by group (`group_effects = "both"` or

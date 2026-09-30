@@ -113,3 +113,65 @@ test_that("candidate selection keeps distinct solutions within the band", {
   expect_identical(.qn_pick(c(-10, -10.01, -10.02, -10.03), sig, w,
                             max_finish = 2L), c(1L, 3L))
 })
+
+# Two Gaussian means tied together by a prior with off-diagonal curvature:
+# the prior's diagonal, all BHHH uses of it, understates the curvature along
+# p1 - p2, and at k = 99 n each BHHH step removes only 1/100 of the error
+# there. The maximum is known in closed form. A third, optional coordinate
+# the objective ignores makes the exact Hessian singular.
+.qn_crawl <- function(k, flat = FALSE) {
+  set.seed(5)
+  n <- 50; y <- rnorm(n, 1); z <- rnorm(n, -1)
+  np <- if (flat) 3L else 2L
+  case_ll <- function(p) -0.5 * (y - p[1])^2 - 0.5 * (z - p[2])^2
+  scores  <- function(p, idx) cbind(y - p[1], z - p[2], 0)[, idx, drop = FALSE]
+  prior   <- function(p) -0.5 * k * (p[1] - p[2])^2
+  prior_grad <- function(p) {
+    g <- c(-k, k, 0)[seq_len(np)] * (p[1] - p[2])
+    list(g = g, h = c(-k, -k, 0)[seq_len(np)])
+  }
+  A <- matrix(c(n + k, -k, -k, n + k), 2)
+  list(case_ll = case_ll, scores = scores, prior = prior,
+       prior_grad = prior_grad, w = rep(1, n), par0 = rep(0, np),
+       top = solve(A, c(sum(y), sum(z))))
+}
+
+test_that("a crawling finish switches to the exact curvature and reaches the maximum", {
+  p <- .qn_crawl(k = 99 * 50)
+  kind <- rep("free", 2)
+  r <- .qn_finish(p$case_ll, p$w, p$par0, p$prior, p$scores, kind = kind,
+                  prior_grad = p$prior_grad)
+  expect_equal(r$n_hessian, 1L)
+  expect_true(r$converged)
+  expect_lt(r$iterations, 110L)
+  expect_lt(max(abs(r$par - p$top)), 1e-8)
+  # Without analytic scores there is no switch, and BHHH is still crawling
+  # at the cap.
+  b <- .qn_finish(p$case_ll, p$w, p$par0, p$prior, NULL, kind = kind,
+                  prior_grad = p$prior_grad)
+  expect_equal(b$n_hessian, 0L)
+  expect_gt(b$iterations, 500L)
+  expect_gt(r$value, b$value)
+})
+
+test_that("a finish that converges before the switch point never builds a Hessian", {
+  p <- .qn_crawl(k = 0)
+  r <- .qn_finish(p$case_ll, p$w, p$par0, p$prior, p$scores,
+                  kind = rep("free", 2), prior_grad = p$prior_grad)
+  expect_equal(r$n_hessian, 0L)
+  expect_lt(r$iterations, 100L)
+  expect_lt(max(abs(r$par - p$top)), 1e-8)
+})
+
+test_that("a Hessian that is not negative definite is not used", {
+  p <- .qn_crawl(k = 99 * 50, flat = TRUE)
+  r <- .qn_finish(p$case_ll, p$w, p$par0, p$prior, p$scores,
+                  kind = rep("free", 3), prior_grad = p$prior_grad)
+  # Tried at iteration 100 and again 100 later, singular both times: BHHH
+  # stays in charge throughout and is still climbing at the cap.
+  expect_equal(r$n_hessian, 2L)
+  expect_gt(r$iterations, 500L)
+  expect_identical(r$par[3], 0)
+  v0 <- sum(p$case_ll(p$par0)) + p$prior(p$par0)
+  expect_gt(r$value, v0)
+})
