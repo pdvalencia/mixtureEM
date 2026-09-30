@@ -7,10 +7,16 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
 
-
-
-``` r
+```{r setup}
 library(mixtureEM)
 ```
 
@@ -51,8 +57,7 @@ ordinary model is interpreted.
 
 ## Setup
 
-
-``` r
+```{r data}
 data(ecls_reading)
 items <- ecls_reading[, -1]
 ```
@@ -66,8 +71,7 @@ what the published analyses of these data report and what the numbers
 below can be checked against. On a sample this size the difference is
 about one log-likelihood unit and no change in interpretation.
 
-
-``` r
+```{r ml}
 ml <- list(smoothing = 0, bayes_constants = list(categorical = 0))
 ```
 
@@ -77,40 +81,11 @@ compare models.
 
 ## Step 1: the ordinary LTA
 
-
-``` r
+```{r lta, cache = TRUE}
 fit_lta0 <- fit_lta(items, n_statuses = 3, times = 4, n_init = 50,
                     random_state = 7, standard_errors = FALSE,
                     smoothing = ml$smoothing, bayes_constants = ml$bayes_constants)
 fit_lta0
-#> 
-#> =========================================================
-#>              LATENT TRANSITION ANALYSIS
-#> =========================================================
-#> Latent statuses    : 3
-#> Items x Occasions  : 5 x 4
-#> Item parameters    : binary, held equal across occasions
-#> Transitions        : 3 tables, one per pair of occasions
-#> Converged          : TRUE (in 34 iterations)
-#> ---------------------------------------------------------
-#>   Log-Likelihood : -21793.17
-#>   Parameters     : 35
-#>   AIC            : 43656.34
-#>   BIC            : 43872.70
-#>   SABIC          : 43761.49
-#>   Rel. Entropy   : 0.9042
-#>   Best solution  : found by 48 of 50 starts
-#> ---------------------------------------------------------
-#> Latent status prevalences by occasion:
-#>    Status 1 Status 2 Status 3
-#> T1   0.6937   0.2836   0.0227
-#> T2   0.2348   0.6353   0.1299
-#> T3   0.1417   0.6266   0.2317
-#> T4   0.0406   0.1542   0.8052
-#> 
-#> Note: 3 transition(s) estimated at the zero boundary; see $boundary.
-#> =========================================================
-#> Type summary(model) for transitions, measurement_summary(model) for items.
 ```
 
 Three stages of learning to read — *low alphabet knowledge*, *early word
@@ -119,29 +94,8 @@ first at the start of kindergarten and 81% in the third by the end of
 first grade. (The item probabilities, and the note about the ones at the
 boundary, are in `vignette("lta")`.) Keep the transition matrices in mind:
 
-
-``` r
+```{r lta-tau}
 transition_matrix(fit_lta0)
-#> $`T1 -> T2`
-#>           to
-#> from           Status 1     Status 2   Status 3
-#>   Status 1 3.382792e-01 6.493230e-01 0.01239781
-#>   Status 2 5.355704e-04 6.517031e-01 0.34776137
-#>   Status 3 1.388794e-11 1.153347e-11 1.00000000
-#> 
-#> $`T2 -> T3`
-#>           to
-#> from          Status 1    Status 2    Status 3
-#>   Status 1 0.596282809 0.401458457 0.002258734
-#>   Status 2 0.002122304 0.837211552 0.160666145
-#>   Status 3 0.002362264 0.003464333 0.994173403
-#> 
-#> $`T3 -> T4`
-#>           to
-#> from           Status 1     Status 2  Status 3
-#>   Status 1 0.2626346418 5.051280e-01 0.2322373
-#>   Status 2 0.0051796287 1.318744e-01 0.8629459
-#>   Status 3 0.0006784104 9.421726e-15 0.9993216
 ```
 
 ## Step 2: add a continuous random intercept
@@ -153,48 +107,12 @@ integrated out numerically, and `n_quadrature` sets how finely: 30 nodes
 is the setting the published analyses of these data used, and is checked
 below.
 
-
-``` r
+```{r rilta, cache = TRUE}
 fit_ri <- fit_lta(items, n_statuses = 3, times = 4, n_init = 20,
                   random_intercept = "continuous", n_quadrature = 30,
                   random_state = 7, standard_errors = FALSE,
                   smoothing = ml$smoothing, bayes_constants = ml$bayes_constants)
-#> Warning: A response probability has collapsed towards the boundary: context in
-#> class 1 (logit -10.87, p = 1.9e-05); sight in class 1 (logit -8.55, p =
-#> 0.000194); letters in class 3 (logit +8.08, p = 1). These estimates are not
-#> interpretable, and this fit's BIC cannot be compared with a clean fit's. Ways
-#> out, to choose between on substantive grounds: (1) fewer classes; or (2) a
-#> stronger categorical prior, bayes_constants = list(categorical = 3). See
-#> ?fit_mixture for why, and what to check afterwards.
 fit_ri
-#> 
-#> =========================================================
-#>              LATENT TRANSITION ANALYSIS
-#> =========================================================
-#> Latent statuses    : 3
-#> Items x Occasions  : 5 x 4
-#> Item parameters    : binary, held equal across occasions
-#> Transitions        : 3 tables, one per pair of occasions
-#> Converged          : TRUE (in 149 iterations)
-#> ---------------------------------------------------------
-#>   Log-Likelihood : -20328.51
-#>   Parameters     : 40
-#>   AIC            : 40737.02
-#>   BIC            : 40984.29
-#>   SABIC          : 40857.19
-#>   Rel. Entropy   : 0.8544
-#>   Best solution  : found by 3 of 3 starts that ran to convergence (of 20 requested)
-#> ---------------------------------------------------------
-#> Latent status prevalences by occasion:
-#>    Status 1 Status 2 Status 3
-#> T1   0.9481   0.0489   0.0031
-#> T2   0.1612   0.8168   0.0220
-#> T3   0.0407   0.8789   0.0804
-#> T4   0.0109   0.0167   0.9725
-#> 
-#> Note: 6 transition(s) estimated at the zero boundary; see $boundary.
-#> =========================================================
-#> Type summary(model) for transitions, measurement_summary(model) for items.
 ```
 
 Two things before the numbers. The warning is the same substantive zero
@@ -207,8 +125,7 @@ ran to convergence (of 20 requested)` is how the random-intercept search
 reports: the twenty starts are ranked cheaply and only the best few are
 run to convergence, so replication is counted among those.
 
-
-``` r
+```{r quiet}
 knitr::opts_chunk$set(warning = FALSE)
 ```
 
@@ -221,15 +138,8 @@ chi-squared reference does not apply. Compare by BIC.
 
 ### The loadings
 
-
-``` r
+```{r loadings}
 random_intercept_loadings(fit_ri)
-#>        item  loading se  z
-#> 1   letters 3.489282 NA NA
-#> 2 beginning 2.740166 NA NA
-#> 3    ending 2.569071 NA NA
-#> 4     sight 3.752326 NA NA
-#> 5   context 3.724041 NA NA
 ```
 
 Every loading is large — on the logit scale, a child one standard
@@ -240,27 +150,8 @@ dimension that the ordinary model had been squeezing into the stages.
 
 ### What changes in the statuses
 
-
-``` r
+```{r measurement}
 measurement_summary(fit_ri)
-#> 
-#> =========================================================
-#>         MEASUREMENT MODEL PARAMETERS (by occasion)
-#> =========================================================
-#> Held equal across occasions; one set shown.
-#> =========================================================
-#>              MEASUREMENT MODEL PARAMETERS                
-#> =========================================================
-#> 
-#> CATEGORICAL PROBABILITIES
-#> Indicator            | Overall | Class 1 | Class 2 | Class 3
-#> ------------------------------------------------------------ 
-#> letters@T1           |   0.860 |   0.628 |   0.940 |   0.980
-#> beginning@T1         |   0.700 |   0.303 |   0.806 |   0.942
-#> ending@T1            |   0.573 |   0.167 |   0.631 |   0.904
-#> sight@T1             |   0.315 |   0.020 |   0.208 |   0.808
-#> context@T1           |   0.152 |   0.005 |   0.058 |   0.459
-#> =========================================================
 ```
 
 Compared with the ordinary LTA, the item probabilities move away from 0
@@ -272,20 +163,9 @@ and their order.
 
 ### What changes in the prevalences and transitions
 
-
-``` r
+```{r prevalences}
 round(status_prevalences(fit_lta0), 3)
-#>    Status 1 Status 2 Status 3
-#> T1    0.694    0.284    0.023
-#> T2    0.235    0.635    0.130
-#> T3    0.142    0.627    0.232
-#> T4    0.041    0.154    0.805
 round(status_prevalences(fit_ri), 3)
-#>    Status 1 Status 2 Status 3
-#> T1    0.948    0.049    0.003
-#> T2    0.161    0.817    0.022
-#> T3    0.041    0.879    0.080
-#> T4    0.011    0.017    0.972
 ```
 
 The picture of the cohort changes considerably. Under the random-intercept
@@ -296,29 +176,8 @@ model had spread children across statuses at every occasion partly on the
 basis of a trait; with the trait removed, nearly all children are found
 to pass through the same sequence, just at different times.
 
-
-``` r
+```{r transitions}
 transition_matrix(fit_ri)
-#> $`T1 -> T2`
-#>           to
-#> from           Status 1     Status 2  Status 3
-#>   Status 1 1.700196e-01 8.197158e-01 0.0102646
-#>   Status 2 9.957691e-13 8.110426e-01 0.1889574
-#>   Status 3 1.000000e-12 1.000000e-12 1.0000000
-#> 
-#> $`T2 -> T3`
-#>           to
-#> from          Status 1     Status 2   Status 3
-#>   Status 1 0.242936997 7.384889e-01 0.01857410
-#>   Status 2 0.001283216 9.303204e-01 0.06839641
-#>   Status 3 0.021901956 9.998155e-13 0.97809804
-#> 
-#> $`T3 -> T4`
-#>           to
-#> from          Status 1     Status 2  Status 3
-#>   Status 1 0.165944031 1.158332e-11 0.8340560
-#>   Status 2 0.003912394 1.896336e-02 0.9771242
-#>   Status 3 0.008504424 9.999939e-13 0.9914956
 ```
 
 The transition matrices now describe a cohort moving almost as one: 82%
@@ -327,20 +186,11 @@ essentially everyone in early word reading moves up to comprehension over
 the second half of first grade (98%, against 86% in the ordinary model).
 The most common paths through the four occasions make the same point:
 
-
-``` r
+```{r paths}
 paths <- function(fit, n = 3)
   head(transition_patterns(fit)[order(-transition_patterns(fit)$proportion), ], n)
 paths(fit_lta0)
-#>    T1 T2 T3 T4     count proportion
-#> 15  1  2  2  3 1163.4163 0.32543112
-#> 42  2  2  2  3  477.3770 0.13353203
-#> 54  2  3  3  3  350.3013 0.09798637
 paths(fit_ri)
-#>    T1 T2 T3 T4     count proportion
-#> 15  1  2  2  3 2525.5560 0.70644923
-#> 6   1  1  2  3  415.8188 0.11631294
-#> 18  1  2  3  3  188.4078 0.05270147
 ```
 
 In the ordinary LTA the most common path accounts for a third of the
@@ -355,23 +205,14 @@ The factor is integrated numerically, and too coarse a grid biases the
 log-likelihood. `refine_from` continues the converged fit on a finer grid
 without repeating the random-start search, so the check is cheap:
 
-
-``` r
+```{r quadrature, cache = TRUE}
 fit_ri60 <- fit_lta(items, n_statuses = 3, times = 4,
                     random_intercept = "continuous", n_quadrature = 60,
                     refine_from = fit_ri, standard_errors = FALSE,
                     smoothing = ml$smoothing, bayes_constants = ml$bayes_constants)
 c(nodes_30 = fit_ri$loglik, nodes_60 = fit_ri60$loglik)
-#>  nodes_30  nodes_60 
-#> -20328.51 -20328.34
 round(cbind(nodes_30 = random_intercept_loadings(fit_ri)$loading,
             nodes_60 = random_intercept_loadings(fit_ri60)$loading), 3)
-#>      nodes_30 nodes_60
-#> [1,]    3.489    3.499
-#> [2,]    2.740    2.752
-#> [3,]    2.569    2.575
-#> [4,]    3.752    3.736
-#> [5,]    3.724    3.759
 ```
 
 Doubling the grid moves the log-likelihood by less than 0.2 and the
@@ -387,26 +228,20 @@ alternative is two latent *types* of person — a binary random intercept,
 `random_intercept = "binary"` — which asks a different question and is
 compared by BIC like everything else:
 
-
-``` r
+```{r rilta-binary, cache = TRUE}
 fit_ri2 <- fit_lta(items, n_statuses = 3, times = 4, n_init = 20,
                    random_intercept = "binary",
                    random_state = 7, standard_errors = FALSE,
                    smoothing = ml$smoothing, bayes_constants = ml$bayes_constants)
 ```
 
-
-``` r
+```{r comparison}
 fits <- list(`Regular LTA` = fit_lta0,
              `RI-LTA, binary` = fit_ri2,
              `RI-LTA, continuous` = fit_ri)
 data.frame(parameters = sapply(fits, `[[`, "n_params"),
            loglik     = round(sapply(fits, `[[`, "loglik"), 1),
            BIC        = round(sapply(fits, function(f) f$metrics$bic), 1))
-#>                    parameters   loglik     BIC
-#> Regular LTA                35 -21793.2 43872.7
-#> RI-LTA, binary             41 -20915.6 42166.7
-#> RI-LTA, continuous         40 -20328.5 40984.3
 ```
 
 Both random intercepts improve enormously on the ordinary LTA, and the
@@ -430,8 +265,7 @@ Random-start searches are slow once the factor is regressed on
 covariates, and unnecessary: the unconditional fit is already the right
 neighbourhood. `refine_from` continues from it in a single run.
 
-
-``` r
+```{r pov-ri, cache = TRUE}
 pov <- ecls_reading["poverty"]
 fit_pov_ri <- fit_lta(items, n_statuses = 3, times = 4,
                       random_intercept = "continuous", n_quadrature = 30,
@@ -446,18 +280,13 @@ fit_pov_tr <- fit_lta(items, n_statuses = 3, times = 4,
                       smoothing = ml$smoothing, bayes_constants = ml$bayes_constants)
 ```
 
-
-``` r
+```{r pov-comparison}
 fits <- list(`RI-LTA` = fit_ri,
              `+ poverty -> trait` = fit_pov_ri,
              `+ poverty -> trait and transitions` = fit_pov_tr)
 data.frame(parameters = sapply(fits, `[[`, "n_params"),
            loglik     = round(sapply(fits, `[[`, "loglik"), 1),
            BIC        = round(sapply(fits, function(f) f$metrics$bic), 1))
-#>                                    parameters   loglik     BIC
-#> RI-LTA                                     40 -20328.5 40984.3
-#> + poverty -> trait                         41 -20127.7 40590.8
-#> + poverty -> trait and transitions         47 -20106.2 40597.0
 ```
 
 One parameter — poverty on the trait — buys 200 log-likelihood units.
@@ -471,16 +300,8 @@ with `vignette("lta")`, where poverty on the initial status and the
 transitions of the *ordinary* LTA was worth 210 units: most of that
 effect was the trait all along.
 
-
-``` r
+```{r pov-test}
 lr_test(fit_pov_ri, fit_pov_tr)
-#> 
-#> Likelihood-ratio test for nested models
-#> ---------------------------------------------------------
-#>   Restricted : LL =  -20127.6888   parameters = 41
-#>   Full       : LL =  -20106.2306   parameters = 47
-#>   -2 x diff  : 42.9163   df = 6   p = 1.212e-07
-#>   The restriction is rejected: the full model fits significantly better.
 ```
 
 A fit continued with `refine_from` keeps its donor's status labels, so
@@ -488,58 +309,8 @@ status 1 is still the low-alphabet stage and status 3 comprehension —
 check with `status_prevalences()` when in doubt — and every transition
 contrast below is relative to *reaching comprehension*:
 
-
-``` r
+```{r pov-coefs}
 lta_covariate_summary(fit_pov_tr)
-#> 
-#> =========================================================
-#>    LATENT TRANSITION MODEL - COVARIATE EFFECTS (logits)
-#> =========================================================
-#> Reference status: 3. Coefficients are contrasts against it;
-#> exp(coefficient) is an odds ratio.
-#> 
-#> PREDICTING TRANSITIONS
-#> 
-#>   [occasion 1 -> 2]
-#>       Status      Term Estimate     SE      z      p          OR
-#>  to Status 1 Intercept  -13.002 84.665  -0.15 0.8779       0.000
-#>  to Status 1    from:1   15.874 84.665   0.19 0.8513 7836149.727
-#>  to Status 1    from:2  -10.394  0.360 -28.85 <1e-16       0.000
-#>  to Status 1   poverty    0.002  0.302   0.01 0.9951       1.002
-#>  to Status 2 Intercept  -10.788 48.033  -0.22 0.8223       0.000
-#>  to Status 2    from:1   15.307 48.033   0.32 0.7500 4442242.944
-#>  to Status 2    from:2   12.052 48.033   0.25 0.8019  171435.041
-#>  to Status 2   poverty   -0.652  0.290  -2.25 0.0244       0.521
-#> 
-#>   [occasion 2 -> 3]
-#>       Status      Term Estimate     SE     z        p          OR
-#>  to Status 1 Intercept   -5.117  0.909 -5.63 1.81e-08       0.006
-#>  to Status 1    from:1    7.338  0.953  7.70 1.34e-14    1536.961
-#>  to Status 1    from:2   -0.044  1.133 -0.04    0.969       0.957
-#>  to Status 1   poverty    1.870  0.271  6.89 5.56e-12       6.488
-#>  to Status 2 Intercept  -11.911 38.372 -0.31    0.756       0.000
-#>  to Status 2    from:1   15.558 38.373  0.41    0.685 5711371.236
-#>  to Status 2    from:2   14.511 38.372  0.38    0.705 2004089.903
-#>  to Status 2   poverty    0.109  0.198  0.55    0.581       1.115
-#> 
-#>   [occasion 3 -> 4]
-#>       Status      Term Estimate     SE       z        p        OR
-#>  to Status 1 Intercept   -4.816  0.636   -7.57 3.68e-14     0.008
-#>  to Status 1    from:1    3.824  0.662    5.78 7.51e-09    45.806
-#>  to Status 1    from:2   -0.775  0.698   -1.11 0.266879     0.461
-#>  to Status 1   poverty    0.182  0.292    0.62 0.534036     1.199
-#>  to Status 2 Intercept  -15.115 94.451   -0.16 0.872861     0.000
-#>  to Status 2    from:1   -8.590  0.045 -192.52  < 1e-16     0.000
-#>  to Status 2    from:2   10.729 94.451    0.11 0.909561 45658.338
-#>  to Status 2   poverty    1.105  0.296    3.73 0.000192     3.018
-#> 
-#> PREDICTING THE RANDOM INTERCEPT (linear regression, residual variance fixed at 1)
-#> The factor's sign is fixed by making the largest loading positive;
-#> reversing that convention reverses every coefficient here.
-#>     Term Estimate    SE      z      p
-#>  poverty   -0.882 0.057 -15.45 <1e-16
-#> 
-#> =========================================================
 ```
 
 Read the sign of the trait coefficient against the loadings, which are
@@ -555,30 +326,20 @@ almost nobody occupies, which is what their standard errors say.
 The final model was fitted with standard errors, so the loadings now
 come with theirs:
 
-
-``` r
+```{r loadings-se}
 random_intercept_loadings(fit_pov_tr)
-#>        item  loading         se        z
-#> 1   letters 3.099271 0.11864326 26.12261
-#> 2 beginning 2.440198 0.07677823 31.78242
-#> 3    ending 2.308574 0.06589727 35.03292
-#> 4     sight 3.412924 0.14178355 24.07137
-#> 5   context 3.469340 0.15730670 22.05462
 ```
 
 `random_intercept_scores()` returns each child's estimated position on
 the trait, which is the natural quantity to relate to anything else in
 the data:
 
-
-``` r
+```{r scores, fig.height = 4}
 scores <- random_intercept_scores(fit_pov_tr)
 boxplot(scores$mean_score ~ ecls_reading$poverty, horizontal = TRUE,
         names = c("Not in poverty", "In poverty"),
         xlab = "Reading readiness (posterior mean factor score)", ylab = "")
 ```
-
-![plot of chunk scores](rilta-scores-1.png)
 
 ## Practical notes
 

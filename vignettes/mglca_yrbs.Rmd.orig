@@ -7,10 +7,16 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
 
-
-
-``` r
+```{r setup}
 library(mixtureEM)
 ```
 
@@ -54,15 +60,11 @@ design in play.
 `grade` is a factor with levels 9 through 12, with no missing values in the
 bundled sample:
 
-
-``` r
+```{r data}
 data(yrbs2005)
 items <- yrbs2005[, 3:14]
 grade <- yrbs2005$grade
 table(grade)
-#> grade
-#>    9   10   11   12 
-#> 3332 3470 3529 3509
 ```
 
 ## Step 1: do the items mean the same thing in every grade?
@@ -72,39 +74,12 @@ item-response probabilities across grades — that pooling *is* the
 measurement-invariance assumption — while letting each grade have its own class
 sizes:
 
-
-``` r
+```{r baseline, cache = TRUE}
 set.seed(1)
 m_free <- fit_mixture(items, n_classes = 5, measurement = "binary",
                       group = grade, group_effects = "prevalence",
                       n_init = 20, max_iter = 2000, n_steps = 1)
 m_free
-#> =========================================================
-#>                   LATENT MIXTURE MODEL                   
-#> =========================================================
-#> Classes Estimated  : 5
-#> Estimation Method  : 1-step
-#> Converged          : TRUE (in 73 iterations)
-#> Missing Data       : 7186 / 166080 cells (4.3%) in 12 items — FIML (MAR assumption)
-#> ---------------------------------------------------------
-#>   Log-Likelihood : -48032.86
-#>   Parameters     : 76
-#>   AIC            : 96217.72
-#>   BIC            : 96790.41
-#>   SABIC          : 96548.89
-#>   Rel. Entropy   : 0.8046
-#>   Best solution  : found by 6 of 20 starts
-#>   (Known-class scale, counting the grouping variable's own proportions: metrics$ll_knownclass = -67215.74, metrics$n_params_knownclass = 79.)
-#> ---------------------------------------------------------
-#> Class Weights (Sizes, pooled across groups):
-#>   Class 1: 66.06%
-#>   Class 2: 13.17%
-#>   Class 3: 10.13%
-#>   Class 4: 5.91%
-#>   Class 5: 4.73%
-#>   (Prevalence varies by group; see class_sizes(model) for the by-group breakdown.)
-#> =========================================================
-#> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 ```
 
 A four-group, five-class fit on this many cases is materially more expensive per
@@ -115,24 +90,12 @@ start than the package's other vignettes; the solution above replicated across
 as the class sizes, and comparing the two by likelihood ratio tests exactly the
 assumption the invariant model is making:
 
-
-``` r
+```{r invariance, cache = TRUE}
 set.seed(1)
 m_both <- fit_mixture(items, n_classes = 5, measurement = "binary",
                       group = grade, group_effects = "both",
                       n_init = 20, max_iter = 2000, n_steps = 1)
-#> Warning: The reported solution was found by 1 of 21 starts that ran to
-#> convergence, out of 20 requested. EM climbs the peak it starts nearest, so a
-#> maximum seen once may be the best of a small sample of the likelihood surface
-#> rather than the best there is: refit with n_init = 100 before reporting.
 lr_test(m_free, m_both)
-#> 
-#> Likelihood-ratio test for nested models
-#> ---------------------------------------------------------
-#>   Restricted : LL =  -48032.8623   parameters = 76
-#>   Full       : LL =  -47528.7781   parameters = 256
-#>   -2 x diff  : 1008.1685   df = 180   p = < 1e-16
-#>   The restriction is rejected: the full model fits significantly better.
 ```
 
 `lr_test()` takes the restricted model first and the full model second —
@@ -185,33 +148,8 @@ than as good enough to interpret.
 
 ## The five classes
 
-
-``` r
+```{r label-check}
 measurement_summary(m_free)
-#> =========================================================
-#>              MEASUREMENT MODEL PARAMETERS                
-#> =========================================================
-#> 
-#> CATEGORICAL PROBABILITIES
-#> Indicator             | Overall | Class 1 | Class 2 | Class 3 | Class 4 | Class 5
-#> --------------------------------------------------------------------------------- 
-#> smoked_before_13      |   0.154 |   0.037 |   0.125 |   0.629 |   0.639 |   0.257
-#> smoked_daily_30d      |   0.120 |   0.018 |   0.283 |   0.246 |   0.653 |   0.170
-#> drove_drinking        |   0.105 |   0.005 |   0.442 |   0.107 |   0.452 |   0.131
-#> first_drink_before_13 |   0.255 |   0.134 |   0.175 |   0.771 |   0.683 |   0.430
-#> binge_drink_30d       |   0.247 |   0.078 |   0.745 |   0.437 |   0.788 |   0.213
-#> marijuana_before_13   |   0.089 |   0.005 |   0.026 |   0.378 |   0.549 |   0.263
-#> cocaine_ever          |   0.083 |   0.004 |   0.182 |   0.069 |   0.838 |   0.030
-#> glue_ever             |   0.116 |   0.053 |   0.151 |   0.256 |   0.564 |   0.037
-#> meth_ever             |   0.058 |   0.004 |   0.087 |   0.030 |   0.692 |   0.008
-#> ecstasy_ever          |   0.061 |   0.004 |   0.100 |   0.048 |   0.624 |   0.067
-#> sex_before_13         |   0.074 |   0.016 |   0.001 |   0.141 |   0.288 |   0.701
-#> sex_4plus_partners    |   0.170 |   0.060 |   0.312 |   0.123 |   0.558 |   0.928
-#> 
-#> Missing data: 7186 of 166080 cells (4.3%) across 12 items, handled via FIML (MAR assumption).
-#> 
-#> At the boundary: sex_before_13 in class 2. These probabilities have run to 0 or 1, so the class is defined partly by an item every case in it gives the same answer to, and their standard errors are not interpretable. There are two ways on: read it substantively, since an item every member of a class answers identically is often the finding rather than a fault; or, if that parameter needs a standard error, refit with a stronger prior than the default of 1 - `bayes_constants = list(categorical = 2)` - which holds the estimate off the edge at the cost of shrinking it slightly toward the item's marginal.
-#> =========================================================
 ```
 
 This fit is unweighted and grouped, and its classes do not read the same way
@@ -225,15 +163,12 @@ of everything else. There is no single "high risk across everything" class in
 this solution. In size order, the five classes are **Low Risk, Binge Drinkers,
 Early Experimenters, High Risk,** and **Sexual Risk-Takers**:
 
-
-``` r
+```{r plot}
 class_labels <- c("Low Risk", "Binge Drinkers", "Early Experimenters",
                   "High Risk", "Sexual Risk-Takers")
 plot(m_free, class_labels = class_labels,
      main = "Health-risk behavior classes by grade\n(YRBS 2005, unweighted)")
 ```
-
-![plot of chunk plot](mglca_yrbs-plot-1.png)
 
 Class 2 (Binge Drinkers) stands out on `drove_drinking` and `binge_drink_30d`
 specifically; class 3 (Early Experimenters) stands out on the two early-onset
@@ -249,20 +184,12 @@ share the same class sizes as well, which is the null hypothesis that
 prevalence does not differ by grade at all — Clogg and Goodman's homogeneous
 model:
 
-
-``` r
+```{r constrained, cache = TRUE}
 set.seed(1)
 m_none <- fit_mixture(items, n_classes = 5, measurement = "binary",
                       group = grade, group_effects = "none",
                       n_init = 5, max_iter = 2000, n_steps = 1)
 lr_test(m_none, m_free)
-#> 
-#> Likelihood-ratio test for nested models
-#> ---------------------------------------------------------
-#>   Restricted : LL =  -48345.2587   parameters = 64
-#>   Full       : LL =  -48032.8623   parameters = 76
-#>   -2 x diff  : 624.7928   df = 12   p = < 1e-16
-#>   The restriction is rejected: the full model fits significantly better.
 ```
 
 With four grades and five classes there are (4 - 1) x (5 - 1) = 12 free
@@ -277,12 +204,9 @@ convention that models the grouping variable as a latent class observed
 without error and so adds its multinomial term — as opposed to `metrics$ll`,
 which conditions on the group.
 
-
-``` r
+```{r ll-knownclass}
 m_free$metrics$ll_knownclass
-#> [1] -67215.74
 m_none$metrics$ll_knownclass
-#> [1] -67528.13
 ```
 
 ## Step 3: which class's prevalence differs by grade?
@@ -325,8 +249,7 @@ rather than joining it, and for a reason: the restriction only means something
 once the classes have been anchored by the unrestricted solution, so a random
 search that could land in a differently labelled basin would defeat it.
 
-
-``` r
+```{r per-class, cache = TRUE}
 per_class <- lapply(1:5, function(k)
   lr_test(fit_mixture(items, n_classes = 5, measurement = "binary",
                       group = grade, group_effects = "prevalence",
@@ -337,12 +260,6 @@ data.frame(class = class_labels,
            dG2 = vapply(per_class, function(t) t$statistic, numeric(1)),
            df = vapply(per_class, function(t) t$df, numeric(1)),
            p_value = vapply(per_class, function(t) t$p_value, numeric(1)))
-#>                 class         dG2 df       p_value
-#> 1            Low Risk  61.2475764  3  3.181757e-13
-#> 2      Binge Drinkers 468.0496546  3 4.002394e-101
-#> 3 Early Experimenters 176.4257982  3  5.215390e-38
-#> 4           High Risk   0.4158324  3  9.369528e-01
-#> 5  Sexual Risk-Takers   5.6715481  3  1.287307e-01
 ```
 
 Each row matches Collins and Lanza's Table 5.24 to about one decimal (61.3,

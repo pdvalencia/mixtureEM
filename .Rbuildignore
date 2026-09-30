@@ -8,6 +8,8 @@
 ^scratch.*\.R$
 ^internal$
 ^vignettes/.*_cache$
+^vignettes/.*\.Rmd\.orig$
+^vignettes/precompile\.R$
 ^README\.html$
 ^docs$
 ^_pkgdown\.yml$
