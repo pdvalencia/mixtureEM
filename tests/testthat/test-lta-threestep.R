@@ -947,8 +947,11 @@ test_that("step 1's variance is the transition-free model's own", {
   # The package orders the prevalences first.
   se_ours <- sqrt(diag(fit$se$step1_vcov))
   expect_length(se_ours, 23L)
+  # optimHess is a finite-difference Hessian, good to about 1% here and
+  # platform-dependent (1.2% on macOS arm64); a wrong block or ordering is
+  # off by far more.
   expect_lt(max(abs(se_ours / c(tail(se_scratch, 8), head(se_scratch, 15)) - 1)),
-            5e-3)
+            2e-2)
 })
 
 test_that("the correction only ever adds, and says it has been applied", {
