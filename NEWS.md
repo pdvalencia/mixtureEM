@@ -1,5 +1,20 @@
 # mixtureEM (development version)
 
+## The finish after EM is fast on large models
+
+The Newton-type finish (below) needs every case's score in every parameter
+at each step. `fit_mixture()` took them by differencing the likelihood, two
+passes over the data per parameter per step, and differenced the prior the
+same way, so the finish's cost grew with the square of the number of
+parameters. On a five-class, four-group model with every item free by group
+(256 parameters) it had not finished after half an hour, following an EM
+search of four minutes. The
+scores and the prior's gradient now come from one E-step, as they already did
+for `fit_lta()`, and that fit takes 8.6 minutes in all. Growth mixtures and
+latent class growth models still difference, and are small enough not to
+notice. The finished estimates are the same: every benchmark log-likelihood
+is unchanged to its printed digits.
+
 ## Class-specific slopes on a continuous outcome report the sandwich
 
 `slopes = "class_specific"` on a continuous distal outcome fitted each

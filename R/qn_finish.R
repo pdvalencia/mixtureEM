@@ -39,9 +39,12 @@
 #     -7 to -107 in one step, past the maximum and onto the boundary, where the
 #     gradient vanishes and nothing brings it back; long EM runs, and Newton on
 #     the observed information, both stop at -9. The outer product of scores is
-#     the empirical information, costs one gradient's worth of likelihood
-#     evaluations, and makes the step along such a direction as small as the
-#     data say it should be.
+#     the empirical information, costs no more than the gradient, and makes
+#     the step along such a direction as small as the data say it should be.
+#     The scores come from one E-step wherever the model's families have them
+#     (R/qn_scores.R, every fit_mixture() model but the growth models; the LTA
+#     score blocks for fit_lta()), and from central differences, at 2p
+#     passes over the data, otherwise.
 #   * Steps are also capped at one unit in any coordinate, and a coordinate
 #     that crosses |15| is taken to be heading for the boundary: it is sent to
 #     |25| (a probability of 1e-11, the box R/lta_core.R's polish uses) and held
@@ -170,11 +173,14 @@
 # (central differences of `case_ll` when not supplied). `kind` tags each
 # coordinate (see .qn_wall_hit()); `fixed` names coordinates that are held
 # where they are -- the measurement block of a two-step or three-step fit.
-# Returns NULL when nothing is free or the start is not finite, so every
+# `prior_grad(par)`, when supplied, returns the prior's gradient `g` and
+# diagonal second derivatives `h` over every coordinate; central differences
+# of `prior` otherwise. Returns NULL when nothing is free or the start is not finite, so every
 # caller can fall back to the EM solution.
 .qn_finish <- function(case_ll, w, par0, prior = function(p) 0,
                        scores = NULL, gtol_stop = .qn_gtol_stop,
-                       maxit = 500L, kind = NULL, fixed = integer(0)) {
+                       maxit = 500L, kind = NULL, fixed = integer(0),
+                       prior_grad = NULL) {
   scores <- scores %||% function(p, idx) .qn_fd_scores(case_ll, p, idx)
   kind   <- kind %||% rep("logit", length(par0))
   value  <- function(p) {
@@ -205,8 +211,13 @@
   repeat {
     it <- it + 1L
     S  <- scores(x, free)
-    fr <- function(v) { p <- x; p[free] <- v; prior(p) }
-    gp <- .qn_fd_grad2(fr, x[free])
+    gp <- if (is.null(prior_grad)) {
+      fr <- function(v) { p <- x; p[free] <- v; prior(p) }
+      .qn_fd_grad2(fr, x[free])
+    } else {
+      a <- prior_grad(x)
+      list(g = a$g[free], h = a$h[free])
+    }
     g  <- colSums(S * w) + gp$g
     if (max(abs(g)) < gtol_stop * sw || it > maxit) break
     # Ten steps in a row that gained no more than the rounding and left the
@@ -413,13 +424,8 @@
   marg   <- tryCatch(.em_prior_marginals(model_state, X), error = function(e) NULL)
   smp    <- if (lay$has_sm) .qn_sm_prior(model_state$sm, Y, wt) else
     function(sm) 0
-  case_ll <- function(par) {
-    st <- unpack(par)
-    L  <- log_likelihood(st$mm, X)
-    if (lay$has_sm) L <- L + log_likelihood(st$sm, Y)
-    if (!lay$sm_probs) L <- sweep(L, 2, log(pmax(st$weights, 1e-300)), "+")
-    logsumexp(L, MARGIN = 1)
-  }
+  case_ll <- function(par)
+    logsumexp(.qn_mixture_logdens(unpack(par), lay, X, Yp), MARGIN = 1)
   prior <- function(par) {
     st <- unpack(par)
     lp <- .em_log_prior(st, X, Yp, marg)
@@ -437,9 +443,44 @@
   if (is.na(pr$prior(par0))) return(NULL)
   start <- pr$value(par0)
   if (!is.finite(start)) return(NULL)
-  res <- .qn_finish(pr$case_ll, pr$w, par0, pr$prior,
+  # Analytic scores (R/qn_scores.R) wherever every block has them, from the
+  # same E-step as the case log-likelihood: the finish asks for both at one
+  # point, so that pass is cached, and the scores are built only when asked
+  # for, not at every trial point of the line search. Central differences for
+  # the rest -- the growth models.
+  s0 <- .qn_mixture_scores(pr$unpack(par0), lay, X, Yp)
+  if (!is.null(s0)) {
+    cache <- NULL
+    at <- function(p) {
+      if (is.null(cache) || !identical(cache$p, p)) {
+        st <- pr$unpack(p)
+        e  <- .qn_mixture_estep(st, lay, X, Yp)
+        cache <<- list(p = p, st = st, ll = e$ll, R = e$R, S = NULL)
+      }
+      cache
+    }
+    case_ll <- function(p) at(p)$ll
+    scores  <- function(p, idx) {
+      if (is.null(at(p)$S))
+        cache$S <<- .qn_mixture_score_matrix(cache$st, lay, X, Yp, cache$R)
+      cache$S[, idx, drop = FALSE]
+    }
+  } else {
+    case_ll <- pr$case_ll
+    scores  <- NULL
+  }
+  # The prior's gradient likewise, where every block has one: differencing it
+  # re-derives the data marginals 2p + 1 times an iteration.
+  pg <- .qn_mixture_prior_grad(model_state, lay, X, Y, wt)
+  if (!is.null(pg) && is.null(pg(pr$unpack(par0)))) pg <- NULL
+  prior_grad <- if (!is.null(pg)) function(p) pg(pr$unpack(p))
+  # The stopping rule stays the differenced route's, which is the rule every
+  # mixture target was graded at (RECORDS.md, "Part 53 graded"): the tighter
+  # analytic rule took m_free (group prevalence, p = 76) from 33 iterations to
+  # 340 for 2e-8 of log-likelihood (RECORDS.md, Part 56).
+  res <- .qn_finish(case_ll, pr$w, par0, pr$prior, scores,
                     gtol_stop = .qn_gtol_stop_fd, kind = lay$kind,
-                    fixed = pr$fixed)
+                    fixed = pr$fixed, prior_grad = prior_grad)
   if (is.null(res) || res$value <= start) return(NULL)
   if (.qn_scale_collapsed(par0, res$par, lay$kind)) return(NULL)
 
