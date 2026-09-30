@@ -217,11 +217,30 @@ m_step.blocks <- function(model_state, X, resp, weights = NULL, ...) {
   # responsibilities attached to each block differ.
   resp_at <- function(b) if (is.list(resp)) resp[[b]] else resp
 
-  # Free items: an ordinary per-block update.
+  # Free items: an ordinary per-block update. On group blocks whose prior is
+  # spread over the groups (.em_group_pooled_prior(), R/em_core.R) each block's
+  # update sees every case's answers with the other groups' responsibilities
+  # set to zero: its sufficient statistics are its own group's, unchanged, and
+  # the marginal its pseudo-cases are centred on is the pooled one, carrying
+  # 1 / Bn of the item's prior mass.
   if (!all_invariant) {
+    pooled <- .em_group_pooled_prior(model_state)
+    if (pooled) {
+      X_all <- .strip_block_prefix(X[, .time_block_cols(1L, J), drop = FALSE])
+      for (b in seq_len(Bn)[-1L]) {
+        blk  <- X[, .time_block_cols(b, J), drop = FALSE]
+        fill <- is.na(X_all) & !is.na(blk)
+        X_all[fill] <- blk[fill]
+      }
+    }
     for (b in seq_len(Bn)) {
       X_sub <- .strip_block_prefix(X[, .time_block_cols(b, J), drop = FALSE])
-      model_state$models[[b]] <-
+      model_state$models[[b]] <- if (pooled) {
+        r_b <- resp_at(b)
+        r_b[rowSums(!is.na(X_sub)) == 0L, ] <- 0
+        m_step(model_state$models[[b]], X_all, r_b, weights = weights,
+               prior_scale = 1 / Bn, ...)
+      } else
         m_step(model_state$models[[b]], X_sub, resp_at(b), weights = weights, ...)
     }
   }

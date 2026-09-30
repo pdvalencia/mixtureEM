@@ -351,7 +351,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
     bernoulli_dif  = list(m = .em_col_marginal_valid(X, wt)),
     poisson        = ,
     poisson_nan    = {
-      m <- .em_col_marginal(X, wt)
+      m <- .em_col_marginal_valid(X, wt)
       m[!is.finite(m)] <- 0
       list(m = m)
     },
@@ -468,7 +468,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
     a <- .bayes_alpha(sub, "poisson")
     if (a > 0) {
       Xi  <- X_view[, items, drop = FALSE]
-      m   <- .em_col_marginal(Xi, wt)
+      m   <- .em_col_marginal_valid(Xi, wt)
       m[!is.finite(m)] <- 0
       lam <- pmax(sub$parameters$rates[, cols, drop = FALSE], 1e-300)
       mm_ <- matrix(m, nrow = K, ncol = length(cols), byrow = TRUE)
@@ -565,14 +565,26 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
   val / K
 }
 
-# `blocks` (time_blocks/group_blocks): a free item gets an ordinary per-block
-# term on that block's own data; an item held invariant across blocks gets ONE
-# term, on the representative block's parameters (identical everywhere by
+# `blocks` (time_blocks/group_blocks): an item held invariant across blocks gets
+# ONE term, on the representative block's parameters (identical everywhere by
 # construction) against the pooled marginal, multiplied by `scale` -- the exact
 # multiplier m_step.blocks() passes as `prior_scale` on its own stacked update
 # (R/time_blocks.R: `scale <- if (inherits(model_state, "time_blocks")) Bn else
 # 1L`; group blocks are one response variable observed once per case, not Bn
 # distinct equations, so they do not get the multiplier).
+#
+# A free item on time blocks is Bn distinct response variables and gets an
+# ordinary per-block term on that block's own data. A free item on group blocks
+# is still one response variable, whose response probabilities depend on the
+# group: its Dirichlet prior (Galindo-Garre & Vermunt, 2006, sec. 3.3: alpha / K
+# pseudo-cases per class, in proportion to the item's observed marginal
+# distribution) is spread evenly over the Bn groups, alpha / (K * Bn) per group,
+# and every group's term is centred on the pooled marginal
+# (.em_group_pooled_prior()). The item then carries the same prior mass whether
+# its parameters are free by group or held equal, and at equal parameters the
+# two priors coincide, so freeing an item across groups changes the likelihood
+# and never the amount of prior information; a per-group alpha / K would grow
+# the prior with the number of groups.
 #
 # A block whose `invariant_params` is non-empty (the ECM path,
 # .blocks_gaussian_ecm() in R/blocks_constraints.R) prices its prior the way
@@ -583,25 +595,32 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 .em_blocks_family_log_prior <- function(mm, X, K, wt) {
   if (length(mm$invariant_params)) return(.em_blocks_ecm_log_prior(mm, X, K, wt))
 
-  J     <- mm$n_items
-  Bn    <- mm$n_blocks
-  inv   <- mm$invariant_items
-  free  <- setdiff(seq_len(J), inv)
-  scale <- if (inherits(mm, "time_blocks")) Bn else 1L
-  val   <- 0
+  J      <- mm$n_items
+  Bn     <- mm$n_blocks
+  inv    <- mm$invariant_items
+  free   <- setdiff(seq_len(J), inv)
+  scale  <- if (inherits(mm, "time_blocks")) Bn else 1L
+  pooled <- .em_group_pooled_prior(mm)
+  val    <- 0
 
+  if (length(inv) || pooled) {
+    X_pool  <- .strip_block_prefix(.stack_blocks(X, J, Bn))
+    wt_pool <- if (is.null(wt)) NULL else rep(wt, Bn)
+  }
   if (length(free)) {
     for (b in seq_len(Bn)) {
-      X_sub   <- .strip_block_prefix(X[, .time_block_cols(b, J), drop = FALSE])
-      fam_val <- .em_flat_family_log_prior_items(mm$models[[b]], X_sub, K,
-                                                 free, wt)
+      fam_val <- if (pooled)
+        .em_flat_family_log_prior_items(mm$models[[b]], X_pool, K, free,
+                                        wt_pool, scale = 1 / Bn)
+      else
+        .em_flat_family_log_prior_items(mm$models[[b]],
+          .strip_block_prefix(X[, .time_block_cols(b, J), drop = FALSE]), K,
+          free, wt)
       if (is.na(fam_val)) return(NA_real_)
       val <- val + fam_val
     }
   }
   if (length(inv)) {
-    X_pool  <- .strip_block_prefix(.stack_blocks(X, J, Bn))
-    wt_pool <- if (is.null(wt)) NULL else rep(wt, Bn)
     fam_val <- .em_flat_family_log_prior_items(mm$models[[1]], X_pool, K, inv,
                                                wt_pool, scale = scale)
     if (is.na(fam_val)) return(NA_real_)
@@ -609,6 +628,20 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
   }
   val
 }
+
+# Whether a group-blocks model's free items take the pooled, group-spread prior
+# described above: the Dirichlet (categorical, ordinal) and gamma (Poisson)
+# priors, which are centred on a marginal distribution. The variance prior of
+# the Gaussian families is centred on each block's own observed variance and
+# stays per block.
+.em_group_pooled_families <- c("bernoulli", "bernoulli_nan",
+                               "multinoulli", "multinoulli_nan",
+                               "ordinal", "ordinal_nan",
+                               "poisson", "poisson_nan")
+.em_group_pooled_prior <- function(mm)
+  inherits(mm, "group_blocks") &&
+    all(vapply(mm$models, function(s) class(s)[1] %in% .em_group_pooled_families,
+               logical(1)))
 
 # The ECM path's prior: block b's own gaussian term, on block b's own data,
 # summed over blocks. Under shared variances every block's term is evaluated at
@@ -863,6 +896,23 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
   free_cols <- if (tied) vapply(map_groups, function(g) g[1L], integer(1)) else
     seq_len(J)
 
+  # Group blocks carry the prior m_step.blocks() applies there
+  # (.em_blocks_family_log_prior()): every block's term for an item is centred
+  # on the item's pooled marginal, a free item's with 1 / Bn of the prior mass
+  # in each group and an item held equal across groups with all of it once.
+  prior_mult <- rep(1, P)
+  if (fam == "bernoulli" && .em_group_pooled_prior(model_state$mm)) {
+    Jb      <- model_state$mm$n_items
+    item_of <- (seq_len(J) - 1L) %% Jb + 1L
+    s1 <- colSums(X0 * sw)
+    s0 <- colSums(obs_w)
+    m_item   <- vapply(seq_len(Jb), function(j)
+      sum(s1[item_of == j]) / max(sum(s0[item_of == j]), 1e-12), numeric(1))
+    marginal <- pmax(pmin(m_item[item_of[free_cols]], 1 - 1e-7), 1e-7)
+    col_tied <- if (tied) lengths(map_groups) > 1L else rep(FALSE, P)
+    prior_mult <- ifelse(col_tied, 1, 1 / model_state$mm$n_blocks)
+  }
+
   if (fam == "bernoulli") {
     pis  <- pmax(pmin(view$mm$parameters$pis[, free_cols, drop = FALSE],
                       1 - 1e-7), 1e-7)
@@ -963,8 +1013,8 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
     # ── Priors (also normalised by n_obs) ─────────────────────────────────────
     log_prior_w <- (alpha_lat / K) * sum(log_w) / n_obs
     log_prior_pis <- if (fam == "bernoulli" && alpha_cat > 0)
-      alpha_cat * sum((marginal / K) %*% t(log(pis_free)) +
-            ((1 - marginal) / K) %*% t(log(1 - pis_free))) / n_obs
+      alpha_cat * sum((prior_mult * marginal / K) %*% t(log(pis_free)) +
+            (prior_mult * (1 - marginal) / K) %*% t(log(1 - pis_free))) / n_obs
     else 0
 
     # Truncated inverse-Wishart on the class variances (see the header). Written
@@ -1002,8 +1052,8 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
       }
       if (tied) g_data <- fold_cols(g_data)
       # d/d logit(p) of (a/K)[m log p + (1-m) log(1-p)] = (a/K)(m - p).
-      g_pis <- g_data +
-        alpha_cat * (matrix(marginal, K, P, byrow = TRUE) - pis_free) / K
+      g_pis <- g_data + alpha_cat *
+        sweep(matrix(marginal, K, P, byrow = TRUE) - pis_free, 2, prior_mult, "*") / K
       grad[seq_len(K * P)] <- as.vector(-g_pis) / n_obs
 
     } else if (fam == "gaussian_diag") {

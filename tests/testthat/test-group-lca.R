@@ -536,3 +536,55 @@ test_that("print() points to ll_knownclass only for a group= fit", {
   out_plain <- capture.output(print(fit_plain))
   expect_false(any(grepl("ll_knownclass", out_plain, fixed = TRUE)))
 })
+
+test_that("a group-varying item carries one prior, spread over the groups", {
+  d <- .make_group_data(n = 600)
+  X <- d$X
+  set.seed(3)
+  X[sample(length(X), 150)] <- NA
+  fit <- fit_mixture(X, n_classes = d$K, measurement = "binary",
+                     group = d$grp, group_effects = "both",
+                     n_steps = 1, n_init = 3, random_state = 1)
+  mm <- fit$mm
+  K  <- d$K; G <- mm$n_blocks; J <- mm$n_items
+
+  # By hand: alpha / (K * G) pseudo-cases per class in every group, centred on
+  # the item's pooled observed marginal.
+  m    <- colMeans(X, na.rm = TRUE)
+  kern <- function(p) sum(sweep(log(p), 2, m, "*") + sweep(log1p(-p), 2, 1 - m, "*"))
+  hand <- sum(vapply(mm$models, function(s) kern(s$parameters$pis), numeric(1))) /
+    (K * G)
+  expect_equal(.em_blocks_family_log_prior(mm, fit$data, K, NULL), hand,
+               tolerance = 1e-12)
+
+  # With every group's parameters equal, the prior is the invariant item's.
+  eq <- mm
+  for (b in seq_len(G)) eq$models[[b]]$parameters$pis <- mm$models[[1]]$parameters$pis
+  flat <- .em_flat_family_log_prior_items(mm$models[[1]], X, K, seq_len(J), NULL)
+  expect_equal(.em_blocks_family_log_prior(eq, fit$data, K, NULL), flat,
+               tolerance = 1e-12)
+})
+
+test_that("EM climbs the group-spread prior on group blocks", {
+  d <- .make_group_data(n = 600)
+  X <- d$X
+  set.seed(4)
+  X[sample(length(X), 150)] <- NA
+  for (ge in c("both", "measurement")) {
+    fit <- fit_mixture(X, n_classes = d$K, measurement = "binary",
+                       group = d$grp, group_effects = ge,
+                       n_steps = 1, n_init = 3, random_state = 1)
+    st <- fit
+    for (b in seq_len(st$mm$n_blocks))
+      st$mm$models[[b]]$parameters$pis <-
+        plogis(qlogis(st$mm$models[[b]]$parameters$pis) + 0.3)
+    obj <- function(s) sum(e_step(s, fit$data, fit$Y)$log_prob_norm) +
+      .em_log_prior(s, fit$data, fit$Y)
+    nxt <- m_step_core(st, fit$data, fit$Y, e_step(st, fit$data, fit$Y)$log_resp)
+    expect_gt(obj(nxt), obj(st))
+    # The fit itself sits at a stationary point of the same objective: a
+    # further EM step moves it by next to nothing.
+    again <- m_step_core(fit, fit$data, fit$Y, e_step(fit, fit$data, fit$Y)$log_resp)
+    expect_lt(abs(obj(again) - obj(fit)), 1e-5)
+  }
+})

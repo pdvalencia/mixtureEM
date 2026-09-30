@@ -1,5 +1,28 @@
 # mixtureEM (development version)
 
+## A group-varying item's prior no longer grows with the number of groups
+
+With `group = ` and items free by group (`group_effects = "both"` or
+`"measurement"`), each group's copy of a categorical or count item carried a
+full prior of its own, `bayes_constants$categorical / K` pseudo-cases per
+class centred on that group's own response rates. An item free across four
+groups therefore carried four times the prior of the same item held equal,
+and freeing it changed the amount of prior information as well as the model.
+The item's prior is now one prior, spread evenly over the groups and centred
+on the item's pooled response rates. At equal parameters across groups it is
+exactly the invariant item's prior. The L-BFGS polish
+(`group_effects = "measurement"`) and the Newton-type finish carry the same
+prior. Fits with priors off, fits whose items are held equal across groups,
+continuous items and repeated-measures (time-block) models do not change.
+Default-prior fits with group-varying items do: on the `mglca_yrbs`
+vignette's five-class, four-group model the log-prior goes from −32.97 to
+−10.11 and the log-likelihood from −47528.971 to −47528.781.
+
+A count item's prior under case weights and missing values is now centred on
+the weighted mean of its observed cells, as its M-step already was; the prior
+used to rank restarts divided by the weight of every case, observed or not.
+Without missing counts nothing changes.
+
 ## The finish after EM is fast on large models
 
 The Newton-type finish (below) needs every case's score in every parameter

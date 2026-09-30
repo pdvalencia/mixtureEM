@@ -501,18 +501,23 @@
     if (any(vapply(mm$models, inherits, logical(1), "nested"))) return(NULL)
     ip     <- mm$invariant_params
     inv    <- mm$invariant_items
-    if (!length(ip) && length(inv))
+    pooled <- !length(ip) && .em_group_pooled_prior(mm)
+    if (pooled || (!length(ip) && length(inv)))
       mg_pool <- .qn_prior_marg_items(mm$models[[1L]],
                                       .strip_block_prefix(.stack_blocks(X, J, Bn)),
                                       if (is.null(wt)) NULL else rep(wt, Bn))
-    mg <- lapply(seq_len(Bn), function(b) .qn_prior_marg_items(mm$models[[b]],
+    mg <- if (pooled) rep(list(mg_pool), Bn) else
+      lapply(seq_len(Bn), function(b) .qn_prior_marg_items(mm$models[[b]],
         .strip_block_prefix(X[, .time_block_cols(b, J), drop = FALSE]), wt))
     if (any(vapply(mg, is.null, logical(1)))) return(NULL)
     if (!length(ip) && length(inv))
       scale <- if (inherits(mm, "time_blocks")) Bn else 1L
+    # A free item on group blocks: 1 / Bn of its prior in each group, centred
+    # on the pooled marginal (.em_blocks_family_log_prior(), R/em_core.R).
+    free_scale <- if (pooled) 1 / Bn else 1
     return(function(mm) {
       gb <- lapply(seq_len(Bn), function(b)
-        .qn_flat_prior_gh(mm$models[[b]], mg[[b]]))
+        .qn_flat_prior_gh(mm$models[[b]], mg[[b]], free_scale))
       if (any(vapply(gb, is.null, logical(1)))) return(NULL)
       if (length(ip)) {
         shared <- c(mean = "means" %in% ip, var = "covariances" %in% ip, p = FALSE)
