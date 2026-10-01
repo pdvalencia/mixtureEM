@@ -700,6 +700,25 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
   .em_flat_family_log_prior(mm, X, K, marginals)
 }
 
+# The structural model's own log-prior, as a function of the structural model,
+# for a one-step fit: the covariate pseudo-rows, the group-cell Dirichlet and a
+# categorical outcome's pseudo-observations (.qn_sm_prior(), R/qn_pack.R).
+# .em_log_prior() below leaves these out, so restarts used to be ranked and
+# stopped on an objective the finish does not climb. On a three-class fit with
+# a three-category outcome at the default priors, the ranking then preferred a
+# peak with the higher log-likelihood and the lower penalised objective (0.028
+# below the one the finish reports as best), and no number of starts recovered
+# it. Built once per fit, because the covariate prior's pattern table does not
+# change between iterations; a zero function wherever there is no structural
+# model, no one-step data for it, or no prior on it.
+.em_sm_prior <- function(model_state, Y) {
+  zero <- function(sm) 0
+  if (is.null(Y) || is.null(model_state$sm)) return(zero)
+  w  <- model_state$sample_weights
+  wt <- if (!is.null(w) && any(w != 1)) w else NULL
+  tryCatch(.qn_sm_prior(model_state$sm, Y, wt), error = function(e) zero)
+}
+
 # The log-prior itself, in the same units as sum(sample_weights * log_prob_norm)
 # -- an absolute quantity to be added to a total log-likelihood, never the
 # per-observation one refine_lbfgs() works in.
@@ -797,7 +816,19 @@ refine_lbfgs <- function(model_state, X, Y = NULL, max_iter = 500,
   # vanished to 0.0003 without it, and cut the number of restarts reaching the
   # best solution from 19 of 21 to 1 of 21, because it perturbed each restart
   # differently. EM alone is the whole estimator for these models.
-  if (!is.null(Y) && .supplies_class_probs(model_state$sm)) return(model_state)
+  #
+  # The same holds for every structural model in a one-step fit, not only the
+  # ones that supply class probabilities: a distal outcome has no slot here
+  # either, and its likelihood depends on the class. The polish then climbed the
+  # measurement likelihood alone and wrote the result into a model whose
+  # likelihood also carries the outcome, without asking whether that model had
+  # improved. On a simulated three-class fit with a continuous distal outcome it
+  # took a restart EM had left at -2463.80 down to -2493.96, moving item
+  # probabilities by up to 0.48; with every restart damaged before ranking, the
+  # search reported a peak 1.31 below the one 17 of 20 restarts reach without
+  # it. EM, and the finish after it (which packs the whole model), are the
+  # estimator for these fits too.
+  if (!is.null(Y) && !is.null(model_state$sm)) return(model_state)
   # A state with a frozen block (the two-step estimator, see m_step_core())
   # has nothing this polish may move: it packs exactly the measurement
   # parameters and class weights that are being held fixed.
@@ -1246,8 +1277,10 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
   # decided once, off the initial state, since coverage is a property of the
   # emission family, not of where EM currently is.
   prior_marg <- tryCatch(.em_prior_marginals(model_state, X), error = function(e) NULL)
+  sm_prior   <- .em_sm_prior(model_state, Y)
   log_prior_of <- function(st)
-    tryCatch(.em_log_prior(st, X, Y, prior_marg), error = function(e) NA_real_)
+    tryCatch(.em_log_prior(st, X, Y, prior_marg) + sm_prior(st$sm),
+             error = function(e) NA_real_)
   use_pen <- !is.na(log_prior_of(model_state))
 
   for (iter in 1:max_iter) {
@@ -1383,14 +1416,17 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
   # emission's `max_val` is inferred by init_params() and is not yet known on
   # the state this closure is built from.
   rank_marg  <- NULL
+  rank_smp   <- NULL
   marg_ready <- FALSE
   ll_of <- function(s) {
     ll <- sum(s$sample_weights * s$lower_bound)
     if (!marg_ready) {
       rank_marg  <<- tryCatch(.em_prior_marginals(s, X), error = function(e) NULL)
+      rank_smp   <<- .em_sm_prior(s, Y)
       marg_ready <<- TRUE
     }
-    lp <- tryCatch(.em_log_prior(s, X, Y, rank_marg), error = function(e) NA_real_)
+    lp <- tryCatch(.em_log_prior(s, X, Y, rank_marg) + rank_smp(s$sm),
+                   error = function(e) NA_real_)
     if (is.na(lp)) ll else ll + lp
   }
 

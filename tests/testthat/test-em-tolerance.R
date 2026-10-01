@@ -178,6 +178,31 @@ test_that("the polish declines a fit whose class priors come from a regression",
   expect_identical(refine_lbfgs(fit, fit$X, fit$Y), fit)
 })
 
+test_that("the polish declines a one-step fit with a distal outcome", {
+  # The refinement packs the measurement model and one pooled weight vector and
+  # nothing else, so on a fit with an outcome it maximised the measurement
+  # likelihood alone and wrote the result back into a model whose likelihood
+  # also carries the outcome. Every restart was moved off its own optimum before
+  # the restarts were ranked. Before the guard, this call moved the class sizes
+  # by 13% and the per-case log-likelihoods by 3%.
+  set.seed(4242)
+  n   <- 400
+  cls <- sample(3, n, TRUE, prob = c(.5, .3, .2))
+  pis <- rbind(c(.8, .8, .2, .2, .7), c(.2, .8, .8, .3, .3), c(.5, .2, .2, .8, .8))
+  X   <- matrix(rbinom(n * 5, 1, pis[cls, ]), n, 5)
+  y   <- c(0, 2, -1)[cls] + rnorm(n)
+
+  fit <- suppressMessages(
+    fit_mixture(X, n_classes = 3, measurement = "binary", outcome = y,
+                n_steps = 1, n_init = 2, random_state = 1, refine = FALSE))
+
+  # Not vacuous: the structural model is present and is not one the
+  # class-probability guard above already covers.
+  expect_false(is.null(fit$Y))
+  expect_false(.supplies_class_probs(fit$sm))
+  expect_identical(refine_lbfgs(fit, fit$data, fit$Y), fit)
+})
+
 test_that("polished emissions keep their loose rule and their previous answers", {
   set.seed(4242)
   n <- 800
