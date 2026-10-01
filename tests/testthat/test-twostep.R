@@ -207,7 +207,12 @@ test_that("the two-step V2 is the inverse observed information of the joint like
   # sort_model_classes() may have moved the anchor; compare on the free block
   # after re-anchoring on row 2, which is where optimHess()'s vector lives.
   V <- .recenter_covariate_beta(fit$sm, 2L)$parameters$V_robust[1:2, 1:2]
-  expect_equal(V, ref, tolerance = 1e-4, ignore_attr = TRUE)
+  # I22 is a four-point second difference of the total log-likelihood at
+  # .step1_fd_step, so its rounding error depends on the platform's arithmetic:
+  # against a Richardson-extrapolated Hessian it is about 2e-5 on Windows and
+  # reached 1.7e-4 on macOS arm64. 1e-3 still separates a correct information
+  # matrix from a wrong one by orders of magnitude.
+  expect_equal(V, ref, tolerance = 1e-3, ignore_attr = TRUE)
 })
 
 test_that("the step-1 term is large at weak separation and vanishes at strong", {
