@@ -57,6 +57,13 @@
 # and ignored, only to keep the same call shape as .gaussian_boundary(fit$mm,
 # X, ...) at the one call site both share (.check_gaussian_degeneracy()).
 .categorical_boundary <- function(fit, X = NULL, threshold = 8) {
+  # The degenerate factor `predictors_items` rides (one node at z = 0, loading
+  # fixed at zero; .lta_dif_init()) is no random intercept at all: its
+  # thresholds are a plain cumulative logit, which is exactly regular LTA, and a
+  # plain categorical probability at the boundary is a legitimate optimum for
+  # the reason the header gives. Flagging it warned on correct fits and let
+  # fit_lta() rank a lower-scoring candidate above them.
+  if (!is.null(fit$ri) && !.lta_ri_loading_free(fit)) return(NULL)
   item_names <- fit$longitudinal$item_names
   cells <- .ri_logit_cells(fit$ri, item_names)
   if (is.null(cells) || !nrow(cells)) return(NULL)

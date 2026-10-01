@@ -93,6 +93,22 @@ test_that("the degenerate one-node factor reduces exactly to a plain ordinal fit
   expect_identical(.lta_n_parameters(free), fit$n_params + 3L)
 })
 
+# Being regular LTA, the degenerate factor's thresholds are a plain cumulative
+# logit, and one at the boundary is a legitimate optimum rather than the
+# runaway a freely loading intercept produces. Flagging it warned on correct
+# fits and demoted them in fit_lta()'s ranking.
+test_that("the boundary rule skips the degenerate factor and keeps a real one", {
+  ri <- list(kind = "continuous", Dnode = matrix(0, 1L, 1L), mass = 1,
+             theta = matrix(c(12, 0.5, -0.3, 1.2), 2L, 2L), cats = c(3L),
+             loading_free = FALSE)
+  expect_null(.categorical_boundary(list(ri = ri)))
+
+  ri$loading_free <- TRUE
+  flagged <- .categorical_boundary(list(ri = ri))
+  expect_identical(nrow(flagged), 1L)
+  expect_identical(flagged$logit, 12)
+})
+
 # ------------------------------------------------------------------------------
 # 3. The two likelihood paths agree, with DIF switched on
 # ------------------------------------------------------------------------------
