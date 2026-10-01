@@ -2,6 +2,45 @@
 
 ## mixtureEM (development version)
 
+### One-step fits with an outcome reach their maximum, and rank on their own prior
+
+A one-step fit with an outcome, `fit_mixture(..., outcome = )` at the
+default `n_steps = 1`, ran the L-BFGS polish after EM on every restart.
+The polish packs the measurement model and the class sizes and nothing
+else, so it climbed the measurement likelihood alone and wrote the
+result back into a model whose likelihood also carries the outcome. It
+never checked whether that model had improved. Every restart was moved
+off its own optimum before the restarts were ranked. On one simulated
+three-class fit with a continuous outcome, a restart EM had left at
+−2463.80 came back at −2493.96, with item probabilities moved by up to
+0.48. The search then reported a maximum 1.31 below the one 17 of 20
+restarts reach without the polish. The polish now declines every
+one-step fit with a structural model, as it already did for
+class-membership regressions. EM and the finish after it, which packs
+the whole model, are the estimator. Binary and continuous indicators
+were affected; the other emissions were never polished.
+
+Restarts were also ranked, and EM stopped, on the log-likelihood plus
+the measurement and class-size priors only. The structural model’s own
+prior was left out: a categorical outcome’s pseudo-observations, a
+class-membership regression’s pseudo-rows and the group-by-class prior
+on prevalences held equal across groups. The finish climbs the objective
+that includes it, so with default priors the search could prefer a peak
+with the higher log-likelihood and the lower penalised objective. Both
+now use the same objective.
+
+On 48 simulated data sets (binary or continuous items with a continuous
+or categorical outcome, and a covariate control), a 20-start fit with
+priors off reached the best solution 200 restarts find on 35 of 36
+outcome data sets, against 30 before. Fits with priors off and no
+outcome, or with a covariate only, are unchanged to the last digit.
+Typical restart agreement went from 1 of 20 to 18 of 20, and the outcome
+fits became two to three times faster. Fits that change are one-step
+fits with an outcome and binary or continuous items, and default-prior
+fits with a categorical outcome, a covariate or prevalences held equal
+across groups. A small number of default-prior fits move between
+near-tied solutions.
+
 ### The finish takes the exact curvature when it crawls
 
 The Newton-type finish after EM steps with the outer product of the
