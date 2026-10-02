@@ -99,7 +99,7 @@ fit_lta0
 #>   BIC            : 43872.70
 #>   SABIC          : 43761.49
 #>   Rel. Entropy   : 0.9042
-#>   Best solution  : found by 48 of 50 starts
+#>   Best solution  : found by 50 of 50 starts
 #> ---------------------------------------------------------
 #> Latent status prevalences by occasion:
 #>    Status 1 Status 2 Status 3

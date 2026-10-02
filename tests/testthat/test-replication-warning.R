@@ -148,6 +148,27 @@ test_that("fit_lta() warns when it stops at the iteration cap", {
 })
 
 # ------------------------------------------------------------------------------
+# What counts as the same solution
+# ------------------------------------------------------------------------------
+
+# EM leaves restarts on one peak short of its maximum by different amounts, so
+# their scores can differ by a tenth of a unit while every case's
+# log-likelihood barely moves; a different peak moves the cases by far more.
+test_that("restarts are counted on their per-case log-likelihoods", {
+  set.seed(31)
+  n <- 400
+  w <- rep(1, n)
+  peak <- -runif(n, 0.5, 3)
+  same_a <- peak - 0.1 / n                 # 0.1 below, spread evenly
+  same_b <- peak - abs(rnorm(n, 0, 0.004)) # a little noise per case
+  other  <- peak + rnorm(n, 0, 0.1)        # another peak, near in total
+  expect_identical(.qn_n_replicated(list(same_a, same_b, other), peak, w), 2L)
+  # A missing or misshapen signature is no count at all, not a match.
+  expect_null(.qn_n_replicated(list(same_a, NULL), peak, w))
+  expect_null(.qn_n_replicated(list(same_a, peak[-1]), peak, w))
+})
+
+# ------------------------------------------------------------------------------
 # The counts reach the fit
 # ------------------------------------------------------------------------------
 

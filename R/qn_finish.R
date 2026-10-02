@@ -388,19 +388,43 @@
 # maximum differed by at most 0.006 per case before finishing, and the nearest
 # distinct maximum by 0.02 (RECORDS.md, "Ridge convergence diagnosis").
 .qn_pick <- function(scores, signatures, weights, band = 0.05,
-                     max_finish = 3L, same = 0.01) {
+                     max_finish = 3L, same = .qn_same) {
   ord  <- order(scores, decreasing = TRUE)
   ord  <- ord[scores[ord] >= scores[ord[1L]] - band]
   keep <- integer(0)
-  sw   <- sum(weights)
   for (i in ord) {
     if (length(keep) >= max_finish) break
     dup <- any(vapply(keep, function(j)
-      sum(weights * abs(signatures[[i]] - signatures[[j]])) / sw < same,
+      .qn_same_solution(signatures[[i]], signatures[[j]], weights, same),
       logical(1)))
     if (!dup) keep <- c(keep, i)
   }
   keep
+}
+
+# Two solutions are the same when their per-case log-likelihoods differ by less
+# than `.qn_same` per case, weighted. See .qn_pick() for the calibration.
+.qn_same <- 0.01
+.qn_same_solution <- function(a, b, weights, same = .qn_same)
+  sum(weights * abs(a - b)) / sum(weights) < same
+
+# How many of a search's restarts found the reported solution. EM stops each
+# restart somewhere on its crawl, and the finish then takes the winner on to
+# the maximum, so restarts on that one peak end hundredths of a unit apart and
+# below the value reported: compared on their scores they read as different
+# solutions ("replicated 1 of 101" on a peak two of them reached). The per-case
+# signature does not move that much on the crawl. Restarts on one peak sat
+# within 0.0094 per case of the finished maximum, and the nearest other peak at
+# 0.034 or more, on five data sets (RECORDS.md, "Part 60 W0").
+#
+# NULL when any restart carries no signature of the winner's length, so the
+# caller can fall back to comparing scores.
+.qn_n_replicated <- function(signatures, winner, weights) {
+  n <- length(winner)
+  if (!n || length(weights) != n ||
+      !all(vapply(signatures, length, integer(1)) == n)) return(NULL)
+  sum(vapply(signatures, .qn_same_solution, logical(1), b = winner,
+             weights = weights))
 }
 
 # ------------------------------------------------------------------------------

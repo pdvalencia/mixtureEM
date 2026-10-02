@@ -1570,6 +1570,8 @@ fit_lta <- function(indicators,
          call. = FALSE)
   # Read before .lta_expand() rebuilds the object, and not carried on it.
   from_extra <- isTRUE(best$.extra_start)
+  converged_pool <- Filter(function(cd) !inherits(cd, "try-error"),
+                           if (staged) survivors else cands)
   best$.extra_start <- NULL
 
   # Step 3 of the three-step: the structural surface has long flat ridges
@@ -1623,6 +1625,11 @@ fit_lta <- function(indicators,
   # Back onto the full sample before anything per-case is read off the fit:
   # every posterior, the path entropy, the standard errors and the metrics
   # below all describe cases, and the search saw patterns.
+  # Counted here, on the patterns the restarts' signatures are written over,
+  # and against the solution actually reported, which the finish may have taken
+  # beyond every restart's own end point (.qn_n_replicated()).
+  n_replicated <- .qn_n_replicated(lapply(converged_pool, `[[`, "ll_case"),
+                                   best$ll_case, best$weights_vec)
   best <- .lta_expand(best, coll, X, alpha)
   best$.tau_design_cache <- NULL      # working memory, not part of the fit
   best$n_params <- .lta_n_parameters(best)
@@ -1692,16 +1699,15 @@ fit_lta <- function(indicators,
   best$boundary    <- .lta_boundary_cells(best)
   best$smoothing_influence <- .lta_smoothing_influence(best, alpha)
   best$metrics     <- .lta_metrics(best)
-  # The multi-start report the mixture models already carry. Two restarts count
-  # as the same solution when their scores are within 1e-2, the rule fit_em()
-  # uses (R/em_core.R): genuinely different optima in these models sit whole
-  # units apart, and a tighter rule splits one optimum into several. The score
-  # is the ranked quantity -- the penalised objective where it exists -- so
-  # "found the same solution" means the same thing here as "won the ranking".
-  # It is on the same scale as a log-likelihood, so the 1e-2 rule carries over.
+  # The multi-start report the mixture models already carry, with the count
+  # read the way fit_em() reads it (R/em_core.R): a restart found the reported
+  # solution when its per-case log-likelihoods match it, not when its score
+  # does, since EM leaves each restart short of the maximum by a different
+  # amount (chap11: the five survivors of one peak spread over 0.013).
   if (length(final_lls)) {
     best$metrics$n_starts     <- length(final_lls)
-    best$metrics$n_replicated <- sum(abs(final_lls - max(final_lls)) <= 1e-2)
+    best$metrics$n_replicated <- n_replicated %||%
+      sum(abs(final_lls - max(final_lls)) <= 1e-2)
   }
   # One start, and it was not a random one. Recorded rather than left at
   # `n_init` so .check_replication() cannot advise raising a restart budget on

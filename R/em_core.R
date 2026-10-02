@@ -1450,8 +1450,8 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     st
   })
 
-  # Every restart's final log-likelihood, collected so the fit can report how
-  # many of them found the best solution. A maximum reached once out of twenty is
+  # Every restart's final log-likelihood, reported with the count of restarts
+  # that found the best solution (finish() below). A maximum reached once out of twenty is
   # a different object from one reached nineteen times: the first says the search
   # may simply have been lucky and a different seed could beat it, the second
   # that the surface has been mapped. This is the standard multi-start report in
@@ -1461,29 +1461,28 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
   final_lls <- numeric(0)
   record <- function(ll) { final_lls <<- c(final_lls, ll); invisible(NULL) }
 
-  # The tolerance for calling two restarts the same solution. It has to be
-  # looser than EM's own stopping rule, or restarts that agree to every digit
-  # the estimator can resolve are counted as different optima: at 1e-4 a
-  # configural fit whose starts landed at -6483.1620, -6483.1613, -6483.1612 and
-  # -6483.1607 reported "1 of 6". Genuinely different optima in these models sit
-  # whole units apart, so 0.01 separates them without splitting one.
-  same_ll <- 1e-2
-
-  # EM's own end points are what the replication count above describes; the
-  # Newton-type finish (R/qn_finish.R) then takes the leading ones on to the
-  # maximum and the best of those is reported. It is part of the refinement,
-  # so `refine = FALSE` -- the path bootstrap replicates take -- skips it.
+  # The Newton-type finish (R/qn_finish.R) takes the leading end points on to
+  # the maximum and the best of those is reported. It is part of the
+  # refinement, so `refine = FALSE` -- the path bootstrap replicates take --
+  # skips it.
   qn_finish <- function(states, best) {
     if (!isTRUE(refine) || is.null(best)) return(best)
     fin <- .qn_finish_search(states, ll_of, X, Y)
     if (!is.null(fin) && ll_of(fin) > ll_of(best)) fin else best
   }
 
-  finish <- function(best) {
+  # `start_lls` stay EM's end points; the count is of the restarts that reached
+  # the reported solution, read off their per-case log-likelihoods rather than
+  # their scores, which EM leaves short of the maximum the finish reports
+  # (.qn_n_replicated()).
+  finish <- function(best, states) {
     if (is.null(best)) return(best)
     best$start_lls    <- final_lls
     best$n_starts     <- length(final_lls)
-    best$n_replicated <- sum(abs(final_lls - max(final_lls)) <= same_ll)
+    best$n_replicated <- .qn_n_replicated(
+      lapply(Filter(Negate(is.null), states), `[[`, "lower_bound"),
+      best$lower_bound, best$sample_weights) %||%
+      sum(abs(final_lls - max(final_lls)) <= 1e-2)
     # What was asked for, carried alongside what converged. On the staged path
     # only the survivors reach record(), so `n_starts` there is three however
     # many restarts were requested, and a report built on it alone would say a
@@ -1545,7 +1544,7 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
       if (warm_ll > best_total_ll) best_model <- fitted_state
       fitted <- c(fitted, list(fitted_state))
     }
-    return(finish(qn_finish(fitted, best_model)))
+    return(finish(qn_finish(fitted, best_model), fitted))
   }
 
   best_model <- NULL
@@ -1577,5 +1576,5 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     fitted <- c(fitted, list(fitted_state))
   }
 
-  return(finish(qn_finish(fitted, best_model)))
+  return(finish(qn_finish(fitted, best_model), fitted))
 }
