@@ -119,7 +119,7 @@ movement is the middle one, the summer between kindergarten and first grade, whe
 60% of the low-alphabet children and 84% of the early-word readers stay
 where they were. `plot()` shows both views:
 
-```{r plot, fig.height = 4}
+```{r plot, fig.height = 4, fig.cap = "Prevalence of each reading status at the four occasions."}
 labs <- c("Low alphabet", "Early word reading", "Comprehension")
 plot(fit, type = "prevalence", status_labels = labs)
 ```

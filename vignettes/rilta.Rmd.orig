@@ -334,7 +334,7 @@ random_intercept_loadings(fit_pov_tr)
 the trait, which is the natural quantity to relate to anything else in
 the data:
 
-```{r scores, fig.height = 4}
+```{r scores, fig.height = 4, fig.cap = "Posterior mean reading-readiness scores of children in and not in poverty."}
 scores <- random_intercept_scores(fit_pov_tr)
 boxplot(scores$mean_score ~ ecls_reading$poverty, horizontal = TRUE,
         names = c("Not in poverty", "In poverty"),

@@ -578,7 +578,7 @@ boxplot(scores$mean_score ~ ecls_reading$poverty, horizontal = TRUE,
         xlab = "Reading readiness (posterior mean factor score)", ylab = "")
 ```
 
-![plot of chunk scores](rilta-scores-1.png)
+![Posterior mean reading-readiness scores of children in and not in poverty.](rilta-scores-1.png)
 
 ## Practical notes
 
