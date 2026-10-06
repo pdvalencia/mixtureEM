@@ -66,6 +66,17 @@ selection <- compare_longitudinal(drink, k_range = 2:4, model = "rmlca",
 
 BIC correctly picks the three classes we generated.
 
+The warning concerns the four-class row and is expected. Four yes/no
+answers can form only 2⁴ = 16 response patterns, so the table the model
+is fitted to has 15 free cells. Four classes cost 19 parameters (four
+probabilities per class plus three class weights), more than the table
+can determine, so that model is not identified (Goodman, 1974): its
+estimates are settled by the priors where the data are silent, and its
+row is not a real competitor. Three classes cost 14 parameters, which the
+count allows. With four waves of a single binary item, three classes is
+as many as this count permits; it is a necessary condition, not a
+guarantee, so a model that passes it can still be weakly identified.
+
 ## The three-class solution
 
 ```{r fit}
@@ -119,6 +130,10 @@ when, and toward what?", see the latent transition analysis vignette
 Collins, L. M., & Lanza, S. T. (2010). *Latent class and latent
 transition analysis: With applications in the social, behavioral, and
 health sciences*. Wiley.
+
+Goodman, L. A. (1974). Exploratory latent structure analysis using both
+identifiable and unidentifiable models. *Biometrika*, *61*(2), 215–231.
+<https://doi.org/10.1093/biomet/61.2.215>
 
 Lanza, S. T., & Collins, L. M. (2006). A mixture model of discontinuous
 development in heavy drinking from ages 18 to 30: The role of college
