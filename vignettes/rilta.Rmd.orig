@@ -120,8 +120,8 @@ probabilities at the boundary is consistent with the zero the ordinary
 model has — nobody in the low-alphabet stage reads words in context —
 now stated on the logit scale the random-intercept model works on, where
 a probability of zero is a logit of minus infinity. Read those cells'
-probabilities, not their logits. The note recurs on the fits below for
-the same reason. And `Best solution: found by 3 of 3 starts that
+probabilities, not their logits; `measurement_summary()` repeats the note
+below. And `Best solution: found by 3 of 3 starts that
 ran to convergence (of 20 requested)` is how the random-intercept search
 reports: the twenty starts are ranked cheaply and only the best few are
 run to convergence, so replication is counted among those.
