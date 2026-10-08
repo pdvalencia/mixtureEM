@@ -200,9 +200,10 @@ labs <- c("Low alphabet", "Early word reading", "Comprehension")
 plot(fit, type = "prevalence", status_labels = labs)
 ```
 
-![plot of chunk plot](lta-plot-1.png)
+![Prevalence of each reading status at the four
+occasions.](lta-plot-1.png)
 
-plot of chunk plot
+Prevalence of each reading status at the four occasions.
 
 ## Is the transition process the same at every interval?
 

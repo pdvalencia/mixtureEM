@@ -318,7 +318,7 @@ re-estimated, so the classes cannot shift under our feet:</p>
 <span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;                           Wald Chi2   df  P-Value</span></span>
-<span><span class="co">#&gt;   sex                        23.157    3    &lt; .001</span></span>
+<span><span class="co">#&gt;   sex                        23.156    3    &lt; .001</span></span>
 <span><span class="co">#&gt;   age                        10.872    3     0.012</span></span>
 <span><span class="co">#&gt;   sexual_orientation          6.879    3     0.076</span></span>
 <span><span class="co">#&gt;   relationship_duration       1.868    3     0.600</span></span>
@@ -336,19 +336,19 @@ ratios are available as a data frame:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">results</span><span class="op">$</span><span class="va">coefficients</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   class                                term    estimate         se          z</span></span>
-<span><span class="co">#&gt; 1     2                           Intercept  0.33306822 0.89607400  0.3716972</span></span>
-<span><span class="co">#&gt; 2     2                          sex.Female  1.01245511 0.45885688  2.2064726</span></span>
-<span><span class="co">#&gt; 3     2                                 age -0.06925868 0.03712243 -1.8656825</span></span>
-<span><span class="co">#&gt; 4     2 sexual_orientation.Not heterosexual -0.11387298 0.45981302 -0.2476506</span></span>
-<span><span class="co">#&gt; 5     2          relationship_duration.Long  0.13355860 0.39093526  0.3416387</span></span>
-<span><span class="co">#&gt; 6     3                           Intercept -1.42969938 0.60473223 -2.3641859</span></span>
+<span><span class="co">#&gt; 1     2                           Intercept  0.33306822 0.89607478  0.3716969</span></span>
+<span><span class="co">#&gt; 2     2                          sex.Female  1.01245511 0.45885757  2.2064692</span></span>
+<span><span class="co">#&gt; 3     2                                 age -0.06925868 0.03712254 -1.8656775</span></span>
+<span><span class="co">#&gt; 4     2 sexual_orientation.Not heterosexual -0.11387298 0.45981292 -0.2476507</span></span>
+<span><span class="co">#&gt; 5     2          relationship_duration.Long  0.13355860 0.39093813  0.3416362</span></span>
+<span><span class="co">#&gt; 6     3                           Intercept -1.42969938 0.60473321 -2.3641820</span></span>
 <span><span class="co">#&gt;            p        OR   OR_lower  OR_upper</span></span>
-<span><span class="co">#&gt; 1 0.71011829 1.3952425 0.24093290 8.0798496</span></span>
-<span><span class="co">#&gt; 2 0.02735093 2.7523501 1.11973900 6.7653541</span></span>
-<span><span class="co">#&gt; 3 0.06208580 0.9330853 0.86760508 1.0035074</span></span>
-<span><span class="co">#&gt; 4 0.80440474 0.8923713 0.36236384 2.1975883</span></span>
-<span><span class="co">#&gt; 5 0.73262284 1.1428882 0.53116928 2.4590909</span></span>
-<span><span class="co">#&gt; 6 0.01806975 0.2393809 0.07316965 0.7831553</span></span></code></pre></div>
+<span><span class="co">#&gt; 1 0.71011853 1.3952425 0.24093253 8.0798620</span></span>
+<span><span class="co">#&gt; 2 0.02735116 2.7523501 1.11973750 6.7653632</span></span>
+<span><span class="co">#&gt; 3 0.06208650 0.9330853 0.86760491 1.0035076</span></span>
+<span><span class="co">#&gt; 4 0.80440469 0.8923713 0.36236391 2.1975879</span></span>
+<span><span class="co">#&gt; 5 0.73262473 1.1428882 0.53116630 2.4591047</span></span>
+<span><span class="co">#&gt; 6 0.01806993 0.2393809 0.07316951 0.7831568</span></span></code></pre></div>
 <p>Reference class 1 is Fidelity (the largest class). Reading the odds
 ratios against that reference:</p>
 <ul>

@@ -93,7 +93,7 @@ fit_lta0
 #>   BIC            : 43872.70
 #>   SABIC          : 43761.49
 #>   Rel. Entropy   : 0.9042
-#>   Best solution  : found by 48 of 50 starts
+#>   Best solution  : found by 50 of 50 starts
 #> ---------------------------------------------------------
 #> Latent status prevalences by occasion:
 #>    Status 1 Status 2 Status 3
@@ -155,13 +155,6 @@ fit_ri <- fit_lta(items, n_statuses = 3, times = 4, n_init = 20,
                   random_intercept = "continuous", n_quadrature = 30,
                   random_state = 7, standard_errors = FALSE,
                   smoothing = ml$smoothing, bayes_constants = ml$bayes_constants)
-#> Warning: A response probability has collapsed towards the boundary: context in
-#> class 1 (logit -10.87, p = 1.9e-05); sight in class 1 (logit -8.55, p =
-#> 0.000194); letters in class 3 (logit +8.08, p = 1). These estimates are not
-#> interpretable, and this fit's BIC cannot be compared with a clean fit's. Ways
-#> out, to choose between on substantive grounds: (1) fewer classes; or (2) a
-#> stronger categorical prior, bayes_constants = list(categorical = 3). See
-#> ?fit_mixture for why, and what to check afterwards.
 fit_ri
 #> 
 #> =========================================================
@@ -189,25 +182,24 @@ fit_ri
 #> T4   0.0109   0.0167   0.9725
 #> 
 #> Note: 6 transition(s) estimated at the zero boundary; see $boundary.
+#> 
+#> Note: item response probabilities at the boundary: context in status 1 (logit -10.87, p = 1.9e-05); sight in status 1 (logit -8.55, p = 0.000194); letters in status 3 (logit +8.08, p = 1). Each may be a real absence or a response this sample happened not to give. Read the probability, not the logit: the logit has run off towards infinity, so it and its standard error are not meaningful. To check that a cell is not driving the other estimates, refit with `bayes_constants = list(categorical = 3)` and compare.
 #> =========================================================
 #> Type summary(model) for transitions, measurement_summary(model) for items.
 ```
 
-Two things before the numbers. The warning is the same substantive zero
-the ordinary model has — nobody in the low-alphabet stage reads words in
-context — now stated on the logit scale the random-intercept model works
-on, where a probability of zero is a logit of minus infinity. It is
-worth reading once; it recurs on every fit below for the same reason and
-is silenced from here on. And
+Two things before the numbers. The note about item response
+probabilities at the boundary is consistent with the zero the ordinary
+model has — nobody in the low-alphabet stage reads words in context —
+now stated on the logit scale the random-intercept model works on, where
+a probability of zero is a logit of minus infinity. Read those cells’
+probabilities, not their logits;
+[`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
+repeats the note below. And
 `Best solution: found by 3 of 3 starts that ran to convergence (of 20 requested)`
 is how the random-intercept search reports: the twenty starts are ranked
 cheaply and only the best few are run to convergence, so replication is
 counted among those.
-
-``` r
-
-knitr::opts_chunk$set(warning = FALSE)
-```
 
 The fit line to read is the log-likelihood: −20,329 against −21,793, for
 five more parameters (the loadings). A BIC drop of almost three thousand
@@ -258,6 +250,8 @@ measurement_summary(fit_ri)
 #> sight@T1             |   0.315 |   0.020 |   0.208 |   0.808
 #> context@T1           |   0.152 |   0.005 |   0.058 |   0.459
 #> =========================================================
+#> 
+#> Note: item response probabilities at the boundary: context in status 1 (logit -10.87, p = 1.9e-05); sight in status 1 (logit -8.55, p = 0.000194); letters in status 3 (logit +8.08, p = 1). Each may be a real absence or a response this sample happened not to give. Read the probability, not the logit: the logit has run off towards infinity, so it and its standard error are not meaningful. To check that a cell is not driving the other estimates, refit with `bayes_constants = list(categorical = 3)` and compare.
 ```
 
 Compared with the ordinary LTA, the item probabilities move away from 0
@@ -480,8 +474,8 @@ lr_test(fit_pov_ri, fit_pov_tr)
 #> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
 #>   Restricted : LL =  -20127.6888   parameters = 41
-#>   Full       : LL =  -20106.2306   parameters = 47
-#>   -2 x diff  : 42.9163   df = 6   p = 1.212e-07
+#>   Full       : LL =  -20106.2311   parameters = 47
+#>   -2 x diff  : 42.9153   df = 6   p = 1.212e-07
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 
@@ -505,37 +499,37 @@ lta_covariate_summary(fit_pov_tr)
 #> PREDICTING TRANSITIONS
 #> 
 #>   [occasion 1 -> 2]
-#>       Status      Term Estimate     SE      z      p          OR
-#>  to Status 1 Intercept  -13.002 84.665  -0.15 0.8779       0.000
-#>  to Status 1    from:1   15.874 84.665   0.19 0.8513 7836149.727
-#>  to Status 1    from:2  -10.394  0.360 -28.85 <1e-16       0.000
-#>  to Status 1   poverty    0.002  0.302   0.01 0.9951       1.002
-#>  to Status 2 Intercept  -10.788 48.033  -0.22 0.8223       0.000
-#>  to Status 2    from:1   15.307 48.033   0.32 0.7500 4442242.944
-#>  to Status 2    from:2   12.052 48.033   0.25 0.8019  171435.041
-#>  to Status 2   poverty   -0.652  0.290  -2.25 0.0244       0.521
+#>       Status      Term Estimate     SE       z      p           OR
+#>  to Status 1 Intercept  -13.761 24.680   -0.56 0.5771        0.000
+#>  to Status 1    from:1   16.625 24.680    0.67 0.5006 16601639.261
+#>  to Status 1    from:2   -9.556 47.337   -0.20 0.8400        0.000
+#>  to Status 1   poverty    0.004  0.303    0.01 0.9900        1.004
+#>  to Status 2 Intercept  -13.746  0.095 -143.95 <1e-16        0.000
+#>  to Status 2    from:1   18.257  0.134  136.46 <1e-16 84927993.192
+#>  to Status 2    from:2   15.032  0.134  112.08 <1e-16  3375822.556
+#>  to Status 2   poverty   -0.650  0.290   -2.24 0.0252        0.522
 #> 
 #>   [occasion 2 -> 3]
-#>       Status      Term Estimate     SE     z        p          OR
-#>  to Status 1 Intercept   -5.117  0.909 -5.63 1.81e-08       0.006
-#>  to Status 1    from:1    7.338  0.953  7.70 1.34e-14    1536.961
-#>  to Status 1    from:2   -0.044  1.133 -0.04    0.969       0.957
-#>  to Status 1   poverty    1.870  0.271  6.89 5.56e-12       6.488
-#>  to Status 2 Intercept  -11.911 38.372 -0.31    0.756       0.000
-#>  to Status 2    from:1   15.558 38.373  0.41    0.685 5711371.236
-#>  to Status 2    from:2   14.511 38.372  0.38    0.705 2004089.903
-#>  to Status 2   poverty    0.109  0.198  0.55    0.581       1.115
+#>       Status      Term Estimate      SE     z        p           OR
+#>  to Status 1 Intercept   -5.112   0.902 -5.67 1.45e-08        0.006
+#>  to Status 1    from:1    7.325   0.945  7.75 9.39e-15     1517.366
+#>  to Status 1    from:2   -0.047   1.108 -0.04    0.966        0.954
+#>  to Status 1   poverty    1.869   0.271  6.89 5.46e-12        6.481
+#>  to Status 2 Intercept  -13.813 100.561 -0.14    0.891        0.000
+#>  to Status 2    from:1   17.453 100.561  0.17    0.862 37998249.289
+#>  to Status 2    from:2   16.413 100.561  0.16    0.870 13432728.407
+#>  to Status 2   poverty    0.108   0.197  0.55    0.586        1.114
 #> 
 #>   [occasion 3 -> 4]
-#>       Status      Term Estimate     SE       z        p        OR
-#>  to Status 1 Intercept   -4.816  0.636   -7.57 3.68e-14     0.008
-#>  to Status 1    from:1    3.824  0.662    5.78 7.51e-09    45.806
-#>  to Status 1    from:2   -0.775  0.698   -1.11 0.266879     0.461
-#>  to Status 1   poverty    0.182  0.292    0.62 0.534036     1.199
-#>  to Status 2 Intercept  -15.115 94.451   -0.16 0.872861     0.000
-#>  to Status 2    from:1   -8.590  0.045 -192.52  < 1e-16     0.000
-#>  to Status 2    from:2   10.729 94.451    0.11 0.909561 45658.338
-#>  to Status 2   poverty    1.105  0.296    3.73 0.000192     3.018
+#>       Status      Term Estimate     SE     z        p         OR
+#>  to Status 1 Intercept   -4.816  0.634 -7.59 3.19e-14      0.008
+#>  to Status 1    from:1    3.823  0.661  5.79 7.20e-09     45.729
+#>  to Status 1    from:2   -0.774  0.696 -1.11 0.266616      0.461
+#>  to Status 1   poverty    0.182  0.294  0.62 0.535213      1.200
+#>  to Status 2 Intercept  -15.959 53.223 -0.30 0.764286      0.000
+#>  to Status 2    from:1   -6.974 79.205 -0.09 0.929841      0.001
+#>  to Status 2    from:2   11.578 53.223  0.22 0.827792 106700.252
+#>  to Status 2   poverty    1.103  0.292  3.77 0.000161      3.013
 #> 
 #> PREDICTING THE RANDOM INTERCEPT (linear regression, residual variance fixed at 1)
 #> The factor's sign is fixed by making the largest loading positive;
@@ -563,11 +557,11 @@ come with theirs:
 
 random_intercept_loadings(fit_pov_tr)
 #>        item  loading         se        z
-#> 1   letters 3.099271 0.11864326 26.12261
-#> 2 beginning 2.440198 0.07677823 31.78242
-#> 3    ending 2.308574 0.06589727 35.03292
-#> 4     sight 3.412924 0.14178355 24.07137
-#> 5   context 3.469340 0.15730670 22.05462
+#> 1   letters 3.100185 0.11865993 26.12664
+#> 2 beginning 2.440890 0.07676834 31.79553
+#> 3    ending 2.309170 0.06588853 35.04661
+#> 4     sight 3.414121 0.14180735 24.07577
+#> 5   context 3.469876 0.15729171 22.06013
 ```
 
 [`random_intercept_scores()`](https://pdvalencia.github.io/mixtureEM/reference/random_intercept_scores.md)
@@ -582,9 +576,11 @@ boxplot(scores$mean_score ~ ecls_reading$poverty, horizontal = TRUE,
         xlab = "Reading readiness (posterior mean factor score)", ylab = "")
 ```
 
-![plot of chunk scores](rilta-scores-1.png)
+![Posterior mean reading-readiness scores of children in and not in
+poverty.](rilta-scores-1.png)
 
-plot of chunk scores
+Posterior mean reading-readiness scores of children in and not in
+poverty.
 
 ## Practical notes
 

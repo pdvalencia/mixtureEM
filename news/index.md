@@ -2,6 +2,76 @@
 
 ## mixtureEM (development version)
 
+### The item prior no longer shrinks a continuous random intercept
+
+`fit_lta(random_intercept = "continuous")` at the default
+`bayes_constants` spread the item prior’s pseudo-observations evenly
+over the quadrature nodes. A node far in the tail, with almost no
+probability mass and so almost no data, carried as much prior as the
+centre, and a pseudo-observation at the item’s marginal there says the
+response does not depend on the factor. The loadings shrank, and the
+transitions turned into stayers to carry the stability the factor had
+lost. On data simulated with a loading of 2 and a probability of staying
+in status 1 of .62 (three occasions, 500 cases, 30 nodes), the
+default-prior fit gave loadings of about 1.2 and a staying probability
+of .83, where the priors-off fit gave 2.02 and .57 (averages over 20
+data sets). The pseudo-observations are now spread by the nodes’
+quadrature masses, with the same total, and the same data sets give 1.98
+and .57 at the default priors.
+
+Continuous random-intercept fits at the default priors change, for
+binary and ordinal items and with `predictors_items`. Fits with
+`bayes_constants = list(categorical = 0)`, and the binary random
+intercept, whose nodes are estimated classes, are unchanged.
+
+### `refine_from` continues a random-intercept fit
+
+A fit continued with `refine_from` from a random-intercept model took
+the statuses, transitions and integrated item table from it, but drew
+the intercepts (or ordinal thresholds) and loadings at random, so the
+run restarted half the model. On simulated data a single iteration from
+a converged donor landed 150 log-likelihood units below it. They are now
+carried over, and the item table is rebuilt on the new fit’s own nodes,
+so a check at a finer `n_quadrature` starts from the coarser fit’s
+solution. A donor with the other kind of random intercept is refused.
+Every refit from a random-intercept donor can change, since it no longer
+depends on that draw.
+
+### `refine_from` starts added predictors where the donor is
+
+A fit continued with `refine_from` from a donor without
+`predictors_initial` or `predictors_transition`, but given them itself,
+fitted those regressions from zero coefficients at its first M-step.
+That step does not start from the donor. When the donor’s transition
+table had an empty cell, as a maximum-likelihood fit of a sparse table
+often does, it could end below the donor, and the run then converged on
+a worse solution than the model it nests. In one random-intercept
+example the continued fit finished 22 log-likelihood units below its
+donor, with every coefficient for the last transition at the box limit.
+The regressions now start at the donor’s own probabilities: intercept
+and origin terms from its log-ratios, every slope at zero. That example
+now reaches the solution 21 units above the donor. Continued fits that
+add predictors can change; other fits are unchanged.
+
+### A random intercept’s boundary cell is a note, not a warning
+
+A continuous random-intercept fit warned when an item logit passed ±8
+that its estimates were not interpretable and its BIC could not be
+compared. On simulated data with a response that never occurs in one
+status, every fit the warning caught reached the maximum likelihood,
+with unbiased transitions and nominal coverage. The check also flags a
+response that is merely rare, when a sample happens not to contain it,
+so it cannot say which kind of zero it has found.
+[`print()`](https://rdrr.io/r/base/print.html) and
+[`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
+now carry a note that names the cells, says to read their probabilities
+rather than their logits, and gives the refit that shows whether a cell
+matters to the rest of the model. The fit is no longer marked degenerate
+for
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+or the BIC line. Collapsed class variances still warn as before. The
+cells are on `fit$ri_boundary`.
+
 ### One-step fits with an outcome reach their maximum, and rank on their own prior
 
 A one-step fit with an outcome, `fit_mixture(..., outcome = )` at the

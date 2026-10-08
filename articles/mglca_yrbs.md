@@ -104,7 +104,7 @@ m_free
 
 A four-group, five-class fit on this many cases is materially more
 expensive per start than the package’s other vignettes; the solution
-above replicated across 6 of the 20 starts.
+above was reached by 6 of the 20 starts that ran to convergence.
 
 `group_effects = "both"` frees the item-response probabilities by grade
 as well as the class sizes, and comparing the two by likelihood ratio
@@ -116,10 +116,6 @@ set.seed(1)
 m_both <- fit_mixture(items, n_classes = 5, measurement = "binary",
                       group = grade, group_effects = "both",
                       n_init = 20, max_iter = 2000, n_steps = 1)
-#> Warning: The reported solution was found by 1 of 21 starts that ran to
-#> convergence, out of 20 requested. EM climbs the peak it starts nearest, so a
-#> maximum seen once may be the best of a small sample of the likelihood surface
-#> rather than the best there is: refit with n_init = 100 before reporting.
 lr_test(m_free, m_both)
 #> 
 #> Likelihood-ratio test for nested models
@@ -134,15 +130,13 @@ lr_test(m_free, m_both)
 takes the restricted model first and the full model second — reversing
 the order is an error.
 
-`m_both` carries a warning worth repeating rather than hiding: only 1 of
-the 20 requested starts converged to the log-likelihood reported above,
-so this solution has not been shown to be the global optimum the way
-`m_free`’s was. 256 parameters spread across five classes and four
-grades is a much harder surface to search than the models later in this
-vignette, and `n_init = 20` is not enough to be confident of it here —
-the package’s own advice is to refit with `n_init = 100` before
-reporting this specific comparison as a finding rather than an
-illustration.
+`m_both`’s search is worth reading before its likelihood is: only 2 of
+its 21 converged starts reached the solution reported above, against 6
+for `m_free`. 256 parameters spread across five classes and four grades
+is a much harder surface to search than the models later in this
+vignette, and a peak that few starts reach is one that twenty starts can
+miss altogether. Refit with `n_init = 100` or more before reporting this
+specific comparison as a finding rather than an illustration.
 
 With N in the thousands, a likelihood-ratio test like this one also has
 power to detect even a trivially small departure from invariance, so a
@@ -236,9 +230,11 @@ plot(m_free, class_labels = class_labels,
      main = "Health-risk behavior classes by grade\n(YRBS 2005, unweighted)")
 ```
 
-![plot of chunk plot](mglca_yrbs-plot-1.png)
+![Probability of each health-risk behavior in the five classes, pooled
+across grades.](mglca_yrbs-plot-1.png)
 
-plot of chunk plot
+Probability of each health-risk behavior in the five classes, pooled
+across grades.
 
 Class 2 (Binge Drinkers) stands out on `drove_drinking` and
 `binge_drink_30d` specifically; class 3 (Early Experimenters) stands out

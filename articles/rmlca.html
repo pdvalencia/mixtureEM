@@ -151,6 +151,16 @@ the information criteria side by side:</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; -&gt; Best model according to BIC: 3</span></span></code></pre></div>
 <p>BIC correctly picks the three classes we generated.</p>
+<p>The warning concerns the four-class row and is expected. Four yes/no
+answers can form only 2⁴ = 16 response patterns, so the table the model
+is fitted to has 15 free cells. Four classes cost 19 parameters (four
+probabilities per class plus three class weights), more than the table
+can determine, so that model is not identified (Goodman, 1974): its
+estimates are settled by the priors where the data are silent, and its
+row is not a real competitor. Three classes cost 14 parameters, which
+the count allows. With four waves of a single binary item, three classes
+is as many as this count permits; it is a necessary condition, not a
+guarantee, so a model that passes it can still be weakly identified.</p>
 </div>
 <div class="section level2">
 <h2 id="the-three-class-solution">The three-class solution<a class="anchor" aria-label="anchor" href="#the-three-class-solution"></a>
@@ -279,6 +289,9 @@ analysis vignette
 <p>Collins, L. M., &amp; Lanza, S. T. (2010). <em>Latent class and
 latent transition analysis: With applications in the social, behavioral,
 and health sciences</em>. Wiley.</p>
+<p>Goodman, L. A. (1974). Exploratory latent structure analysis using
+both identifiable and unidentifiable models. <em>Biometrika</em>,
+<em>61</em>(2), 215–231. <a href="https://doi.org/10.1093/biomet/61.2.215" class="external-link uri">https://doi.org/10.1093/biomet/61.2.215</a></p>
 <p>Lanza, S. T., &amp; Collins, L. M. (2006). A mixture model of
 discontinuous development in heavy drinking from ages 18 to 30: The role
 of college enrollment. <em>Journal of Studies on Alcohol</em>,

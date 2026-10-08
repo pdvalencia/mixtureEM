@@ -190,7 +190,7 @@ grade have its own class sizes:</p>
 <span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span></code></pre></div>
 <p>A four-group, five-class fit on this many cases is materially more
 expensive per start than the package’s other vignettes; the solution
-above replicated across 6 of the 20 starts.</p>
+above was reached by 6 of the 20 starts that ran to convergence.</p>
 <p><code>group_effects = "both"</code> frees the item-response
 probabilities by grade as well as the class sizes, and comparing the two
 by likelihood ratio tests exactly the assumption the invariant model is
@@ -200,10 +200,6 @@ making:</p>
 <span><span class="va">m_both</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_mixture.html">fit_mixture</a></span><span class="op">(</span><span class="va">items</span>, n_classes <span class="op">=</span> <span class="fl">5</span>, measurement <span class="op">=</span> <span class="st">"binary"</span>,</span>
 <span>                      group <span class="op">=</span> <span class="va">grade</span>, group_effects <span class="op">=</span> <span class="st">"both"</span>,</span>
 <span>                      n_init <span class="op">=</span> <span class="fl">20</span>, max_iter <span class="op">=</span> <span class="fl">2000</span>, n_steps <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning: The reported solution was found by 1 of 21 starts that ran to</span></span>
-<span><span class="co">#&gt; convergence, out of 20 requested. EM climbs the peak it starts nearest, so a</span></span>
-<span><span class="co">#&gt; maximum seen once may be the best of a small sample of the likelihood surface</span></span>
-<span><span class="co">#&gt; rather than the best there is: refit with n_init = 100 before reporting.</span></span>
 <span><span class="fu"><a href="../reference/lr_test.html">lr_test</a></span><span class="op">(</span><span class="va">m_free</span>, <span class="va">m_both</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Likelihood-ratio test for nested models</span></span>
@@ -214,16 +210,14 @@ making:</p>
 <span><span class="co">#&gt;   The restriction is rejected: the full model fits significantly better.</span></span></code></pre></div>
 <p><code><a href="../reference/lr_test.html">lr_test()</a></code> takes the restricted model first and the full
 model second — reversing the order is an error.</p>
-<p><code>m_both</code> carries a warning worth repeating rather than
-hiding: only 1 of the 20 requested starts converged to the
-log-likelihood reported above, so this solution has not been shown to be
-the global optimum the way <code>m_free</code>’s was. 256 parameters
-spread across five classes and four grades is a much harder surface to
-search than the models later in this vignette, and
-<code>n_init = 20</code> is not enough to be confident of it here — the
-package’s own advice is to refit with <code>n_init = 100</code> before
-reporting this specific comparison as a finding rather than an
-illustration.</p>
+<p><code>m_both</code>’s search is worth reading before its likelihood
+is: only 2 of its 21 converged starts reached the solution reported
+above, against 6 for <code>m_free</code>. 256 parameters spread across
+five classes and four grades is a much harder surface to search than the
+models later in this vignette, and a peak that few starts reach is one
+that twenty starts can miss altogether. Refit with
+<code>n_init = 100</code> or more before reporting this specific
+comparison as a finding rather than an illustration.</p>
 <p>With N in the thousands, a likelihood-ratio test like this one also
 has power to detect even a trivially small departure from invariance, so
 a rejection on its own does not settle the question. Kankaraš, Moors and
@@ -312,7 +306,8 @@ Risk-Takers</strong>:</p>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">m_free</span>, class_labels <span class="op">=</span> <span class="va">class_labels</span>,</span>
 <span>     main <span class="op">=</span> <span class="st">"Health-risk behavior classes by grade\n(YRBS 2005, unweighted)"</span><span class="op">)</span></span></code></pre></div>
 <div class="float">
-<img src="mglca_yrbs-plot-1.png" alt="plot of chunk plot"><div class="figcaption">plot of chunk plot</div>
+<img src="mglca_yrbs-plot-1.png" alt="Probability of each health-risk behavior in the five classes, pooled across grades."><div class="figcaption">Probability of each health-risk behavior in the
+five classes, pooled across grades.</div>
 </div>
 <p>Class 2 (Binge Drinkers) stands out on <code>drove_drinking</code>
 and <code>binge_drink_30d</code> specifically; class 3 (Early

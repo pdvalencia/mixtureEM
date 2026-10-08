@@ -161,7 +161,7 @@ not needed to compare models.</p>
 <span><span class="co">#&gt;   BIC            : 43872.70</span></span>
 <span><span class="co">#&gt;   SABIC          : 43761.49</span></span>
 <span><span class="co">#&gt;   Rel. Entropy   : 0.9042</span></span>
-<span><span class="co">#&gt;   Best solution  : found by 48 of 50 starts</span></span>
+<span><span class="co">#&gt;   Best solution  : found by 50 of 50 starts</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; Latent status prevalences by occasion:</span></span>
 <span><span class="co">#&gt;    Status 1 Status 2 Status 3</span></span>
@@ -216,13 +216,6 @@ published analyses of these data used, and is checked below.</p>
 <span>                  random_intercept <span class="op">=</span> <span class="st">"continuous"</span>, n_quadrature <span class="op">=</span> <span class="fl">30</span>,</span>
 <span>                  random_state <span class="op">=</span> <span class="fl">7</span>, standard_errors <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>                  smoothing <span class="op">=</span> <span class="va">ml</span><span class="op">$</span><span class="va">smoothing</span>, bayes_constants <span class="op">=</span> <span class="va">ml</span><span class="op">$</span><span class="va">bayes_constants</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Warning: A response probability has collapsed towards the boundary: context in</span></span>
-<span><span class="co">#&gt; class 1 (logit -10.87, p = 1.9e-05); sight in class 1 (logit -8.55, p =</span></span>
-<span><span class="co">#&gt; 0.000194); letters in class 3 (logit +8.08, p = 1). These estimates are not</span></span>
-<span><span class="co">#&gt; interpretable, and this fit's BIC cannot be compared with a clean fit's. Ways</span></span>
-<span><span class="co">#&gt; out, to choose between on substantive grounds: (1) fewer classes; or (2) a</span></span>
-<span><span class="co">#&gt; stronger categorical prior, bayes_constants = list(categorical = 3). See</span></span>
-<span><span class="co">#&gt; ?fit_mixture for why, and what to check afterwards.</span></span>
 <span><span class="va">fit_ri</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
@@ -250,20 +243,21 @@ published analyses of these data used, and is checked below.</p>
 <span><span class="co">#&gt; T4   0.0109   0.0167   0.9725</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Note: 6 transition(s) estimated at the zero boundary; see $boundary.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Note: item response probabilities at the boundary: context in status 1 (logit -10.87, p = 1.9e-05); sight in status 1 (logit -8.55, p = 0.000194); letters in status 3 (logit +8.08, p = 1). Each may be a real absence or a response this sample happened not to give. Read the probability, not the logit: the logit has run off towards infinity, so it and its standard error are not meaningful. To check that a cell is not driving the other estimates, refit with `bayes_constants = list(categorical = 3)` and compare.</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Type summary(model) for transitions, measurement_summary(model) for items.</span></span></code></pre></div>
-<p>Two things before the numbers. The warning is the same substantive
-zero the ordinary model has — nobody in the low-alphabet stage reads
-words in context — now stated on the logit scale the random-intercept
-model works on, where a probability of zero is a logit of minus
-infinity. It is worth reading once; it recurs on every fit below for the
-same reason and is silenced from here on. And
+<p>Two things before the numbers. The note about item response
+probabilities at the boundary is consistent with the zero the ordinary
+model has — nobody in the low-alphabet stage reads words in context —
+now stated on the logit scale the random-intercept model works on, where
+a probability of zero is a logit of minus infinity. Read those cells’
+probabilities, not their logits; <code><a href="../reference/measurement_summary.html">measurement_summary()</a></code>
+repeats the note below. And
 <code>Best solution: found by 3 of 3 starts that ran to convergence (of 20 requested)</code>
 is how the random-intercept search reports: the twenty starts are ranked
 cheaply and only the best few are run to convergence, so replication is
 counted among those.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">knitr</span><span class="fu">::</span><span class="va"><a href="https://rdrr.io/pkg/knitr/man/opts_chunk.html" class="external-link">opts_chunk</a></span><span class="op">$</span><span class="fu">set</span><span class="op">(</span>warning <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
 <p>The fit line to read is the log-likelihood: −20,329 against −21,793,
 for five more parameters (the loadings). A BIC drop of almost three
 thousand is not a subtle improvement. <strong>Do not turn this into a
@@ -274,7 +268,7 @@ Compare by BIC.</p>
 <div class="section level3">
 <h3 id="the-loadings">The loadings<a class="anchor" aria-label="anchor" href="#the-loadings"></a>
 </h3>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/random_intercept_loadings.html">random_intercept_loadings</a></span><span class="op">(</span><span class="va">fit_ri</span><span class="op">)</span></span>
 <span><span class="co">#&gt;        item  loading se  z</span></span>
 <span><span class="co">#&gt; 1   letters 3.489282 NA NA</span></span>
@@ -292,7 +286,7 @@ the stages.</p>
 <div class="section level3">
 <h3 id="what-changes-in-the-statuses">What changes in the statuses<a class="anchor" aria-label="anchor" href="#what-changes-in-the-statuses"></a>
 </h3>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/measurement_summary.html">measurement_summary</a></span><span class="op">(</span><span class="va">fit_ri</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
@@ -311,7 +305,9 @@ the stages.</p>
 <span><span class="co">#&gt; ending@T1            |   0.573 |   0.167 |   0.631 |   0.904</span></span>
 <span><span class="co">#&gt; sight@T1             |   0.315 |   0.020 |   0.208 |   0.808</span></span>
 <span><span class="co">#&gt; context@T1           |   0.152 |   0.005 |   0.058 |   0.459</span></span>
-<span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
+<span><span class="co">#&gt; =========================================================</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Note: item response probabilities at the boundary: context in status 1 (logit -10.87, p = 1.9e-05); sight in status 1 (logit -8.55, p = 0.000194); letters in status 3 (logit +8.08, p = 1). Each may be a real absence or a response this sample happened not to give. Read the probability, not the logit: the logit has run off towards infinity, so it and its standard error are not meaningful. To check that a cell is not driving the other estimates, refit with `bayes_constants = list(categorical = 3)` and compare.</span></span></code></pre></div>
 <p>Compared with the ordinary LTA, the item probabilities move away from
 0 and 1: in the low-alphabet stage 63% now know their letters (not 51%)
 and 30% their beginning sounds (not 7%), and in the comprehension stage
@@ -322,7 +318,7 @@ meaning and their order.</p>
 <div class="section level3">
 <h3 id="what-changes-in-the-prevalences-and-transitions">What changes in the prevalences and transitions<a class="anchor" aria-label="anchor" href="#what-changes-in-the-prevalences-and-transitions"></a>
 </h3>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="../reference/status_prevalences.html">status_prevalences</a></span><span class="op">(</span><span class="va">fit_lta0</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    Status 1 Status 2 Status 3</span></span>
 <span><span class="co">#&gt; T1    0.694    0.284    0.023</span></span>
@@ -343,7 +339,7 @@ random-intercept model 95% of children start in the low-alphabet stage
 occasion partly on the basis of a trait; with the trait removed, nearly
 all children are found to pass through the same sequence, just at
 different times.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/transition_matrix.html">transition_matrix</a></span><span class="op">(</span><span class="va">fit_ri</span><span class="op">)</span></span>
 <span><span class="co">#&gt; $`T1 -&gt; T2`</span></span>
 <span><span class="co">#&gt;           to</span></span>
@@ -371,7 +367,7 @@ and essentially everyone in early word reading moves up to comprehension
 over the second half of first grade (98%, against 86% in the ordinary
 model). The most common paths through the four occasions make the same
 point:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">paths</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">fit</span>, <span class="va">n</span> <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="fu"><a href="../reference/transition_patterns.html">transition_patterns</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/order.html" class="external-link">order</a></span><span class="op">(</span><span class="op">-</span><span class="fu"><a href="../reference/transition_patterns.html">transition_patterns</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">proportion</span><span class="op">)</span>, <span class="op">]</span>, <span class="va">n</span><span class="op">)</span></span>
 <span><span class="fu">paths</span><span class="op">(</span><span class="va">fit_lta0</span><span class="op">)</span></span>
@@ -397,7 +393,7 @@ seven in ten.</p>
 the log-likelihood. <code>refine_from</code> continues the converged fit
 on a finer grid without repeating the random-start search, so the check
 is cheap:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_ri60</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_lta.html">fit_lta</a></span><span class="op">(</span><span class="va">items</span>, n_statuses <span class="op">=</span> <span class="fl">3</span>, times <span class="op">=</span> <span class="fl">4</span>,</span>
 <span>                    random_intercept <span class="op">=</span> <span class="st">"continuous"</span>, n_quadrature <span class="op">=</span> <span class="fl">60</span>,</span>
 <span>                    refine_from <span class="op">=</span> <span class="va">fit_ri</span>, standard_errors <span class="op">=</span> <span class="cn">FALSE</span>,</span>
@@ -427,12 +423,12 @@ when the fit’s thresholds are extreme.</p>
 alternative is two latent <em>types</em> of person — a binary random
 intercept, <code>random_intercept = "binary"</code> — which asks a
 different question and is compared by BIC like everything else:</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_ri2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_lta.html">fit_lta</a></span><span class="op">(</span><span class="va">items</span>, n_statuses <span class="op">=</span> <span class="fl">3</span>, times <span class="op">=</span> <span class="fl">4</span>, n_init <span class="op">=</span> <span class="fl">20</span>,</span>
 <span>                   random_intercept <span class="op">=</span> <span class="st">"binary"</span>,</span>
 <span>                   random_state <span class="op">=</span> <span class="fl">7</span>, standard_errors <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>                   smoothing <span class="op">=</span> <span class="va">ml</span><span class="op">$</span><span class="va">smoothing</span>, bayes_constants <span class="op">=</span> <span class="va">ml</span><span class="op">$</span><span class="va">bayes_constants</span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fits</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>`Regular LTA` <span class="op">=</span> <span class="va">fit_lta0</span>,</span>
 <span>             `RI-LTA, binary` <span class="op">=</span> <span class="va">fit_ri2</span>,</span>
 <span>             `RI-LTA, continuous` <span class="op">=</span> <span class="va">fit_ri</span><span class="op">)</span></span>
@@ -466,7 +462,7 @@ more slowly <em>given</em> their readiness.</p>
 covariates, and unnecessary: the unconditional fit is already the right
 neighbourhood. <code>refine_from</code> continues from it in a single
 run.</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">pov</span> <span class="op">&lt;-</span> <span class="va">ecls_reading</span><span class="op">[</span><span class="st">"poverty"</span><span class="op">]</span></span>
 <span><span class="va">fit_pov_ri</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_lta.html">fit_lta</a></span><span class="op">(</span><span class="va">items</span>, n_statuses <span class="op">=</span> <span class="fl">3</span>, times <span class="op">=</span> <span class="fl">4</span>,</span>
 <span>                      random_intercept <span class="op">=</span> <span class="st">"continuous"</span>, n_quadrature <span class="op">=</span> <span class="fl">30</span>,</span>
@@ -479,7 +475,7 @@ run.</p>
 <span>                      predictors_transition <span class="op">=</span> <span class="va">pov</span>,</span>
 <span>                      refine_from <span class="op">=</span> <span class="va">fit_pov_ri</span>,</span>
 <span>                      smoothing <span class="op">=</span> <span class="va">ml</span><span class="op">$</span><span class="va">smoothing</span>, bayes_constants <span class="op">=</span> <span class="va">ml</span><span class="op">$</span><span class="va">bayes_constants</span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fits</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>`RI-LTA` <span class="op">=</span> <span class="va">fit_ri</span>,</span>
 <span>             `+ poverty -&gt; trait` <span class="op">=</span> <span class="va">fit_pov_ri</span>,</span>
 <span>             `+ poverty -&gt; trait and transitions` <span class="op">=</span> <span class="va">fit_pov_tr</span><span class="op">)</span></span>
@@ -500,21 +496,21 @@ write-up should say so rather than pick the one it likes. Compare either
 with <code><a href="../articles/lta.html">vignette("lta")</a></code>, where poverty on the initial status
 and the transitions of the <em>ordinary</em> LTA was worth 210 units:
 most of that effect was the trait all along.</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/lr_test.html">lr_test</a></span><span class="op">(</span><span class="va">fit_pov_ri</span>, <span class="va">fit_pov_tr</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Likelihood-ratio test for nested models</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Restricted : LL =  -20127.6888   parameters = 41</span></span>
-<span><span class="co">#&gt;   Full       : LL =  -20106.2306   parameters = 47</span></span>
-<span><span class="co">#&gt;   -2 x diff  : 42.9163   df = 6   p = 1.212e-07</span></span>
+<span><span class="co">#&gt;   Full       : LL =  -20106.2311   parameters = 47</span></span>
+<span><span class="co">#&gt;   -2 x diff  : 42.9153   df = 6   p = 1.212e-07</span></span>
 <span><span class="co">#&gt;   The restriction is rejected: the full model fits significantly better.</span></span></code></pre></div>
 <p>A fit continued with <code>refine_from</code> keeps its donor’s
 status labels, so status 1 is still the low-alphabet stage and status 3
 comprehension — check with <code><a href="../reference/status_prevalences.html">status_prevalences()</a></code> when in
 doubt — and every transition contrast below is relative to <em>reaching
 comprehension</em>:</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/lta_covariate_summary.html">lta_covariate_summary</a></span><span class="op">(</span><span class="va">fit_pov_tr</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
@@ -526,37 +522,37 @@ comprehension</em>:</p>
 <span><span class="co">#&gt; PREDICTING TRANSITIONS</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;   [occasion 1 -&gt; 2]</span></span>
-<span><span class="co">#&gt;       Status      Term Estimate     SE      z      p          OR</span></span>
-<span><span class="co">#&gt;  to Status 1 Intercept  -13.002 84.665  -0.15 0.8779       0.000</span></span>
-<span><span class="co">#&gt;  to Status 1    from:1   15.874 84.665   0.19 0.8513 7836149.727</span></span>
-<span><span class="co">#&gt;  to Status 1    from:2  -10.394  0.360 -28.85 &lt;1e-16       0.000</span></span>
-<span><span class="co">#&gt;  to Status 1   poverty    0.002  0.302   0.01 0.9951       1.002</span></span>
-<span><span class="co">#&gt;  to Status 2 Intercept  -10.788 48.033  -0.22 0.8223       0.000</span></span>
-<span><span class="co">#&gt;  to Status 2    from:1   15.307 48.033   0.32 0.7500 4442242.944</span></span>
-<span><span class="co">#&gt;  to Status 2    from:2   12.052 48.033   0.25 0.8019  171435.041</span></span>
-<span><span class="co">#&gt;  to Status 2   poverty   -0.652  0.290  -2.25 0.0244       0.521</span></span>
+<span><span class="co">#&gt;       Status      Term Estimate     SE       z      p           OR</span></span>
+<span><span class="co">#&gt;  to Status 1 Intercept  -13.761 24.680   -0.56 0.5771        0.000</span></span>
+<span><span class="co">#&gt;  to Status 1    from:1   16.625 24.680    0.67 0.5006 16601639.261</span></span>
+<span><span class="co">#&gt;  to Status 1    from:2   -9.556 47.337   -0.20 0.8400        0.000</span></span>
+<span><span class="co">#&gt;  to Status 1   poverty    0.004  0.303    0.01 0.9900        1.004</span></span>
+<span><span class="co">#&gt;  to Status 2 Intercept  -13.746  0.095 -143.95 &lt;1e-16        0.000</span></span>
+<span><span class="co">#&gt;  to Status 2    from:1   18.257  0.134  136.46 &lt;1e-16 84927993.192</span></span>
+<span><span class="co">#&gt;  to Status 2    from:2   15.032  0.134  112.08 &lt;1e-16  3375822.556</span></span>
+<span><span class="co">#&gt;  to Status 2   poverty   -0.650  0.290   -2.24 0.0252        0.522</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;   [occasion 2 -&gt; 3]</span></span>
-<span><span class="co">#&gt;       Status      Term Estimate     SE     z        p          OR</span></span>
-<span><span class="co">#&gt;  to Status 1 Intercept   -5.117  0.909 -5.63 1.81e-08       0.006</span></span>
-<span><span class="co">#&gt;  to Status 1    from:1    7.338  0.953  7.70 1.34e-14    1536.961</span></span>
-<span><span class="co">#&gt;  to Status 1    from:2   -0.044  1.133 -0.04    0.969       0.957</span></span>
-<span><span class="co">#&gt;  to Status 1   poverty    1.870  0.271  6.89 5.56e-12       6.488</span></span>
-<span><span class="co">#&gt;  to Status 2 Intercept  -11.911 38.372 -0.31    0.756       0.000</span></span>
-<span><span class="co">#&gt;  to Status 2    from:1   15.558 38.373  0.41    0.685 5711371.236</span></span>
-<span><span class="co">#&gt;  to Status 2    from:2   14.511 38.372  0.38    0.705 2004089.903</span></span>
-<span><span class="co">#&gt;  to Status 2   poverty    0.109  0.198  0.55    0.581       1.115</span></span>
+<span><span class="co">#&gt;       Status      Term Estimate      SE     z        p           OR</span></span>
+<span><span class="co">#&gt;  to Status 1 Intercept   -5.112   0.902 -5.67 1.45e-08        0.006</span></span>
+<span><span class="co">#&gt;  to Status 1    from:1    7.325   0.945  7.75 9.39e-15     1517.366</span></span>
+<span><span class="co">#&gt;  to Status 1    from:2   -0.047   1.108 -0.04    0.966        0.954</span></span>
+<span><span class="co">#&gt;  to Status 1   poverty    1.869   0.271  6.89 5.46e-12        6.481</span></span>
+<span><span class="co">#&gt;  to Status 2 Intercept  -13.813 100.561 -0.14    0.891        0.000</span></span>
+<span><span class="co">#&gt;  to Status 2    from:1   17.453 100.561  0.17    0.862 37998249.289</span></span>
+<span><span class="co">#&gt;  to Status 2    from:2   16.413 100.561  0.16    0.870 13432728.407</span></span>
+<span><span class="co">#&gt;  to Status 2   poverty    0.108   0.197  0.55    0.586        1.114</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;   [occasion 3 -&gt; 4]</span></span>
-<span><span class="co">#&gt;       Status      Term Estimate     SE       z        p        OR</span></span>
-<span><span class="co">#&gt;  to Status 1 Intercept   -4.816  0.636   -7.57 3.68e-14     0.008</span></span>
-<span><span class="co">#&gt;  to Status 1    from:1    3.824  0.662    5.78 7.51e-09    45.806</span></span>
-<span><span class="co">#&gt;  to Status 1    from:2   -0.775  0.698   -1.11 0.266879     0.461</span></span>
-<span><span class="co">#&gt;  to Status 1   poverty    0.182  0.292    0.62 0.534036     1.199</span></span>
-<span><span class="co">#&gt;  to Status 2 Intercept  -15.115 94.451   -0.16 0.872861     0.000</span></span>
-<span><span class="co">#&gt;  to Status 2    from:1   -8.590  0.045 -192.52  &lt; 1e-16     0.000</span></span>
-<span><span class="co">#&gt;  to Status 2    from:2   10.729 94.451    0.11 0.909561 45658.338</span></span>
-<span><span class="co">#&gt;  to Status 2   poverty    1.105  0.296    3.73 0.000192     3.018</span></span>
+<span><span class="co">#&gt;       Status      Term Estimate     SE     z        p         OR</span></span>
+<span><span class="co">#&gt;  to Status 1 Intercept   -4.816  0.634 -7.59 3.19e-14      0.008</span></span>
+<span><span class="co">#&gt;  to Status 1    from:1    3.823  0.661  5.79 7.20e-09     45.729</span></span>
+<span><span class="co">#&gt;  to Status 1    from:2   -0.774  0.696 -1.11 0.266616      0.461</span></span>
+<span><span class="co">#&gt;  to Status 1   poverty    0.182  0.294  0.62 0.535213      1.200</span></span>
+<span><span class="co">#&gt;  to Status 2 Intercept  -15.959 53.223 -0.30 0.764286      0.000</span></span>
+<span><span class="co">#&gt;  to Status 2    from:1   -6.974 79.205 -0.09 0.929841      0.001</span></span>
+<span><span class="co">#&gt;  to Status 2    from:2   11.578 53.223  0.22 0.827792 106700.252</span></span>
+<span><span class="co">#&gt;  to Status 2   poverty    1.103  0.292  3.77 0.000161      3.013</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; PREDICTING THE RANDOM INTERCEPT (linear regression, residual variance fixed at 1)</span></span>
 <span><span class="co">#&gt; The factor's sign is fixed by making the largest loading positive;</span></span>
@@ -577,24 +573,25 @@ intercepts, several of them for cells almost nobody occupies, which is
 what their standard errors say.</p>
 <p>The final model was fitted with standard errors, so the loadings now
 come with theirs:</p>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/random_intercept_loadings.html">random_intercept_loadings</a></span><span class="op">(</span><span class="va">fit_pov_tr</span><span class="op">)</span></span>
 <span><span class="co">#&gt;        item  loading         se        z</span></span>
-<span><span class="co">#&gt; 1   letters 3.099271 0.11864326 26.12261</span></span>
-<span><span class="co">#&gt; 2 beginning 2.440198 0.07677823 31.78242</span></span>
-<span><span class="co">#&gt; 3    ending 2.308574 0.06589727 35.03292</span></span>
-<span><span class="co">#&gt; 4     sight 3.412924 0.14178355 24.07137</span></span>
-<span><span class="co">#&gt; 5   context 3.469340 0.15730670 22.05462</span></span></code></pre></div>
+<span><span class="co">#&gt; 1   letters 3.100185 0.11865993 26.12664</span></span>
+<span><span class="co">#&gt; 2 beginning 2.440890 0.07676834 31.79553</span></span>
+<span><span class="co">#&gt; 3    ending 2.309170 0.06588853 35.04661</span></span>
+<span><span class="co">#&gt; 4     sight 3.414121 0.14180735 24.07577</span></span>
+<span><span class="co">#&gt; 5   context 3.469876 0.15729171 22.06013</span></span></code></pre></div>
 <p><code><a href="../reference/random_intercept_scores.html">random_intercept_scores()</a></code> returns each child’s estimated
 position on the trait, which is the natural quantity to relate to
 anything else in the data:</p>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">scores</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/random_intercept_scores.html">random_intercept_scores</a></span><span class="op">(</span><span class="va">fit_pov_tr</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/boxplot.html" class="external-link">boxplot</a></span><span class="op">(</span><span class="va">scores</span><span class="op">$</span><span class="va">mean_score</span> <span class="op">~</span> <span class="va">ecls_reading</span><span class="op">$</span><span class="va">poverty</span>, horizontal <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>        names <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Not in poverty"</span>, <span class="st">"In poverty"</span><span class="op">)</span>,</span>
 <span>        xlab <span class="op">=</span> <span class="st">"Reading readiness (posterior mean factor score)"</span>, ylab <span class="op">=</span> <span class="st">""</span><span class="op">)</span></span></code></pre></div>
 <div class="float">
-<img src="rilta-scores-1.png" alt="plot of chunk scores"><div class="figcaption">plot of chunk scores</div>
+<img src="rilta-scores-1.png" alt="Posterior mean reading-readiness scores of children in and not in poverty."><div class="figcaption">Posterior mean reading-readiness scores of
+children in and not in poverty.</div>
 </div>
 </div>
 <div class="section level2">
