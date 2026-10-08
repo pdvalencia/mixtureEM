@@ -159,3 +159,40 @@ test_that("refine_from refuses a random intercept of the other kind", {
             refine_from = donor, standard_errors = FALSE),
     "binary random intercept")
 })
+
+# A donor fitted without predictors, continued with them: the new regressions
+# start at the coefficients that reproduce the donor's own probabilities, so
+# with no EM iteration the refit is still the donor. Started from zero
+# coefficients, the first M-step on a donor with an empty transition cell fell
+# below the donor and the run settled on a worse solution than the model it
+# nests.
+test_that("refine_from starts added predictors at the donor's probabilities", {
+  sim <- .lta_cov_refine_sim()
+  ml <- list(smoothing = 0, bayes_constants = list(categorical = 0))
+  donor <- fit_lta(sim$X, n_statuses = 2, times = 3, measurement = "binary",
+                   n_init = 3, n_cores = 1, random_state = 1,
+                   standard_errors = FALSE, smoothing = ml$smoothing,
+                   bayes_constants = ml$bayes_constants)
+  for (effects in c("common", "by_origin")) {
+    again <- suppressWarnings(fit_lta(sim$X, n_statuses = 2, times = 3,
+                     measurement = "binary",
+                     predictors_initial = sim$Z, predictors_transition = sim$Z,
+                     transition_effects = effects, refine_from = donor,
+                     max_iter = 0, refine = FALSE, standard_errors = FALSE,
+                     smoothing = ml$smoothing,
+                     bayes_constants = ml$bayes_constants))
+    expect_equal(again$loglik, donor$loglik, tolerance = 1e-8)
+    # The regressions exist from the start and reproduce the donor's tables:
+    # every slope zero, the averaged probabilities the donor's own.
+    expect_false(is.null(again$tau_beta))
+    expect_false(is.null(again$delta_beta))
+    expect_equal(again$tau, donor$tau, tolerance = 1e-8)
+    expect_equal(again$delta, donor$delta, tolerance = 1e-8)
+  }
+  full <- fit_lta(sim$X, n_statuses = 2, times = 3, measurement = "binary",
+                  predictors_initial = sim$Z, predictors_transition = sim$Z,
+                  refine_from = donor, standard_errors = FALSE,
+                  smoothing = ml$smoothing,
+                  bayes_constants = ml$bayes_constants)
+  expect_gte(full$loglik, donor$loglik)
+})

@@ -33,6 +33,21 @@ check at a finer `n_quadrature` starts from the coarser fit's solution. A
 donor with the other kind of random intercept is refused. Every refit from a
 random-intercept donor can change, since it no longer depends on that draw.
 
+## `refine_from` starts added predictors where the donor is
+
+A fit continued with `refine_from` from a donor without
+`predictors_initial` or `predictors_transition`, but given them itself,
+fitted those regressions from zero coefficients at its first M-step. That
+step does not start from the donor. When the donor's transition table had an
+empty cell, as a maximum-likelihood fit of a sparse table often does, it could
+end below the donor, and the run then converged on a worse solution than the
+model it nests. In one random-intercept example the continued fit finished 22
+log-likelihood units below its donor, with every coefficient for the last
+transition at the box limit. The regressions now start at the donor's own
+probabilities: intercept and origin terms from its log-ratios, every slope at
+zero. That example now reaches the solution 21 units above the donor.
+Continued fits that add predictors can change; other fits are unchanged.
+
 ## A random intercept's boundary cell is a note, not a warning
 
 A continuous random-intercept fit warned when an item logit passed ±8 that

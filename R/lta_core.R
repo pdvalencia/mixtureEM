@@ -1571,9 +1571,8 @@
 # built exactly as a random start would build it -- that is what fixes the
 # scaffolding the driver expects, the allowed-transition masks and the emission
 # skeleton included -- and then every free quantity is overwritten from the
-# donor. What is not copied is the regression coefficients: .lta_random_start()
-# clears them and the first M-step refits them to the probabilities it is given,
-# which are the donor's, so the covariate model resumes at the same point.
+# donor. A regression the donor does not have starts at the coefficients that
+# reproduce the donor's own probabilities (.lta_seed_regressions()).
 .lta_refine_start <- function(state, X, donor) {
   state <- .lta_random_start(state, X)
 
@@ -1589,6 +1588,7 @@
   if (!is.null(donor$tau_beta))   state$tau_beta   <- donor$tau_beta
   if (!is.null(donor$ri_beta))    state$ri_beta    <- donor$ri_beta
   if (state$n_classes > 1L) state$class_weights <- donor$class_weights
+  state <- .lta_seed_regressions(state)
 
   # An RI fit may take a regular-LTA donor: seed delta, tau and the RI
   # intercepts A from its converged solution and leave the loadings L at their
@@ -1636,6 +1636,58 @@
     pis <- .lta_ri_integrated_pis(state$ri, state$n_statuses, state$n_items)
     for (t in seq_along(state$mm$models))
       state$mm$models[[t]]$parameters$pis <- pis
+  }
+  state
+}
+
+# A regression the donor has no coefficients for -- predictors added in the
+# continued fit -- starts where the donor is: intercept and origin terms set
+# from the log-ratios of its own initial-status and transition probabilities,
+# every slope at zero, so the first E-step is the donor's. Started from zero
+# coefficients instead, the first M-step was not an EM step from the donor at
+# all. On a donor whose transition table holds exact zeros, the ordinary
+# maximum-likelihood outcome for a sparse table, that separated fit stopped
+# below its starting point, the log-likelihood fell, and the run settled on a
+# worse solution than the model it nests. Probabilities are floored at 1e-6
+# so every log-ratio is finite without distorting a row whose reference
+# status is the empty one. The floor moves the starting log-likelihood by at
+# most n * 1e-6, and it matters for what is printed: a term for an empty cell
+# is not identified, the likelihood is flat along it and EM leaves it about
+# where it started. Started at the edge of the +/-25 box the finish uses, it
+# stays there, where the curvature its standard error is computed from is
+# numerically zero.
+.lta_seed_regressions <- function(state) {
+  K <- state$n_statuses
+  logratio <- function(p) {
+    l <- log(pmax(p, 1e-6))
+    l - l[K]
+  }
+  if (!is.null(state$Z_delta) && is.null(state$delta_beta)) {
+    B <- matrix(0, K, ncol(state$Z_delta))
+    B[, 1L] <- logratio(state$delta_c[[1L]])
+    state$delta_beta <- B
+  }
+  Tn <- state$n_times
+  if (!is.null(state$Z_tau) && is.null(state$tau_beta) && Tn > 1L) {
+    mats <- if (isTRUE(state$tau_homogeneous)) 1L else Tn - 1L
+    state$tau_beta <- lapply(seq_len(mats), function(m) {
+      P <- state$tau_c[[1L]][[m]]
+      Lr <- t(apply(P, 1L, logratio))
+      if (identical(state$transition_effects, "by_origin"))
+        return(lapply(seq_len(K), function(k) {
+          B <- matrix(0, K, ncol(state$Z_tau))
+          B[, 1L] <- Lr[k, ]
+          B
+        }))
+      B <- matrix(0, K, ncol(.lta_tau_design(state, 1L, m)))
+      if (isTRUE(state$tau_independent)) {
+        B[, 1L] <- logratio(colMeans(P))
+      } else {
+        B[, 1L] <- Lr[K, ]
+        for (k in seq_len(K - 1L)) B[, 1L + k] <- Lr[k, ] - Lr[K, ]
+      }
+      B
+    })
   }
   state
 }
