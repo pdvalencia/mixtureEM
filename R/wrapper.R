@@ -440,7 +440,7 @@ measurement_summary.default <- function(object,
                 md$handled_by))
   }
   .print_recode_note(object$binary_recode)
-  .print_boundary_note(do.call(rbind, collected))
+  if (!isTRUE(object$.ri_fit)) .print_boundary_note(do.call(rbind, collected))
   cat("=========================================================\n")
   invisible(do.call(rbind, collected))
 }

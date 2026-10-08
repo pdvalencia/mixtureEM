@@ -115,19 +115,16 @@ fit_ri <- fit_lta(items, n_statuses = 3, times = 4, n_init = 20,
 fit_ri
 ```
 
-Two things before the numbers. The warning is the same substantive zero
-the ordinary model has — nobody in the low-alphabet stage reads words in
-context — now stated on the logit scale the random-intercept model
-works on, where a probability of zero is a logit of minus infinity. It is
-worth reading once; it recurs on every fit below for the same reason and
-is silenced from here on. And `Best solution: found by 3 of 3 starts that
+Two things before the numbers. The note about item response
+probabilities at the boundary is consistent with the zero the ordinary
+model has — nobody in the low-alphabet stage reads words in context —
+now stated on the logit scale the random-intercept model works on, where
+a probability of zero is a logit of minus infinity. Read those cells'
+probabilities, not their logits. The note recurs on the fits below for
+the same reason. And `Best solution: found by 3 of 3 starts that
 ran to convergence (of 20 requested)` is how the random-intercept search
 reports: the twenty starts are ranked cheaply and only the best few are
 run to convergence, so replication is counted among those.
-
-```{r quiet}
-knitr::opts_chunk$set(warning = FALSE)
-```
 
 The fit line to read is the log-likelihood: −20,329 against −21,793, for
 five more parameters (the loadings). A BIC drop of almost three thousand

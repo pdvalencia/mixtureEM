@@ -108,23 +108,10 @@
                                   "marginal", "ratio", "mean", "pinned", "kind")]
 }
 
-# Two flagged-cell frames -- one per kind of degeneracy -- into the single
-# frame stored on fit$degenerate. Columns not shared between kinds are padded
-# with NA rather than dropped, so .degeneracy_lines() can still read each
-# kind's own fields after subsetting by `kind`.
-.combine_degenerate <- function(...) {
-  frames <- Filter(Negate(is.null), list(...))
-  if (!length(frames)) return(NULL)
-  all_cols <- Reduce(union, lapply(frames, names))
-  do.call(rbind, lapply(frames, function(d) {
-    for (m in setdiff(all_cols, names(d))) d[[m]] <- NA
-    d[all_cols]
-  }))
-}
-
-# Dispatches each flagged row to its own formatter by `kind`. Mirrors
-# .gaussian_boundary_lines()'s per-kind text; a fit degenerate in both ways at
-# once gets both kinds of line, each capped at max_show independently.
+# Dispatches each flagged row to its own formatter by `kind`. Only collapsed
+# variances reach fit$degenerate now (a random intercept's boundary cells are
+# kept apart, see .check_gaussian_degeneracy()), but a fit saved by an earlier
+# version can still carry "probability" rows, and it should still print.
 .degeneracy_lines <- function(flagged, max_show = 5L) {
   var_rows  <- flagged[flagged$kind == "variance", , drop = FALSE]
   prob_rows <- flagged[flagged$kind == "probability", , drop = FALSE]
@@ -149,7 +136,7 @@
   flagged <- x$degenerate
   if (is.null(flagged) || !nrow(flagged)) return(invisible(NULL))
   has_var  <- any(flagged$kind == "variance")
-  has_prob <- any(flagged$kind == "probability")
+  has_prob <- any(flagged$kind == "probability")   # saved by an older version
   header <- if (has_var && has_prob)
     "WARNING - collapsed class variance and boundary response probability:"
   else if (has_prob) "WARNING - boundary response probability:"
@@ -175,14 +162,24 @@
 # Called from both fitting paths -- fit_mixture_internal() and fit_lta(), which
 # has its own EM driver -- so a continuous or categorical indicator is checked
 # wherever it is estimated. Silent for every model with neither.
+#
+# A random intercept's item logits past the boundary are stored apart, on
+# fit$ri_boundary, and are not a warning. On simulated data with a planted true
+# zero every flagged fit was fully usable -- the same log-likelihood the model
+# reaches without the flag, unbiased transitions, nominal coverage -- and the
+# flag marks a cell that is empty in the population and one this sample left
+# empty in exactly the same way, so it cannot say which. What is true of every
+# such cell is narrower: its logit is on its way to infinity, so the logit and
+# its standard error mean nothing, while the probability, the fit and its BIC
+# do. That is a note on print(), .print_ri_boundary_note(), not a warning, and
+# it does not mark the fit degenerate for lr_test() or the BIC line.
 .check_gaussian_degeneracy <- function(fit, X, quiet = FALSE) {
   # `sample_weights` on a mixture_model, `weights_vec` on an lta_model.
   w <- fit$sample_weights %||% fit$weights_vec
-  var_flagged  <- tryCatch(.gaussian_boundary(fit$mm, X, weights = w),
-                           error = function(e) NULL)
-  prob_flagged <- tryCatch(.categorical_boundary(fit, X),
-                           error = function(e) NULL)
-  flagged <- .combine_degenerate(var_flagged, prob_flagged)
+  flagged <- tryCatch(.gaussian_boundary(fit$mm, X, weights = w),
+                      error = function(e) NULL)
+  fit$ri_boundary <- tryCatch(.categorical_boundary(fit, X),
+                              error = function(e) NULL)
   fit$degenerate <- flagged
   if (is.null(flagged) || isTRUE(quiet)) return(fit)
 
@@ -193,29 +190,16 @@
   # per class was the weakest setting that both lifted the flagged variance
   # into the range of the model's genuinely small variances and moved its
   # class mean off the scale ceiling. See the `bayes_constants` section of
-  # ?fit_mixture. The categorical remedy is the Dirichlet prior on the response
-  # probabilities, whose whole purpose is to keep them off the boundary.
+  # ?fit_mixture.
   K <- .degeneracy_n_classes(fit)
-  has_var  <- any(flagged$kind == "variance")
-  has_prob <- any(flagged$kind == "probability")
-  var_hint  <- if (is.na(K)) "bayes_constants = list(variances = <n_classes>)"
-               else sprintf("bayes_constants = list(variances = %d)", K)
-  prob_hint <- if (is.na(K)) "bayes_constants = list(categorical = <n_classes>)"
-               else sprintf("bayes_constants = list(categorical = %d)", K)
-  prior_hints <- c(
-    if (has_var)  sprintf("a stronger variance prior, %s", var_hint),
-    if (has_prob) sprintf("a stronger categorical prior, %s", prob_hint))
-  # `variances_equal` only bears on a collapsed variance; a response probability
-  # at the boundary has nothing to gain from it, so it is not offered then.
-  remedies <- c(if (has_var) "variances_equal = TRUE",
-                "fewer classes",
-                paste(prior_hints, collapse = ", or "))
+  var_hint <- if (is.na(K)) "bayes_constants = list(variances = <n_classes>)"
+              else sprintf("bayes_constants = list(variances = %d)", K)
+  remedies <- c("variances_equal = TRUE", "fewer classes",
+                sprintf("a stronger variance prior, %s", var_hint))
   remedies <- sprintf("(%d) %s", seq_along(remedies), remedies)
   remedies[length(remedies)] <- paste("or", remedies[length(remedies)])
   remedies <- paste(remedies, collapse = "; ")
-  what <- if (has_var && has_prob) "A class variance and a response probability have"
-          else if (has_prob) "A response probability has"
-          else "A class variance has"
+  what <- "A class variance has"
 
   # R truncates a condition message at getOption("warning.length"), which
   # defaults to 1000 bytes and which RStudio does not raise -- so a warning

@@ -1421,7 +1421,8 @@ fit_lta <- function(indicators,
   # A non-degenerate candidate always outranks a degenerate one regardless of
   # score; among candidates with the same status, score still decides. Never
   # discards a candidate outright -- if every candidate is degenerate the
-  # best-scoring one still wins, flagged via fit$degenerate downstream.
+  # best-scoring one still wins, and the print() note on fit$ri_boundary
+  # names its cells.
   beats_current <- function(deg, s) {
     if (is.null(best)) return(TRUE)
     if (deg != best_degenerate) return(best_degenerate)

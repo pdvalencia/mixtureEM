@@ -40,14 +40,34 @@ test_that("an ordinary logit well inside the boundary is not flagged", {
   expect_null(.categorical_boundary(fit, fit$data))
 })
 
-test_that("the warning names the categorical prior remedy and stays short", {
+# A boundary cell under a random intercept is a note, not a warning: on
+# simulated data every such fit was usable, and the flag cannot tell a cell
+# empty in the population from one empty in the sample. It must not mark the
+# fit degenerate either, or lr_test() and the BIC line would disown a fit
+# whose likelihood is fine.
+test_that("a boundary cell is noted on print(), without a warning or a degenerate flag", {
   fit <- suppressWarnings(.small_ri_fit())
   fit$ri$A[1, 1] <- -25
-  expect_warning(
-    out <- .check_gaussian_degeneracy(fit, fit$data),
-    "categorical")
-  expect_false(is.null(out$degenerate))
-  expect_equal(out$degenerate$kind, "probability")
+  expect_no_warning(out <- .check_gaussian_degeneracy(fit, fit$data))
+  expect_null(out$degenerate)
+  expect_equal(out$ri_boundary$kind, "probability")
+  printed <- paste(capture.output(print(out)), collapse = " ")
+  expect_match(printed, "at the boundary", fixed = TRUE)
+  expect_match(printed, "in status 1", fixed = TRUE)
+  expect_match(printed, "bayes_constants = list(categorical = 2)", fixed = TRUE)
+  ms <- paste(capture.output(measurement_summary(out)), collapse = " ")
+  expect_match(ms, "Read the probability, not the logit", fixed = TRUE)
+  expect_no_match(ms, "stronger prior than the default", fixed = TRUE)
+})
+
+test_that("a collapsed class variance still warns", {
+  set.seed(3)
+  X <- cbind(c(rnorm(150, 0), rnorm(150, 4)), c(rnorm(150, 0), rnorm(150, 4)))
+  fit <- suppressWarnings(fit_mixture(X, n_classes = 2,
+    measurement = "continuous", n_init = 2, random_state = 1))
+  fit$mm$parameters$covariances[1, 1] <- 1e-8
+  expect_warning(out <- .check_gaussian_degeneracy(fit, X), "variance")
+  expect_equal(out$degenerate$kind, "variance")
 })
 
 test_that("no random intercept means no categorical boundary check", {

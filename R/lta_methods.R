@@ -1047,6 +1047,7 @@ print.lta_model <- function(x, ...) {
     cat(sprintf("\nNote: %d transition(s) estimated at the zero boundary; ",
                 nrow(x$boundary)),
         "see $boundary.\n", sep = "")
+  .print_ri_boundary_note(x)
   if ((x$n_classes %||% 1L) > 1L && is.null(x$se))
     cat("\nNote: standard errors are not available for a mixture over chains.\n",
         "      Every parameter here is a point estimate.\n", sep = "")
@@ -1177,7 +1178,11 @@ measurement_summary.lta_model <- function(object, ...) {
     if (!inv) cat(sprintf("\n--- %s ---\n", lg$time_labels[t]))
     sub <- object$mm$models[[t]]
     tmp <- list(mm = sub, n_components = object$n_statuses,
-                missing_data = list(any_missing = FALSE))
+                missing_data = list(any_missing = FALSE),
+                # A random intercept's boundary cells get their own note
+                # below, once; the per-occasion one would give the plain
+                # model's advice about the same cells on the probability scale.
+                .ri_fit = !is.null(object$ri))
     # The indicators this occasion's parameters were fitted on, so the table can
     # show the observed marginal beside them. The slice has to be taken and
     # renamed rather than the whole wide matrix passed: the sub-models all carry
@@ -1191,6 +1196,7 @@ measurement_summary.lta_model <- function(object, ...) {
     class(tmp) <- "mixture_model"
     measurement_summary(tmp)
   }
+  .print_ri_boundary_note(object)
   invisible(object)
 }
 

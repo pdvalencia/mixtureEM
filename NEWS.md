@@ -33,6 +33,21 @@ check at a finer `n_quadrature` starts from the coarser fit's solution. A
 donor with the other kind of random intercept is refused. Every refit from a
 random-intercept donor can change, since it no longer depends on that draw.
 
+## A random intercept's boundary cell is a note, not a warning
+
+A continuous random-intercept fit warned when an item logit passed ±8 that
+its estimates were not interpretable and its BIC could not be compared. On
+simulated data with a response that never occurs in one status, every fit
+the warning caught reached the maximum likelihood, with unbiased transitions
+and nominal coverage. The check also flags a response that is merely rare,
+when a sample happens not to contain it, so it cannot say which kind of zero
+it has found. `print()` and `measurement_summary()` now carry a note that
+names the cells, says to read their probabilities rather than their logits,
+and gives the refit that shows whether a cell matters to the rest of the
+model. The fit is no longer marked degenerate for `lr_test()` or the BIC
+line. Collapsed class variances still warn as before. The cells are on
+`fit$ri_boundary`.
+
 ## One-step fits with an outcome reach their maximum, and rank on their own prior
 
 A one-step fit with an outcome, `fit_mixture(..., outcome = )` at the default

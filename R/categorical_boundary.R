@@ -89,3 +89,28 @@
     lines <- c(lines, sprintf("and %d more", n - max_show))
   lines
 }
+
+# The note print() and measurement_summary() give for fit$ri_boundary. It says
+# what the flag knows and no more: the cell's logit has run off, so the logit
+# and its standard error are not estimates of anything, and the cell may be
+# empty in the population or only in this sample -- the flag cannot tell which
+# (.check_gaussian_degeneracy() has the evidence). The check it offers is the
+# one that settles whether the cell matters to the rest of the model.
+# The class column holds the status for an lta_model.
+.print_ri_boundary_note <- function(x) {
+  flagged <- x$ri_boundary
+  if (is.null(flagged) || !nrow(flagged)) return(invisible(NULL))
+  K <- .degeneracy_n_classes(x)
+  lines <- sub(" in class ", " in status ", .categorical_boundary_lines(flagged),
+               fixed = TRUE)
+  cat(sprintf(paste0(
+    "\nNote: item response probabilities at the boundary: %s. Each may be ",
+    "a real absence or a response this sample happened not to give. Read ",
+    "the probability, not the logit: the logit has run off towards ",
+    "infinity, so it and its standard error are not meaningful. To check ",
+    "that a cell is not driving the other estimates, refit with ",
+    "`bayes_constants = list(categorical = %s)` and compare.\n"),
+    paste(lines, collapse = "; "),
+    if (is.na(K)) "<n_statuses>" else as.character(K)))
+  invisible(NULL)
+}
