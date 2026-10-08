@@ -1,5 +1,17 @@
 # mixtureEM (development version)
 
+## `refine_from` continues a random-intercept fit
+
+A fit continued with `refine_from` from a random-intercept model took the
+statuses, transitions and integrated item table from it, but drew the
+intercepts (or ordinal thresholds) and loadings at random, so the run
+restarted half the model. On simulated data a single iteration from a
+converged donor landed 150 log-likelihood units below it. They are now
+carried over, and the item table is rebuilt on the new fit's own nodes, so a
+check at a finer `n_quadrature` starts from the coarser fit's solution. A
+donor with the other kind of random intercept is refused. Every refit from a
+random-intercept donor can change, since it no longer depends on that draw.
+
 ## One-step fits with an outcome reach their maximum, and rank on their own prior
 
 A one-step fit with an outcome, `fit_mixture(..., outcome = )` at the default

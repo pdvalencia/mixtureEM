@@ -111,3 +111,51 @@ test_that("refine_from refuses a donor of the wrong shape, and refuses n_init", 
             refine_from = loose, n_init = 5, standard_errors = FALSE),
     "nothing to size")
 })
+
+# A random-intercept donor hands over its intercepts (or ordinal thresholds) and
+# loadings, not only the integrated item table they summarise. With no EM
+# iteration the refit is the donor, so it must report the donor's likelihood;
+# before the fix the loadings came from a random draw and this was ~150 units
+# off on simulated data.
+test_that("refine_from continues a random-intercept donor exactly", {
+  sim <- .lta_ri_sim(n = 300, Tn = 3, J = 4, seed = 7)
+  donor <- suppressWarnings(
+    fit_lta(sim$X, n_statuses = 2, times = 3, measurement = "binary",
+            random_intercept = "continuous", n_quadrature = 7, n_init = 2,
+            n_cores = 1, random_state = 1, standard_errors = FALSE))
+  again <- suppressWarnings(
+    fit_lta(sim$X, n_statuses = 2, times = 3, measurement = "binary",
+            random_intercept = "continuous", n_quadrature = 7,
+            refine_from = donor, max_iter = 0, refine = FALSE,
+            random_state = 99, standard_errors = FALSE))
+  expect_equal(again$loglik, donor$loglik, tolerance = 1e-8)
+  expect_equal(again$ri$L, donor$ri$L)
+  expect_equal(again$ri$A, donor$ri$A)
+
+  Xo <- .lta_ordinal_sim(n = 150, Tn = 3, K = 2, cats = c(3L, 3L, 2L), seed = 1)
+  donor_o <- suppressWarnings(
+    fit_lta(Xo, n_statuses = 2, times = 3, measurement = "ordinal",
+            random_intercept = "continuous", n_quadrature = 5, n_init = 2,
+            n_cores = 1, random_state = 1, max_iter = 200,
+            standard_errors = FALSE))
+  again_o <- suppressWarnings(
+    fit_lta(Xo, n_statuses = 2, times = 3, measurement = "ordinal",
+            random_intercept = "continuous", n_quadrature = 5,
+            refine_from = donor_o, max_iter = 0, refine = FALSE,
+            random_state = 99, standard_errors = FALSE))
+  expect_equal(again_o$loglik, donor_o$loglik, tolerance = 1e-8)
+  expect_equal(again_o$ri$theta, donor_o$ri$theta)
+})
+
+test_that("refine_from refuses a random intercept of the other kind", {
+  sim <- .lta_ri_sim(n = 200, Tn = 3, J = 4, seed = 7)
+  donor <- suppressWarnings(
+    fit_lta(sim$X, n_statuses = 2, times = 3, measurement = "binary",
+            random_intercept = "binary", n_ri = 2, n_init = 1, max_iter = 50,
+            n_cores = 1, random_state = 1, standard_errors = FALSE))
+  expect_error(
+    fit_lta(sim$X, n_statuses = 2, times = 3, measurement = "binary",
+            random_intercept = "continuous", n_quadrature = 5,
+            refine_from = donor, standard_errors = FALSE),
+    "binary random intercept")
+})

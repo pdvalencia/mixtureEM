@@ -1452,13 +1452,15 @@ fit_lta <- function(indicators,
   # each restart a deterministic function of the start it is given. The fits can
   # then run on workers without moving a value, at any `n_cores`.
   starts <- if (!is.null(refine_from)) {
-    # A refine is not settled by its donor alone. An RI fit takes its loadings
-    # from a random draw the donor has nothing to say about (.lta_refine_start()
-    # explains why they cannot start at zero), and on a multimodal surface that
-    # draw decides which optimum the run reaches. Seeded here so `random_state`
-    # means the same thing on this path as on the random-restart one. Nothing
-    # else the draw produces survives - the donor overwrites delta, tau and the
-    # measurement model - so no fit without a random intercept moves.
+    # A refine is not always settled by its donor alone. An RI fit continued
+    # from a regular-LTA donor takes its loadings from a random draw the donor
+    # has nothing to say about (.lta_refine_start() explains why they cannot
+    # start at zero), and on a multimodal surface that draw decides which
+    # optimum the run reaches. Seeded here so `random_state` means the same
+    # thing on this path as on the random-restart one. Nothing else the draw
+    # produces survives - the donor overwrites delta, tau, the measurement
+    # model and, from an RI donor, the random intercept - so only that one
+    # case depends on it.
     if (!is.null(random_state)) set.seed(random_state)
     list(.lta_refine_start(state, X_fit, refine_from))
   } else {

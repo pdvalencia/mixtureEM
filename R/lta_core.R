@@ -1607,6 +1607,37 @@
          "one this fit asks for, so its solution cannot be continued.",
          call. = FALSE)
   state$mm <- mm
+
+  # An RI donor hands over its own random intercept too. The integrated `pis`
+  # just copied are only its summary; the intercepts (or ordinal thresholds)
+  # and loadings are the parameters EM iterates, and leaving them at the random
+  # draw restarted half the model. The table is then rebuilt on this fit's own
+  # nodes, so a donor fitted on a coarser grid starts consistent with the
+  # finer one.
+  if (!is.null(state$ri) && !is.null(donor$ri)) {
+    if (!identical(state$ri$kind, donor$ri$kind))
+      stop(sprintf(paste0(
+        "`refine_from` has a %s random intercept and this fit asks for a %s ",
+        "one, so its solution cannot be continued."),
+        donor$ri$kind, state$ri$kind), call. = FALSE)
+    if (!identical(dim(state$ri$L), dim(donor$ri$L)))
+      stop("`refine_from` has a random intercept of a different shape from ",
+           "the one this fit asks for, so its solution cannot be continued.",
+           call. = FALSE)
+    state$ri$L <- donor$ri$L
+    if (!is.null(donor$ri$theta)) {
+      state$ri$theta <- donor$ri$theta
+      state$ri$cats  <- donor$ri$cats
+    } else {
+      state$ri$A <- donor$ri$A
+    }
+    if (identical(state$ri$kind, "binary") &&
+        length(donor$ri$mass) == length(state$ri$mass))
+      state$ri$mass <- donor$ri$mass
+    pis <- .lta_ri_integrated_pis(state$ri, state$n_statuses, state$n_items)
+    for (t in seq_along(state$mm$models))
+      state$mm$models[[t]]$parameters$pis <- pis
+  }
   state
 }
 
