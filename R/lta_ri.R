@@ -131,6 +131,28 @@
   if (den == 0) 0.5 else num / den
 }
 
+# The item prior's pseudo-observation weight at each node: Tn * a_cat / K per
+# status and item in total, and one entry per node. Every M-step, log-prior and
+# penalty that carries the item prior reads it from here, so they cannot price
+# it differently.
+#
+# A continuous factor's nodes are quadrature points, and the prior is spread
+# over them by their Gauss-Hermite masses, the way the data are. Spread evenly,
+# a node far in the tail -- mass ~1e-21 at +-9.7 SD on 30 nodes -- carried as
+# much prior as the centre with almost no data to answer it, and a
+# pseudo-observation at the item's marginal there asserts that the response
+# does not depend on the factor. That shrank the loadings, roughly halving them
+# on simulated data with a true loading of 2, and the transitions turned into
+# stayers to carry the stability the factor had lost. The binary variant's
+# nodes are latent classes whose sizes are estimated, so the even spread stays
+# there: weighting by them would make the prior move with the parameters.
+.lta_ri_prior_obs <- function(ri, Tn, a_cat, K) {
+  Q <- length(ri$mass)
+  if (identical(ri$kind, "continuous"))
+    Tn * a_cat / K * ri$mass / sum(ri$mass)
+  else rep(Tn * a_cat / (K * Q), Q)
+}
+
 # ------------------------------------------------------------------------------
 # E-step: Q forward-backward passes per class, mixed by the node posterior,
 # then (with more than one class) by the class posterior
@@ -310,7 +332,9 @@
              ri$Dnode[rep(seq_len(Q), each = K), , drop = FALSE])
 
   a_cat <- .bayes_alpha(state$mm$models[[1]], "categorical")
-  prior_obs <- Tn * a_cat / (K * Q)
+  # One weight per row of D, k fastest: .lta_ri_prior_obs() for why it is not
+  # flat across the nodes.
+  prior_obs <- rep(.lta_ri_prior_obs(ri, Tn, a_cat, K), each = K)
 
   A <- ri$A
   L <- ri$L
@@ -393,7 +417,8 @@
   R    <- length(cats)
 
   a_cat     <- .bayes_alpha(state$mm$models[[1]], "categorical")
-  prior_obs <- Tn * a_cat / (K * Q)
+  # K x Q, one column per node, matching n_arr[, , s] below.
+  prior_obs <- matrix(.lta_ri_prior_obs(ri, Tn, a_cat, K), K, Q, byrow = TRUE)
 
   theta  <- ri$theta
   lambda <- ri$L
@@ -482,9 +507,9 @@
   Tn <- state$n_times
   Q  <- length(ri$mass)
   a_cat <- .bayes_alpha(state$mm$models[[1]], "categorical")
+  prior_obs <- .lta_ri_prior_obs(ri, Tn, a_cat, K)   # one entry per node
   if (a_cat > 0 && !is.null(ri$theta)) {
     w <- state$weights_vec
-    prior_obs <- Tn * a_cat / (K * Q)
     cats <- ri$cats
     for (j in seq_len(R)) {
       Sj    <- cats[j]
@@ -494,18 +519,17 @@
       for (q in seq_len(Q)) {
         shift <- sum(ri$L[j, ] * ri$Dnode[q, ])
         p <- pmin(pmax(.ordinal_cat_probs(theta_j, shift, Sj), 1e-300), 1 - 1e-300)
-        val <- val + prior_obs * sum(sweep(log(p), 2, m_j, "*"))
+        val <- val + prior_obs[q] * sum(sweep(log(p), 2, m_j, "*"))
       }
     }
   } else if (a_cat > 0) {
     w <- state$weights_vec
-    prior_obs <- Tn * a_cat / (K * Q)
     for (j in seq_len(R)) {
       m_j <- .lta_ri_item_marginal(X, w, R, Tn, j)
       for (q in seq_len(Q)) {
         eta <- ri$A[, j] + drop(ri$Dnode[q, , drop = FALSE] %*% ri$L[j, ])
         p <- pmin(pmax(plogis(eta), 1e-300), 1 - 1e-300)
-        val <- val + prior_obs * sum(m_j * log(p) + (1 - m_j) * log1p(-p))
+        val <- val + prior_obs[q] * sum(m_j * log(p) + (1 - m_j) * log1p(-p))
       }
     }
   }

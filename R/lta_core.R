@@ -1380,15 +1380,15 @@
       # accumulated here only; the paired "lambda" block below shares the
       # same measurement term and would double-count it if it added val too.
       ri  <- state$ri
-      Q   <- length(ri$mass)
-      prior_obs <- state$n_times * a_cat / (K * Q)
+      prior_obs <- .lta_ri_prior_obs(ri, state$n_times, a_cat, K)  # per node
       mj  <- .lta_ri_item_marginal(X, state$weights_vec, state$n_items,
                                    state$n_times, b$j)
       lp  <- drop(ri$Dnode %*% ri$L[b$j, ])
-      eta <- outer(ri$A[, b$j], lp, "+")
+      eta <- outer(ri$A[, b$j], lp, "+")     # K x Q, one column per node
       p   <- pmin(pmax(plogis(eta), 1e-300), 1 - 1e-300)
-      val <- val + prior_obs * sum(mj * log(p) + (1 - mj) * log1p(-p))
-      g   <- prior_obs * rowSums(mj - p)
+      val <- val + sum(sweep(mj * log(p) + (1 - mj) * log1p(-p), 2,
+                             prior_obs, "*"))
+      g   <- rowSums(sweep(mj - p, 2, prior_obs, "*"))
     } else if (b$kind == "theta" && !is.null(state$ri) && a_cat > 0) {
       # Ordinal analogue of the "alpha" branch above -- .ordinal_theta_prior_
       # term() is the per-node value/gradient closed form, matching
@@ -1399,15 +1399,15 @@
       Sj   <- ri$cats[b$j]
       cols <- .ordinal_theta_cols(ri$cats, b$j)
       theta_j <- ri$theta[, cols, drop = FALSE]
-      prior_obs <- state$n_times * a_cat / (K * Q)
+      prior_obs <- .lta_ri_prior_obs(ri, state$n_times, a_cat, K)  # per node
       mj  <- .lta_ri_item_marginal_ordinal(X, state$weights_vec,
                                            state$n_items, state$n_times, b$j, Sj)
       g <- numeric(b$len)
       for (q in seq_len(Q)) {
         shift <- sum(ri$L[b$j, ] * ri$Dnode[q, ])
         term  <- .ordinal_theta_prior_term(theta_j, shift, mj, Sj)
-        val   <- val + prior_obs * term$value
-        g     <- g + prior_obs * term$grad
+        val   <- val + prior_obs[q] * term$value
+        g     <- g + prior_obs[q] * term$grad
       }
     } else if (b$kind == "lambda" && a_cat > 0 && !is.null(state$ri$theta)) {
       # Ordinal analogue of the binary "lambda" branch: the shift-derivative
@@ -1419,7 +1419,7 @@
       Sj   <- ri$cats[b$j]
       cols <- .ordinal_theta_cols(ri$cats, b$j)
       theta_j <- ri$theta[, cols, drop = FALSE]
-      prior_obs <- state$n_times * a_cat / (K * Q)
+      prior_obs <- .lta_ri_prior_obs(ri, state$n_times, a_cat, K)  # per node
       mj  <- .lta_ri_item_marginal_ordinal(X, state$weights_vec,
                                            state$n_items, state$n_times, b$j, Sj)
       g <- numeric(b$len)
@@ -1427,19 +1427,18 @@
         shift <- sum(ri$L[b$j, ] * ri$Dnode[q, ])
         term  <- .ordinal_theta_prior_term(theta_j, shift, mj, Sj)
         shift_grad <- sum(term$grad[seq_len(K)])
-        g <- g + prior_obs * shift_grad * ri$Dnode[q, ]
+        g <- g + prior_obs[q] * shift_grad * ri$Dnode[q, ]
       }
     } else if (b$kind == "lambda" && a_cat > 0) {
       # Gradient only -- see the "alpha" branch just above for why.
       ri  <- state$ri
-      Q   <- length(ri$mass)
-      prior_obs <- state$n_times * a_cat / (K * Q)
+      prior_obs <- .lta_ri_prior_obs(ri, state$n_times, a_cat, K)  # per node
       mj  <- .lta_ri_item_marginal(X, state$weights_vec, state$n_items,
                                    state$n_times, b$j)
       lp  <- drop(ri$Dnode %*% ri$L[b$j, ])
       eta <- outer(ri$A[, b$j], lp, "+")
       p   <- pmin(pmax(plogis(eta), 1e-300), 1 - 1e-300)
-      g   <- prior_obs * as.vector(crossprod(ri$Dnode, colSums(mj - p)))
+      g   <- as.vector(crossprod(ri$Dnode, prior_obs * colSums(mj - p)))
     } else if (b$kind == "theta" && a_cat > 0) {
       # Non-RI ordinal: the single-node case of the RI arm above (shift = 0),
       # mirroring .lta_log_prior()'s own ordinal arm exactly (fact (j)).

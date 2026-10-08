@@ -187,7 +187,8 @@
   free_loading <- .lta_ri_loading_free(state)
 
   a_cat     <- .bayes_alpha(state$mm$models[[1]], "categorical")
-  prior_obs <- Tn * a_cat / (K * Q)
+  # K x Q, one column per node, the RI branch's own spread (.lta_ri_prior_obs()).
+  prior_obs <- matrix(.lta_ri_prior_obs(ri, Tn, a_cat, K), K, Q, byrow = TRUE)
 
   # The grid. Data rows first, node-slow and pattern-fast, then the prior's Q
   # rows. `node_of` says which node each row integrates at; `Zg` is the row's

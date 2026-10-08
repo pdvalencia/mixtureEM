@@ -176,10 +176,12 @@
 # come back - is pulled towards the pooled trajectory instead.
 #
 # Returned in the same (design, y, w) form as the real data so the caller just
-# rbind()s them.
+# rbind()s them. `prior_obs` is one weight for every row, or one per row of
+# `design` when the rows should not carry the prior equally (a continuous
+# random intercept's quadrature nodes, .lta_ri_prior_obs()).
 .wglm_prior_rows <- function(design, marginal, prior_obs) {
   keep <- is.finite(marginal)
   list(D = design[keep, , drop = FALSE],
        y = marginal[keep],
-       w = rep(prior_obs, sum(keep)))
+       w = rep_len(prior_obs, length(marginal))[keep])
 }

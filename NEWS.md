@@ -1,5 +1,26 @@
 # mixtureEM (development version)
 
+## The item prior no longer shrinks a continuous random intercept
+
+`fit_lta(random_intercept = "continuous")` at the default `bayes_constants`
+spread the item prior's pseudo-observations evenly over the quadrature nodes.
+A node far in the tail, with almost no probability mass and so almost no data,
+carried as much prior as the centre, and a pseudo-observation at the item's
+marginal there says the response does not depend on the factor. The loadings
+shrank, and the transitions turned into stayers to carry the stability the
+factor had lost. On data simulated with a loading of 2 and a probability of
+staying in status 1 of .62 (three occasions, 500 cases, 30 nodes), the
+default-prior fit gave loadings of about 1.2 and a staying probability of .83,
+where the priors-off fit gave 2.02 and .57 (averages over 20 data sets).
+The pseudo-observations are now spread by the nodes' quadrature masses, with
+the same total, and the same data sets give 1.98 and .57 at the default
+priors.
+
+Continuous random-intercept fits at the default priors change, for binary and
+ordinal items and with `predictors_items`. Fits with
+`bayes_constants = list(categorical = 0)`, and the binary random intercept,
+whose nodes are estimated classes, are unchanged.
+
 ## `refine_from` continues a random-intercept fit
 
 A fit continued with `refine_from` from a random-intercept model took the

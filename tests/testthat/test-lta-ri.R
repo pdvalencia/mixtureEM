@@ -847,3 +847,48 @@ test_that("the wide search is the default, runs, hands survivors back to the ful
   expect_false(isTRUE(all.equal(s_odd$ri$A, s_even$ri$A)))
   expect_true(max(abs(s_odd$ri$L)) > 0.8)
 })
+
+# --- The item prior on a continuous factor (Part 63) --------------------------
+#
+# The default item prior used to be spread evenly over the quadrature nodes, so
+# a node far in the tail carried as much prior as the centre. On this
+# generator (loading 2, TRANS11 .622) that took a default-prior fit to a
+# loading of about 1.2 and TRANS11 about .83 while the priors-off fit stayed at
+# the truth. Spread by the node masses, the prior is light enough that the two
+# fits agree. Started from the ML solution, because the distorted answer was the
+# prior's own optimum and is reached from there too. Measured on this seed:
+# loading 2.03 under ML, 1.96 at the default prior, 1.11 before the fix; the
+# largest transition gap .04 now, .30 before.
+test_that("the default item prior leaves a continuous random intercept's loadings alone", {
+  skip_on_cran()
+  sim <- .lta_ri_sim(n = 500, Tn = 3, J = 5, seed = 63)
+  args <- list(sim$X, n_statuses = 2, times = 3, measurement = "binary",
+               random_intercept = "continuous", n_quadrature = 30,
+               n_cores = 1, standard_errors = FALSE)
+  ml <- suppressWarnings(do.call(fit_lta, c(args, list(
+    n_init = 4, random_state = 1, smoothing = 0, bayes_constants = .ml))))
+  dflt <- suppressWarnings(do.call(fit_lta, c(args, list(
+    refine_from = ml, random_state = 1))))
+
+  expect_gt(mean(ml$ri$L), 1.7)
+  expect_lt(abs(mean(dflt$ri$L) - mean(ml$ri$L)), 0.15)
+  expect_lt(max(abs(transition_matrix(dflt)[[1]] -
+                    transition_matrix(ml)[[1]])), 0.08)
+})
+
+# The M-step's prior rows, .lta_ri_log_prior() and .lta_penalty() must spread
+# the item prior the same way. The penalty and the log-prior are checked
+# against each other by finite differences above; this checks the M-step
+# against them: at an EM fixed point with the default priors on, the penalised
+# gradient vanishes only if EM was climbing the same objective.
+test_that("EM with the default item prior stops where the penalised gradient vanishes (continuous RI)", {
+  X <- .lta_refine_sim(n = 60, K = 2, Tn = 4, J = 3, seed = 1)
+  fit <- suppressWarnings(fit_lta(X, n_statuses = 2, times = 4,
+    measurement = "binary", random_intercept = "continuous", n_quadrature = 9,
+    n_init = 1, tol = 1e-14, max_iter = 20000, refine = FALSE,
+    random_state = 1, standard_errors = FALSE))
+  layout <- .lta_par_layout(fit)
+  g <- colSums(sweep(.lta_score_matrix(fit, X)$S, 1, fit$weights_vec, "*")) +
+    .lta_penalty(fit, X, layout, 1)$gradient
+  expect_lt(max(abs(g)), 1e-3)
+})

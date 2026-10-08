@@ -310,7 +310,9 @@ test_that(".lta_ri_log_prior()'s ordinal arm matches an independent computation"
   Q  <- length(fit$ri$mass)
   Tn <- fit$n_times
   a_cat     <- .bayes_alpha(fit$mm$models[[1]], "categorical")
-  prior_obs <- Tn * a_cat / (K * Q)
+  # Tn * a_cat / K per status in total, spread over the nodes by their
+  # quadrature masses (not evenly; see .lta_ri_prior_obs()).
+  mass      <- fit$ri$mass / sum(fit$ri$mass)
   w  <- fit$weights_vec
   xs <- as.vector(X)
   ws <- rep(w, times = Tn)
@@ -322,7 +324,7 @@ test_that(".lta_ri_log_prior()'s ordinal arm matches an independent computation"
     shift <- sum(fit$ri$L[1, ] * fit$ri$Dnode[q, ])
     p2 <- plogis(theta + shift)
     p1 <- 1 - p2
-    expected <- expected + prior_obs *
+    expected <- expected + Tn * a_cat / K * mass[q] *
       sum(m1 * log(pmax(p1, 1e-300)) + m2 * log(pmax(p2, 1e-300)))
   }
   expect_equal(val, expected, tolerance = 1e-8)
