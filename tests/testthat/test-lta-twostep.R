@@ -279,8 +279,13 @@ test_that("the two-step variance is V2 plus the step-one term", {
   # V2 is the step-two-only variance, and optimHess() reaches it by a
   # different route: a Hessian of the whole structural vector at once against
   # the block-by-block central differences .lta_twostep_information() takes.
-  # Measured 2026-09-22: 3.7e-5 relative, worst coordinate.
-  expect_lt(max(abs(p$sd2 - p$sd_oh) / p$sd_oh), 1e-3)
+  # On this weakly separated fixture the likelihood is flat enough that two
+  # finite-difference Hessians agree only to about 1e-3, depending on exactly
+  # where EM stopped. Worst coordinate, measured 2026-10-08, was 1.3e-4 at the
+  # default tol and 6e-5 to 3e-4 from tol = 1e-8 to 1e-14. On macOS arm64 it
+  # was 1.75e-3. A wrong information formula is wrong at order one, so 1e-2
+  # still separates the two; the separated fixture below holds 1e-3.
+  expect_lt(max(abs(p$sd2 - p$sd_oh) / p$sd_oh), 1e-2)
 
   # V1 is positive semi-definite, so every standard error grows.
   expect_true(all(p$sd >= p$sd2 - 1e-10))
