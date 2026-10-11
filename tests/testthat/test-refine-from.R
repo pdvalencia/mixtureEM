@@ -88,6 +88,52 @@ test_that("fit_mixture() refines its own fit and refuses the wrong donor", {
                            refine_from = list()), "fitted by fit_mixture")
 })
 
+# A fitted covariate model carries its Hessian beside `beta`; a fresh one does
+# not, so the donor's structural model never matched the fresh one's shape and
+# the run went on with a structural model that had no coefficients at all. With
+# no EM iteration a one-step donor must come back unchanged, and a two-step
+# donor must continue into a one-step fit at least as good as one from scratch.
+test_that("fit_mixture() refines a donor that carries a covariate model", {
+  set.seed(22)
+  z <- stats::rnorm(400)
+  cls <- ifelse(stats::runif(400) < stats::plogis(0.8 * z), 1L, 2L)
+  X <- vapply(seq_len(5), function(j)
+    stats::rbinom(400, 1, ifelse(cls == 1L, 0.2, 0.8)), numeric(400))
+  Z <- cbind(z = z)
+
+  one <- suppressWarnings(fit_mixture(X, measurement = "binary", n_classes = 2,
+                                      predictors = Z, n_steps = 1, n_init = 5,
+                                      random_state = 2))
+  again <- suppressWarnings(fit_mixture(X, measurement = "binary",
+                                        n_classes = 2, predictors = Z,
+                                        n_steps = 1, refine_from = one,
+                                        max_iter = 0, refine = FALSE,
+                                        random_state = 2))
+  expect_equal(again$metrics$ll, one$metrics$ll, tolerance = 1e-8)
+
+  # A three-step donor: its first step has no structural model to hand over,
+  # and its step 3 cannot run at max_iter = 0, so it is resumed in full from a
+  # maximum it already sits at.
+  three <- suppressWarnings(fit_mixture(X, measurement = "binary",
+                                        n_classes = 2, predictors = Z,
+                                        n_steps = 3, n_init = 5,
+                                        random_state = 2))
+  again3 <- suppressWarnings(fit_mixture(X, measurement = "binary",
+                                         n_classes = 2, predictors = Z,
+                                         n_steps = 3, refine_from = three,
+                                         random_state = 2))
+  expect_equal(again3$metrics$ll, three$metrics$ll, tolerance = 1e-6)
+
+  two <- suppressWarnings(fit_mixture(X, measurement = "binary", n_classes = 2,
+                                      predictors = Z, n_steps = 2, n_init = 5,
+                                      random_state = 2))
+  joined <- suppressWarnings(fit_mixture(X, measurement = "binary",
+                                         n_classes = 2, predictors = Z,
+                                         n_steps = 1, refine_from = two,
+                                         random_state = 2))
+  expect_gte(joined$metrics$ll, one$metrics$ll - 1e-4)
+})
+
 test_that("refine_from refuses a donor of the wrong shape, and refuses n_init", {
   X <- .refine_data()
   loose <- suppressWarnings(

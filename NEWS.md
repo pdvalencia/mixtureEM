@@ -16,6 +16,18 @@ differenced route.
 Nothing a user sees changes numerically: the finish stops where the gradient
 vanishes, and the two gradients agree to about 1e-9.
 
+## `refine_from` continues a fit with predictors
+
+`fit_mixture(refine_from = )` stopped with an error whenever the fit had
+`predictors`. In a one-step fit the donor's covariate model never matched a
+fresh one, because the donor also carries the Hessian its last M-step stored,
+so the run went on with a covariate model that had no coefficients. In a
+stepwise fit the first step tried to start a covariate model before it had any
+covariates. Both now continue: the donor's coefficients are carried over, the
+Hessian is recomputed by the next M-step as it always is, and a one-step fit
+continued with no further iteration reports exactly the donor's
+log-likelihood. Fits that ran before are unchanged.
+
 # mixtureEM 0.5.0
 
 ## The item prior no longer shrinks a continuous random intercept

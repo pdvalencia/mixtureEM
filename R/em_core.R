@@ -1364,13 +1364,23 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
         length(donor$weights) == model_state$n_components)
       model_state$weights <- donor$weights
     # The structural model is copied only when it is the same shape. When it is
-    # not -- a fit that adds covariates the donor did not have, say -- the fresh
-    # one stands and the first M-step fits it to the donor's own posteriors,
-    # which is the closest thing to "resume" that still exists.
-    if (!is.null(model_state$sm) && !is.null(donor$sm)) {
-      sm <- .copy_emission_parameters(init_params(model_state$sm, Y, NULL),
-                                      donor$sm)
-      if (!is.null(sm)) model_state$sm <- sm
+    # not -- a fit that adds covariates the donor did not have, say -- a freshly
+    # initialised one stands and the first M-step fits it to the donor's own
+    # posteriors, which is the closest thing to "resume" that still exists.
+    # Only the parameters a fresh model starts with are carried over: a fitted
+    # covariate model also holds its Hessian and robust variance, which the next
+    # M-step recomputes, and which a fresh one lacks. With no `Y` (the first
+    # step of a stepwise fit) there is no structural model to start yet.
+    if (!is.null(model_state$sm) && !is.null(Y)) {
+      fresh <- init_params(model_state$sm, Y, NULL)
+      sm <- NULL
+      if (!is.null(donor$sm)) {
+        src <- donor$sm
+        src$parameters <- src$parameters[intersect(names(src$parameters),
+                                                   names(fresh$parameters))]
+        sm <- .copy_emission_parameters(fresh, src)
+      }
+      model_state$sm <- if (is.null(sm)) fresh else sm
     }
     model_state
   }
