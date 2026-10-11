@@ -112,8 +112,9 @@ test_that("fit_mixture() refines a donor that carries a covariate model", {
   expect_equal(again$metrics$ll, one$metrics$ll, tolerance = 1e-8)
 
   # A three-step donor: its first step has no structural model to hand over,
-  # and its step 3 cannot run at max_iter = 0, so it is resumed in full from a
-  # maximum it already sits at.
+  # so step 3 starts afresh and is resumed in full to the maximum it already
+  # sits at. At max_iter = 0 step 3 stops at its own start, which is a valid
+  # fit no better than the converged one.
   three <- suppressWarnings(fit_mixture(X, measurement = "binary",
                                         n_classes = 2, predictors = Z,
                                         n_steps = 3, n_init = 5,
@@ -123,6 +124,15 @@ test_that("fit_mixture() refines a donor that carries a covariate model", {
                                          n_steps = 3, refine_from = three,
                                          random_state = 2))
   expect_equal(again3$metrics$ll, three$metrics$ll, tolerance = 1e-6)
+  zero3 <- suppressWarnings(fit_mixture(X, measurement = "binary",
+                                        n_classes = 2, predictors = Z,
+                                        n_steps = 3, refine_from = three,
+                                        max_iter = 0, refine = FALSE,
+                                        random_state = 2))
+  expect_true(is.finite(zero3$metrics$ll))
+  expect_lte(zero3$metrics$ll, three$metrics$ll + 1e-8)
+  expect_equal(rowSums(exp(zero3$log_resp)), rep(1, nrow(X)),
+               tolerance = 1e-10)
 
   two <- suppressWarnings(fit_mixture(X, measurement = "binary", n_classes = 2,
                                       predictors = Z, n_steps = 2, n_init = 5,

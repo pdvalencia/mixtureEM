@@ -28,6 +28,15 @@ Hessian is recomputed by the next M-step as it always is, and a one-step fit
 continued with no further iteration reports exactly the donor's
 log-likelihood. Fits that ran before are unchanged.
 
+## A three-step ML fit runs at `max_iter = 0`
+
+`fit_mixture(predictors = , n_steps = 3, max_iter = 0)`, with or without
+`refine_from`, stopped with "object 'W' not found": the step-three posteriors
+were only formed inside the EM loop, which never started. One E-step is now
+taken at the step-three starting values, so the fit returns them with their
+posteriors and log-likelihood. Nothing changes numerically for any
+`max_iter` above zero.
+
 # mixtureEM 0.5.0
 
 ## The item prior no longer shrinks a continuous random intercept

@@ -337,9 +337,9 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
 
   prev_ll <- -Inf
 
-  for (iter in seq_len(max_iter)) {
+  step3_e <- function(sm) {
 
-    log_sm <- log_likelihood(model_state$sm, Y_clean)
+    log_sm <- log_likelihood(sm, Y_clean)
 
     # E-step.
     #
@@ -354,7 +354,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
     # log-likelihoods on the correct scale and row-normalisation is harmless
     # because the Gaussian density cancels in the ratio.
 
-    if (inherits(model_state$sm, c("distal_pooled", "distal_regression"))) {
+    if (inherits(sm, c("distal_pooled", "distal_regression"))) {
       po_given_x <- exp(log_sm)                      # n_clean x K
       Z_mat      <- sweep(po_given_x, 2, pi_k_clean, "*") %*% C_row_norm
       ll_case    <- rowSums(A1 * log(pmax(Z_mat, 1e-300)))
@@ -374,13 +374,20 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
       # normaliser cancels in the ratio below). Put it back so the reported
       # value is the step-3 log-likelihood itself. rowSums(A1) is 1 under
       # either assignment rule.
-      if (inherits(model_state$sm, "nested"))
+      if (inherits(sm, "nested"))
         ll_case <- ll_case + as.vector(lsh) +
           log(rowSums(exp(log_sm - as.vector(lsh))))
       current_ll <- sum(w_clean * ll_case)
       R <- A1 / pmax(Z_mat, 1e-300)
       W <- sm_prob * (R %*% t(C_row_norm))
     }
+    list(W = W, ll_case = ll_case, current_ll = current_ll)
+  }
+
+  for (iter in seq_len(max_iter)) {
+
+    e <- step3_e(model_state$sm)
+    W <- e$W; ll_case <- e$ll_case; current_ll <- e$current_ll
 
     if (iter > 1) {
       change <- current_ll - prev_ll
@@ -390,6 +397,13 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
     prev_ll <- current_ll
 
     model_state$sm <- m_step(model_state$sm, Y_clean, W, weights = w_clean)
+  }
+
+  # With max_iter = 0 the loop never ran: take one E-step at the start so the
+  # posteriors and per-case log-likelihood written back below exist.
+  if (max_iter == 0) {
+    e <- step3_e(model_state$sm)
+    W <- e$W; ll_case <- e$ll_case
   }
 
   # ============================================================================
