@@ -1,6 +1,6 @@
 # Changelog
 
-## mixtureEM (development version)
+## mixtureEM 0.5.0
 
 ### The item prior no longer shrinks a continuous random intercept
 
@@ -104,12 +104,12 @@ or categorical outcome, and a covariate control), a 20-start fit with
 priors off reached the best solution 200 restarts find on 35 of 36
 outcome data sets, against 30 before. Fits with priors off and no
 outcome, or with a covariate only, are unchanged to the last digit.
-Typical restart agreement went from 1 of 20 to 18 of 20, and the outcome
-fits became two to three times faster. Fits that change are one-step
-fits with an outcome and binary or continuous items, and default-prior
-fits with a categorical outcome, a covariate or prevalences held equal
-across groups. A small number of default-prior fits move between
-near-tied solutions.
+Median restart agreement on the outcome fits went from one or two of 20
+to 18 of 20, and the fits timed back to back took a fifth to a third
+less time. Fits that change are one-step fits with an outcome and binary
+or continuous items, and default-prior fits with a categorical outcome,
+a covariate or prevalences held equal across groups. A small number of
+default-prior fits move between near-tied solutions.
 
 ### The finish takes the exact curvature when it crawls
 

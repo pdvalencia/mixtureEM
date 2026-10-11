@@ -80,10 +80,10 @@ fit <- fit_mixture(items, n_classes = 4, measurement = "binary",
                    n_init = 20, random_state = 1)
 class_sizes(fit)
 #>   class proportion n_expected n_modal
-#> 1     1  0.4277322  171.09288     173
-#> 2     2  0.2698261  107.93044     106
-#> 3     3  0.1581291   63.25165      63
-#> 4     4  0.1443126   57.72503      58
+#> 1     1  0.4277194  171.08777     173
+#> 2     2  0.2698367  107.93469     106
+#> 3     3  0.1581287   63.25147      63
+#> 4     4  0.1443152   57.72607      58
 ```
 
 ``` r
@@ -119,7 +119,7 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                1.180  [    0.234,     5.934]     0.841
+#>   Intercept                1.179  [    0.234,     5.933]     0.841
 #>   sex.Female               2.641  [    1.104,     6.319]     0.029
 #>   age                      0.942  [    0.884,     1.003]     0.063
 #> 
@@ -212,7 +212,7 @@ classes being estimated rather than observed
 If you use mixtureEM in published research, please cite it as:
 
 > Valencia, P. D. (2026). mixtureEM: Latent class and profile analysis
-> via mixture modelling (Version 0.4.1) \[R package\].
+> via mixture modelling (Version 0.5.0) \[R package\].
 > <https://github.com/pdvalencia/mixtureEM>
 
 ## Acknowledgements
