@@ -1307,7 +1307,10 @@
 }
 
 # The penalty and its gradient, as a function of the current `state`, returned
-# together so the two can never be written from different formulae.
+# together so the two can never be written from different formulae. The
+# diagonal of its second derivatives comes with them for the Newton-type
+# finish (.qn_lta_prior_grad(), R/qn_finish.R); every term is separable within
+# its block, and the ordinal thresholds' curvature is left NA.
 .lta_penalty <- function(state, X, layout, alpha) {
   K <- state$n_statuses
   C <- state$n_classes %||% 1L
@@ -1318,8 +1321,10 @@
   a_var <- .bayes_alpha(state$mm$models[[1]], "variances")
   val <- 0
   grad <- numeric(0)
+  curv <- numeric(0)
   for (b in layout) {
     g <- numeric(b$len)
+    h <- numeric(b$len)
     if (b$kind == "class" && alpha > 0) {
       # The class weights are themselves a conditional table -- C patterns,
       # one observation apiece -- so they carry the same (alpha / C) form as
@@ -1327,6 +1332,7 @@
       p <- pmax(state$class_weights, 1e-300)
       val <- val + (alpha / C) * sum(log(p))
       g <- (alpha / C) * (1 - C * p[seq_len(C - 1L)])
+      h <- -alpha * p[seq_len(C - 1L)] * (1 - p[seq_len(C - 1L)])
     } else if (b$kind == "delta" && alpha > 0) {
       p <- pmax(state$delta_c[[b$c]], 1e-300)
       # Tied: one shared table, so it carries the whole alpha/K rather than a
@@ -1340,6 +1346,7 @@
       a_d <- if (isTRUE(b$tied)) alpha / K else alpha / (C * K)
       val <- val + a_d * sum(log(p))
       g <- a_d * (1 - K * p[seq_len(K - 1L)])
+      h <- -a_d * K * p[seq_len(K - 1L)] * (1 - p[seq_len(K - 1L)])
     } else if (b$kind == "tau" && alpha > 0) {
       p  <- pmax(state$tau_c[[b$c]][[b$i_mat]][b$k, b$allowed], 1e-300)
       m  <- length(p)
@@ -1349,6 +1356,7 @@
       a_tau <- alpha / (K * C * m)
       val <- val + a_tau * sum(log(p))
       g <- a_tau * (1 - m * p[-m])
+      h <- -a_tau * m * p[-m] * (1 - p[-m])
     } else if (b$kind == "rho" && a_cat > 0) {
       p  <- pmin(pmax(state$mm$models[[b$grp[1]]]$parameters$pis[, b$j],
                       1e-300), 1 - 1e-300)
@@ -1362,6 +1370,7 @@
       val <- val + a_rho * sum(mj * log(p) + (1 - mj) * log1p(-p))
       # On the logit scale the derivative collapses to a_rho * (m_j - rho).
       g <- a_rho * (mj - p)
+      h <- -a_rho * p * (1 - p)
     } else if (b$kind == "log_sd" && a_var > 0) {
       v  <- state$mm$models[[b$grp[1]]]$parameters$covariances[, b$j]
       s2 <- .lta_var_prior_marginal(state, X, b)
@@ -1372,6 +1381,7 @@
       a_v <- length(b$grp) * a_var / K
       val <- val - 0.5 * a_v * sum(log(v) + s2 / v)
       g <- a_v * (s2 / v - 1)
+      h <- -2 * a_v * s2 / v
     } else if (b$kind == "alpha" && a_cat > 0) {
       # Mirrors .lta_ri_log_prior() (R/lta_ri.R:294-316) term for item b$j.
       # `alpha` (the block) is one un-anchored logit per status -- no last-
@@ -1389,6 +1399,7 @@
       val <- val + sum(sweep(mj * log(p) + (1 - mj) * log1p(-p), 2,
                              prior_obs, "*"))
       g   <- rowSums(sweep(mj - p, 2, prior_obs, "*"))
+      h   <- -rowSums(sweep(p * (1 - p), 2, prior_obs, "*"))
     } else if (b$kind == "theta" && !is.null(state$ri) && a_cat > 0) {
       # Ordinal analogue of the "alpha" branch above -- .ordinal_theta_prior_
       # term() is the per-node value/gradient closed form, matching
@@ -1403,6 +1414,7 @@
       mj  <- .lta_ri_item_marginal_ordinal(X, state$weights_vec,
                                            state$n_items, state$n_times, b$j, Sj)
       g <- numeric(b$len)
+      h <- rep(NA_real_, b$len)
       for (q in seq_len(Q)) {
         shift <- sum(ri$L[b$j, ] * ri$Dnode[q, ])
         term  <- .ordinal_theta_prior_term(theta_j, shift, mj, Sj)
@@ -1423,6 +1435,7 @@
       mj  <- .lta_ri_item_marginal_ordinal(X, state$weights_vec,
                                            state$n_items, state$n_times, b$j, Sj)
       g <- numeric(b$len)
+      h <- rep(NA_real_, b$len)
       for (q in seq_len(Q)) {
         shift <- sum(ri$L[b$j, ] * ri$Dnode[q, ])
         term  <- .ordinal_theta_prior_term(theta_j, shift, mj, Sj)
@@ -1439,6 +1452,7 @@
       eta <- outer(ri$A[, b$j], lp, "+")
       p   <- pmin(pmax(plogis(eta), 1e-300), 1 - 1e-300)
       g   <- as.vector(crossprod(ri$Dnode, prior_obs * colSums(mj - p)))
+      h   <- -as.vector(crossprod(ri$Dnode^2, prior_obs * colSums(p * (1 - p))))
     } else if (b$kind == "theta" && a_cat > 0) {
       # Non-RI ordinal: the single-node case of the RI arm above (shift = 0),
       # mirroring .lta_log_prior()'s own ordinal arm exactly (fact (j)).
@@ -1454,6 +1468,7 @@
       term  <- .ordinal_theta_prior_term(theta_j, 0, mj, Sj)
       val   <- val + a_rho * term$value
       g     <- a_rho * term$grad
+      h     <- rep(NA_real_, b$len)
     } else if (b$kind == "ri_mass" && alpha > 0) {
       # Mirrors the "class" branch above with Q in place of C, matching the
       # implicit Dirichlet(alpha/Q, ...) prior .lta_normalise() applies at
@@ -1463,10 +1478,12 @@
       p <- pmax(state$ri$mass, 1e-300)
       val <- val + (alpha / Q) * sum(log(p))
       g <- (alpha / Q) * (1 - Q * p[seq_len(Q - 1L)])
+      h <- -alpha * p[seq_len(Q - 1L)] * (1 - p[seq_len(Q - 1L)])
     }
     grad <- c(grad, g)
+    curv <- c(curv, h)
   }
-  list(value = val, gradient = grad)
+  list(value = val, gradient = grad, curvature = curv)
 }
 
 # One L-BFGS climb from wherever EM stopped. Returns `state` unchanged -- never

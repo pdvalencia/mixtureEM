@@ -744,6 +744,32 @@
   .lta_log_prior(state, X, alpha, marginals)
 }
 
+# The prior's gradient and diagonal curvature in the reduced vector, from
+# .lta_penalty(), so the finish need not difference the prior 2p times an
+# iteration. Shared rows fold onto their one free coordinate as the scores do;
+# no term couples two of them, so the curvature folds the same way. NULL where
+# a block has no closed-form curvature (ordinal thresholds), or where the
+# formula and the objective's own prior (.qn_lta_prior()) disagree at the
+# start -- the finish then differences the prior as before.
+.qn_lta_prior_grad <- function(red, unpack, X, alpha, r0, prior,
+                               fixed = integer(0)) {
+  pg <- function(r) {
+    pen <- .lta_penalty(unpack(r), X, red$layout, alpha)
+    if (length(pen$gradient) != length(red$src) || anyNA(pen$curvature))
+      return(NULL)
+    list(g = as.vector(rowsum(pen$gradient, red$src)),
+         h = as.vector(rowsum(pen$curvature, red$src)))
+  }
+  a <- pg(r0)
+  if (is.null(a)) return(NULL)
+  # Checked on the free coordinates only: a held block is restored on every
+  # unpack, so the differenced prior is flat along it by construction.
+  free <- setdiff(seq_along(r0), fixed)
+  fd <- .qn_fd_grad2(function(v) { r <- r0; r[free] <- v; prior(r) }, r0[free])$g
+  if (max(abs(a$g[free] - fd)) > 1e-5 * (1 + max(abs(fd)))) return(NULL)
+  pg
+}
+
 .qn_finish_lta <- function(state, X, alpha, marginals) {
   frozen <- "mm" %in% state$frozen
   red <- if (.qn_lta_analytic(state)) .qn_lta_reduction(state) else NULL
@@ -809,8 +835,10 @@
   if (is.na(prior(r0))) return(NULL)
   start <- sum(w * case_ll(r0)) + prior(r0)
   if (!is.finite(start)) return(NULL)
+  prior_grad <- if (analytic) .qn_lta_prior_grad(red, unpack, X, alpha, r0, prior,
+                                                  fixed)
   res <- .qn_finish(case_ll, w, r0, prior, scores, gtol_stop = gtol, kind = kind,
-                    fixed = fixed)
+                    fixed = fixed, prior_grad = prior_grad)
   if (is.null(res) || res$value <= start) return(NULL)
   if (.qn_scale_collapsed(r0, res$par, kind)) return(NULL)
 

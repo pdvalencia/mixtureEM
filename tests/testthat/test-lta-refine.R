@@ -356,3 +356,43 @@ test_that("a refined fit reports the iterations EM actually ran", {
   expect_identical(polished$n_iter, loose$n_iter)
   expect_identical(polished$converged, loose$converged)
 })
+
+test_that("the penalty's curvature is its second derivative, and the finish uses it", {
+  # .lta_penalty()'s diagonal curvature is what the Newton-type finish takes
+  # in place of differencing the prior every iteration (.qn_lta_prior_grad(),
+  # R/qn_finish.R). Default priors, so every block carries one; a plain binary
+  # fit and a binary random intercept, whose alpha/lambda/ri_mass blocks are
+  # the rest of the closed forms.
+  fits <- list(
+    suppressMessages(suppressWarnings(
+      fit_lta(.lta_refine_sim(), n_statuses = 3, times = 3,
+              measurement = "binary", n_init = 2, random_state = 1,
+              standard_errors = FALSE))),
+    suppressMessages(suppressWarnings(
+      fit_lta(.lta_refine_sim(n = 300, K = 2, Tn = 4, J = 4, seed = 2),
+              n_statuses = 2, times = 4, measurement = "binary",
+              random_intercept = "binary", n_ri = 2, n_init = 2,
+              random_state = 1, standard_errors = FALSE))))
+  for (fit in fits) {
+    X      <- .lta_refine_sim()
+    if (!is.null(fit$ri)) X <- .lta_refine_sim(n = 300, K = 2, Tn = 4, J = 4, seed = 2)
+    layout <- .lta_par_layout(fit)
+    par0   <- .lta_par_pack(fit, layout)
+    pen    <- .lta_penalty(fit, X, layout, 1)
+    val    <- function(p) .lta_penalty(.lta_par_unpack(p, fit, layout), X, layout, 1)$value
+    eps <- 1e-3
+    fd  <- vapply(seq_along(par0), function(i) {
+      e <- numeric(length(par0)); e[i] <- eps
+      (val(par0 + e) - 2 * val(par0) + val(par0 - e)) / eps^2
+    }, numeric(1))
+    expect_false(anyNA(pen$curvature))
+    expect_lt(max(abs(pen$curvature - fd)), 1e-5)
+
+    # The finish's own check against the differenced prior passes, so it is
+    # the closed form, not the fallback, that the finish runs on.
+    red <- .qn_lta_reduction(fit)
+    unpack <- function(r) .lta_par_unpack(r[red$src], red$state, red$layout)
+    prior  <- function(r) .qn_lta_prior(unpack(r), X, 1, NULL)
+    expect_false(is.null(.qn_lta_prior_grad(red, unpack, X, 1, red$r0, prior)))
+  }
+})

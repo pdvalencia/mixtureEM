@@ -1,3 +1,21 @@
+# mixtureEM (development version)
+
+## The latent transition finish no longer differences its prior
+
+The Newton-type finish that `fit_lta()` runs after EM took the gradient of the
+prior by central differences, two evaluations of the prior per parameter at
+every iteration and again for every column of the exact curvature it switches
+to on a long run. It now takes the prior's gradient and curvature in closed
+form, the same terms the L-BFGS refinement already used, and checks them once
+against the differenced gradient at its starting point before relying on
+them. On a simulated continuous random-intercept fit with 38 parameters and
+the default priors the finish went from 50 to 19 seconds, with the same
+number of iterations and the same final value. Ordinal items keep the
+differenced route.
+
+Nothing a user sees changes numerically: the finish stops where the gradient
+vanishes, and the two gradients agree to about 1e-9.
+
 # mixtureEM 0.5.0
 
 ## The item prior no longer shrinks a continuous random intercept
