@@ -485,6 +485,31 @@ lta_g2 <- function(object) {
   inherits(fit, "lta_model") && isTRUE(fit$n_steps == 3L)
 }
 
+# A two-step fit (`n_steps = 2`) holds the measurement model at a step-1
+# estimate and maximises the joint log-likelihood over the structural block
+# alone, so its `loglik` is a genuine joint log-likelihood -- but only at that
+# fixed measurement block. Two fits nest, then, only when they share it: two
+# two-step fits on the same step 1, or a two-step fit beside the step-1 fit
+# it was built on (the structural coefficients at zero give back step 1's
+# class weights). A one-step joint fit, or a two-step on another step 1, sits
+# at a different measurement block, and the difference tests nothing.
+.check_twostep_pair <- function(restricted, full) {
+  two <- function(fit) isTRUE(fit$n_steps == 2L)
+  if (!two(restricted) && !two(full)) return(invisible(NULL))
+  same <- isTRUE(all.equal(restricted$mm$parameters, full$mm$parameters,
+                           tolerance = 1e-8))
+  if (!same)
+    stop(paste(
+      "At least one model is a two-step fit (`n_steps = 2`), which holds the",
+      "measurement model fixed at its step-1 estimate, and the two models do",
+      "not share that measurement model. Its log-likelihood is a maximum only",
+      "at that fixed block, so the two fits do not nest and the difference is",
+      "not a test of anything. Build both from the same step-1 fit -- that",
+      "fit itself can serve as `restricted` -- or refit both with",
+      "`n_steps = 1`."), call. = FALSE)
+  invisible(NULL)
+}
+
 .check_threestep_pair <- function(restricted, full) {
   s3 <- c(.is_threestep_lta(restricted), .is_threestep_lta(full))
   if (!any(s3)) return(invisible(NULL))
@@ -748,6 +773,14 @@ compare_longitudinal <- function(indicators, k_range = NULL,
 #' when their third steps saw the same data: the same assigned statuses and the
 #' same classification-error matrices.
 #'
+#' A two-step fit (`n_steps = 2`, or [`add_covariates()`] with `steps = 2`)
+#' holds the measurement model at its step-1 estimate, and its log-likelihood
+#' is the joint one at that fixed block. Two such fits are tested when they
+#' share the measurement model: two structural models built on the same step-1
+#' fit, or a class-predictor model beside that step-1 fit itself, which is the
+#' model with every predictor's coefficient at zero. A pair that does not share
+#' the measurement model is refused.
+#'
 #' Because `full` strictly nests `restricted`, its log-likelihood can never
 #' be genuinely lower — if it comes out that way here, the `full` model's
 #' random-restart search landed on a worse local optimum than the
@@ -783,6 +816,7 @@ lr_test <- function(restricted, full, scaled = c("auto", "yes", "no")) {
   # parameters, so a mixed pair in the right order would otherwise be refused
   # as "reversed", which names the wrong problem.
   .check_threestep_pair(restricted, full)
+  .check_twostep_pair(restricted, full)
 
   if (a$n_params > b$n_params)
     stop("`restricted` has more parameters than `full`; the arguments look ",

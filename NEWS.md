@@ -1,5 +1,17 @@
 # mixtureEM (development version)
 
+## `lr_test()` checks that two-step fits share their step 1
+
+A two-step fit (`n_steps = 2`, or `add_covariates(steps = 2)`) holds the
+measurement model at its step-1 estimate, so two fits nest only when they
+share it. `lr_test()` now accepts such pairs, and its help page says so: two
+structural models built on the same step-1 fit, or a class-predictor model
+beside that step-1 fit. It refuses a pair that does not share the measurement
+model, for instance a two-step fit beside a one-step joint fit, which it used
+to difference without comment. On `ventura_leon`, the test of sex and age
+against the four-class step 1 is 44.73 on 6 degrees of freedom. Every pair
+the test accepted before gives the same numbers.
+
 ## The VLMR test runs on growth mixture models
 
 `compare_mixtures(vlmr = )` reported the VLMR test as unavailable for every

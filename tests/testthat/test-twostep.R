@@ -183,6 +183,34 @@ test_that("add_covariates(steps = 2) is the two-step on the fitted model", {
   expect_identical(fitb$mm$parameters$pis, fit0$mm$parameters$pis)
 })
 
+test_that("lr_test() takes two-step fits that share step 1 and refuses others", {
+  d    <- .ts_sim("binary")
+  Z2   <- data.frame(z = d$Z$z, w = rnorm(nrow(d$Z)))
+  fit0 <- suppressMessages(fit_mixture(d$X, n_classes = 2, measurement = "binary",
+                                       n_init = 5, random_state = 1))
+  fitz  <- suppressMessages(add_covariates(fit0, d$Z, steps = 2))
+  fitzw <- suppressMessages(add_covariates(fit0, Z2, steps = 2))
+
+  # Step 1 beside its two-step: the frozen pooled weights are not counted on
+  # the two-step side, so df is the slope count, K - 1 per predictor.
+  r <- lr_test(fit0, fitzw)
+  expect_equal(r$df, 2)
+  expect_equal(r$statistic, -2 * (fit0$metrics$ll - fitzw$metrics$ll),
+               tolerance = 1e-10)
+  r <- lr_test(fitz, fitzw)
+  expect_equal(r$df, 1)
+  expect_gte(r$statistic, 0)
+
+  # A one-step joint fit sits at a different measurement block.
+  fit1 <- .ts_fit(d, "binary", "predictors", n_steps = 1)
+  expect_error(lr_test(fitz, fit1), "do not nest")
+  # So does a two-step built on another step-1 fit.
+  other <- suppressMessages(fit_mixture(d$X[-1, ], n_classes = 2,
+                                        measurement = "binary", n_init = 5,
+                                        random_state = 1))
+  expect_error(lr_test(other, fitzw), "do not nest")
+})
+
 # ------------------------------------------------------------------------------
 # (d) standard errors: the pseudo-ML variance of Bakk & Kuha (2018, eq. 5)
 # ------------------------------------------------------------------------------

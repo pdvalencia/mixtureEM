@@ -61,6 +61,14 @@ is refused beside a one- or two-step fit. Two three-step fits are tested only
 when their third steps saw the same data: the same assigned statuses and the
 same classification-error matrices.
 
+A two-step fit (\code{n_steps = 2}, or \code{\link[=add_covariates]{add_covariates()}} with \code{steps = 2})
+holds the measurement model at its step-1 estimate, and its log-likelihood
+is the joint one at that fixed block. Two such fits are tested when they
+share the measurement model: two structural models built on the same step-1
+fit, or a class-predictor model beside that step-1 fit itself, which is the
+model with every predictor's coefficient at zero. A pair that does not share
+the measurement model is refused.
+
 Because \code{full} strictly nests \code{restricted}, its log-likelihood can never
 be genuinely lower — if it comes out that way here, the \code{full} model's
 random-restart search landed on a worse local optimum than the
