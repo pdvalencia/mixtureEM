@@ -221,7 +221,7 @@ lr_test(fit_hom, fit)
 #> ---------------------------------------------------------
 #>   Restricted : LL =  -22935.6514   parameters = 23
 #>   Full       : LL =  -21794.4016   parameters = 35
-#>   -2 x diff  : 2282.4995   df = 12   p = < 1e-16
+#>   -2 x diff  : 2282.4996   df = 12   p = < 1e-16
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 
@@ -344,32 +344,32 @@ lta_covariate_summary(fit_pov)
 #>       Status      Term Estimate     SE      z        p          OR
 #>  to Status 1 Intercept   -3.065  0.194 -15.84  < 1e-16 4.70000e-02
 #>  to Status 1    from:1   25.000 27.479   0.91 0.362944 7.20049e+10
-#>  to Status 1    from:2    9.311  1.204   7.73 1.04e-14 1.10580e+04
+#>  to Status 1    from:2    9.311  1.204   7.73 1.04e-14 1.10594e+04
 #>  to Status 1   poverty   -0.775  0.231  -3.36 0.000789 4.61000e-01
 #>  to Status 2 Intercept    0.979  0.052  18.73  < 1e-16 2.66300e+00
-#>  to Status 2    from:1   -1.253 32.634  -0.04 0.969370 2.86000e-01
-#>  to Status 2    from:2    5.931  1.190   4.99 6.19e-07 3.76578e+02
+#>  to Status 2    from:1   -1.292 32.634  -0.04 0.968409 2.75000e-01
+#>  to Status 2    from:2    5.931  1.190   4.99 6.18e-07 3.76625e+02
 #>  to Status 2   poverty   -1.186  0.097 -12.27  < 1e-16 3.05000e-01
 #> 
 #>   [occasion 2 -> 3]
 #>       Status      Term Estimate    SE     z        p         OR
 #>  to Status 1 Intercept   -5.132 0.784 -6.55 5.88e-11      0.006
-#>  to Status 1    from:1   11.714 1.248  9.39  < 1e-16 122263.675
-#>  to Status 1    from:2    9.578 0.888 10.79  < 1e-16  14441.144
+#>  to Status 1    from:1   11.714 1.248  9.39  < 1e-16 122264.640
+#>  to Status 1    from:2    9.578 0.888 10.79  < 1e-16  14441.371
 #>  to Status 1   poverty   -2.156 0.285 -7.57 3.60e-14      0.116
 #>  to Status 2 Intercept   -0.030 0.089 -0.34    0.732      0.970
 #>  to Status 2    from:1    0.593 1.299  0.46    0.648      1.810
-#>  to Status 2    from:2    6.016 0.422 14.25  < 1e-16    409.880
+#>  to Status 2    from:2    6.016 0.422 14.25  < 1e-16    409.884
 #>  to Status 2   poverty   -0.919 0.149 -6.18 6.49e-10      0.399
 #> 
 #>   [occasion 3 -> 4]
 #>       Status      Term Estimate     SE     z        p       OR
 #>  to Status 1 Intercept    0.276  0.161  1.71   0.0880    1.317
-#>  to Status 1    from:1    8.336  3.487  2.39   0.0168 4171.490
-#>  to Status 1    from:2    5.004  0.316 15.83  < 1e-16  148.938
+#>  to Status 1    from:1    8.339  3.487  2.39   0.0168 4182.286
+#>  to Status 1    from:2    5.004  0.316 15.83  < 1e-16  148.935
 #>  to Status 1   poverty   -0.927  0.210 -4.42 9.76e-06    0.396
 #>  to Status 2 Intercept    0.695  0.152  4.58 4.62e-06    2.003
-#>  to Status 2    from:1  -14.230 17.057 -0.83   0.4041    0.000
+#>  to Status 2    from:1  -14.809 17.057 -0.87   0.3853    0.000
 #>  to Status 2    from:2    2.543  0.314  8.10 5.37e-16   12.719
 #>  to Status 2   poverty   -0.106  0.198 -0.54   0.5924    0.899
 #> 
@@ -428,44 +428,44 @@ lta_covariate_summary(fit_pov3)
 #> PREDICTING LATENT STATUS AT THE FIRST OCCASION
 #>    Status      Term Estimate    SE     z       p     OR
 #>  Status 1 Intercept    3.254 0.152 21.41 < 1e-16 25.903
-#>  Status 1   poverty    1.939 0.711  2.73 0.00637  6.951
+#>  Status 1   poverty    1.939 0.710  2.73 0.00633  6.951
 #>  Status 2 Intercept    2.626 0.158 16.60 < 1e-16 13.813
-#>  Status 2   poverty    0.535 0.735  0.73 0.46649  1.708
+#>  Status 2   poverty    0.535 0.734  0.73 0.46613  1.708
 #> 
 #> PREDICTING TRANSITIONS
 #> 
 #>   [occasion 1 -> 2]
-#>       Status      Term Estimate     SE     z        p          OR
-#>  to Status 1 Intercept  -11.062 32.721 -0.34   0.7353       0.000
-#>  to Status 1    from:1   15.235 32.735  0.47   0.6416 4133670.860
-#>  to Status 1    from:2  -14.736  2.576 -5.72 1.06e-08       0.000
-#>  to Status 1   poverty    0.747  0.350  2.14   0.0326       2.111
-#>  to Status 2 Intercept  -10.599 29.549 -0.36   0.7198       0.000
-#>  to Status 2    from:1   15.761 29.565  0.53   0.5940 7000123.656
-#>  to Status 2    from:2   11.060 29.550  0.37   0.7082   63557.209
-#>  to Status 2   poverty   -0.435  0.326 -1.33   0.1824       0.647
+#>       Status      Term Estimate     SE     z      p          OR
+#>  to Status 1 Intercept  -11.062 30.825 -0.36 0.7197       0.000
+#>  to Status 1    from:1   15.235 30.841  0.49 0.6213 4133672.049
+#>  to Status 1    from:2  -14.736 40.125 -0.37 0.7134       0.000
+#>  to Status 1   poverty    0.747  0.350  2.14 0.0326       2.111
+#>  to Status 2 Intercept  -10.599 29.976 -0.35 0.7237       0.000
+#>  to Status 2    from:1   15.761 29.991  0.53 0.5992 7000124.488
+#>  to Status 2    from:2   11.060 29.976  0.37 0.7122   63557.217
+#>  to Status 2   poverty   -0.435  0.326 -1.33 0.1825       0.647
 #> 
 #>   [occasion 2 -> 3]
-#>       Status      Term Estimate     SE     z        p           OR
-#>  to Status 1 Intercept  -11.779 13.722 -0.86   0.3906 0.000000e+00
-#>  to Status 1    from:1   21.082 17.537  1.20   0.2293 1.431535e+09
-#>  to Status 1    from:2  -12.879  2.959 -4.35 1.35e-05 0.000000e+00
-#>  to Status 1   poverty    2.269  0.526  4.31 1.61e-05 9.674000e+00
-#>  to Status 2 Intercept  -11.293 18.886 -0.60   0.5499 0.000000e+00
-#>  to Status 2    from:1   20.617 21.850  0.94   0.3454 8.989199e+08
-#>  to Status 2    from:2   12.911 18.886  0.68   0.4942 4.046625e+05
-#>  to Status 2   poverty    1.338  0.485  2.76   0.0058 3.813000e+00
+#>       Status      Term Estimate     SE     z       p           OR
+#>  to Status 1 Intercept  -11.779 13.768 -0.86 0.39224 0.000000e+00
+#>  to Status 1    from:1   21.082 17.570  1.20 0.23019 1.431535e+09
+#>  to Status 1    from:2  -12.879 15.155 -0.85 0.39544 0.000000e+00
+#>  to Status 1   poverty    2.269  0.526  4.31 1.6e-05 9.674000e+00
+#>  to Status 2 Intercept  -11.293 18.280 -0.62 0.53673 0.000000e+00
+#>  to Status 2    from:1   20.617 21.321  0.97 0.33355 8.989198e+08
+#>  to Status 2    from:2   12.911 18.281  0.71 0.48003 4.046624e+05
+#>  to Status 2   poverty    1.338  0.485  2.76 0.00578 3.813000e+00
 #> 
 #>   [occasion 3 -> 4]
-#>       Status      Term Estimate    SE      z        p          OR
-#>  to Status 1 Intercept   -6.651 1.198  -5.55 2.82e-08       0.001
-#>  to Status 1    from:1    6.497 1.212   5.36 8.38e-08     662.942
-#>  to Status 1    from:2    0.658 1.507   0.44 0.662152       1.932
-#>  to Status 1   poverty    0.914 0.252   3.63 0.000289       2.494
-#>  to Status 2 Intercept  -15.345 1.521 -10.09  < 1e-16       0.000
-#>  to Status 2    from:1   15.845 1.524  10.39  < 1e-16 7608607.358
-#>  to Status 2    from:2   13.321 1.522   8.75  < 1e-16  609671.298
-#>  to Status 2   poverty    0.803 0.151   5.34 9.48e-08       2.233
+#>       Status      Term Estimate     SE     z        p          OR
+#>  to Status 1 Intercept   -6.651  1.198 -5.55 2.86e-08       0.001
+#>  to Status 1    from:1    6.497  1.213  5.36 8.53e-08     662.942
+#>  to Status 1    from:2    0.658  1.510  0.44  0.66281       1.932
+#>  to Status 1   poverty    0.914  0.252  3.62  0.00029       2.494
+#>  to Status 2 Intercept  -15.345 97.407 -0.16  0.87482       0.000
+#>  to Status 2    from:1   15.845 97.407  0.16  0.87078 7608606.782
+#>  to Status 2    from:2   13.321 97.406  0.14  0.89123  609671.274
+#>  to Status 2   poverty    0.803  0.151  5.34 9.52e-08       2.233
 #> 
 #> Standard errors are the three-step (pseudo-maximum-likelihood) ones:
 #> the curvature of step 3's likelihood in these coefficients, plus the
