@@ -69,7 +69,10 @@ classification_diagnostics(
   skips it. Each draw continues the fitted solution on the resampled
   cases (one EM run from the fitted parameters, no restarts), so its
   classes keep the fitted labels. Available for an unconditional,
-  unweighted, single-group, one-step fit.
+  unweighted, single-group, one-step fit. The interval can be too narrow
+  when some item probabilities sit at 0 or 1: in a simulation from such
+  a four-class solution it covered the true proportion only 69\\ the
+  time for the classes involved.
 
 - level:
 

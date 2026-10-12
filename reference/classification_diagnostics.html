@@ -47,7 +47,7 @@ Both tables use the case weights when the model was fitted with any.'></head><bo
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -144,7 +144,10 @@ draws behind a percentile interval for each class proportion; <code>0</code> (th
 default) skips it. Each draw continues the fitted solution on the
 resampled cases (one EM run from the fitted parameters, no restarts), so
 its classes keep the fitted labels. Available for an unconditional,
-unweighted, single-group, one-step fit.</p></dd>
+unweighted, single-group, one-step fit. The interval can be too narrow
+when some item probabilities sit at 0 or 1: in a simulation from such a
+four-class solution it covered the true proportion only 69\<!-- % to 89\\% of -->
+the time for the classes involved.</p></dd>
 
 
 <dt id="arg-level">level<a class="anchor" aria-label="anchor" href="#arg-level"></a></dt>

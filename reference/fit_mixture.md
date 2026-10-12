@@ -463,9 +463,14 @@ fit_mixture(
   The default of 20 is a floor for small, well-separated models rather
   than a guarantee: under a correct specification the maximum is
   typically found by 39\\ there is one, but local optima multiply with
-  more classes and poorer separation. `max_iter` defaults to 1000,
-  following the iteration budget in Biernacki et al. (2003); when a fit
-  stops at the cap, double it.
+  more classes and poorer separation. A one-step fit with a structural
+  model (`predictors` or `outcome` with `n_steps = 1`) is harder still:
+  on simulated data the best maximum was reached by about one start in
+  ten, so 20 starts miss it about one time in eight. The replication
+  count cannot warn about this, since it only describes the best maximum
+  the starts found. Use `n_init = 50` or more for these fits. `max_iter`
+  defaults to 1000, following the iteration budget in Biernacki et al.
+  (2003); when a fit stops at the cap, double it.
   [`vignette("estimation")`](https://pdvalencia.github.io/mixtureEM/articles/estimation.md)
   gives the figures behind both numbers.
 

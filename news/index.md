@@ -1,5 +1,86 @@
 # Changelog
 
+## mixtureEM (development version)
+
+### `lr_test()` checks that two-step fits share their step 1
+
+A two-step fit (`n_steps = 2`, or `add_covariates(steps = 2)`) holds the
+measurement model at its step-1 estimate, so two fits nest only when
+they share it.
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+now accepts such pairs, and its help page says so: two structural models
+built on the same step-1 fit, or a class-predictor model beside that
+step-1 fit. It refuses a pair that does not share the measurement model,
+for instance a two-step fit beside a one-step joint fit, which it used
+to difference without comment. On `ventura_leon`, the test of sex and
+age against the four-class step 1 is 44.73 on 6 degrees of freedom.
+Every pair the test accepted before gives the same numbers.
+
+### The VLMR test runs on growth mixture models
+
+`compare_mixtures(vlmr = )` reported the VLMR test as unavailable for
+every growth mixture model, the kind
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+fits, because the growth parameters had no unconstrained representation
+to differentiate. It now uses the one the Newton-type finish already
+uses (the growth-factor covariance through its Cholesky factor, residual
+variances as log standard deviations), which leaves the test’s reference
+distribution unchanged wherever both representations exist. On a
+two-class linear growth model of four math scores, 1,528 students with
+missing waves, the likelihood ratio is 120.92 and the robust reference
+distribution has mean 2.68 and standard deviation 3.77. Every other
+model’s VLMR result is unchanged.
+
+### Two help pages say where the defaults fall short
+
+[`classification_diagnostics()`](https://pdvalencia.github.io/mixtureEM/reference/classification_diagnostics.md)
+now says that its bootstrap interval for the class proportions can be
+too narrow when item probabilities sit at 0 or 1.
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)’s
+`n_init` documentation now says that a one-step fit with a structural
+model can need 50 or more starts, and that the replication count cannot
+reveal a maximum no start reached. No default changes.
+
+### The latent transition finish no longer differences its prior
+
+The Newton-type finish that
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+runs after EM took the gradient of the prior by central differences, two
+evaluations of the prior per parameter at every iteration and again for
+every column of the exact curvature it switches to on a long run. It now
+takes the prior’s gradient and curvature in closed form, the same terms
+the L-BFGS refinement already used, and checks them once against the
+differenced gradient at its starting point before relying on them. On a
+simulated continuous random-intercept fit with 38 parameters and the
+default priors the finish went from 50 to 19 seconds, with the same
+number of iterations and the same final value. Ordinal items keep the
+differenced route.
+
+Nothing a user sees changes numerically: the finish stops where the
+gradient vanishes, and the two gradients agree to about 1e-9.
+
+### `refine_from` continues a fit with predictors
+
+`fit_mixture(refine_from = )` stopped with an error whenever the fit had
+`predictors`. In a one-step fit the donor’s covariate model never
+matched a fresh one, because the donor also carries the Hessian its last
+M-step stored, so the run went on with a covariate model that had no
+coefficients. In a stepwise fit the first step tried to start a
+covariate model before it had any covariates. Both now continue: the
+donor’s coefficients are carried over, the Hessian is recomputed by the
+next M-step as it always is, and a one-step fit continued with no
+further iteration reports exactly the donor’s log-likelihood. Fits that
+ran before are unchanged.
+
+### A three-step ML fit runs at `max_iter = 0`
+
+`fit_mixture(predictors = , n_steps = 3, max_iter = 0)`, with or without
+`refine_from`, stopped with “object ‘W’ not found”: the step-three
+posteriors were only formed inside the EM loop, which never started. One
+E-step is now taken at the step-three starting values, so the fit
+returns them with their posteriors and log-likelihood. Nothing changes
+numerically for any `max_iter` above zero.
+
 ## mixtureEM 0.5.0
 
 ### The item prior no longer shrinks a continuous random intercept

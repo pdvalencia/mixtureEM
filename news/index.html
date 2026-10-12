@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -45,6 +45,37 @@
       <small>Source: <a href="https://github.com/pdvalencia/mixtureEM/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="development version" id="mixtureem-development-version">mixtureEM (development version)<a class="anchor" aria-label="anchor" href="#mixtureem-development-version"></a></h2>
+<div class="section level3">
+<h3 id="lr_test-checks-that-two-step-fits-share-their-step-development-version">
+<code>lr_test()</code> checks that two-step fits share their step 1<a class="anchor" aria-label="anchor" href="#lr_test-checks-that-two-step-fits-share-their-step-development-version"></a></h3>
+<p>A two-step fit (<code>n_steps = 2</code>, or <code>add_covariates(steps = 2)</code>) holds the measurement model at its step-1 estimate, so two fits nest only when they share it. <code><a href="../reference/lr_test.html">lr_test()</a></code> now accepts such pairs, and its help page says so: two structural models built on the same step-1 fit, or a class-predictor model beside that step-1 fit. It refuses a pair that does not share the measurement model, for instance a two-step fit beside a one-step joint fit, which it used to difference without comment. On <code>ventura_leon</code>, the test of sex and age against the four-class step 1 is 44.73 on 6 degrees of freedom. Every pair the test accepted before gives the same numbers.</p>
+</div>
+<div class="section level3">
+<h3 id="the-vlmr-test-runs-on-growth-mixture-models-development-version">The VLMR test runs on growth mixture models<a class="anchor" aria-label="anchor" href="#the-vlmr-test-runs-on-growth-mixture-models-development-version"></a></h3>
+<p><code>compare_mixtures(vlmr = )</code> reported the VLMR test as unavailable for every growth mixture model, the kind <code><a href="../reference/fit_gmm.html">fit_gmm()</a></code> fits, because the growth parameters had no unconstrained representation to differentiate. It now uses the one the Newton-type finish already uses (the growth-factor covariance through its Cholesky factor, residual variances as log standard deviations), which leaves the test’s reference distribution unchanged wherever both representations exist. On a two-class linear growth model of four math scores, 1,528 students with missing waves, the likelihood ratio is 120.92 and the robust reference distribution has mean 2.68 and standard deviation 3.77. Every other model’s VLMR result is unchanged.</p>
+</div>
+<div class="section level3">
+<h3 id="two-help-pages-say-where-the-defaults-fall-short-development-version">Two help pages say where the defaults fall short<a class="anchor" aria-label="anchor" href="#two-help-pages-say-where-the-defaults-fall-short-development-version"></a></h3>
+<p><code><a href="../reference/classification_diagnostics.html">classification_diagnostics()</a></code> now says that its bootstrap interval for the class proportions can be too narrow when item probabilities sit at 0 or 1. <code><a href="../reference/fit_mixture.html">fit_mixture()</a></code>’s <code>n_init</code> documentation now says that a one-step fit with a structural model can need 50 or more starts, and that the replication count cannot reveal a maximum no start reached. No default changes.</p>
+</div>
+<div class="section level3">
+<h3 id="the-latent-transition-finish-no-longer-differences-its-prior-development-version">The latent transition finish no longer differences its prior<a class="anchor" aria-label="anchor" href="#the-latent-transition-finish-no-longer-differences-its-prior-development-version"></a></h3>
+<p>The Newton-type finish that <code><a href="../reference/fit_lta.html">fit_lta()</a></code> runs after EM took the gradient of the prior by central differences, two evaluations of the prior per parameter at every iteration and again for every column of the exact curvature it switches to on a long run. It now takes the prior’s gradient and curvature in closed form, the same terms the L-BFGS refinement already used, and checks them once against the differenced gradient at its starting point before relying on them. On a simulated continuous random-intercept fit with 38 parameters and the default priors the finish went from 50 to 19 seconds, with the same number of iterations and the same final value. Ordinal items keep the differenced route.</p>
+<p>Nothing a user sees changes numerically: the finish stops where the gradient vanishes, and the two gradients agree to about 1e-9.</p>
+</div>
+<div class="section level3">
+<h3 id="refine_from-continues-a-fit-with-predictors-development-version">
+<code>refine_from</code> continues a fit with predictors<a class="anchor" aria-label="anchor" href="#refine_from-continues-a-fit-with-predictors-development-version"></a></h3>
+<p><code>fit_mixture(refine_from = )</code> stopped with an error whenever the fit had <code>predictors</code>. In a one-step fit the donor’s covariate model never matched a fresh one, because the donor also carries the Hessian its last M-step stored, so the run went on with a covariate model that had no coefficients. In a stepwise fit the first step tried to start a covariate model before it had any covariates. Both now continue: the donor’s coefficients are carried over, the Hessian is recomputed by the next M-step as it always is, and a one-step fit continued with no further iteration reports exactly the donor’s log-likelihood. Fits that ran before are unchanged.</p>
+</div>
+<div class="section level3">
+<h3 id="a-three-step-ml-fit-runs-at-max_iter--development-version">A three-step ML fit runs at <code>max_iter = 0</code>
+<a class="anchor" aria-label="anchor" href="#a-three-step-ml-fit-runs-at-max_iter--development-version"></a></h3>
+<p><code>fit_mixture(predictors = , n_steps = 3, max_iter = 0)</code>, with or without <code>refine_from</code>, stopped with “object ‘W’ not found”: the step-three posteriors were only formed inside the EM loop, which never started. One E-step is now taken at the step-three starting values, so the fit returns them with their posteriors and log-likelihood. Nothing changes numerically for any <code>max_iter</code> above zero.</p>
+</div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.5.0" id="mixtureem-050">mixtureEM 0.5.0<a class="anchor" aria-label="anchor" href="#mixtureem-050"></a></h2>
 <div class="section level3">
