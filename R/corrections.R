@@ -441,7 +441,8 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   # it here is enough.
   if (inherits(model_state$sm, "covariate")) {
     model_state <- .attach_step3_covariate_vcov(
-      model_state, X_clean, Y_clean, A1, C_row_norm, w_clean, se = se)
+      model_state, X_clean, Y_clean, A1, C_row_norm, w_clean, se = se,
+      assignment = assignment)
   }
 
   # A covariate block inside a nested structural model shares its step-three
@@ -452,7 +453,8 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   if (inherits(model_state$sm, "nested")) {
     model_state <- .attach_nested_step3_vcov(
       model_state, Y_clean, A1, C_row_norm, w_clean, se,
-      strata = model_state$strata[keep], cluster = model_state$cluster[keep])
+      strata = model_state$strata[keep], cluster = model_state$cluster[keep],
+      X = X_clean, assignment = assignment)
     if (is.null(model_state$sm$parameters$vcov_joint) &&
         !is.null(model_state$sm$models[["predictor"]]) &&
         inherits(model_state$sm$models$predictor, "covariate"))

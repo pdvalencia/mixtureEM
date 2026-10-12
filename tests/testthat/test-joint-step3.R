@@ -114,6 +114,19 @@ test_that("the sandwich and the Hessian share the estimates", {
                                 jr$sm$parameters$vcov_joint)))
 })
 
+test_that("the corrected variance adds step 1's uncertainty to the sandwich", {
+  s  <- .joint_sim()
+  jr <- .joint_fit(s, assignment = "modal", se = "robust")
+  jc <- .joint_fit(s, assignment = "modal", se = "corrected")
+  expect_equal(jr$metrics$ll, jc$metrics$ll)
+  expect_match(jc$sm$parameters$V_method, "Bakk-Oberski-Vermunt")
+  # The step-1 term J D1 J' is positive semi-definite.
+  dV <- jc$sm$parameters$vcov_joint - jr$sm$parameters$vcov_joint
+  expect_gt(min(eigen(dV, symmetric = TRUE, only.values = TRUE)$values),
+            -1e-8 * max(abs(dV)))
+  expect_gt(max(diag(dV)), 0)
+})
+
 test_that("unsupported combinations are refused", {
   s   <- .joint_sim(n = 200)
   fit <- fit_mixture(s$X, n_classes = 2, measurement = "binary", n_init = 2,

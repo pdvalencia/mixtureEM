@@ -120,14 +120,19 @@ not the linearised one; \code{"robust"} is the design-based choice there.
 
 The corrected and robust estimators cover a covariate (class-prediction)
 structural model estimated with \code{n_steps = 3} and
-\code{correction = "none"} or \code{"ML"}, and with \code{n_steps = 2}. Four
-cases fall back to the uncorrected Hessian, and say so in the printed
-output: \code{correction = "BCH"} (whose weights need their own variance
-treatment, and which is not recommended for covariates in any case);
-\code{n_steps = 1}, where measurement and structural parameters are estimated
-jointly and no carry-over correction applies; a two-step fit whose
-structural model is a distal outcome rather than class predictors; and a
-covariate combined with a distal outcome in one nested structural model.
+\code{correction = "none"} or \code{"ML"}, and with \code{n_steps = 2}.
+Class predictors fitted together with distal outcomes
+(\code{add_outcome(predictors = )}, \code{correction = "ML"}) are covered
+too: the step-1 term is taken over the whole joint parameter vector, so the
+outcome parameters carry it as well. Under modal assignment the derivative
+holds each case's assigned class fixed and moves only the classification
+table built from it. Three cases fall back to the uncorrected Hessian, and
+say so in the printed output: \code{correction = "BCH"} (whose weights need
+their own variance treatment, and which is not recommended for covariates
+in any case; with \code{predictors} it reports the case-clustered sandwich);
+\code{n_steps = 1}, where measurement and structural parameters are
+estimated jointly and no carry-over correction applies; and a two-step fit
+whose structural model is a distal outcome rather than class predictors.
 The step-1 term additionally requires a measurement model whose parameters
 this package can put on an unconstrained scale — binary, polytomous,
 Gaussian, count, mixed, and repeated-measures models qualify; growth models

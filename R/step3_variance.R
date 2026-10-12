@@ -159,14 +159,19 @@
 #' @section Scope:
 #' The corrected and robust estimators cover a covariate (class-prediction)
 #' structural model estimated with \code{n_steps = 3} and
-#' \code{correction = "none"} or \code{"ML"}, and with \code{n_steps = 2}. Four
-#' cases fall back to the uncorrected Hessian, and say so in the printed
-#' output: \code{correction = "BCH"} (whose weights need their own variance
-#' treatment, and which is not recommended for covariates in any case);
-#' \code{n_steps = 1}, where measurement and structural parameters are estimated
-#' jointly and no carry-over correction applies; a two-step fit whose
-#' structural model is a distal outcome rather than class predictors; and a
-#' covariate combined with a distal outcome in one nested structural model.
+#' \code{correction = "none"} or \code{"ML"}, and with \code{n_steps = 2}.
+#' Class predictors fitted together with distal outcomes
+#' (\code{add_outcome(predictors = )}, \code{correction = "ML"}) are covered
+#' too: the step-1 term is taken over the whole joint parameter vector, so the
+#' outcome parameters carry it as well. Under modal assignment the derivative
+#' holds each case's assigned class fixed and moves only the classification
+#' table built from it. Three cases fall back to the uncorrected Hessian, and
+#' say so in the printed output: \code{correction = "BCH"} (whose weights need
+#' their own variance treatment, and which is not recommended for covariates
+#' in any case; with \code{predictors} it reports the case-clustered sandwich);
+#' \code{n_steps = 1}, where measurement and structural parameters are
+#' estimated jointly and no carry-over correction applies; and a two-step fit
+#' whose structural model is a distal outcome rather than class predictors.
 #' The step-1 term additionally requires a measurement model whose parameters
 #' this package can put on an unconstrained scale — binary, polytomous,
 #' Gaussian, count, mixed, and repeated-measures models qualify; growth models
@@ -668,7 +673,8 @@ NULL
 # @return A list with `V` (the K*D square covariance matrix, the anchored class
 #   padded with zeros) and `method`, a label naming the estimator used.
 .step3_covariate_vcov <- function(model_state, X, Zmat, resp1, Cn, w,
-                                  se = "corrected") {
+                                  se = "corrected",
+                                  assignment = "proportional") {
   K <- model_state$n_components
   D <- ncol(Zmat)
   sm <- model_state$sm
@@ -722,14 +728,20 @@ NULL
   p1 <- length(th1)
   h1 <- .step1_fd_step * pmax(1, abs(th1))
 
-  # Total step-three score as a function of theta1, at theta3 held fixed. Both
-  # the posteriors and the classification table move with theta1.
+  # Total step-three score as a function of theta1, at theta3 held fixed. The
+  # posteriors and the classification table move with theta1, and so does the
+  # assignment under proportional assignment. A modal assignment is held where
+  # step 2 put it (`resp1` is then the one-hot A1): only the table built from
+  # it moves, which is the function `fit_ml()` actually maximised.
+  modal <- identical(assignment, "modal") && !is.null(Cn)
   s3_of <- function(v) {
     ms <- .step1_unpack(model_state, v)
     ms$sm <- NULL
-    r <- exp(e_step(ms, X, NULL)$log_resp)
-    Cv <- if (is.null(Cn)) NULL else .step3_classification_table(r, w)
-    colSums(.step3_scores(.step3_pieces(beta, Zmat, r, Cv), Zmat, w, K))
+    r  <- exp(e_step(ms, X, NULL)$log_resp)
+    A  <- if (modal) resp1 else r
+    Cv <- if (is.null(Cn)) NULL
+          else sweep(t(r * w) %*% A, 1, colSums(r * w), "/")
+    colSums(.step3_scores(.step3_pieces(beta, Zmat, A, Cv), Zmat, w, K))
   }
 
   Cmat <- vapply(seq_len(p1), function(m) {
@@ -789,13 +801,15 @@ NULL
 # the ML-adjusted path in `fit_ml()` and the unadjusted path in
 # `fit_mixture_internal()`; `Cn = NULL` selects the latter.
 .attach_step3_covariate_vcov <- function(model_state, X, Y, resp1, Cn, w,
-                                         se = "corrected") {
+                                         se = "corrected",
+                                         assignment = "proportional") {
   if (!inherits(model_state$sm, "covariate")) return(model_state)
   if (identical(se, "none")) return(model_state)
 
   Zmat <- .covariate_design(model_state$sm, Y)
   res  <- tryCatch(
-    .step3_covariate_vcov(model_state, X, Zmat, resp1, Cn, w, se = se),
+    .step3_covariate_vcov(model_state, X, Zmat, resp1, Cn, w, se = se,
+                          assignment = assignment),
     error = function(e) {
       warning(sprintf(
         "Step-3 covariate standard errors fell back to the Q-function Hessian: %s",

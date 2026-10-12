@@ -1,5 +1,27 @@
 # mixtureEM (development version)
 
+## Corrected standard errors for joint step-3 models, and for modal assignment
+
+`add_outcome(predictors = , correction = "ML")` fits class predictors and
+distal outcomes in one step-3 model. Its default `se = "corrected"` used to
+report the step-3 sandwich alone, so it treated step 1's classification table
+as known. It now adds the step-1 term of Bakk, Oberski and Vermunt (2014),
+taken over the whole joint parameter vector, so every block's standard errors
+carry step 1's uncertainty. On the LSAY four-class example with modal
+assignment, the class-membership intercepts' standard errors grow by a factor
+of about 1.8 and a class variance's from 14.4 to 20.5. Estimates do not
+change. `se = "robust"` gives the previous numbers.
+
+The same term was wrong for a class-predictor model alone
+(`add_covariates()`, or `fit_mixture(predictors = )`) under
+`assignment = "modal"` with `correction = "ML"`. The derivative moved the
+assignments with step 1's estimates and used a proportional classification
+table, which is not the likelihood the modal fit maximises. On the example
+above that made the intercepts' corrected standard errors about 20% too
+small. It now holds each case's assigned class fixed and moves only the
+table. Proportional assignment, the default, gives the same numbers as
+before.
+
 ## `lr_test()` checks that two-step fits share their step 1
 
 A two-step fit (`n_steps = 2`, or `add_covariates(steps = 2)`) holds the

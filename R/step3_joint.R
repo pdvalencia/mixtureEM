@@ -110,13 +110,14 @@
 # model as `vcov_joint`, for contrasts that cross blocks.
 #
 # se: "hessian" is the inverse observed information of the step-3
-# log-likelihood; "robust" and "corrected" are the sandwich around it. With
-# `Cn = NULL` (BCH) the sandwich is reported whatever `se` says. The
-# second variance component of Bakk, Oberski & Vermunt (2014), the uncertainty
-# carried over from step 1, is not added for a joint model yet, and V_method
-# says so.
+# log-likelihood; "robust" is the sandwich around it; "corrected" adds to the
+# sandwich the second variance component of Bakk, Oberski & Vermunt (2014, eq.
+# 17), J D1 J', the uncertainty carried over from step 1 through the
+# classification table (`.nested_step1_term()`). With `Cn = NULL` (BCH) the
+# sandwich is reported whatever `se` says, without the step-1 term.
 .attach_nested_step3_vcov <- function(model_state, Y, A1, Cn, w, se,
-                                      strata = NULL, cluster = NULL) {
+                                      strata = NULL, cluster = NULL,
+                                      X = NULL, assignment = "proportional") {
   sm <- model_state$sm
   if (!all(vapply(sm$models, .nested_packable, logical(1)))) {
     return(model_state)
@@ -128,17 +129,15 @@
   n_par  <- length(theta)
   h      <- 1e-4 * pmax(1, abs(theta))
 
-  f  <- function(par) .nested_ll_case(sm, Y, A1, Cn, par, lens)
-  fs <- function(par) sum(w * f(par))
-
   # Scores by central differences, then the Hessian by central differences of
   # the summed score -- n_par * 4 evaluations for the scores and the same again
   # for the Hessian, rather than the 2 * n_par^2 of a second difference.
-  score_at <- function(par) {
+  score_at <- function(par, A = A1, Cv = Cn) {
     S <- matrix(0, nrow(Y), n_par)
     for (j in seq_len(n_par)) {
       e <- replace(numeric(n_par), j, h[j])
-      S[, j] <- (f(par + e) - f(par - e)) / (2 * h[j])
+      S[, j] <- (.nested_ll_case(sm, Y, A, Cv, par + e, lens) -
+                   .nested_ll_case(sm, Y, A, Cv, par - e, lens)) / (2 * h[j])
     }
     S
   }
@@ -164,6 +163,20 @@
             "log-likelihood (joint model); step-1 uncertainty not propagated")
     else paste("Step-3 sandwich of the joint model; step-1 uncertainty",
                "not propagated")
+    if (identical(se, "corrected") && !is.null(Cn) && !is.null(X)) {
+      corr <- .nested_step1_term(model_state, X, A1, w, assignment, B_inv,
+                                 function(A, Cv) colSums(w * score_at(theta, A, Cv)))
+      if (is.null(corr)) {
+        .warn_step1_unavailable(model_state$mm)
+      } else {
+        V      <- V + corr$V
+        method <- sprintf(paste("Bakk-Oberski-Vermunt corrected (joint model;",
+                                "robust step 3, %s step 1)%s"),
+                          corr$method,
+                          if (isTRUE(corr$fallback))
+                            "; step-1 Hessian was not positive definite" else "")
+      }
+    }
   }
 
   lab <- unlist(lapply(names(sm$models), function(nm)
@@ -207,4 +220,48 @@
 
   model_state$sm <- sm
   model_state
+}
+
+# The step-1 term of the corrected variance for a joint ML step 3,
+# J D1 J' with J = (-H3)^{-1} C and C = d(total step-3 score)/d theta1', as in
+# `.step3_covariate_vcov()` but over the joint vector. Moving theta1 moves the
+# posteriors and with them the classification table; under proportional
+# assignment it moves the assignment weights too. Under modal assignment the
+# assignments are held where step 2 put them, since a small change to the
+# posteriors must not carry a case across a boundary. `total_score(A, Cv)` is
+# the summed step-3 score at the step-3 estimates for assignment `A` and table
+# `Cv`. Returns NULL when the measurement model has no unconstrained packing.
+.nested_step1_term <- function(model_state, X, A1, w, assignment, B_inv,
+                               total_score) {
+  th1 <- .step1_pack(model_state)
+  if (is.null(th1) || !length(th1)) return(NULL)
+  p1 <- length(th1)
+  h1 <- .step1_fd_step * pmax(1, abs(th1))
+
+  score_of <- function(v) {
+    ms <- .step1_unpack(model_state, v)
+    ms$sm <- NULL
+    r  <- exp(e_step(ms, X, NULL)$log_resp)
+    A  <- if (identical(assignment, "modal")) A1 else r
+    Cv <- sweep(t(r * w) %*% A, 1, colSums(r * w), "/")
+    total_score(A, Cv)
+  }
+  Cmat <- vapply(seq_len(p1), function(m) {
+    a <- th1; a[m] <- a[m] + h1[m]
+    b <- th1; b[m] <- b[m] - h1[m]
+    (score_of(a) - score_of(b)) / (2 * h1[m])
+  }, numeric(nrow(B_inv)))
+  dim(Cmat) <- c(nrow(B_inv), p1)
+
+  d1_method <- if (p1 <= .step1_hessian_max) "hessian" else "outer"
+  if (d1_method == "outer")
+    message(sprintf(paste("Step-1 variance for the corrected standard errors",
+                          "uses the outer-product estimator: the measurement",
+                          "model has %d parameters (limit %d for the numerical",
+                          "Hessian)."), p1, .step1_hessian_max))
+  S1 <- .step1_case_scores(model_state, X, th1, w)
+  d1 <- .step1_variance(model_state, X, th1, S1, w, d1_method)
+
+  J <- B_inv %*% Cmat
+  list(V = J %*% d1$V %*% t(J), method = d1$method, fallback = d1$fallback)
 }
