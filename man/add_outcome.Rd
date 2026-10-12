@@ -90,12 +90,14 @@ covariate part of the third step. A continuous distal outcome under
 whatever this is set to, and so does a BCH model with \code{predictors}: the
 expanded data set carries one weighted
 record per class per case, so a case-clustered sandwich is the only
-estimator that prices the information the correction gives up. Under
-\code{correction = "ML"} with \code{predictors}, \code{"corrected"} adds the step-1 term
+estimator that prices the information the correction gives up. With
+\code{predictors}, under either correction, \code{"corrected"} adds the step-1 term
 of \link{covariate_se} over the whole joint model, so the outcome blocks carry
-step 1's uncertainty too. A distal outcome fitted without \code{predictors},
-and any BCH model, treat step 1's estimates as known, so with poorly
-separated classes their intervals are somewhat too narrow.}
+step 1's uncertainty too; under BCH it enters through the BCH weights,
+which are rebuilt from the moved posteriors, and is added to the
+case-clustered sandwich. A distal outcome fitted without \code{predictors}
+treats step 1's estimates as known, so with poorly separated classes its
+intervals are somewhat too narrow.}
 
 \item{assignment}{How step 1's posteriors are turned into the assigned-class
 variable whose classification error the correction inverts.

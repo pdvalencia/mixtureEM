@@ -12,6 +12,17 @@ assignment, the class-membership intercepts' standard errors grow by a factor
 of about 1.8 and a class variance's from 14.4 to 20.5. Estimates do not
 change. `se = "robust"` gives the previous numbers.
 
+The same now holds under `correction = "BCH"`. Step 1 reaches a BCH step 3
+through its case weights, so the step-1 term is taken with the weights
+rebuilt from the moved posteriors and added to the case-clustered sandwich.
+In a simulation of 500 data sets with moderately separated classes, the
+sandwich alone put the class-membership intercept's standard error 13.7%
+below the spread of the estimates; the corrected one is within 0.4%, and
+every parameter within 9.4%. The default `se = "corrected"` standard errors
+of a BCH fit with `predictors` therefore grow. Estimates do not change, and
+`se = "robust"` or `"hessian"` gives the previous numbers. A BCH distal
+outcome fitted without `predictors` still treats step 1 as known.
+
 The same term was wrong for a class-predictor model alone
 (`add_covariates()`, or `fit_mixture(predictors = )`) under
 `assignment = "modal"` with `correction = "ML"`. The derivative moved the

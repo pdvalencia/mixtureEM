@@ -120,8 +120,25 @@ get_modal_resp <- function(resp) {
 #   feature of the BCH correction for poorly-separated classes (Bakk et al.,
 #   2013) and must not be clipped to zero.
 #
+# The BCH weights for assigned-class variable `A` and step-1 posteriors `resp`.
+# The classification error matrix C[j, k] = P(assigned approx j | true = k)
+# has columns indexing the true class, each summing to 1. The true class is
+# never observed, so its column weights are always the posteriors; only the
+# assigned variable A changes with the rule. Writing it as A crossed with
+# `resp` rather than A crossed with itself matters: a modal A has a single 1
+# per row, so t(A) %*% A is diagonal and would make C the identity, turning
+# the correction into a no-op. Under proportional assignment A *is* `resp` and
+# the two expressions are the same matrix. The weights are A %*% t(C^{-1});
+# negative weights are retained intentionally. Kept in one place because the
+# step-1 term of the joint variance (R/step3_joint.R) differentiates them.
+.bch_weights <- function(resp, A, weights) {
+  C <- t(A) %*% (resp * weights)
+  C <- sweep(C, 2, colSums(resp * weights), "/")
+  A %*% t(pinv(C))
+}
+
 fit_bch <- function(model_state, X, Y, assignment = "proportional",
-                    max_iter = 1000) {
+                    max_iter = 1000, se = "robust") {
 
   if (inherits(model_state$sm, c("covariate", "distal_regression", "distal_pooled"))) {
     warning(paste(
@@ -148,22 +165,7 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional",
   # closer to the identity, so inverting it applies a smaller correction.
   A <- if (assignment == "modal") get_modal_resp(resp) else resp
 
-  # Classification error matrix C.
-  # C[j, k] = P(assigned approx j | true = k). Columns index the true class and
-  # sum to 1. The true class is never observed, so its column weights are always
-  # the posteriors; only the assigned variable A changes with the rule. Writing
-  # it as A crossed with `resp` rather than A crossed with itself matters: a
-  # modal A has a single 1 per row, so t(A) %*% A is diagonal and would make C
-  # the identity, turning the correction into a no-op. Under proportional
-  # assignment A *is* `resp` and the two expressions are the same matrix.
-  C <- t(A) %*% (resp * weights)
-  C <- sweep(C, 2, colSums(resp * weights), "/")
-
-  # BCH weight matrix: D = t(C^{-1})
-  D <- t(pinv(C))
-
-  # Apply to the assignment weights. Negative weights are retained intentionally.
-  bch_resp <- A %*% D
+  bch_resp <- .bch_weights(resp, A, weights)
 
   # A nested structural model (class predictors with distal outcomes) is not
   # always solved by one M-step -- a block with class-specific variances takes
@@ -183,8 +185,9 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional",
     }
     model_state$lower_bound <- wll(model_state$sm)
     return(.attach_nested_step3_vcov(
-      model_state, Y, bch_resp, NULL, weights, se = "robust",
-      strata = model_state$strata, cluster = model_state$cluster))
+      model_state, Y, bch_resp, NULL, weights, se = se,
+      strata = model_state$strata, cluster = model_state$cluster,
+      X = X, assignment = assignment, bch_assign = A))
   }
 
   model_state$sm <- init_params(model_state$sm, Y, bch_resp)

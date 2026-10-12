@@ -82,11 +82,22 @@ test_that("the joint BCH model maximises its weighted log-likelihood and reports
   })
   expect_equal(jh$metrics$ll, sum(dw * (lpk + lf)), tolerance = 1e-8)
 
-  # `se` does not change the BCH variance: it is always the sandwich.
+  # "hessian" and "robust" both give the case sandwich under BCH.
   expect_equal(jh$sm$parameters$vcov_joint, jr$sm$parameters$vcov_joint)
   expect_match(jh$sm$parameters$V_method, "BCH")
   se <- sqrt(diag(jh$sm$parameters$vcov_joint))
   expect_true(all(is.finite(se) & se > 0))
+
+  # "corrected" adds step 1's uncertainty through the BCH weights: same
+  # estimates, and a positive semi-definite increment over the sandwich.
+  jc <- .joint_fit(s, correction = "BCH", variances = "class_specific",
+                   assignment = "modal", se = "corrected")
+  expect_equal(jc$metrics$ll, jr$metrics$ll)
+  expect_match(jc$sm$parameters$V_method, "Bakk-Oberski-Vermunt.*BCH")
+  dV <- jc$sm$parameters$vcov_joint - jr$sm$parameters$vcov_joint
+  expect_gt(min(eigen(dV, symmetric = TRUE, only.values = TRUE)$values),
+            -1e-8 * max(abs(dV)))
+  expect_gt(max(diag(dV)), 0)
 })
 
 test_that("each outcome can be contrasted and summarised", {

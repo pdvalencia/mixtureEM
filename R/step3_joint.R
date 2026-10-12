@@ -28,6 +28,9 @@
 # are not frequencies (many are negative), so the inverse Hessian credits each
 # case with a full observation in every class it touches, and the K records of
 # one case share its outcome and covariates, so the case is the independent unit.
+# Step 1 reaches this objective through the weights alone, so its uncertainty
+# is carried by the same first-order term as under ML, with the weights rebuilt
+# from the perturbed posteriors in place of the classification table.
 # ==============================================================================
 
 # Which blocks of a nested structural model this file can pack. A block of any
@@ -114,10 +117,13 @@
 # sandwich the second variance component of Bakk, Oberski & Vermunt (2014, eq.
 # 17), J D1 J', the uncertainty carried over from step 1 through the
 # classification table (`.nested_step1_term()`). With `Cn = NULL` (BCH) the
-# sandwich is reported whatever `se` says, without the step-1 term.
+# base is the sandwich whatever `se` says, and "corrected" adds the same term
+# through the BCH weights; `bch_assign` is then the assigned-class variable
+# the weights were built from.
 .attach_nested_step3_vcov <- function(model_state, Y, A1, Cn, w, se,
                                       strata = NULL, cluster = NULL,
-                                      X = NULL, assignment = "proportional") {
+                                      X = NULL, assignment = "proportional",
+                                      bch_assign = NULL) {
   sm <- model_state$sm
   if (!all(vapply(sm$models, .nested_packable, logical(1)))) {
     return(model_state)
@@ -163,15 +169,19 @@
             "log-likelihood (joint model); step-1 uncertainty not propagated")
     else paste("Step-3 sandwich of the joint model; step-1 uncertainty",
                "not propagated")
-    if (identical(se, "corrected") && !is.null(Cn) && !is.null(X)) {
+    if (identical(se, "corrected") && !is.null(X) &&
+        (!is.null(Cn) || !is.null(bch_assign))) {
       corr <- .nested_step1_term(model_state, X, A1, w, assignment, B_inv,
-                                 function(A, Cv) colSums(w * score_at(theta, A, Cv)))
+                                 function(A, Cv) colSums(w * score_at(theta, A, Cv)),
+                                 bch_assign = bch_assign)
       if (is.null(corr)) {
         .warn_step1_unavailable(model_state$mm)
       } else {
         V      <- V + corr$V
         method <- sprintf(paste("Bakk-Oberski-Vermunt corrected (joint model;",
-                                "robust step 3, %s step 1)%s"),
+                                "%s step 3, %s step 1)%s"),
+                          if (is.null(Cn)) "BCH case-clustered sandwich"
+                          else "robust",
                           corr$method,
                           if (isTRUE(corr$fallback))
                             "; step-1 Hessian was not positive definite" else "")
@@ -230,9 +240,12 @@
 # assignments are held where step 2 put them, since a small change to the
 # posteriors must not carry a case across a boundary. `total_score(A, Cv)` is
 # the summed step-3 score at the step-3 estimates for assignment `A` and table
-# `Cv`. Returns NULL when the measurement model has no unconstrained packing.
+# `Cv`. Under BCH (`bch_assign` given) the table is replaced by the BCH weights
+# rebuilt from the moved posteriors, with `Cv = NULL`; a modal `bch_assign` is
+# held fixed for the same reason. Returns NULL when the measurement model has
+# no unconstrained packing.
 .nested_step1_term <- function(model_state, X, A1, w, assignment, B_inv,
-                               total_score) {
+                               total_score, bch_assign = NULL) {
   th1 <- .step1_pack(model_state)
   if (is.null(th1) || !length(th1)) return(NULL)
   p1 <- length(th1)
@@ -242,6 +255,10 @@
     ms <- .step1_unpack(model_state, v)
     ms$sm <- NULL
     r  <- exp(e_step(ms, X, NULL)$log_resp)
+    if (!is.null(bch_assign)) {
+      A <- if (identical(assignment, "modal")) bch_assign else r
+      return(total_score(.bch_weights(r, A, w), NULL))
+    }
     A  <- if (identical(assignment, "modal")) A1 else r
     Cv <- sweep(t(r * w) %*% A, 1, colSums(r * w), "/")
     total_score(A, Cv)

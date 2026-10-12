@@ -115,7 +115,7 @@
                             assignment = assignment)
     } else if (correction == "BCH") {
       model_state <- fit_bch(model_state, X, Y, assignment = assignment,
-                             max_iter = max_iter)
+                             max_iter = max_iter, se = se)
     } else {
       # correction = "none": plain 2-step update on the structural model.
       # The measurement model is already frozen at this point; the SM is fit on

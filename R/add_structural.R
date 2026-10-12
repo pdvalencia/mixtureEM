@@ -458,12 +458,14 @@ add_covariates <- function(fit, predictors,
 #'   whatever this is set to, and so does a BCH model with `predictors`: the
 #'   expanded data set carries one weighted
 #'   record per class per case, so a case-clustered sandwich is the only
-#'   estimator that prices the information the correction gives up. Under
-#'   `correction = "ML"` with `predictors`, `"corrected"` adds the step-1 term
+#'   estimator that prices the information the correction gives up. With
+#'   `predictors`, under either correction, `"corrected"` adds the step-1 term
 #'   of [covariate_se] over the whole joint model, so the outcome blocks carry
-#'   step 1's uncertainty too. A distal outcome fitted without `predictors`,
-#'   and any BCH model, treat step 1's estimates as known, so with poorly
-#'   separated classes their intervals are somewhat too narrow.
+#'   step 1's uncertainty too; under BCH it enters through the BCH weights,
+#'   which are rebuilt from the moved posteriors, and is added to the
+#'   case-clustered sandwich. A distal outcome fitted without `predictors`
+#'   treats step 1's estimates as known, so with poorly separated classes its
+#'   intervals are somewhat too narrow.
 #' @param assignment How step 1's posteriors are turned into the assigned-class
 #'   variable whose classification error the correction inverts.
 #'   `"proportional"` (default) gives every case a weight in every class equal
