@@ -625,7 +625,10 @@ measurement_summary.default <- function(object,
 #'   default) skips it. Each draw continues the fitted solution on the
 #'   resampled cases (one EM run from the fitted parameters, no restarts), so
 #'   its classes keep the fitted labels. Available for an unconditional,
-#'   unweighted, single-group, one-step fit.
+#'   unweighted, single-group, one-step fit. The interval can be too narrow
+#'   when some item probabilities sit at 0 or 1: in a simulation from such a
+#'   four-class solution it covered the true proportion only 69\% to 89\% of
+#'   the time for the classes involved.
 #' @param level Confidence level of that interval. Default `0.95`.
 #' @param random_state Integer seed for the resampling. Default `123`.
 #' @param n_cores Positive integer. Processes to spread the draws over.
@@ -3137,7 +3140,13 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   guarantee: under a correct specification the maximum is typically found by
 #'   39\% to 77\% of the starts, so 20 is enough to see a stable maximum when
 #'   there is one, but local optima multiply with more classes and poorer
-#'   separation. \code{max_iter} defaults to 1000, following the iteration
+#'   separation. A one-step fit with a structural model (\code{predictors} or
+#'   \code{outcome} with \code{n_steps = 1}) is harder still: on simulated data
+#'   the best maximum was reached by about one start in ten, so 20 starts miss
+#'   it about one time in eight. The replication count cannot warn about this,
+#'   since it only describes the best maximum the starts found. Use
+#'   \code{n_init = 50} or more for these fits. \code{max_iter} defaults to
+#'   1000, following the iteration
 #'   budget in Biernacki et al. (2003); when a fit stops at the cap, double it.
 #'   \code{vignette("estimation")} gives the figures behind both numbers.
 #'

@@ -110,11 +110,29 @@
 # and the scores below describe a model nothing was ever optimised against.
 # The joint functions fall through to the plain ones whenever `sm` is absent
 # or inactive, so an ordinary LCA/LPA fit packs exactly as before.
-.vlmr_pieces <- function(fit) {
-  par <- .joint_pack(fit)
-  if (is.null(par) || !length(par)) return(NULL)
+#
+# `finish_packing = TRUE` lets a fit with no structural model fall back on the
+# packing the Newton-type finish uses (R/qn_pack.R), which covers the growth
+# families `.step1_pack_mm()` does not: Psi through its log-diagonal Cholesky
+# factor, residual variances as log standard deviations. The test only uses
+# the eigenvalues of W, and a smooth one-to-one change of parameterisation
+# leaves them unchanged, so the two packings give the same reference
+# distribution wherever both exist. Only `.vlmr_pair()` asks for it.
+.vlmr_pieces <- function(fit, finish_packing = FALSE) {
   X <- fit$data
   if (is.null(X)) return(NULL)
+  par     <- .joint_pack(fit)
+  case_ll <- function(v) .joint_ll_case(fit, X, v)
+  if ((is.null(par) || !length(par)) && finish_packing && is.null(fit$sm)) {
+    lay <- .qn_mixture_layout(fit, NULL)
+    if (!is.null(lay)) {
+      par     <- lay$par
+      case_ll <- function(v) logsumexp(
+        .qn_mixture_logdens(.qn_mixture_unpack(fit, lay, v), lay, X, NULL),
+        MARGIN = 1)
+    }
+  }
+  if (is.null(par) || !length(par)) return(NULL)
   n <- nrow(X)
   w <- fit$sample_weights %||% rep(1, n)
 
@@ -123,11 +141,11 @@
   s <- vapply(seq_len(p), function(m) {
     a <- par; a[m] <- a[m] + h[m]
     b <- par; b[m] <- b[m] - h[m]
-    w * (.joint_ll_case(fit, X, a) - .joint_ll_case(fit, X, b)) / (2 * h[m])
+    w * (case_ll(a) - case_ll(b)) / (2 * h[m])
   }, numeric(n))
   dim(s) <- c(n, p)
 
-  ll <- function(v) sum(w * .joint_ll_case(fit, X, v))
+  ll <- function(v) sum(w * case_ll(v))
   list(s = s, A = .step1_fd_hessian(ll, par), ll = ll(par), p = p, n = n)
 }
 
@@ -315,8 +333,8 @@
       !isTRUE(all.equal(fit0$data, fit1$data, check.attributes = FALSE)))
     return(na("the two models were not fit on the same data"))
 
-  a0 <- .vlmr_pieces(fit0)
-  a1 <- .vlmr_pieces(fit1)
+  a0 <- .vlmr_pieces(fit0, finish_packing = TRUE)
+  a1 <- .vlmr_pieces(fit1, finish_packing = TRUE)
   if (is.null(a0) || is.null(a1))
     return(na("this measurement model has no packable parameter vector"))
   if (a0$p + a1$p > .vlmr_max_params)

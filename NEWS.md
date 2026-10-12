@@ -1,5 +1,26 @@
 # mixtureEM (development version)
 
+## The VLMR test runs on growth mixture models
+
+`compare_mixtures(vlmr = )` reported the VLMR test as unavailable for every
+growth mixture model, the kind `fit_gmm()` fits, because the growth
+parameters had no unconstrained representation to differentiate. It now uses
+the one the Newton-type finish already uses (the growth-factor covariance
+through its Cholesky factor, residual variances as log standard deviations),
+which leaves the test's reference distribution unchanged wherever both
+representations exist. On a two-class linear growth model of four math
+scores, 1,528 students with missing waves, the likelihood ratio is 120.92
+and the robust reference distribution has mean 2.68 and standard deviation
+3.77. Every other model's VLMR result is unchanged.
+
+## Two help pages say where the defaults fall short
+
+`classification_diagnostics()` now says that its bootstrap interval for the
+class proportions can be too narrow when item probabilities sit at 0 or 1.
+`fit_mixture()`'s `n_init` documentation now says that a one-step fit with a
+structural model can need 50 or more starts, and that the replication count
+cannot reveal a maximum no start reached. No default changes.
+
 ## The latent transition finish no longer differences its prior
 
 The Newton-type finish that `fit_lta()` runs after EM took the gradient of the

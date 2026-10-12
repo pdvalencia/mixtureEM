@@ -513,3 +513,22 @@ test_that("the BLRT runs end to end on a growth model", {
   expect_gt(res$obs_diff, 0)
   expect_true(is.finite(res$p_value))
 })
+
+test_that("the VLMR test runs on a growth model", {
+  set.seed(149)
+  Y <- .sim_gmm(n = 200)
+  f1 <- fit_gmm(Y, times = 4, n_classes = 1, n_init = 2, random_state = 1)
+  f2 <- fit_gmm(Y, times = 4, n_classes = 2, n_init = 3, random_state = 1)
+
+  # Growth parameters have no step-one packing, so the test borrows the
+  # finish's (R/qn_pack.R) rather than declining.
+  expect_null(.step1_pack(f2))
+  res <- .vlmr_pair(f1, f2, c("standard", "robust"))
+  expect_null(res$reason)
+  expect_equal(res$LR, 2 * (f2$metrics$ll - f1$metrics$ll), tolerance = 1e-6)
+  for (v in c("standard", "robust")) {
+    expect_gt(res[[v]]$mean, 0)
+    expect_gt(res[[v]]$sd, 0)
+    expect_true(res[[v]]$p >= 0 && res[[v]]$p <= 1)
+  }
+})

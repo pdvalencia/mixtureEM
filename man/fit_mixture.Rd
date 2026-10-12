@@ -389,7 +389,13 @@ The default of 20 is a floor for small, well-separated models rather than a
 guarantee: under a correct specification the maximum is typically found by
 39\\% to 77\\% of the starts, so 20 is enough to see a stable maximum when
 there is one, but local optima multiply with more classes and poorer
-separation. \code{max_iter} defaults to 1000, following the iteration
+separation. A one-step fit with a structural model (\code{predictors} or
+\code{outcome} with \code{n_steps = 1}) is harder still: on simulated data
+the best maximum was reached by about one start in ten, so 20 starts miss
+it about one time in eight. The replication count cannot warn about this,
+since it only describes the best maximum the starts found. Use
+\code{n_init = 50} or more for these fits. \code{max_iter} defaults to
+1000, following the iteration
 budget in Biernacki et al. (2003); when a fit stops at the cap, double it.
 \code{vignette("estimation")} gives the figures behind both numbers.
 
