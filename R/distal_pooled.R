@@ -134,7 +134,18 @@ m_step.distal_pooled <- function(model_state, X, resp, weights = NULL,
       G[m - 1, ] <- t(U_valid) %*% diff
     }
     G_flat <- as.vector(t(G))
-    if (max(abs(G_flat)) < model_state$tol) break
+
+    # Coefficients are kept within +/-15 on the logit scale, as in
+    # .dif_item_newton() (R/categorical_dif.R). Under BCH weights a class can
+    # carry a negative net weight on a category, and the weighted
+    # log-likelihood then has no finite maximum: unbounded, each call walked
+    # the logit 500 units further until exp() underflowed, near -26000 after
+    # minutes. A coefficient on the bound whose gradient points outward is held
+    # there and left out of the Newton step; kept in, its step would set the
+    # scale of every other coefficient's step through the cap below.
+    b_flat <- as.vector(t(beta_mat))
+    free   <- !(abs(b_flat) >= 15 & G_flat * b_flat > 0)
+    if (max(abs(G_flat[free]), 0) < model_state$tol) break
 
     H_nr <- matrix(0, nrow = (M - 1) * L, ncol = (M - 1) * L)
     for (m in 2:M) {
@@ -149,12 +160,13 @@ m_step.distal_pooled <- function(model_state, X, resp, weights = NULL,
     }
     diag(H_nr) <- diag(H_nr) - 1e-4
 
-    update_step <- pinv(-H_nr) %*% G_flat
+    update_step       <- numeric(length(G_flat))
+    update_step[free] <- pinv(-H_nr[free, free, drop = FALSE]) %*% G_flat[free]
     max_step    <- 1.0
     if (max(abs(update_step)) > max_step)
       update_step <- update_step * (max_step / max(abs(update_step)))
 
-    beta_flat <- as.vector(t(beta_mat)) + update_step
+    beta_flat <- pmax(pmin(b_flat + update_step, 15), -15)
     beta_mat  <- t(matrix(beta_flat, nrow = L, ncol = M - 1))
   }
 

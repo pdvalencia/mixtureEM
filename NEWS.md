@@ -1,5 +1,21 @@
 # mixtureEM (development version)
 
+## A BCH categorical outcome no longer runs off to minus infinity
+
+Under `correction = "BCH"` a class can carry a negative net weight on one
+category of a categorical distal outcome, since the BCH weights themselves
+can be negative. The weighted log-likelihood then has no finite maximum, and
+the outcome's Newton loop walked that class's logit 500 units further on
+every call until the arithmetic underflowed. On one resampled data set the
+reported logit was -25998.57 and the step-3 fit took 34 seconds, and other
+draws took several minutes. The coefficients of a categorical outcome are now
+kept within +/-15 on the logit scale, where the probability is within 3e-7
+of 0 or 1, and a coefficient held at that bound is left out of the Newton
+step so that it no longer slows the others. The same fit now reports -15 and
+takes 3 seconds, and its other coefficients agree with the previous ones to
+about 1e-5. A fit with every coefficient inside the bound gives the same
+numbers as before.
+
 ## Corrected standard errors for joint step-3 models, and for modal assignment
 
 `add_outcome(predictors = , correction = "ML")` fits class predictors and

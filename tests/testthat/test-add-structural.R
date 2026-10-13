@@ -307,3 +307,26 @@ test_that("add_outcome's formula must name exactly one outcome", {
   expect_error(add_outcome(fit0, ~ bmi + age, data = df),
                "exactly one distal outcome")
 })
+
+test_that("a categorical outcome under a negative net weight stops at the logit bound", {
+  # Class 2 carries a negative net weight on y = 1, as BCH weights can, so the
+  # weighted log-likelihood has no finite maximum in that class's logit.
+  set.seed(3)
+  n <- 400
+  z <- rnorm(n)
+  y <- rbinom(n, 1, 0.3)
+  r <- cbind(rep(1, n), ifelse(y == 1, -0.01, 1))
+  m <- init_params(distal_pooled_model(2), cbind(y, z), r, random_state = 1)
+  t0 <- proc.time()[["elapsed"]]
+  m <- m_step(m, cbind(y, z), r)
+  expect_lt(proc.time()[["elapsed"]] - t0, 2)
+  b <- m$parameters$beta_pooled
+  expect_equal(b[1, 2], -15)
+  # The other coefficients still reach their maximum given the bound: their
+  # weighted score is zero there.
+  p1 <- plogis(b[1, 1] + b[1, 3] * z)
+  p2 <- plogis(b[1, 2] + b[1, 3] * z)
+  g  <- c(sum(r[, 1] * (y - p1)),
+          sum(r[, 1] * (y - p1) * z) + sum(r[, 2] * (y - p2) * z))
+  expect_lt(max(abs(g)), 1e-3)
+})
