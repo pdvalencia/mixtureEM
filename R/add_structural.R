@@ -466,10 +466,13 @@ add_covariates <- function(fit, predictors,
 #'   which are rebuilt from the moved posteriors, and is added to the
 #'   case-clustered sandwich. Under BCH a distal outcome fitted without
 #'   `predictors` takes the same term, as the one-block case of the same
-#'   model, except a continuous outcome without `covariates` under
-#'   `assignment = "modal"`. That one, and any outcome without `predictors`
-#'   under ML, treats step 1's estimates as known, so with poorly separated
-#'   classes its intervals are somewhat too narrow.
+#'   model. The term is first-order: with poorly separated classes (entropy
+#'   R-squared below about .70) and a few hundred cases, the corrected BCH
+#'   standard errors tend to run wide, by up to about 20% in simulation,
+#'   where the sandwich alone runs narrow by about as much; the excess
+#'   shrinks as the sample grows. Under ML a distal outcome fitted without
+#'   `predictors` treats step 1's estimates as known, so with poorly
+#'   separated classes its intervals are somewhat too narrow.
 #' @param assignment How step 1's posteriors are turned into the assigned-class
 #'   variable whose classification error the correction inverts.
 #'   `"proportional"` (default) gives every case a weight in every class equal

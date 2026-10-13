@@ -242,14 +242,7 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional",
   # Under `se = "corrected"` a block the joint code can pack takes the joint
   # BCH variance as its one-block case: the case-clustered sandwich plus step
   # 1's uncertainty, carried through the rebuilt BCH weights (R/step3_joint.R).
-  # A continuous outcome without covariates under modal assignment keeps the
-  # sandwich: in a 500-replicate simulation the term put its class-1 mean's
-  # standard error 9.2% above the spread of the estimates, where every other
-  # block and rule came within 5.4%.
-  lone_modal_mean <- identical(assignment, "modal") &&
-    inherits(model_state$sm, "distal_continuous")
-  if (identical(se, "corrected") && .nested_packable(model_state$sm) &&
-      !lone_modal_mean)
+  if (identical(se, "corrected") && .nested_packable(model_state$sm))
     model_state <- .attach_nested_step3_vcov(
       model_state, Y, bch_resp, NULL, weights, se = se,
       strata = model_state$strata, cluster = model_state$cluster,

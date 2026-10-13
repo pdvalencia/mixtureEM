@@ -46,10 +46,14 @@ from the Hessian of the weighted fit, which counts each case as a full
 observation in every class. In a simulation of 500 data sets with moderately
 separated classes, the class-membership coefficients' standard errors went
 from 18% to 32% below the spread of the estimates to within 3.4%, and a
-distal outcome's from up to 15.7% below to within 5.4%. One case keeps the sandwich: a continuous
-outcome without covariates under `assignment = "modal"`, where the term put
-a class mean's standard error 9.2% above that spread. Estimates do not
-change, and `se = "robust"` or `"hessian"` gives the previous numbers.
+distal outcome's from up to 15.7% below to within 5.4%. Across a wider grid
+of separations (entropy R-squared .53 to .92) and sample sizes (400 to
+2,000), the 95% intervals of a lone continuous outcome's class means
+covered 93.8% to 97.6% of the time with the term and 86.0% to 96.2%
+without it. The term is first-order, so with poorly separated classes and
+a few hundred cases it runs wide, by up to about 20%, and the help page
+says so. Estimates do not change, and `se = "robust"` or `"hessian"` gives
+the previous numbers.
 
 The same term was wrong for a class-predictor model alone
 (`add_covariates()`, or `fit_mixture(predictors = )`) under

@@ -118,9 +118,10 @@ test_that("a lone BCH block takes the same step-1 term as the joint model", {
   expect_gt(min(eigen(dV, symmetric = TRUE, only.values = TRUE)$values),
             -1e-8 * max(abs(dV)))
   expect_gt(max(diag(dV)), 0)
-  # ...except under modal assignment, where it keeps the sandwich.
-  expect_equal(y_of("corrected", "modal")$sm$parameters$Sigma_mu,
-               y_of("robust", "modal")$sm$parameters$Sigma_mu)
+  # Modal assignment takes the term too.
+  dVm <- y_of("corrected", "modal")$sm$parameters$Sigma_mu -
+    y_of("robust", "modal")$sm$parameters$Sigma_mu
+  expect_gt(max(diag(dVm)), 0)
 
   # Class predictors alone: same coefficients, and the corrected covariance is
   # attached where summary() and confint() read it.
