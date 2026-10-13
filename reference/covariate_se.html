@@ -109,6 +109,11 @@ of an analysis that treats the assigned classes as given; use
 default the intervals are wider, and the difference is a difference in
 estimator — the corrected form carries step-1 uncertainty that the
 sandwich alone omits.</p>
+<p>Under <code>correction = "BCH"</code> there is no classification table: step 3 is
+fitted to the BCH-weighted log-likelihood, and <code>"corrected"</code> is its
+sandwich clustered on the case plus \(J D_1 J'\), with step 1 reaching
+step 3 through the BCH weights rebuilt from the moved posteriors. The other
+two settings report the Hessian of that weighted fit.</p>
 <p>How much this matters depends almost entirely on how well separated the
 classes are. A 250-replication coverage study on the design of Bakk et al.
 (<code>data-raw/covariate_se_simulation.R</code> in the package sources) gives, for
@@ -175,14 +180,19 @@ not the linearised one; <code>"robust"</code> is the design-based choice there.<
 
 <p>The corrected and robust estimators cover a covariate (class-prediction)
 structural model estimated with <code>n_steps = 3</code> and
-<code>correction = "none"</code> or <code>"ML"</code>, and with <code>n_steps = 2</code>. Four
-cases fall back to the uncorrected Hessian, and say so in the printed
-output: <code>correction = "BCH"</code> (whose weights need their own variance
-treatment, and which is not recommended for covariates in any case);
-<code>n_steps = 1</code>, where measurement and structural parameters are estimated
-jointly and no carry-over correction applies; a two-step fit whose
-structural model is a distal outcome rather than class predictors; and a
-covariate combined with a distal outcome in one nested structural model.
+<code>correction = "none"</code> or <code>"ML"</code>, and with <code>n_steps = 2</code>.
+Class predictors fitted together with distal outcomes
+(<code>add_outcome(predictors = )</code>, <code>correction = "ML"</code>) are covered
+too: the step-1 term is taken over the whole joint parameter vector, so the
+outcome parameters carry it as well. Under modal assignment the derivative
+holds each case's assigned class fixed and moves only the classification
+table built from it. Three cases fall back to the uncorrected Hessian, and
+say so in the printed output: <code>correction = "BCH"</code> (whose weights need
+their own variance treatment, and which is not recommended for covariates
+in any case; with <code>predictors</code> it reports the case-clustered sandwich);
+<code>n_steps = 1</code>, where measurement and structural parameters are
+estimated jointly and no carry-over correction applies; and a two-step fit
+whose structural model is a distal outcome rather than class predictors.
 The step-1 term additionally requires a measurement model whose parameters
 this package can put on an unconstrained scale — binary, polytomous,
 Gaussian, count, mixed, and repeated-measures models qualify; growth models

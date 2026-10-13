@@ -134,7 +134,8 @@ another. Available with <code>correction = "ML"</code> (the default here) or
 joint step-3 log-likelihood (<code>se = "hessian"</code> for the inverse observed
 information, otherwise the sandwich); under BCH the model is fitted to
 the BCH-weighted log-likelihood and its standard errors are always the
-sandwich clustered on the case. Both treat the step-1 estimates as known.</p></dd>
+sandwich clustered on the case. Under <code>se = "corrected"</code> both add step
+1's uncertainty; see <code>se</code>.</p></dd>
 
 
 <dt id="arg-variances">variances<a class="anchor" aria-label="anchor" href="#arg-variances"></a></dt>
@@ -170,11 +171,20 @@ covariate part of the third step. A continuous distal outcome under
 whatever this is set to, and so does a BCH model with <code>predictors</code>: the
 expanded data set carries one weighted
 record per class per case, so a case-clustered sandwich is the only
-estimator that prices the information the correction gives up. A
-distal outcome's standard errors, under BCH or ML, treat step 1's
-estimates as known: the step-1 term <code>"corrected"</code> adds exists for class
-predictors only (see <a href="covariate_se.html">covariate_se</a>), so with poorly separated classes
-an outcome's intervals are somewhat too narrow.</p></dd>
+estimator that prices the information the correction gives up. With
+<code>predictors</code>, under either correction, <code>"corrected"</code> adds the step-1 term
+of <a href="covariate_se.html">covariate_se</a> over the whole joint model, so the outcome blocks carry
+step 1's uncertainty too; under BCH it enters through the BCH weights,
+which are rebuilt from the moved posteriors, and is added to the
+case-clustered sandwich. Under BCH a distal outcome fitted without
+<code>predictors</code> takes the same term, as the one-block case of the same
+model. The term is first-order: with poorly separated classes (entropy
+R-squared below about .70) and a few hundred cases, the corrected BCH
+standard errors tend to run wide, by up to about 20% in simulation,
+where the sandwich alone runs narrow by about as much; the excess
+shrinks as the sample grows. Under ML a distal outcome fitted without
+<code>predictors</code> treats step 1's estimates as known, so with poorly
+separated classes its intervals are somewhat too narrow.</p></dd>
 
 
 <dt id="arg-assignment">assignment<a class="anchor" aria-label="anchor" href="#arg-assignment"></a></dt>
@@ -250,15 +260,15 @@ outcome; <code><a href="add_covariates.html">add_covariates()</a></code> for pre
 <span class="r-out co"><span class="r-pr">#&gt;</span> CONTINUOUS DISTAL OUTCOME (MEANS)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> ---------------------------------------------------------</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Omnibus test (class differences): Wald chi^2(1) = 0.05, p   0.832</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Omnibus test (class differences): Wald chi^2(1) = 0.02, p   0.897</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                  Mean       [95% CI]        SE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 1       25.063  [24.627, 25.500]     0.223</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 2       24.967  [24.422, 25.512]     0.278</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 1       25.063  [24.549, 25.577]     0.262</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 2       24.967  [23.919, 26.015]     0.535</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Pairwise class differences:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>                     Difference       [95% CI]        P-Value</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 2 vs 1        -0.096  [-0.987,  0.794]     0.832</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Class 2 vs 1        -0.096  [-1.553,  1.361]     0.897</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> =========================================================</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># The same outcome named in a formula against its data frame</span></span></span>

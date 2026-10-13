@@ -2,6 +2,74 @@
 
 ## mixtureEM (development version)
 
+### A BCH categorical outcome no longer runs off to minus infinity
+
+Under `correction = "BCH"` a class can carry a negative net weight on
+one category of a categorical distal outcome, since the BCH weights
+themselves can be negative. The weighted log-likelihood then has no
+finite maximum, and the outcome’s Newton loop walked that class’s logit
+500 units further on every call until the arithmetic underflowed. On one
+resampled data set the reported logit was -25998.57 and the step-3 fit
+took 34 seconds, and other draws took several minutes. The coefficients
+of a categorical outcome are now kept within +/-15 on the logit scale,
+where the probability is within 3e-7 of 0 or 1, and a coefficient held
+at that bound is left out of the Newton step so that it no longer slows
+the others. The same fit now reports -15 and takes 3 seconds, and its
+other coefficients agree with the previous ones to about 1e-5. A fit
+with every coefficient inside the bound gives the same numbers as
+before.
+
+### Corrected standard errors for joint step-3 models, and for modal assignment
+
+`add_outcome(predictors = , correction = "ML")` fits class predictors
+and distal outcomes in one step-3 model. Its default `se = "corrected"`
+used to report the step-3 sandwich alone, so it treated step 1’s
+classification table as known. It now adds the step-1 term of Bakk,
+Oberski and Vermunt (2014), taken over the whole joint parameter vector,
+so every block’s standard errors carry step 1’s uncertainty. On the LSAY
+four-class example with modal assignment, the class-membership
+intercepts’ standard errors grow by a factor of about 1.8 and a class
+variance’s from 14.4 to 20.5. Estimates do not change. `se = "robust"`
+gives the previous numbers.
+
+The same now holds under `correction = "BCH"`. Step 1 reaches a BCH step
+3 through its case weights, so the step-1 term is taken with the weights
+rebuilt from the moved posteriors and added to the case-clustered
+sandwich. In a simulation of 500 data sets with moderately separated
+classes, the sandwich alone put the class-membership intercept’s
+standard error 13.7% below the spread of the estimates; the corrected
+one is within 0.4%, and every parameter within 9.4%. The default
+`se = "corrected"` standard errors of a BCH fit with `predictors`
+therefore grow. Estimates do not change, and `se = "robust"` or
+`"hessian"` gives the previous numbers.
+
+A BCH model with one block, a distal outcome without `predictors` or
+`add_covariates(correction = "BCH")`, is the one-block case of the same
+model and now takes the same term under `se = "corrected"`. Its standard
+errors used to treat step 1 as known, and a class-predictor model’s came
+from the Hessian of the weighted fit, which counts each case as a full
+observation in every class. In a simulation of 500 data sets with
+moderately separated classes, the class-membership coefficients’
+standard errors went from 18% to 32% below the spread of the estimates
+to within 3.4%, and a distal outcome’s from up to 15.7% below to within
+5.4%. Across a wider grid of separations (entropy R-squared .53 to .92)
+and sample sizes (400 to 2,000), the 95% intervals of a lone continuous
+outcome’s class means covered 93.8% to 97.6% of the time with the term
+and 86.0% to 96.2% without it. The term is first-order, so with poorly
+separated classes and a few hundred cases it runs wide, by up to about
+20%, and the help page says so. Estimates do not change, and
+`se = "robust"` or `"hessian"` gives the previous numbers.
+
+The same term was wrong for a class-predictor model alone
+([`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md),
+or `fit_mixture(predictors = )`) under `assignment = "modal"` with
+`correction = "ML"`. The derivative moved the assignments with step 1’s
+estimates and used a proportional classification table, which is not the
+likelihood the modal fit maximises. On the example above that made the
+intercepts’ corrected standard errors about 20% too small. It now holds
+each case’s assigned class fixed and moves only the table. Proportional
+assignment, the default, gives the same numbers as before.
+
 ### `lr_test()` checks that two-step fits share their step 1
 
 A two-step fit (`n_steps = 2`, or `add_covariates(steps = 2)`) holds the

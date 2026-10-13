@@ -53,6 +53,12 @@ default the intervals are wider, and the difference is a difference in
 estimator — the corrected form carries step-1 uncertainty that the
 sandwich alone omits.
 
+Under `correction = "BCH"` there is no classification table: step 3 is
+fitted to the BCH-weighted log-likelihood, and `"corrected"` is its
+sandwich clustered on the case plus \\J D_1 J'\\, with step 1 reaching
+step 3 through the BCH weights rebuilt from the moved posteriors. The
+other two settings report the Hessian of that weighted fit.
+
 How much this matters depends almost entirely on how well separated the
 classes are. A 250-replication coverage study on the design of Bakk et
 al. (`data-raw/covariate_se_simulation.R` in the package sources) gives,
@@ -134,14 +140,19 @@ there.
 
 The corrected and robust estimators cover a covariate (class-prediction)
 structural model estimated with `n_steps = 3` and `correction = "none"`
-or `"ML"`, and with `n_steps = 2`. Four cases fall back to the
-uncorrected Hessian, and say so in the printed output:
+or `"ML"`, and with `n_steps = 2`. Class predictors fitted together with
+distal outcomes (`add_outcome(predictors = )`, `correction = "ML"`) are
+covered too: the step-1 term is taken over the whole joint parameter
+vector, so the outcome parameters carry it as well. Under modal
+assignment the derivative holds each case's assigned class fixed and
+moves only the classification table built from it. Three cases fall back
+to the uncorrected Hessian, and say so in the printed output:
 `correction = "BCH"` (whose weights need their own variance treatment,
-and which is not recommended for covariates in any case); `n_steps = 1`,
+and which is not recommended for covariates in any case; with
+`predictors` it reports the case-clustered sandwich); `n_steps = 1`,
 where measurement and structural parameters are estimated jointly and no
-carry-over correction applies; a two-step fit whose structural model is
-a distal outcome rather than class predictors; and a covariate combined
-with a distal outcome in one nested structural model. The step-1 term
+carry-over correction applies; and a two-step fit whose structural model
+is a distal outcome rather than class predictors. The step-1 term
 additionally requires a measurement model whose parameters this package
 can put on an unconstrained scale — binary, polytomous, Gaussian, count,
 mixed, and repeated-measures models qualify; growth models do not, and

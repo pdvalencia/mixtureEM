@@ -89,8 +89,8 @@ add_outcome(
   log-likelihood (`se = "hessian"` for the inverse observed information,
   otherwise the sandwich); under BCH the model is fitted to the
   BCH-weighted log-likelihood and its standard errors are always the
-  sandwich clustered on the case. Both treat the step-1 estimates as
-  known.
+  sandwich clustered on the case. Under `se = "corrected"` both add step
+  1's uncertainty; see `se`.
 
 - variances:
 
@@ -127,12 +127,21 @@ add_outcome(
   whatever this is set to, and so does a BCH model with `predictors`:
   the expanded data set carries one weighted record per class per case,
   so a case-clustered sandwich is the only estimator that prices the
-  information the correction gives up. A distal outcome's standard
-  errors, under BCH or ML, treat step 1's estimates as known: the step-1
-  term `"corrected"` adds exists for class predictors only (see
-  [covariate_se](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md)),
-  so with poorly separated classes an outcome's intervals are somewhat
-  too narrow.
+  information the correction gives up. With `predictors`, under either
+  correction, `"corrected"` adds the step-1 term of
+  [covariate_se](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md)
+  over the whole joint model, so the outcome blocks carry step 1's
+  uncertainty too; under BCH it enters through the BCH weights, which
+  are rebuilt from the moved posteriors, and is added to the
+  case-clustered sandwich. Under BCH a distal outcome fitted without
+  `predictors` takes the same term, as the one-block case of the same
+  model. The term is first-order: with poorly separated classes (entropy
+  R-squared below about .70) and a few hundred cases, the corrected BCH
+  standard errors tend to run wide, by up to about 20% in simulation,
+  where the sandwich alone runs narrow by about as much; the excess
+  shrinks as the sample grows. Under ML a distal outcome fitted without
+  `predictors` treats step 1's estimates as known, so with poorly
+  separated classes its intervals are somewhat too narrow.
 
 - assignment:
 
@@ -218,15 +227,15 @@ summary(fit_out)
 #> CONTINUOUS DISTAL OUTCOME (MEANS)
 #> ---------------------------------------------------------
 #> 
-#> Omnibus test (class differences): Wald chi^2(1) = 0.05, p   0.832
+#> Omnibus test (class differences): Wald chi^2(1) = 0.02, p   0.897
 #> 
 #>                  Mean       [95% CI]        SE
-#>   Class 1       25.063  [24.627, 25.500]     0.223
-#>   Class 2       24.967  [24.422, 25.512]     0.278
+#>   Class 1       25.063  [24.549, 25.577]     0.262
+#>   Class 2       24.967  [23.919, 26.015]     0.535
 #> 
 #> Pairwise class differences:
 #>                     Difference       [95% CI]        P-Value
-#>   Class 2 vs 1        -0.096  [-0.987,  0.794]     0.832
+#>   Class 2 vs 1        -0.096  [-1.553,  1.361]     0.897
 #> =========================================================
 
 # The same outcome named in a formula against its data frame
