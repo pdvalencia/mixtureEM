@@ -297,9 +297,12 @@ test_that("the estimator used is recorded and reported", {
 
 test_that("BCH and one-step fits say they are using the uncorrected Hessian", {
   d <- .cse_sim()
-  bch <- suppressWarnings(suppressMessages(fit_mixture(
+  bch_fit <- function(se) suppressWarnings(suppressMessages(fit_mixture(
     d$X, n_classes = 2, measurement = "binary", predictors = d$Z,
-    n_steps = 3, correction = "BCH", n_init = 3, random_state = 1)))
+    n_steps = 3, correction = "BCH", se = se, n_init = 3, random_state = 1)))
+  bch <- bch_fit("robust")
+  # Under the default, BCH reports the corrected case-clustered sandwich.
+  expect_output(summary(bch_fit("corrected")), "Standard errors: Bakk.*BCH")
   one <- suppressMessages(fit_mixture(
     d$X, n_classes = 2, measurement = "binary", predictors = d$Z,
     n_steps = 1, n_init = 3, random_state = 1))

@@ -50,6 +50,12 @@ default the intervals are wider, and the difference is a difference in
 estimator — the corrected form carries step-1 uncertainty that the
 sandwich alone omits.
 
+Under \code{correction = "BCH"} there is no classification table: step 3 is
+fitted to the BCH-weighted log-likelihood, and \code{"corrected"} is its
+sandwich clustered on the case plus \eqn{J D_1 J'}, with step 1 reaching
+step 3 through the BCH weights rebuilt from the moved posteriors. The other
+two settings report the Hessian of that weighted fit.
+
 How much this matters depends almost entirely on how well separated the
 classes are. A 250-replication coverage study on the design of Bakk et al.
 (\code{data-raw/covariate_se_simulation.R} in the package sources) gives, for

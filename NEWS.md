@@ -36,8 +36,20 @@ sandwich alone put the class-membership intercept's standard error 13.7%
 below the spread of the estimates; the corrected one is within 0.4%, and
 every parameter within 9.4%. The default `se = "corrected"` standard errors
 of a BCH fit with `predictors` therefore grow. Estimates do not change, and
-`se = "robust"` or `"hessian"` gives the previous numbers. A BCH distal
-outcome fitted without `predictors` still treats step 1 as known.
+`se = "robust"` or `"hessian"` gives the previous numbers.
+
+A BCH model with one block, a distal outcome without `predictors` or
+`add_covariates(correction = "BCH")`, is the one-block case of the same
+model and now takes the same term under `se = "corrected"`. Its standard
+errors used to treat step 1 as known, and a class-predictor model's came
+from the Hessian of the weighted fit, which counts each case as a full
+observation in every class. In a simulation of 500 data sets with moderately
+separated classes, the class-membership coefficients' standard errors went
+from 18% to 32% below the spread of the estimates to within 3.4%, and a
+distal outcome's from up to 15.7% below to within 5.4%. One case keeps the sandwich: a continuous
+outcome without covariates under `assignment = "modal"`, where the term put
+a class mean's standard error 9.2% above that spread. Estimates do not
+change, and `se = "robust"` or `"hessian"` gives the previous numbers.
 
 The same term was wrong for a class-predictor model alone
 (`add_covariates()`, or `fit_mixture(predictors = )`) under

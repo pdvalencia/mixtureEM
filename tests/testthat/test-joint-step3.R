@@ -100,6 +100,36 @@ test_that("the joint BCH model maximises its weighted log-likelihood and reports
   expect_gt(max(diag(dV)), 0)
 })
 
+test_that("a lone BCH block takes the same step-1 term as the joint model", {
+  s   <- .joint_sim()
+  fit <- fit_mixture(s$X, n_classes = 2, measurement = "binary", n_init = 5,
+                     random_state = 1, n_cores = 1)
+  y_of <- function(se, assignment = "proportional") suppressMessages(add_outcome(
+    fit, outcome = s$d$y1, correction = "BCH", assignment = assignment, se = se))
+  z_of <- function(se) suppressWarnings(suppressMessages(add_covariates(
+    fit, predictors = s$d["z"], correction = "BCH", se = se)))
+
+  # A distal outcome alone: same means, and the corrected covariance of the
+  # means exceeds the case sandwich by a positive semi-definite term.
+  yr <- y_of("robust"); yc <- y_of("corrected")
+  expect_equal(yc$sm$parameters$means, yr$sm$parameters$means)
+  expect_match(yc$sm$parameters$V_method, "Bakk-Oberski-Vermunt.*BCH")
+  dV <- yc$sm$parameters$Sigma_mu - yr$sm$parameters$Sigma_mu
+  expect_gt(min(eigen(dV, symmetric = TRUE, only.values = TRUE)$values),
+            -1e-8 * max(abs(dV)))
+  expect_gt(max(diag(dV)), 0)
+  # ...except under modal assignment, where it keeps the sandwich.
+  expect_equal(y_of("corrected", "modal")$sm$parameters$Sigma_mu,
+               y_of("robust", "modal")$sm$parameters$Sigma_mu)
+
+  # Class predictors alone: same coefficients, and the corrected covariance is
+  # attached where summary() and confint() read it.
+  zr <- z_of("robust"); zc <- z_of("corrected")
+  expect_equal(zc$sm$parameters$beta, zr$sm$parameters$beta)
+  expect_match(zc$sm$parameters$V_method, "Bakk-Oberski-Vermunt.*BCH")
+  expect_equal(sum(diag(zc$sm$parameters$V_robust) > 0), 2L)
+})
+
 test_that("each outcome can be contrasted and summarised", {
   s <- .joint_sim()
   j <- .joint_fit(s)

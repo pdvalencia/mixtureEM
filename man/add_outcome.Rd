@@ -62,7 +62,8 @@ another. Available with \code{correction = "ML"} (the default here) or
 joint step-3 log-likelihood (\code{se = "hessian"} for the inverse observed
 information, otherwise the sandwich); under BCH the model is fitted to
 the BCH-weighted log-likelihood and its standard errors are always the
-sandwich clustered on the case. Both treat the step-1 estimates as known.}
+sandwich clustered on the case. Under \code{se = "corrected"} both add step
+1's uncertainty; see \code{se}.}
 
 \item{variances}{For a continuous outcome with \code{covariates}: \code{"equal"}
 (default; one residual variance shared by the classes) or
@@ -95,9 +96,12 @@ estimator that prices the information the correction gives up. With
 of \link{covariate_se} over the whole joint model, so the outcome blocks carry
 step 1's uncertainty too; under BCH it enters through the BCH weights,
 which are rebuilt from the moved posteriors, and is added to the
-case-clustered sandwich. A distal outcome fitted without \code{predictors}
-treats step 1's estimates as known, so with poorly separated classes its
-intervals are somewhat too narrow.}
+case-clustered sandwich. Under BCH a distal outcome fitted without
+\code{predictors} takes the same term, as the one-block case of the same
+model, except a continuous outcome without \code{covariates} under
+\code{assignment = "modal"}. That one, and any outcome without \code{predictors}
+under ML, treats step 1's estimates as known, so with poorly separated
+classes its intervals are somewhat too narrow.}
 
 \item{assignment}{How step 1's posteriors are turned into the assigned-class
 variable whose classification error the correction inverts.

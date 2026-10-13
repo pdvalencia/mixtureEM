@@ -434,7 +434,8 @@ add_covariates <- function(fit, predictors,
 #'   joint step-3 log-likelihood (`se = "hessian"` for the inverse observed
 #'   information, otherwise the sandwich); under BCH the model is fitted to
 #'   the BCH-weighted log-likelihood and its standard errors are always the
-#'   sandwich clustered on the case. Both treat the step-1 estimates as known.
+#'   sandwich clustered on the case. Under `se = "corrected"` both add step
+#'   1's uncertainty; see `se`.
 #' @param variances For a continuous outcome with `covariates`: `"equal"`
 #'   (default; one residual variance shared by the classes) or
 #'   `"class_specific"` (one per class). A continuous outcome without
@@ -463,9 +464,12 @@ add_covariates <- function(fit, predictors,
 #'   of [covariate_se] over the whole joint model, so the outcome blocks carry
 #'   step 1's uncertainty too; under BCH it enters through the BCH weights,
 #'   which are rebuilt from the moved posteriors, and is added to the
-#'   case-clustered sandwich. A distal outcome fitted without `predictors`
-#'   treats step 1's estimates as known, so with poorly separated classes its
-#'   intervals are somewhat too narrow.
+#'   case-clustered sandwich. Under BCH a distal outcome fitted without
+#'   `predictors` takes the same term, as the one-block case of the same
+#'   model, except a continuous outcome without `covariates` under
+#'   `assignment = "modal"`. That one, and any outcome without `predictors`
+#'   under ML, treats step 1's estimates as known, so with poorly separated
+#'   classes its intervals are somewhat too narrow.
 #' @param assignment How step 1's posteriors are turned into the assigned-class
 #'   variable whose classification error the correction inverts.
 #'   `"proportional"` (default) gives every case a weight in every class equal

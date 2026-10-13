@@ -30,7 +30,9 @@
 # one case share its outcome and covariates, so the case is the independent unit.
 # Step 1 reaches this objective through the weights alone, so its uncertainty
 # is carried by the same first-order term as under ML, with the weights rebuilt
-# from the perturbed posteriors in place of the classification table.
+# from the perturbed posteriors in place of the classification table. A lone
+# BCH block (a distal outcome without predictors, or class predictors alone) is
+# the one-block case of the same objective and takes the same variance.
 # ==============================================================================
 
 # Which blocks of a nested structural model this file can pack. A block of any
@@ -98,7 +100,7 @@
   for (j in seq_along(sm$models))
     sm$models[[j]] <- .nested_block_unpack(
       sm$models[[j]], par[(ends[j] - lens[j] + 1L):ends[j]])
-  log_sm <- log_likelihood(sm, Y)
+  log_sm <- log_likelihood(if (inherits(sm, "nested")) sm else sm$models[[1L]], Y)
   if (is.null(Cn)) return(rowSums(A1 * log_sm))
   lsh    <- .row_max(log_sm)
   Z      <- exp(log_sm - lsh) %*% Cn
@@ -124,7 +126,9 @@
                                       strata = NULL, cluster = NULL,
                                       X = NULL, assignment = "proportional",
                                       bch_assign = NULL) {
-  sm <- model_state$sm
+  sm   <- model_state$sm
+  lone <- !inherits(sm, "nested")
+  if (lone) sm <- list(models = stats::setNames(list(sm), class(sm)[1L]))
   if (!all(vapply(sm$models, .nested_packable, logical(1)))) {
     return(model_state)
   }
@@ -178,8 +182,9 @@
         .warn_step1_unavailable(model_state$mm)
       } else {
         V      <- V + corr$V
-        method <- sprintf(paste("Bakk-Oberski-Vermunt corrected (joint model;",
-                                "%s step 3, %s step 1)%s"),
+        method <- sprintf(paste("Bakk-Oberski-Vermunt corrected (%s%s step 3,",
+                                "%s step 1)%s"),
+                          if (lone) "" else "joint model; ",
                           if (is.null(Cn)) "BCH case-clustered sandwich"
                           else "robust",
                           corr$method,
@@ -221,13 +226,22 @@
       m$parameters$Sigma_mu <- Vj[seq_len(K), seq_len(K), drop = FALSE]
       m$parameters$ses      <- matrix(sqrt(pmax(diag(Vj)[seq_len(K)], 0)),
                                       ncol = 1)
-      m$parameters$var_ses  <- sqrt(pmax(diag(Vj)[K + seq_len(K)], 0))
+      # A lone block's M-step takes its variances with absolute BCH weights, so
+      # they are not where the weighted log-likelihood peaks and their rows of
+      # V mean nothing. The means' rows do not depend on them: the mean-variance
+      # cross derivatives vanish at the weighted means.
+      if (!lone)
+        m$parameters$var_ses <- sqrt(pmax(diag(Vj)[K + seq_len(K)], 0))
     } else {
       m$parameters$hessian <- -pinv(Vj)
     }
     sm$models[[j]] <- m
   }
 
+  if (lone) {
+    sm <- sm$models[[1L]]
+    sm$parameters$V_method <- method
+  }
   model_state$sm <- sm
   model_state
 }
