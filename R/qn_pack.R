@@ -70,24 +70,33 @@
   softmax_rows(out)
 }
 
-# A covariance matrix <-> its lower Cholesky factor, diagonal on the log scale.
-.qn_pack_chol <- function(P) {
-  R <- tryCatch(chol(P), error = function(e) NULL)
-  if (is.null(R)) return(NULL)
-  L  <- t(R)
-  lt <- lower.tri(L, diag = TRUE)
-  d  <- (row(L) == col(L))[lt]
-  v  <- L[lt]
-  v[d] <- log(v[d])
-  list(par = v, kind = ifelse(d, "scale", "free"))
+# A growth-factor covariance matrix <-> its lower triangle, as stored. Not a
+# Cholesky factor and not log variances: Psi is allowed outside the positive
+# semi-definite cone, so long as every class's Sigma stays positive definite,
+# and log_likelihood.structured_normal() is what refuses a step that breaks the
+# latter (DECISIONS.md, inadmissible GMM solutions).
+#
+# Each element is divided by a unit fixed for the whole finish, s_i s_j, with
+# s_j^2 the variance at which growth factor j would contribute as much to some
+# occasion as the average residual variance does. Raw, a slope variance near
+# 1e-4 is 1e-5 of the central-difference step away from a curvature of 3e8, the
+# differenced gradient never falls below the stopping rule, and the finish runs
+# to its iteration cap at the maximum (RECORDS.md, Part 54 A2). The unit is
+# read off the state the finish starts from, which is the state every unpack
+# starts from, as .qn_ref() does for the anchors.
+.qn_sn_psi_unit <- function(ms) {
+  Lr <- ms$design[, ms$r_cols, drop = FALSE]
+  th <- mean(ms$parameters$theta)
+  s  <- sqrt(th / pmax(apply(Lr^2, 2, max), 1e-12))
+  tcrossprod(s)
 }
-.qn_unpack_chol <- function(v, q) {
-  L  <- matrix(0, q, q)
-  lt <- lower.tri(L, diag = TRUE)
-  d  <- (row(L) == col(L))[lt]
-  v[d] <- exp(v[d])
-  L[lt] <- v
-  tcrossprod(L)
+.qn_pack_tri <- function(P, U)
+  .qn_part((((P + t(P)) / 2) / U)[lower.tri(P, diag = TRUE)], "free")
+.qn_unpack_tri <- function(v, U) {
+  q <- nrow(U)
+  P <- matrix(0, q, q)
+  P[lower.tri(P, diag = TRUE)] <- v
+  (P + t(P) - diag(diag(P), q)) * U
 }
 
 # ------------------------------------------------------------------------------
@@ -175,8 +184,10 @@
   .qn_unpack_cat(emis, par, items %||% seq_along(emis$cats))
 
 # Growth mixture (R/structured_normal.R): the growth-factor means, then the
-# covariate regressions, then Psi, then Theta. Psi goes through its Cholesky
-# factor, which keeps it positive definite on every step; Theta is one log
+# covariate regressions, then Psi, then Theta. Psi is packed as its elements
+# (under psi = "variances", every class's variances and then the one shared set
+# of covariances), so the finish can reach a maximum outside the positive
+# semi-definite cone; Theta is one log
 # standard deviation per distinct residual variance, so `residual_equal` and
 # `residual = "constant"` are packed as the constraints they are.
 .qn_sn_theta_dims <- function(ms)
@@ -193,8 +204,18 @@
     parts <- c(parts, list(.qn_part(unlist(G), "free")))
   }
   if (q > 0L) {
-    Ps <- if (isTRUE(ms$psi_equal)) p$psi[1L] else p$psi
-    parts <- c(parts, lapply(Ps, .qn_pack_chol))
+    type <- .sn_psi_type(ms)
+    U    <- .qn_sn_psi_unit(ms)
+    if (identical(type, "variances") && q > 1L) {
+      lt <- lower.tri(diag(q))
+      parts <- c(parts, list(
+        .qn_part(t(vapply(p$psi, function(P) diag(P) / diag(U), numeric(q))),
+                 "free"),
+        .qn_part(p$psi[[1L]][lt] / U[lt], "free")))
+    } else {
+      Ps <- if (identical(type, "equal")) p$psi[1L] else p$psi
+      parts <- c(parts, lapply(Ps, .qn_pack_tri, U = U))
+    }
   }
   th <- .qn_sn_theta_dims(ms)
   parts <- c(parts, list(.qn_part(
@@ -222,10 +243,21 @@
   }
   if (q > 0L) {
     nq <- q * (q + 1L) / 2L
-    if (isTRUE(ms$psi_equal)) {
-      ms$parameters$psi <- rep(list(.qn_unpack_chol(take(nq), q)), K)
+    type <- .sn_psi_type(ms)
+    U    <- .qn_sn_psi_unit(ms)
+    if (identical(type, "variances") && q > 1L) {
+      lt <- which(lower.tri(diag(q)), arr.ind = TRUE)
+      D  <- sweep(matrix(take(K * q), K, q), 2, diag(U), "*")
+      C  <- take(q * (q - 1L) / 2L) * U[lt]
+      for (k in seq_len(K)) {
+        P <- diag(D[k, ], q)
+        P[lt] <- C; P[lt[, 2:1, drop = FALSE]] <- C
+        ms$parameters$psi[[k]] <- P
+      }
+    } else if (identical(type, "equal")) {
+      ms$parameters$psi <- rep(list(.qn_unpack_tri(take(nq), U)), K)
     } else {
-      for (k in seq_len(K)) ms$parameters$psi[[k]] <- .qn_unpack_chol(take(nq), q)
+      for (k in seq_len(K)) ms$parameters$psi[[k]] <- .qn_unpack_tri(take(nq), U)
     }
   }
   th <- .qn_sn_theta_dims(ms)

@@ -126,7 +126,9 @@
 #' allowed to differ in, and Ram and Grimm (2009, pp. 569-570) give the three
 #' levels. *Means* — classes differ in mean change only — is `psi = "equal"`,
 #' the default here. *Means + Covs* — classes also differ in how much
-#' interindividual variation there is within them — is `psi = "free"`; the
+#' interindividual variation there is within them — is `psi = "free"`, or
+#' `psi = "variances"` when only the growth-factor variances differ and their
+#' covariances are held equal; the
 #' residual variances are a separate switch, `residual_equal = FALSE`, and
 #' should not be merged with it. *Means + Covs + Pattern*, where classes differ
 #' in the shape of change as well, would need class-specific time scores;
@@ -173,8 +175,22 @@
 #'     same model as `fit_lcga(family = "gaussian")`, but with the residual
 #'     variances free over occasions by default.
 #'   * `"all"` — every growth factor, including a quadratic or higher term.
-#' @param psi Whether the growth-factor covariance \eqn{\Psi} is held `"equal"`
-#'   across classes (the default) or estimated `"free"`ly in each.
+#' @param psi How the growth-factor covariance \eqn{\Psi} may differ across
+#'   classes: held `"equal"` (the default); class-specific `"variances"` with
+#'   the covariances between growth factors held equal; or estimated `"free"`ly
+#'   in each class. `"variances"` sits between the other two, and with a single
+#'   random effect it is the same model as `"free"`.
+#'
+#'   \eqn{\Psi} is estimated without bounds. The likelihood depends on it only
+#'   through each class's covariance of the repeated measures,
+#'   \eqn{\Sigma_k = \Lambda \Psi_k \Lambda' + \Theta_k}, so the maximum can lie
+#'   at a \eqn{\Psi} with a negative variance or a correlation beyond
+#'   \eqn{\pm 1} while every \eqn{\Sigma_k} remains positive definite. Such a fit
+#'   is reported as estimated, with every parameter counted, and a warning
+#'   names the class and the value; its log-likelihood and BIC are valid, but
+#'   the value itself is not a variance or a correlation. Under `"equal"` or
+#'   `"variances"` it usually means the classes' covariances differ (try
+#'   `"free"`); under `"free"`, that a variance is truly zero.
 #'   Equality is the better default in practice as well as by convention: it is
 #'   what BIC typically selects, and a class-specific \eqn{\Psi} is
 #'   where growth mixture models most often produce a negative variance.
@@ -276,7 +292,7 @@ fit_gmm <- function(indicator,
                     degree = 1,
                     random_effects = c("intercept_slope", "intercept", "none",
                                        "all"),
-                    psi = c("equal", "free"),
+                    psi = c("equal", "variances", "free"),
                     residual = c("occasion", "constant"),
                     residual_equal = TRUE,
                     time_scores = NULL,
@@ -369,6 +385,7 @@ fit_gmm <- function(indicator,
     psi               = mm$parameters$psi[seq_len(if (mm$psi_equal) 1L else
                                                     n_classes)],
     psi_equal         = mm$psi_equal,
+    psi_type          = .sn_psi_type(mm),
     residual_variance = mm$parameters$theta,
     residual_equal    = mm$theta_equal,
     residual_constant = mm$theta_shared_occasions,
@@ -378,6 +395,10 @@ fit_gmm <- function(indicator,
   fit$growth$boundary <- .gmm_boundary(mm, fit$data, fit$sample_weights)
   if (length(fit$growth$boundary))
     warning(.gmm_boundary_message(fit$growth$boundary, mm), call. = FALSE)
+  fit$growth$inadmissible <- .gmm_inadmissible(mm)
+  if (length(fit$growth$inadmissible))
+    warning(.gmm_inadmissible_message(fit$growth$inadmissible, mm),
+            call. = FALSE)
 
   # Issued here rather than in fit_mixture(), which returned before the boundary
   # flag above existed: the two warnings give opposite advice about n_init, so
@@ -466,6 +487,10 @@ fit_gmm <- function(indicator,
     for (k in seq_len(psi_rows)) {
       P <- mm$parameters$psi[[k]]
       if (is.null(P) || !length(P)) next
+      # A Psi outside the cone is a valid likelihood maximum, reported by
+      # .gmm_inadmissible() instead; this warning's "BIC is inflated" is wrong
+      # for it.
+      if (.gmm_psi_outside(P)) next
       implied  <- diag(Lr %*% P %*% t(Lr))
       singular <- min(eigen(P, symmetric = TRUE, only.values = TRUE)$values) <=
         1e-7
@@ -551,10 +576,104 @@ fit_gmm <- function(indicator,
     paste(sprintf("(%d) %s", seq_along(fixes), fixes), collapse = "; "))
 }
 
+# Whether a growth-factor covariance matrix has left the positive semi-definite
+# cone by more than rounding. The tolerance is relative to Psi's own scale,
+# because a slope variance is small by construction (outcome units per time
+# unit squared).
+.gmm_psi_outside <- function(P) {
+  if (!length(P)) return(FALSE)
+  ev <- eigen((P + t(P)) / 2, symmetric = TRUE, only.values = TRUE)$values
+  min(ev) < -1e-8 * max(1, abs(ev))
+}
+
+# What makes a Psi inadmissible, in words: each negative variance, and each
+# correlation beyond +/-1, per class. A Psi can leave the cone with neither
+# (three or more factors), in which case the smallest eigenvalue is named.
+#
+# Such a fit is still a maximum of a genuine likelihood: the model's likelihood
+# depends on Psi only through Sigma_k = Lambda Psi_k Lambda' + Theta_k, and
+# every Sigma_k is positive definite at it (the fit refuses any step that makes
+# one not). That is the case this report exists for, and it is why its message
+# differs from the collapsed-variance one: nothing here inflates BIC.
+.gmm_inadmissible <- function(mm) {
+  if (!length(mm$r_cols)) return(character(0))
+  nm   <- colnames(mm$design)[mm$r_cols] %||%
+    paste0("factor ", seq_along(mm$r_cols))
+  type <- .sn_psi_type(mm)
+  rows <- if (identical(type, "equal")) 1L else length(mm$parameters$psi)
+  out  <- character(0)
+  for (k in seq_len(rows)) {
+    P <- mm$parameters$psi[[k]]
+    if (!.gmm_psi_outside(P)) next
+    where <- if (rows == 1L) "" else sprintf("in class %d ", k)
+    q <- nrow(P); found <- character(0)
+    for (j in seq_len(q)) if (P[j, j] < 0)
+      found <- c(found, sprintf("%sthe %s variance is %.4g", where, nm[j],
+                                P[j, j]))
+    for (i in seq_len(q)) for (j in seq_len(q)) if (i < j &&
+        P[i, i] > 0 && P[j, j] > 0) {
+      r <- P[i, j] / sqrt(P[i, i] * P[j, j])
+      if (abs(r) > 1)
+        found <- c(found, sprintf("%sthe %s-%s correlation is %.3f", where,
+                                  nm[i], nm[j], r))
+    }
+    if (!length(found))
+      found <- sprintf("%sthe growth-factor covariance has a negative eigenvalue (%.4g)",
+                       where, min(eigen(P, symmetric = TRUE,
+                                        only.values = TRUE)$values))
+    out <- c(out, found)
+  }
+  out
+}
+
+# The remedy follows what left the cone and under which Psi form. A negative
+# variance is what a variance that is truly zero looks like when it is
+# estimated with sampling noise on both sides of zero, and the matching model
+# drops that random effect. Under a Psi held equal across classes, or with its
+# covariances held equal, the impossible value can instead be the constraint
+# showing: the classes' covariances differ, one shared value cannot fit them
+# all, and freeing it by class removes it. Both remedies are model choices, so
+# the message names them and leaves the choice to BIC and to the theory.
+.gmm_inadmissible_message <- function(lines, mm) {
+  fixes <- character(0)
+  if (any(grepl("variance is -", lines, fixed = TRUE)))
+    fixes <- c(fixes, paste0(
+      "a negative variance is consistent with one that is truly zero, and ",
+      "the model without that random effect is the matching one ",
+      "(random_effects = \"intercept\" keeps only the intercept's; with no ",
+      "growth-factor variance left, fit_lcga())"))
+  if (!identical(.sn_psi_type(mm), "free"))
+    fixes <- c(fixes, paste0(
+      "under a covariance held equal across classes it can also mean the ",
+      "classes' covariances differ and the constraint forces one value on ",
+      "them; psi = \"free\" estimates them by class"))
+  if (!length(fixes))
+    fixes <- paste0(
+      "the growth factors are more strongly related than the data can ",
+      "separate, which usually means one of their variances is close to zero")
+  remedy <- paste0(paste(fixes, collapse = "; "),
+                   ". Compare the fits on BIC")
+  sprintf(
+    paste0("The growth-factor covariance is outside its usual range: %s. ",
+           "This is not an estimation failure. Every class's covariance of the ",
+           "repeated measures is positive definite, so the log-likelihood, BIC ",
+           "and the other estimates are a valid maximum and are reported as ",
+           "estimated, with no bound applied and no parameter dropped from the ",
+           "count. The impossible value itself should not be interpreted as a ",
+           "variance or a correlation: %s."),
+    paste(lines, collapse = "; "), remedy)
+}
+
 # Repeat the flag in print(). Someone opening a saved fit months later should
 # still see that its variances collapsed; the warning at fit time is gone by
 # then. `.print_degenerate_note()` (R/gaussian_boundary.R) is the model.
 .print_gmm_boundary_note <- function(x) {
+  bad <- x$growth$inadmissible
+  if (length(bad)) {
+    cat("\nNOTE - growth-factor covariance outside its usual range:\n")
+    for (line in bad) cat("  ", line, "\n", sep = "")
+    cat("  The fit is a valid likelihood maximum. See ?fit_gmm.\n")
+  }
   lines <- x$growth$boundary
   if (!length(lines)) return(invisible(NULL))
   cat("\nWARNING - collapsed variance:\n")
@@ -715,7 +834,9 @@ print.gmm <- function(x, ...) {
 
   if (length(g$random_names)) {
     cat(sprintf("\nGROWTH FACTOR (CO)VARIANCE%s\n",
-                if (g$psi_equal) " (held equal across classes)" else ""))
+                if (g$psi_equal) " (held equal across classes)" else
+                if (identical(g$psi_type, "variances"))
+                  " (covariances held equal across classes)" else ""))
     for (i in seq_along(g$psi)) {
       P <- g$psi[[i]]
       dimnames(P) <- list(g$random_names, g$random_names)
@@ -856,7 +977,8 @@ print.gmm <- function(x, ...) {
           "growth_variance", V[, diag_cols, drop = FALSE])
       if (any(!diag_cols))
         add(sprintf("GROWTH FACTOR COVARIANCES%s",
-                    if (g$psi_equal) " (held equal across classes)" else ""),
+                    if (g$psi_equal || identical(g$psi_type, "variances"))
+                      " (held equal across classes)" else ""),
             "growth_covariance", V[, !diag_cols, drop = FALSE])
     }
   }

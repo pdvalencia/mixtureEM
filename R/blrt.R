@@ -165,7 +165,8 @@ generate_synthetic_data <- function(mm, classes, N) {
   else
     list(design                  = g$design,
          random_effects          = g$random_effects,
-         psi                     = if (isTRUE(g$psi_equal)) "equal" else "free",
+         psi                     = g$psi_type %||%
+                                   (if (isTRUE(g$psi_equal)) "equal" else "free"),
          residual                = if (isTRUE(g$residual_constant)) "constant"
                                    else "occasion",
          residual_equal          = isTRUE(g$residual_equal),

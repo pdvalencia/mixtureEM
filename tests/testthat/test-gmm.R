@@ -172,12 +172,13 @@ test_that("a collapse is caught relative to the data, not only at the floor", {
   expect_length(.gmm_boundary(collapsed, NULL), 0L)
 })
 
-test_that("fitting random effects to data that have none warns and collapses", {
+test_that("fitting random effects to data that have none warns and goes negative", {
   # No within-class variation in the growth factors: every case sits on its
-  # class's line up to occasion noise, which is an LCGA. Psi has nowhere to go
-  # but zero, and a user who asked for a growth mixture model should be told
-  # that is what happened rather than reading a variance of 0.000 as an
-  # estimate.
+  # class's line up to occasion noise, which is an LCGA. Psi is estimated
+  # without bounds, so its variances land on either side of zero by sampling
+  # noise -- here below it -- and a user who asked for a growth mixture model
+  # should be told that is what happened, and pointed at the model the data
+  # support, rather than reading a variance of -0.03 as an estimate.
   set.seed(151)
   n <- 400; Tn <- 4
   cls <- rbinom(n, 1, 0.5)
@@ -187,12 +188,13 @@ test_that("fitting random effects to data that have none warns and collapses", {
 
   expect_warning(
     fit <- fit_gmm(Y, times = 4, n_classes = 2, n_init = 5, random_state = 3),
-    "A variance has collapsed towards zero")
-  expect_match(fit$growth$boundary, "no within-class variation left")
+    "outside its usual range.*fit_lcga\\(\\)")
+  expect_match(fit$growth$inadmissible, "variance is -", fixed = TRUE,
+               all = FALSE)
   expect_lt(max(diag(fit$growth$psi[[1]])), 0.05)
 
   # And it is still there on a later print(), not only as a transient warning.
-  expect_output(print(fit), "WARNING - collapsed variance")
+  expect_output(print(fit), "NOTE - growth-factor covariance outside")
 })
 
 # ------------------------------------------------------------------------------
@@ -230,6 +232,89 @@ test_that("free parameters are counted from the constraints, not the storage", {
                   residual = "occasion", residual_equal = TRUE), 6 + 1 + 5)
   expect_equal(np(random_effects = "none", psi = "equal",
                   residual = "occasion", residual_equal = TRUE), 6 + 0 + 5)
+  # Class-specific variances, one shared covariance: 3 x 2 + 1.
+  expect_equal(np(random_effects = "intercept_slope", psi = "variances",
+                  residual = "occasion", residual_equal = TRUE), 6 + 7 + 5)
+  # With one random effect there is no covariance to share.
+  expect_equal(np(random_effects = "intercept", psi = "variances",
+                  residual = "occasion", residual_equal = TRUE),
+               np(random_effects = "intercept", psi = "free",
+                  residual = "occasion", residual_equal = TRUE))
+})
+
+test_that("psi = \"variances\" shares the covariance and climbs its own Q", {
+  # The Psi update has no closed form under this constraint. It has to keep
+  # the covariance identical across classes, keep every Psi_k positive
+  # definite, and never lower the expected complete-data log-likelihood it
+  # maximises -- which is what keeps EM monotone.
+  S <- list(matrix(c(1.0, 0.30, 0.30, 0.20), 2),
+            matrix(c(0.4, -0.05, -0.05, 0.50), 2))
+  n <- c(300, 150)
+  num <- Map(`*`, S, n)
+  Q <- function(P) -0.5 * sum(vapply(1:2, function(k)
+    n[k] * (as.numeric(determinant(P[[k]])$modulus) +
+              sum(diag(solve(P[[k]], S[[k]])))), numeric(1)))
+  start <- rep(list(diag(c(0.5, 0.3))), 2)
+  P <- .sn_psi_variances(num, n, start)
+  expect_equal(P[[1]][1, 2], P[[2]][1, 2])
+  expect_true(all(vapply(P, function(M) min(eigen(M)$values) > 0, logical(1))))
+  expect_gt(Q(P), Q(start))
+  # At the maximum each class's variance is where its own score is zero, and
+  # the covariance where the scores summed over classes are.
+  G <- lapply(1:2, function(k) {
+    Pi <- solve(P[[k]]); 0.5 * n[k] * (Pi %*% S[[k]] %*% Pi - Pi)
+  })
+  expect_lt(max(abs(c(diag(G[[1]]), diag(G[[2]]), G[[1]][1, 2] + G[[2]][1, 2]))),
+            1e-4)
+})
+
+test_that("a Psi outside the cone with a positive definite Sigma is a valid fit, and says so", {
+  # The likelihood sees Psi only through Sigma = Lambda Psi Lambda' + Theta.
+  # A slightly negative slope variance with a healthy Theta leaves Sigma
+  # positive definite, so the density exists and is the one written out.
+  L  <- .lcga_design(0:3, 1)
+  mm <- structured_normal_model(2, L, psi = "variances")
+  mm$parameters$alpha <- rbind(c(0, 0.2), c(2, -0.1))
+  mm$parameters$psi   <- list(matrix(c(0.5, 0.02, 0.02, -0.004), 2),
+                              matrix(c(0.8, 0.02, 0.02, 0.10), 2))
+  mm$parameters$theta <- matrix(0.5, 2, 4)
+  set.seed(7)
+  Y <- matrix(rnorm(40), 10, 4)
+  ll <- log_likelihood(mm, Y)
+  expect_true(all(is.finite(ll)))
+  Sig <- L %*% mm$parameters$psi[[1]] %*% t(L) + diag(0.5, 4)
+  r <- Y[1, ] - as.vector(L %*% mm$parameters$alpha[1, ])
+  expect_equal(ll[1, 1], -0.5 * (4 * log(2 * pi) +
+                                   as.numeric(determinant(Sig)$modulus) +
+                                   sum(r * solve(Sig, r))))
+
+  # The report names the class and the quantity, calls the fit valid, and
+  # gives both remedies a shared covariance can need.
+  lines <- .gmm_inadmissible(mm)
+  expect_identical(lines, "in class 1 the linear variance is -0.004")
+  msg <- .gmm_inadmissible_message(lines, mm)
+  expect_match(msg, "valid maximum")
+  expect_match(msg, "random_effects = \"intercept\"", fixed = TRUE)
+  expect_match(msg, "psi = \"free\"", fixed = TRUE)
+  # It is not reported as a collapse, whose advice about BIC would be wrong.
+  expect_false(any(grepl("no within-class variation", .gmm_boundary(mm))))
+
+  # Once Sigma itself stops being positive definite there is no likelihood,
+  # and the class reads NaN, which is what makes the finish refuse the step.
+  mm$parameters$psi[[1]][2, 2] <- -0.2
+  expect_true(all(is.nan(log_likelihood(mm, Y)[, 1])))
+})
+
+test_that("a differenced score next to where the model stops existing is one-sided", {
+  # The finish differences the case log-likelihoods. A point a hair inside the
+  # region where every Sigma_k is positive definite has one side of its
+  # difference outside it, which reads NaN; the score there comes from the
+  # side that exists rather than poisoning the gradient.
+  case_ll <- function(p) if (p[1] > 1) rep(NaN, 3) else c(1, 2, 3) * p[1] + p[2]
+  S <- .qn_fd_scores(case_ll, c(1 - 1e-6, 0.5), 1:2)
+  expect_true(all(is.finite(S)))
+  expect_equal(S[, 1], c(1, 2, 3), tolerance = 1e-6)
+  expect_equal(S[, 2], c(1, 1, 1), tolerance = 1e-6)
 })
 
 test_that("the identification arithmetic is right, and fit_gmm() stays inside it", {

@@ -1491,8 +1491,9 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     best$n_starts     <- length(final_lls)
     best$n_replicated <- .qn_n_replicated(
       lapply(Filter(Negate(is.null), states), `[[`, "lower_bound"),
-      best$lower_bound, best$sample_weights) %||%
+      best$lower_bound, best$sample_weights, origin = best$qn_origin) %||%
       sum(abs(final_lls - max(final_lls)) <= 1e-2)
+    best$qn_origin    <- NULL
     # What was asked for, carried alongside what converged. On the staged path
     # only the survivors reach record(), so `n_starts` there is three however
     # many restarts were requested, and a report built on it alone would say a

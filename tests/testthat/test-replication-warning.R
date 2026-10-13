@@ -166,6 +166,15 @@ test_that("restarts are counted on their per-case log-likelihoods", {
   # A missing or misshapen signature is no count at all, not a match.
   expect_null(.qn_n_replicated(list(same_a, NULL), peak, w))
   expect_null(.qn_n_replicated(list(same_a, peak[-1]), peak, w))
+
+  # When the finish has to travel far from EM's end point -- a growth model
+  # whose maximum lies outside the space EM can reach -- the restarts match the
+  # end point the winner was finished from, and that counts as the same peak.
+  far    <- peak - abs(rnorm(n, 0, 0.06))    # the finish moved every case
+  near_o <- far - abs(rnorm(n, 0, 0.004))    # a restart on the same peak
+  expect_identical(.qn_n_replicated(list(far, near_o, other), peak, w), 0L)
+  expect_identical(.qn_n_replicated(list(far, near_o, other), peak, w,
+                                    origin = far), 2L)
 })
 
 # ------------------------------------------------------------------------------

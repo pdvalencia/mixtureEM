@@ -26,7 +26,8 @@ growth coefficient, as built by the polynomial in the time scores.}
 \code{"intercept"}, \code{"intercept_slope"}, or \code{"all"}.}
 
 \item{psi}{Whether the growth-factor covariance is held \code{"equal"} across
-classes or estimated \code{"free"}ly in each.}
+classes, has class-specific \code{"variances"} with the covariances held equal,
+or is estimated \code{"free"}ly in each.}
 
 \item{residual}{Whether residual variances are \code{"occasion"}-specific or
 \code{"constant"} across occasions.}

@@ -155,12 +155,25 @@
 
 # Case-level scores of `case_ll` by central differences, for the coordinates
 # `idx` only: an n x length(idx) matrix.
+#
+# A point may sit next to where the model stops existing -- a growth mixture
+# whose Psi is outside the PSD cone, a hair from where some Sigma_k stops being
+# positive definite, reads NaN past it (log_likelihood.structured_normal()).
+# A difference that crosses there is taken one-sided from the side that
+# exists, and a coordinate with neither side scores 0, so the step does not
+# move it.
 .qn_fd_scores <- function(case_ll, par, idx) {
-  h <- 1e-5 * pmax(1, abs(par[idx]))
+  h  <- 1e-5 * pmax(1, abs(par[idx]))
+  l0 <- NULL
   S <- vapply(seq_along(idx), function(m) {
     a <- par; a[idx[m]] <- a[idx[m]] + h[m]
     b <- par; b[idx[m]] <- b[idx[m]] - h[m]
-    (case_ll(a) - case_ll(b)) / (2 * h[m])
+    la <- case_ll(a); lb <- case_ll(b)
+    oka <- all(is.finite(la)); okb <- all(is.finite(lb))
+    if (oka && okb) return((la - lb) / (2 * h[m]))
+    if (is.null(l0)) l0 <<- case_ll(par)
+    if (oka) (la - l0) / h[m] else if (okb) (l0 - lb) / h[m] else
+      numeric(length(l0))
   }, numeric(length(case_ll(par))))
   matrix(S, ncol = length(idx))
 }
@@ -196,6 +209,21 @@
 .qn_scale_collapsed <- function(par0, par, kind) {
   s <- which(kind == "scale")
   length(s) > 0L && any(par[s] < par0[s] - .qn_scale_drop)
+}
+
+# The same refusal for a growth mixture, whose Psi is packed as its elements
+# (tagged `free`, since they may go negative) and so escapes the rule above. A
+# class whose Sigma_k = Lambda Psi_k Lambda' + Theta_k loses 99% of its
+# smallest eigenvalue is heading for the spike, not crossing the PSD cone:
+# with priors off, a class of cases sharing one first-wave score, a residual
+# variance at its floor and an intercept variance at zero gained 7 units of
+# log-likelihood that way, with its gradient at 3e6 (RECORDS.md, Part 54 A2).
+.qn_sigma_collapsed <- function(mm0, mm1) {
+  if (!inherits(mm0, "structured_normal") || !length(mm0$r_cols)) return(FALSE)
+  ev <- function(mm, k) min(eigen(.sn_sigma(mm, k), symmetric = TRUE,
+                                  only.values = TRUE)$values)
+  any(vapply(seq_len(mm0$n_components), function(k)
+    ev(mm1, k) < exp(-2 * .qn_scale_drop) * ev(mm0, k), logical(1)))
 }
 
 # The finish. `case_ll(par)` is the per-row log-likelihood, `w` the row
@@ -417,14 +445,26 @@
 # within 0.0094 per case of the finished maximum, and the nearest other peak at
 # 0.034 or more, on five data sets (RECORDS.md, "Part 60 W0").
 #
+# A restart also counts when it matches `origin`, the EM end point the winner
+# was finished from. That is the same peak by construction, and it is the only
+# match available when the finish has to leave EM's parameter space to reach
+# the maximum: a growth mixture whose Psi maximum lies outside the PSD cone,
+# which EM can only approach. There EM stops at the cone's edge and the finish
+# moves every case by 0.05 on average (RECORDS.md, Part 54 A2), five times the
+# same-solution band, so against the finished winner alone every search read
+# "found by 0 of 50".
+#
 # NULL when any restart carries no signature of the winner's length, so the
 # caller can fall back to comparing scores.
-.qn_n_replicated <- function(signatures, winner, weights) {
+.qn_n_replicated <- function(signatures, winner, weights, origin = NULL) {
   n <- length(winner)
   if (!n || length(weights) != n ||
       !all(vapply(signatures, length, integer(1)) == n)) return(NULL)
-  sum(vapply(signatures, .qn_same_solution, logical(1), b = winner,
-             weights = weights))
+  if (length(origin) != n) origin <- NULL
+  sum(vapply(signatures, function(s)
+    .qn_same_solution(s, winner, weights) ||
+      (!is.null(origin) && .qn_same_solution(s, origin, weights)),
+    logical(1)))
 }
 
 # ------------------------------------------------------------------------------
@@ -590,6 +630,7 @@
   if (.qn_scale_collapsed(par0, res$par, lay$kind)) return(NULL)
 
   st <- pr$unpack(res$par)
+  if (.qn_sigma_collapsed(model_state$mm, st$mm)) return(NULL)
   e  <- e_step(st, X, Yp)
   # An outcome model keeps quantities its M-step derives from the estimates
   # (standard errors, the information matrix, the Wald covariance). One M-step
@@ -622,6 +663,7 @@
   best <- NULL; best_score <- -Inf
   for (i in pick) {
     st <- .qn_finish_mixture(states[[i]], X, Y) %||% states[[i]]
+    st$qn_origin <- states[[i]]$lower_bound
     s  <- score(st)
     if (s > best_score) { best <- st; best_score <- s }
   }

@@ -36,7 +36,11 @@
 # Constraints carried in the state rather than in the parameters:
 #
 #   r_cols                  which columns of Lambda are random (possibly none)
-#   psi_equal               Psi held equal across classes (the usual default)
+#   psi_type                "equal", "variances" or "free": Psi held equal
+#                           across classes (the usual default), class-specific
+#                           variances with the covariances held equal, or free
+#   psi_equal               psi_type == "equal", kept for the readers that only
+#                           ask whether Psi is one matrix
 #   theta_equal             Theta held equal across classes (the usual default)
 #   theta_shared_occasions  one residual variance for all occasions, rather
 #                           than one per occasion
@@ -66,7 +70,8 @@
 #' @param random_effects Which growth factors vary within a class: `"none"`,
 #'   `"intercept"`, `"intercept_slope"`, or `"all"`.
 #' @param psi Whether the growth-factor covariance is held `"equal"` across
-#'   classes or estimated `"free"`ly in each.
+#'   classes, has class-specific `"variances"` with the covariances held equal,
+#'   or is estimated `"free"`ly in each.
 #' @param residual Whether residual variances are `"occasion"`-specific or
 #'   `"constant"` across occasions.
 #' @param residual_equal Logical. Hold the residual variances equal across
@@ -89,6 +94,8 @@ structured_normal_model <- function(n_components, design,
                                     growth_covariates = NULL,
                                     growth_covariates_equal = TRUE, ...) {
   p <- ncol(design)
+  if (!psi %in% c("equal", "variances", "free"))
+    stop("Unknown `psi` specification: ", psi, call. = FALSE)
   r_cols <- switch(
     random_effects,
     none            = integer(0),
@@ -113,6 +120,7 @@ structured_normal_model <- function(n_components, design,
     design                 = design,
     r_cols                 = r_cols,
     random_effects         = random_effects,
+    psi_type               = psi,
     psi_equal              = identical(psi, "equal"),
     theta_shared_occasions = identical(residual, "constant"),
     theta_equal            = isTRUE(residual_equal),
@@ -255,6 +263,88 @@ structured_normal_model <- function(n_components, design,
     P <- (P + t(P)) / 2
   }
   P
+}
+
+# Which Psi form a state carries. A state built before `psi_type` existed knew
+# only the two forms `psi_equal` distinguishes.
+.sn_psi_type <- function(ms)
+  ms$psi_type %||% (if (isTRUE(ms$psi_equal)) "equal" else "free")
+
+# The Psi update under psi = "variances": class-specific variances, one set of
+# covariances shared by every class.
+#
+# The Psi part of the expected complete-data log-likelihood is
+#
+#     Q(Psi) = -1/2 sum_k n_k [ log|Psi_k| + tr(Psi_k^{-1} S_k) ],
+#
+# with S_k = psi_num_k / n_k the class's expected cross-product of the random
+# effects. Free across classes it is maximised by Psi_k = S_k and held equal by
+# the pooled S; with only the covariances shared there is no closed form, so the
+# maximum is found numerically. Its gradient is n_k/2 (Psi^-1 S Psi^-1 - Psi^-1),
+# taken element by element on each class's diagonal and summed over classes for
+# the shared off-diagonal. The variances are searched on the log scale, and a
+# point where some Psi_k is not positive definite scores as infinitely bad, so
+# the update stays inside the cone: log|Psi_k| is a barrier there. The result is
+# taken only if Q rises from where the iteration came in, which is what keeps EM
+# monotone (a generalised EM step).
+.sn_psi_variances <- function(psi_num, psi_den, psi_old) {
+  K <- length(psi_old); q <- nrow(psi_old[[1L]])
+  live <- psi_den > 1e-8
+  if (!any(live)) return(psi_old)
+  S  <- lapply(seq_len(K), function(k)
+    if (live[k]) psi_num[[k]] / psi_den[k] else psi_old[[k]])
+  lt <- which(lower.tri(diag(q)), arr.ind = TRUE)
+  nc <- nrow(lt)
+
+  build <- function(v) {
+    D <- matrix(exp(v[seq_len(K * q)]), K, q)
+    C <- v[K * q + seq_len(nc)]
+    lapply(seq_len(K), function(k) {
+      P <- diag(D[k, ], q)
+      P[lt] <- C; P[lt[, 2:1, drop = FALSE]] <- C
+      P
+    })
+  }
+  negQ <- function(v) {
+    out <- 0
+    P <- build(v)
+    for (k in which(live)) {
+      ch <- tryCatch(chol(P[[k]]), error = function(e) NULL)
+      if (is.null(ch)) return(1e100)
+      out <- out + 0.5 * psi_den[k] *
+        (2 * sum(log(diag(ch))) + sum(diag(chol2inv(ch) %*% S[[k]])))
+    }
+    out
+  }
+  grad <- function(v) {
+    P <- build(v)
+    gd <- matrix(0, K, q); gc <- numeric(nc)
+    for (k in which(live)) {
+      Pi <- tryCatch(chol2inv(chol(P[[k]])), error = function(e) NULL)
+      if (is.null(Pi)) return(rep(0, length(v)))
+      G <- 0.5 * psi_den[k] * (Pi %*% S[[k]] %*% Pi - Pi)
+      gd[k, ] <- diag(G) * diag(P[[k]])
+      gc <- gc + 2 * G[lt]
+    }
+    -c(as.vector(gd), gc)
+  }
+
+  P0 <- lapply(psi_old, function(P) (P + t(P)) / 2)
+  v0 <- c(as.vector(t(vapply(P0, function(P) log(pmax(diag(P), 1e-8)),
+                             numeric(q)))),
+          Reduce(`+`, lapply(seq_len(K), function(k)
+            psi_den[k] * P0[[k]][lt])) / sum(psi_den))
+  f0 <- negQ(v0)
+  res <- tryCatch(stats::optim(v0, negQ, grad, method = "BFGS",
+                               control = list(maxit = 100L, reltol = 1e-12)),
+                  error = function(e) NULL)
+  if (is.null(res) || !is.finite(res$value) || res$value >= f0 ||
+      res$value >= 1e100) {
+    # The entry point itself may not carry the structure yet (a start, or a
+    # state the finish moved outside the cone); fall back to it projected.
+    return(if (is.finite(f0) && f0 < 1e100) build(v0) else psi_old)
+  }
+  build(res$par)
 }
 
 # Number of growth-factor covariates (zero for the unconditional model).
@@ -435,6 +525,20 @@ log_likelihood.structured_normal <- function(model_state, X, ...) {
   for (k in seq_len(K)) {
     Sig <- .sn_sigma(model_state, k)
     mu  <- .sn_mu(model_state, k)
+
+    # A Psi outside the positive semi-definite cone is a legitimate estimate so
+    # long as Sigma_k stays positive definite; once it does not, there is no
+    # likelihood at all. Only the Newton finish can put Psi there (EM's update
+    # is a sum of outer products), and NaN is what makes the finish's line
+    # search refuse the step, where .sn_chol()'s ridge would quietly score a
+    # point that does not exist.
+    if (length(model_state$r_cols) &&
+        is.null(tryCatch(chol(Sig), error = function(e) NULL)) &&
+        min(eigen(model_state$parameters$psi[[k]], symmetric = TRUE,
+                  only.values = TRUE)$values) < 0) {
+      log_eps[, k] <- NaN
+      next
+    }
 
     for (pat in pats) {
       cols <- pat$cols; rows <- pat$rows
@@ -628,6 +732,8 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
       den <- sum(psi_den)
       shared <- .sn_psi_pd(if (den > 1e-8) num / den else psi[[1L]])
       psi <- rep(list(shared), K)
+    } else if (identical(.sn_psi_type(model_state), "variances") && q > 1L) {
+      psi <- .sn_psi_variances(psi_num, psi_den, psi)
     } else {
       for (k in seq_len(K))
         if (psi_den[k] > 1e-8)
@@ -701,7 +807,10 @@ n_parameters.structured_normal <- function(model_state, ...) {
   q  <- length(model_state$r_cols)
   m  <- .sn_m(model_state)
 
-  n_psi   <- q * (q + 1L) / 2L * (if (model_state$psi_equal) 1L else K)
+  n_psi   <- switch(.sn_psi_type(model_state),
+    equal     = q * (q + 1L) / 2L,
+    variances = K * q + q * (q - 1L) / 2L,
+    q * (q + 1L) / 2L * K)
   n_theta <- (if (model_state$theta_shared_occasions) 1L else Tn) *
     (if (model_state$theta_equal) 1L else K)
   n_gamma <- p * m * (if (model_state$gamma_equal) 1L else K)

@@ -10,7 +10,7 @@ fit_gmm(
   times = NULL,
   degree = 1,
   random_effects = c("intercept_slope", "intercept", "none", "all"),
-  psi = c("equal", "free"),
+  psi = c("equal", "variances", "free"),
   residual = c("occasion", "constant"),
   residual_equal = TRUE,
   time_scores = NULL,
@@ -56,8 +56,22 @@ variances free over occasions by default.
 \item \code{"all"} — every growth factor, including a quadratic or higher term.
 }}
 
-\item{psi}{Whether the growth-factor covariance \eqn{\Psi} is held \code{"equal"}
-across classes (the default) or estimated \code{"free"}ly in each.
+\item{psi}{How the growth-factor covariance \eqn{\Psi} may differ across
+classes: held \code{"equal"} (the default); class-specific \code{"variances"} with
+the covariances between growth factors held equal; or estimated \code{"free"}ly
+in each class. \code{"variances"} sits between the other two, and with a single
+random effect it is the same model as \code{"free"}.
+
+\eqn{\Psi} is estimated without bounds. The likelihood depends on it only
+through each class's covariance of the repeated measures,
+\eqn{\Sigma_k = \Lambda \Psi_k \Lambda' + \Theta_k}, so the maximum can lie
+at a \eqn{\Psi} with a negative variance or a correlation beyond
+\eqn{\pm 1} while every \eqn{\Sigma_k} remains positive definite. Such a fit
+is reported as estimated, with every parameter counted, and a warning
+names the class and the value; its log-likelihood and BIC are valid, but
+the value itself is not a variance or a correlation. Under \code{"equal"} or
+\code{"variances"} it usually means the classes' covariances differ (try
+\code{"free"}); under \code{"free"}, that a variance is truly zero.
 Equality is the better default in practice as well as by convention: it is
 what BIC typically selects, and a class-specific \eqn{\Psi} is
 where growth mixture models most often produce a negative variance.
@@ -158,7 +172,9 @@ Applied papers usually name a growth mixture model by what the classes are
 allowed to differ in, and Ram and Grimm (2009, pp. 569-570) give the three
 levels. \emph{Means} — classes differ in mean change only — is \code{psi = "equal"},
 the default here. \emph{Means + Covs} — classes also differ in how much
-interindividual variation there is within them — is \code{psi = "free"}; the
+interindividual variation there is within them — is \code{psi = "free"}, or
+\code{psi = "variances"} when only the growth-factor variances differ and their
+covariances are held equal; the
 residual variances are a separate switch, \code{residual_equal = FALSE}, and
 should not be merged with it. \emph{Means + Covs + Pattern}, where classes differ
 in the shape of change as well, would need class-specific time scores;

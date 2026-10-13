@@ -1,5 +1,36 @@
 # mixtureEM (development version)
 
+## Growth mixture models: class-specific variances, and a growth-factor covariance without bounds
+
+`fit_gmm()` has a third `psi` form, `psi = "variances"`: the growth-factor
+variances differ by class and the covariances between growth factors are
+held equal. It sits between `"equal"` and `"free"`, and with a single random
+effect it is the same model as `"free"`.
+
+The growth-factor covariance matrix Psi is now estimated without bounds. The
+likelihood depends on it only through each class's covariance of the repeated
+measures, so its maximum can lie at a Psi with a negative variance or a
+correlation beyond +/-1 while every class's covariance of the repeated
+measures stays positive definite. Such a fit is now reported as estimated,
+with every parameter counted, and a warning names the class and the value,
+says the log-likelihood and BIC are valid, and suggests the model change that
+usually removes it. A step that would make a class's covariance of the
+repeated measures singular is still refused.
+
+**Numbers move** wherever Psi used to stop at the edge of the admissible
+region: the log-likelihood rises and the estimates move, with the parameter
+count unchanged. On a two-class linear model with five occasions and
+attrition (n = 436), a free Psi rises from -845.412 to -844.148. On data with
+no within-class growth-factor variation the variances now land slightly below
+zero, so such a fit warns that Psi is outside its usual range instead of
+reporting a collapsed variance. Fits whose Psi lies inside the admissible
+region do not change beyond the last digits the optimiser controls.
+
+The count of restarts that found the reported solution ("found by k of n
+starts") now also counts a restart that reached the point the winning restart
+was finished from. Where the maximum lies outside the admissible region, EM
+stops at its edge and every restart used to read as a miss.
+
 ## A BCH categorical outcome no longer runs off to minus infinity
 
 Under `correction = "BCH"` a class can carry a negative net weight on one
