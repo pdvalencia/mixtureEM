@@ -3947,6 +3947,7 @@ print.mixture_model <- function(x, ...) {
                      flag_bic  = !is.null(x$degenerate) ||
                        length(x$growth$boundary) > 0L)
   .print_replication_note(x)
+  .print_set_aside_note(x)
   # The printed log-likelihood conditions on the grouping variable and does not
   # count its own proportions. The known-class formulation, which treats the
   # group as a latent class observed without error, is on a different scale

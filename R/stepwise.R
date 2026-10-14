@@ -247,6 +247,11 @@
     # replications is out of.
     n_requested  = model_state$n_requested
   )
+  # Restarts that ended on a degenerate spike and were counted as failures to
+  # converge (fit_em()); `all_degenerate` when every one did and the reported
+  # fit is the best of them. Present only on a search that met one.
+  model_state$metrics$n_set_aside    <- model_state$n_set_aside
+  model_state$metrics$all_degenerate <- model_state$all_degenerate
 
   model_state
 }
@@ -320,6 +325,21 @@
   cat(sprintf("  Best solution  : found by %s%s\n", detail,
               if (nr == 1L)
                 paste0(" - ", .replication_advice(req %||% n, n)) else ""))
+  invisible(NULL)
+}
+
+# Restarts fit_em() counted as failures because they ended on a degenerate
+# spike. Printed on its own rather than inside the note above, which says
+# nothing when fewer than two restarts converged -- and setting the others
+# aside is exactly how a search gets there.
+.print_set_aside_note <- function(x) {
+  na <- x$metrics$n_set_aside
+  if (is.null(na) || !is.finite(na) || na < 1L) return(invisible(NULL))
+  cat(sprintf(paste0("  Set aside      : %d %s ended on a class with no ",
+                     "spread left on tied scores, a degenerate spike, and ",
+                     "%s not counted as converged\n"),
+              na, if (na == 1L) "start" else "starts",
+              if (na == 1L) "was" else "were"))
   invisible(NULL)
 }
 

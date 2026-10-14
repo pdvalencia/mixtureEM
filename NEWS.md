@@ -1,5 +1,26 @@
 # mixtureEM (development version)
 
+## Growth mixture models: a start that ends on a degenerate spike is set aside
+
+On an outcome with many tied scores, such as a scale with a floor, a growth
+mixture model can place a class on the tied cases with no spread left. That
+class's covariance of the repeated measures becomes singular and the
+likelihood grows without limit, so a start that ends there outscored every
+meaningful solution and was reported, with the collapsed-variance warning.
+`fit_gmm()` now counts such a start as one that did not converge and ranks
+and finishes the others; the print method reports how many were set aside,
+and "found by k of n starts" counts only the converged ones. Only when every
+start ends on a spike is one reported, and the warning then says so. A start
+is stopped as soon as it reaches a spike, instead of creeping towards it for
+thousands of iterations, which makes such fits two to five times faster
+without moving any number.
+
+**Numbers move** only on fits whose reported solution was such a spike. On a
+three-class linear model with four occasions and 22% of first-wave scores at
+the scale floor (n = 442), the log-likelihood goes from -489.194, a spike,
+to -773.443, the best admissible solution. Fits that never met a spike are
+unchanged to the last digit.
+
 ## Growth mixture models: class-specific variances, and a growth-factor covariance without bounds
 
 `fit_gmm()` has a third `psi` form, `psi = "variances"`: the growth-factor

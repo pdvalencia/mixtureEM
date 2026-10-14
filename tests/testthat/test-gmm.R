@@ -172,6 +172,41 @@ test_that("a collapse is caught relative to the data, not only at the floor", {
   expect_length(.gmm_boundary(collapsed, NULL), 0L)
 })
 
+test_that("a start that ends on a singular class covariance is set aside", {
+  # Thirty cases tied on every occasion let a class sit on them with no spread
+  # left: Sigma_k goes singular and the likelihood grows without bound. Such a
+  # start outscores every meaningful one, so the search counts it as a failure
+  # to converge and reports the best of the others.
+  set.seed(7); n <- 200
+  z   <- rbinom(n, 1, 0.4)
+  eta <- cbind(rnorm(n, ifelse(z == 1, 2.5, 1.5), 0.4),
+               rnorm(n, ifelse(z == 1, 0.1, 0.2), 0.08))
+  Y <- eta %*% t(cbind(1, 0:3)) + matrix(rnorm(4 * n, 0, 0.25), n)
+  Y[1:30, ] <- 1
+
+  L  <- .lcga_design(0:3, 1)
+  mm <- structured_normal_model(2, L, psi = "free", residual = "occasion",
+                                residual_equal = FALSE)
+  mm$parameters$alpha <- rbind(c(1, 0), c(2, 0.2))
+  mm$parameters$psi   <- list(matrix(c(.1, 0, 0, .01), 2), matrix(c(.1, 0, 0, .01), 2))
+  mm$parameters$theta <- rbind(rep(.06, 4), rep(.06, 4))
+  expect_false(.sn_degenerate(mm, Y))
+  mm$parameters$psi[[1]]      <- matrix(0, 2, 2)
+  mm$parameters$theta[1, ]    <- .sn_theta_floor
+  expect_true(.sn_degenerate(mm, Y))
+  expect_true(.sn_degenerate(mm, NULL))        # the floor test without data
+
+  skip_on_cran()
+  off <- list(categorical = 0, latent = 0, variances = 0, poisson = 0)
+  fit <- suppressWarnings(fit_gmm(Y, n_classes = 2, times = 4, residual_equal = FALSE,
+                 n_init = 4, random_state = 1, bayes_constants = off))
+  expect_false(.sn_degenerate(fit$mm, fit$data))
+  expect_gt(fit$metrics$n_set_aside, 0L)
+  expect_lt(fit$metrics$ll, max(fit$start_lls) - 100)
+  expect_equal(fit$metrics$n_starts, 4L - fit$metrics$n_set_aside)
+  expect_output(print(fit), "Set aside")
+})
+
 test_that("fitting random effects to data that have none warns and goes negative", {
   # No within-class variation in the growth factors: every case sits on its
   # class's line up to occasion noise, which is an LCGA. Psi is estimated

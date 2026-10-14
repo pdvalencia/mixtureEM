@@ -206,6 +206,35 @@ structured_normal_model <- function(n_components, design,
   (S + t(S)) / 2
 }
 
+# Whether a class's Sigma_k has gone singular: the spike at which the
+# likelihood of a mixture of normals is unbounded (Kiefer and Wolfowitz 1956;
+# Day 1969). On outcomes with many tied values -- a scale floor, say -- a class
+# can sit on the tied cases with no spread left in some direction, and its
+# density there grows without limit. Such a point is not a maximum of the
+# likelihood in any useful sense: it describes the ties, not a subgroup, and it
+# outscores every meaningful solution. The search therefore treats a start that
+# ends there as one that failed to converge (fit_em()), which is the standard
+# handling of degenerate solutions in normal mixtures (McLachlan and Peel 2000,
+# ch. 3). The floor on Theta only keeps such a start numerically alive.
+#
+# The test is the smallest eigenvalue of any Sigma_k relative to the smallest
+# observed variance of an occasion, so it reads the same in any units. Measured
+# in simulated growth data with a scale floor, spike end points sit at 3.4e-6
+# and below, admissible solutions -- with a growth-factor
+# covariance outside the cone included -- at 8.5e-3 and above.
+# The threshold is the log-midpoint of that gap. Without the observed variances
+# the test falls back to an eigenvalue at the Theta floor.
+.sn_spike_ratio <- 1.7e-4
+.sn_degenerate <- function(ms, X = NULL, weights = NULL,
+                           s2 = .gmm_marginal(ms, X, weights)) {
+  ev <- vapply(seq_len(ms$n_components), function(k)
+    min(eigen(.sn_sigma(ms, k), symmetric = TRUE, only.values = TRUE)$values),
+    numeric(1))
+  if (any(!is.finite(ev))) return(TRUE)
+  if (is.null(s2)) return(min(ev) <= 10 * .sn_theta_floor)
+  min(ev) / min(s2) < .sn_spike_ratio
+}
+
 # Cholesky factor, with a ridge as a last resort.
 #
 # Theta is floored strictly above zero and Psi is a sum of outer products, so

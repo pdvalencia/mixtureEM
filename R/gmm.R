@@ -145,6 +145,17 @@
 #' new data and checking that class membership relates to other measured
 #' variables in the ways theory predicts.
 #'
+#' The likelihood of a mixture of normals is unbounded: it grows without limit
+#' as a class's covariance \eqn{\Sigma_k} becomes singular on cases that share
+#' the same values (Kiefer & Wolfowitz, 1956; Day, 1969). An outcome with many
+#' tied scores, such as a scale with a floor, lets a class sit on the tied cases
+#' with no spread left, and a start that ends there outscores every meaningful
+#' solution while describing the ties rather than a subgroup. The search
+#' therefore counts such a start as one that did not converge and reports the
+#' best of the others (McLachlan & Peel, 2000, ch. 3); the print method says
+#' how many were set aside. Only when every start ends that way is such a
+#' point reported, with a warning.
+#'
 #' Contrast [`fit_lcga()`], which fixes the growth-factor variances at zero, so
 #' every case in a class sits on that class's curve up to occasion-level noise.
 #' LCGA is the more parsimonious model and, in criminology especially, often the
@@ -256,6 +267,15 @@
 #' latent variable mixture modeling (part 2): Longitudinal latent class growth
 #' analysis and growth mixture models. *Journal of Pediatric Psychology*,
 #' *39*(2), 188-203. \doi{10.1093/jpepsy/jst085}
+#'
+#' Day, N. E. (1969). Estimating the components of a mixture of normal
+#' distributions. *Biometrika*, *56*(3), 463-474.
+#'
+#' Kiefer, J., & Wolfowitz, J. (1956). Consistency of the maximum likelihood
+#' estimator in the presence of infinitely many incidental parameters. *The
+#' Annals of Mathematical Statistics*, *27*(4), 887-906.
+#'
+#' McLachlan, G. J., & Peel, D. (2000). *Finite Mixture Models*. Wiley.
 #'
 #' Jung, T., & Wickrama, K. A. S. (2008). An introduction to latent class growth
 #' analysis and growth mixture modeling. *Social and Personality Psychology
@@ -394,7 +414,9 @@ fit_gmm <- function(indicator,
   )
   fit$growth$boundary <- .gmm_boundary(mm, fit$data, fit$sample_weights)
   if (length(fit$growth$boundary))
-    warning(.gmm_boundary_message(fit$growth$boundary, mm), call. = FALSE)
+    warning(.gmm_boundary_message(fit$growth$boundary, mm,
+                                  isTRUE(fit$metrics$all_degenerate)),
+            call. = FALSE)
   fit$growth$inadmissible <- .gmm_inadmissible(mm)
   if (length(fit$growth$inadmissible))
     warning(.gmm_inadmissible_message(fit$growth$inadmissible, mm),
@@ -549,7 +571,12 @@ fit_gmm <- function(indicator,
 # The remedies are named in order of how much structure they impose, and only
 # when they are not already in force -- advice a user has already taken reads as
 # noise and buries the advice they have not.
-.gmm_boundary_message <- function(lines, mm = NULL) {
+#
+# `all_degenerate` is the one case where more starts is the right advice: the
+# search sets a start that ends on a singular class covariance aside
+# (fit_em()), so a fit reaches this message with such a point only when every
+# start ended on one, and a larger search can turn up an admissible solution.
+.gmm_boundary_message <- function(lines, mm = NULL, all_degenerate = FALSE) {
   fixes <- character(0)
   if (is.null(mm) || !isTRUE(mm$psi_equal))
     fixes <- c(fixes, "hold the growth-factor covariance equal across classes with psi = \"equal\"")
@@ -567,12 +594,17 @@ fit_gmm <- function(indicator,
            "subgroup. Do not interpret these estimates as variances -- their ",
            "standard errors are not valid either -- and do not compare this ",
            "fit's BIC with a clean one's, since it is inflated by the spike. ",
-           "This is not a convergence failure, so raising n_init will not fix ",
-           "it and can make it worse. Ways out, to choose between on ",
+           "%s Ways out, to choose between on ",
            "substantive grounds: %s. A class with no growth-factor variation ",
            "left is a latent class growth class, which fit_lcga() estimates ",
            "directly and without this failure mode."),
     paste(lines, collapse = "; "),
+    if (all_degenerate)
+      paste0("Every start ended on such a spike, so no admissible solution ",
+             "was found to report instead; raising n_init may find one.")
+    else
+      paste0("This is not a convergence failure, so raising n_init will not ",
+             "fix it and can make it worse."),
     paste(sprintf("(%d) %s", seq_along(fixes), fixes), collapse = "; "))
 }
 

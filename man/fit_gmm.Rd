@@ -191,6 +191,17 @@ generated the data is unknown" — the remedies they name are replication on
 new data and checking that class membership relates to other measured
 variables in the ways theory predicts.
 
+The likelihood of a mixture of normals is unbounded: it grows without limit
+as a class's covariance \eqn{\Sigma_k} becomes singular on cases that share
+the same values (Kiefer & Wolfowitz, 1956; Day, 1969). An outcome with many
+tied scores, such as a scale with a floor, lets a class sit on the tied cases
+with no spread left, and a start that ends there outscores every meaningful
+solution while describing the ties rather than a subgroup. The search
+therefore counts such a start as one that did not converge and reports the
+best of the others (McLachlan & Peel, 2000, ch. 3); the print method says
+how many were set aside. Only when every start ends that way is such a
+point reported, with a warning.
+
 Contrast \code{\link[=fit_lcga]{fit_lcga()}}, which fixes the growth-factor variances at zero, so
 every case in a class sits on that class's curve up to occasion-level noise.
 LCGA is the more parsimonious model and, in criminology especially, often the
@@ -218,6 +229,15 @@ Berlin, K. S., Parra, G. R., & Williams, N. A. (2014). An introduction to
 latent variable mixture modeling (part 2): Longitudinal latent class growth
 analysis and growth mixture models. \emph{Journal of Pediatric Psychology},
 \emph{39}(2), 188-203. \doi{10.1093/jpepsy/jst085}
+
+Day, N. E. (1969). Estimating the components of a mixture of normal
+distributions. \emph{Biometrika}, \emph{56}(3), 463-474.
+
+Kiefer, J., & Wolfowitz, J. (1956). Consistency of the maximum likelihood
+estimator in the presence of infinitely many incidental parameters. \emph{The
+Annals of Mathematical Statistics}, \emph{27}(4), 887-906.
+
+McLachlan, G. J., & Peel, D. (2000). \emph{Finite Mixture Models}. Wiley.
 
 Jung, T., & Wickrama, K. A. S. (2008). An introduction to latent class growth
 analysis and growth mixture modeling. \emph{Social and Personality Psychology

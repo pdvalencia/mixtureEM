@@ -1282,10 +1282,23 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
     tryCatch(.em_log_prior(st, X, Y, prior_marg) + sm_prior(st$sm),
              error = function(e) NA_real_)
   use_pen <- !is.na(log_prior_of(model_state))
+  spike_at <- .em_spike_check(model_state, X)
 
   for (iter in 1:max_iter) {
     # 1. E-STEP
     e_res <- e_step(model_state, X, Y)
+
+    # A start that has reached a degenerate spike is stopped there: fit_em()
+    # sets it aside whatever it does next, and from here it only creeps on
+    # towards the floor, for thousands of iterations. Checked on the
+    # parameters the E-step just used, so the state returned is consistent.
+    if (!is.null(spike_at) && iter %% .em_spike_every == 0L &&
+        spike_at(model_state$mm)) {
+      log_prob_vector <- e_res$log_prob_norm
+      n_iter <- iter
+      model_state$spike_stopped <- TRUE
+      break
+    }
 
     # Store the FULL VECTOR in the model state (for weights/BIC)
     log_prob_vector <- e_res$log_prob_norm
@@ -1485,20 +1498,53 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
   # the reported solution, read off their per-case log-likelihoods rather than
   # their scores, which EM leaves short of the maximum the finish reports
   # (.qn_n_replicated()).
-  finish <- function(best, states) {
+  finish <- function(best, states, kept = rep(TRUE, length(final_lls))) {
     if (is.null(best)) return(best)
+    lls <- final_lls[kept]
     best$start_lls    <- final_lls
-    best$n_starts     <- length(final_lls)
+    best$n_starts     <- length(lls)
     best$n_replicated <- .qn_n_replicated(
       lapply(Filter(Negate(is.null), states), `[[`, "lower_bound"),
       best$lower_bound, best$sample_weights, origin = best$qn_origin) %||%
-      sum(abs(final_lls - max(final_lls)) <= 1e-2)
+      sum(abs(lls - max(lls)) <= 1e-2)
     best$qn_origin    <- NULL
     # What was asked for, carried alongside what converged. On the staged path
     # only the survivors reach record(), so `n_starts` there is three however
     # many restarts were requested, and a report built on it alone would say a
     # 50-start search had been a 10-start one.
     best$n_requested  <- n_init
+    best
+  }
+
+  # Ranks the converged restarts and finishes the leaders. A restart that ended
+  # on a degenerate point of an unbounded likelihood (.em_state_degenerate():
+  # today, a growth model's class covariance gone singular on tied scores) is
+  # counted as one that did not converge, and the rest compete as usual. Its
+  # score is the largest of all by construction, so ranking it would hand the
+  # fit, and the finish's band, to the spike: the meaningful maximum sits below
+  # it, unfinished. Where every restart ended that way there is nothing else to
+  # report, and the best of them is returned with `all_degenerate` set for the
+  # model's own warning. With no degenerate restart this is the plain ranking,
+  # in the same order, so such a fit does not move.
+  select <- function(fitted) {
+    bad <- vapply(fitted, function(s) .em_state_degenerate(s, X), logical(1))
+    kept <- if (all(bad)) rep(TRUE, length(bad)) else !bad
+    best_model <- NULL
+    best_total_ll <- -Inf
+    for (i in seq_along(fitted)) {
+      current_ll <- ll_of(fitted[[i]])
+      record(current_ll)
+      if (kept[i] && (is.null(best_model) || current_ll > best_total_ll)) {
+        best_total_ll <- current_ll
+        best_model    <- fitted[[i]]
+      }
+    }
+    best <- finish(qn_finish(fitted[kept], best_model), fitted[kept], kept)
+    if (!is.null(best) && any(bad)) {
+      best$start_degenerate <- bad
+      best$n_set_aside      <- if (all(bad)) 0L else sum(bad)
+      best$all_degenerate   <- all(bad)
+    }
     best
   }
 
@@ -1527,8 +1573,6 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     keep <- order(lls, decreasing = TRUE)[
       seq_len(min(n_init, max(stage$min_keep, ceiling(stage$frac * n_init))))]
 
-    best_model <- NULL
-    best_total_ll <- -Inf
     # The seed is restored so that the second stage of a given start draws the
     # same random numbers it would have drawn in a single-stage run; nothing
     # below uses them today, but a stochastic M-step later would.
@@ -1537,29 +1581,12 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
       run_from(candidates[[i]])
     }, n_cores = n_cores)
 
-    for (fitted_state in fitted) {
-      current_ll <- ll_of(fitted_state)
-      record(current_ll)
-      if (is.null(best_model) || current_ll > best_total_ll) {
-        best_total_ll <- current_ll
-        best_model    <- fitted_state
-      }
-    }
     # The warm start skips stage 1: ranking it against random starts on a short
     # pass would defeat its purpose, since the basin it seeds is the one a short
     # pass is worst at recognising (the GMM measurements in the roadmap).
-    if (!is.null(warm)) {
-      fitted_state <- run_warm(warm)
-      warm_ll      <- ll_of(fitted_state)
-      record(warm_ll)
-      if (warm_ll > best_total_ll) best_model <- fitted_state
-      fitted <- c(fitted, list(fitted_state))
-    }
-    return(finish(qn_finish(fitted, best_model), fitted))
+    if (!is.null(warm)) fitted <- c(fitted, list(run_warm(warm)))
+    return(select(fitted))
   }
-
-  best_model <- NULL
-  best_total_ll <- -Inf
 
   # Every restart is built here, in restart order, and then fitted. Splitting
   # the draw from the fit is what lets the fits run on workers: see make_inits().
@@ -1569,23 +1596,33 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
                     init_state = st),
     n_cores = n_cores)
 
-  for (fitted_state in fitted) {
-    current_ll <- ll_of(fitted_state)
-    record(current_ll)
-    if (is.null(best_model) || current_ll > best_total_ll) {
-      best_total_ll <- current_ll
-      best_model    <- fitted_state
-    }
-  }
+  if (!is.null(warm)) fitted <- c(fitted, list(run_warm(warm)))
+  select(fitted)
+}
 
-  if (!is.null(warm)) {
-    fitted_state <- run_warm(warm)
-    warm_ll      <- ll_of(fitted_state)
-    record(warm_ll)
-    if (is.null(best_model) || warm_ll > best_total_ll)
-      best_model <- fitted_state
-    fitted <- c(fitted, list(fitted_state))
-  }
+# Whether a fitted restart ended on a degenerate point of an unbounded
+# likelihood, which fit_em() counts as a failure to converge. Only the
+# growth-model emission can say so today (.sn_degenerate()); every other family
+# answers FALSE and is ranked exactly as before.
+.em_state_degenerate <- function(state, X) {
+  if (isTRUE(state$spike_stopped)) return(TRUE)
+  mm <- state$mm
+  if (!inherits(mm, "structured_normal")) return(FALSE)
+  isTRUE(tryCatch(.sn_degenerate(mm, X, state$sample_weights),
+                  error = function(e) FALSE))
+}
 
-  return(finish(qn_finish(fitted, best_model), fitted))
+# The same test, built once per restart for fit_single_init()'s loop, with the
+# observed variances computed up front; NULL for every family it does not
+# apply to, so their loops do no extra work. Checked every `.em_spike_every`
+# iterations: a few small eigenvalue problems, against an E-step over all
+# cases.
+.em_spike_every <- 10L
+.em_spike_check <- function(state, X) {
+  mm <- state$mm
+  if (!inherits(mm, "structured_normal")) return(NULL)
+  s2 <- tryCatch(.gmm_marginal(mm, X, state$sample_weights),
+                 error = function(e) NULL)
+  function(m) isTRUE(tryCatch(.sn_degenerate(m, s2 = s2),
+                              error = function(e) FALSE))
 }
