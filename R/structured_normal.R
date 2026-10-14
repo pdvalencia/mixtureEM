@@ -376,6 +376,239 @@ structured_normal_model <- function(n_components, design,
   build(res$par)
 }
 
+# The edge of the cone, and the M-step that crosses it.
+#
+# The Psi updates above treat each case's growth factors as missing data, and a
+# covariance estimated from imputed factors is a sum of outer products: it can
+# approach the edge of the positive semi-definite cone but never cross it. The
+# likelihood itself only needs every Sigma_k positive definite, and its maximum
+# can lie past that edge -- a small class whose growth factors vary less than
+# their residuals allow, estimated with a negative variance. EM started in such
+# a basin crawls along the edge and stops there, well below the maximum.
+#
+# At the edge the M-step therefore treats only the class as missing. Given the
+# posteriors, the expected complete-data log-likelihood in the mean and
+# covariance parameters is
+#
+#     Q = -1/2 sum_k sum_P [ n_kP log|Sigma_kP| + tr(Sigma_kP^{-1} S_kP) ],
+#
+# with S_kP the class-weighted cross-product of the residuals of the occasions
+# pattern P observes. The growth coefficients maximise it in closed form at the
+# current Sigma (generalised least squares); Psi and Theta are then climbed
+# together by a short BFGS run, Psi as an ordinary symmetric matrix and Theta on
+# the log scale, with a point where some Sigma_k is not positive definite scored
+# as infinitely bad. The run is kept only if Q rises. Both this step and the one
+# above are generalised EM steps for the same likelihood, so EM stays monotone
+# whichever runs; inside the cone the closed-form update is kept because it is
+# cheaper and leaves every fit there exactly as it was.
+#
+# "At the edge" is read in the units the Newton finish packs Psi in
+# (.qn_sn_psi_unit()), so that a growth factor's variance is measured against
+# the residual variance it competes with rather than against its own size.
+.sn_edge_ratio <- 1e-3
+.sn_psi_at_edge <- function(ms) {
+  if (!length(ms$r_cols)) return(FALSE)
+  U <- .qn_sn_psi_unit(ms)
+  any(vapply(ms$parameters$psi, function(P)
+    min(eigen(((P + t(P)) / 2) / U, symmetric = TRUE, only.values = TRUE)$values),
+    numeric(1)) < .sn_edge_ratio)
+}
+
+# Solve the growth-coefficient normal equations, with the class-equality
+# constraint on Gamma. A class that has emptied out, or whose remaining cases
+# cannot identify the trajectory, keeps the coefficients it came in with rather
+# than producing NaNs that would poison the E-step for every other class.
+# Without covariates that is a per-class decision because the systems are
+# separate; with a shared Gamma they are not, so the empty class's block is
+# dropped from the joint system instead and the rest is solved without it.
+.sn_solve_coef <- function(model_state, A_k, rhs_k, den) {
+  K <- model_state$n_components; p <- ncol(model_state$design)
+  m <- .sn_m(model_state); d <- m + 1L
+  alpha <- model_state$parameters$alpha
+  gamma <- model_state$parameters$gamma
+  if (m == 0L || !model_state$gamma_equal) {
+    for (k in seq_len(K)) {
+      sol <- tryCatch(solve(A_k[[k]], rhs_k[[k]]), error = function(e) NULL)
+      if (!is.null(sol) && all(is.finite(sol))) {
+        Bk <- matrix(sol, p, d)
+        alpha[k, ] <- Bk[, 1L]
+        if (m > 0L) gamma[[k]] <- Bk[, -1L, drop = FALSE]
+      }
+    }
+  } else {
+    n_free <- K * p + p * m
+    idx    <- .sn_coef_index(K, p, m)
+    A   <- matrix(0, n_free, n_free)
+    rhs <- numeric(n_free)
+    for (k in seq_len(K)) {
+      ii <- idx[[k]]
+      A[ii, ii] <- A[ii, ii] + A_k[[k]]
+      rhs[ii]   <- rhs[ii] + rhs_k[[k]]
+    }
+    active <- setdiff(seq_len(n_free),
+                      unlist(lapply(which(den <= 1e-8),
+                                    function(k) (k - 1L) * p + seq_len(p))))
+    sub <- tryCatch(solve(A[active, active, drop = FALSE], rhs[active]),
+                    error = function(e) NULL)
+    if (!is.null(sub) && all(is.finite(sub))) {
+      sol <- rep(NA_real_, n_free)
+      sol[active] <- sub
+      for (k in seq_len(K)) {
+        Bk <- matrix(sol[idx[[k]]], p, d)
+        if (!all(is.finite(Bk))) next
+        alpha[k, ] <- Bk[, 1L]
+        gamma[[k]] <- Bk[, -1L, drop = FALSE]
+      }
+    }
+  }
+  list(alpha = alpha, gamma = gamma)
+}
+
+# The M-step at the edge (see above). `resp` already carries any case weights.
+.sn_cov_step <- function(model_state, X, resp, pats) {
+  K  <- model_state$n_components
+  L  <- model_state$design
+  Tn <- nrow(L); p <- ncol(L)
+  Lr <- L[, model_state$r_cols, drop = FALSE]; q <- ncol(Lr)
+  d  <- .sn_m(model_state) + 1L
+  Z  <- .sn_z(model_state, nrow(X))
+
+  # ---- Growth coefficients by generalised least squares at the current Sigma
+  A_k   <- lapply(seq_len(K), function(k) matrix(0, p * d, p * d))
+  rhs_k <- lapply(seq_len(K), function(k) numeric(p * d))
+  den   <- numeric(K)
+  for (k in seq_len(K)) {
+    Sig <- .sn_sigma(model_state, k)
+    for (pat in pats) {
+      cols <- pat$cols; rows <- pat$rows
+      if (!length(cols)) next
+      ch <- .sn_chol(Sig[cols, cols, drop = FALSE])
+      if (is.null(ch)) return(NULL)
+      wk  <- resp[rows, k]
+      LSi <- crossprod(L[cols, , drop = FALSE], chol2inv(ch))   # p x |cols|
+      Zp  <- Z[rows, , drop = FALSE]
+      A_k[[k]]   <- A_k[[k]] + kronecker(crossprod(Zp, wk * Zp),
+                                         LSi %*% L[cols, , drop = FALSE])
+      rhs_k[[k]] <- rhs_k[[k]] +
+        as.vector(LSi %*% crossprod(X[rows, cols, drop = FALSE], wk * Zp))
+      den[k] <- den[k] + sum(wk)
+    }
+  }
+  co <- .sn_solve_coef(model_state, A_k, rhs_k, den)
+  model_state$parameters$alpha <- co$alpha
+  model_state$parameters$gamma <- co$gamma
+
+  # ---- Residual cross-products at the new coefficients
+  live <- which(den > 1e-8)
+  SS <- lapply(seq_len(K), function(k) {
+    mu <- .sn_mu(model_state, k)
+    lapply(pats, function(pat) {
+      if (!length(pat$cols) || !(k %in% live)) return(NULL)
+      wk <- resp[pat$rows, k]
+      R  <- .sn_resid(X, mu, pat$rows, pat$cols)
+      list(cols = pat$cols, n = sum(wk), S = crossprod(R, wk * R))
+    })
+  })
+
+  # ---- Where each class's Psi and Theta read their values in the vector
+  ptype <- .sn_psi_type(model_state)
+  li  <- which(lower.tri(diag(q), diag = TRUE), arr.ind = TRUE)
+  nl  <- nrow(li); dg <- li[, 1L] == li[, 2L]
+  npsi <- switch(ptype, equal = nl, free = K * nl, variances = K * q + sum(!dg))
+  pid <- function(k) switch(ptype,
+    equal = seq_len(nl),
+    free  = (k - 1L) * nl + seq_len(nl),
+    variances = { v <- integer(nl)
+                  v[dg]  <- (k - 1L) * q + li[dg, 1L]
+                  v[!dg] <- K * q + seq_len(sum(!dg)); v })
+  te <- isTRUE(model_state$theta_equal)
+  so <- isTRUE(model_state$theta_shared_occasions)
+  tid <- function(k)
+    if (te && so) rep(1L, Tn) else if (te) seq_len(Tn) else
+      if (so) rep(k, Tn) else (k - 1L) * Tn + seq_len(Tn)
+  U <- .qn_sn_psi_unit(model_state)
+  Ul <- U[li]
+
+  build <- function(v) {
+    psi <- lapply(seq_len(K), function(k) {
+      P <- matrix(0, q, q)
+      P[li] <- v[pid(k)] * Ul
+      P + t(P) - diag(diag(P), q)
+    })
+    th <- t(vapply(seq_len(K), function(k) exp(v[npsi + tid(k)]), numeric(Tn)))
+    list(psi = psi, theta = matrix(th, K, Tn))
+  }
+  # Value and the derivative of Q in each class's Sigma, in one pass.
+  evalQ <- function(v, want_grad) {
+    b <- build(v)
+    if (any(b$theta < .sn_theta_floor)) return(NULL)
+    out <- 0; H <- vector("list", K)
+    for (k in live) {
+      Sig <- Lr %*% b$psi[[k]] %*% t(Lr) + diag(b$theta[k, ], Tn)
+      if (is.null(tryCatch(chol(Sig), error = function(e) NULL))) return(NULL)
+      Hk <- matrix(0, Tn, Tn)
+      for (s in SS[[k]]) {
+        if (is.null(s)) next
+        ch <- tryCatch(chol(Sig[s$cols, s$cols, drop = FALSE]),
+                       error = function(e) NULL)
+        if (is.null(ch)) return(NULL)
+        Si  <- chol2inv(ch)
+        out <- out + 0.5 * (s$n * 2 * sum(log(diag(ch))) + sum(Si * s$S))
+        if (want_grad)
+          Hk[s$cols, s$cols] <- Hk[s$cols, s$cols] +
+            0.5 * (Si %*% s$S %*% Si - s$n * Si)
+      }
+      H[[k]] <- Hk
+    }
+    list(value = out, H = H, b = b)
+  }
+  negQ <- function(v) {
+    e <- evalQ(v, FALSE)
+    if (is.null(e)) 1e100 else e$value
+  }
+  grad <- function(v) {
+    e <- evalQ(v, TRUE)
+    g <- numeric(length(v))
+    if (is.null(e)) return(g)
+    for (k in live) {
+      dP <- crossprod(Lr, e$H[[k]] %*% Lr)
+      gp <- dP[li] * ifelse(dg, 1, 2) * Ul
+      ip <- pid(k)
+      for (j in seq_along(ip)) g[ip[j]] <- g[ip[j]] + gp[j]
+      it <- npsi + tid(k)
+      gt <- diag(e$H[[k]]) * e$b$theta[k, ]
+      for (t in seq_len(Tn)) g[it[t]] <- g[it[t]] + gt[t]
+    }
+    -g
+  }
+
+  # Start from the current values, averaged where a constraint shares them.
+  v0  <- numeric(npsi + max(vapply(seq_len(K), function(k) max(tid(k)),
+                                   numeric(1))))
+  cnt <- numeric(length(v0))
+  th  <- model_state$parameters$theta
+  for (k in seq_len(K)) {
+    P  <- model_state$parameters$psi[[k]]
+    ip <- pid(k); it <- npsi + tid(k)
+    v0[ip] <- v0[ip] + ((P + t(P)) / 2)[li] / Ul; cnt[ip] <- cnt[ip] + 1
+    for (t in seq_len(Tn)) {
+      v0[it[t]] <- v0[it[t]] + log(max(th[k, t], .sn_theta_floor))
+      cnt[it[t]] <- cnt[it[t]] + 1
+    }
+  }
+  v0 <- v0 / pmax(cnt, 1)
+  f0 <- negQ(v0)
+  if (f0 >= 1e100) return(NULL)
+  res <- tryCatch(stats::optim(v0, negQ, grad, method = "BFGS",
+                               control = list(maxit = 100L, reltol = 1e-12)),
+                  error = function(e) NULL)
+  b <- build(if (!is.null(res) && is.finite(res$value) && res$value < f0)
+    res$par else v0)
+  model_state$parameters$psi   <- b$psi
+  model_state$parameters$theta <- b$theta
+  model_state
+}
+
 # Number of growth-factor covariates (zero for the unconditional model).
 .sn_m <- function(ms) if (is.null(ms$xmat)) 0L else ncol(ms$xmat)
 
@@ -641,6 +874,13 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
   Z  <- .sn_z(model_state, nrow(X))
 
   pats  <- .sn_patterns(X)
+
+  # At or past the edge of the cone the update below cannot move Psi outward.
+  if (q && .sn_psi_at_edge(model_state)) {
+    out <- .sn_cov_step(model_state, X, resp, pats)
+    if (!is.null(out)) return(out)
+  }
+
   alpha <- model_state$parameters$alpha
   gamma <- model_state$parameters$gamma
   psi   <- model_state$parameters$psi
@@ -710,49 +950,9 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
   }
 
   # ---- Solve for alpha (and Gamma), with the class-equality constraint -------
-  #
-  # A class that has emptied out, or whose remaining cases cannot identify the
-  # trajectory, keeps the coefficients it came in with rather than producing
-  # NaNs that would poison the E-step for every other class. Without covariates
-  # that is a per-class decision because the systems are separate; with a shared
-  # Gamma they are not, so the empty class's block is dropped from the joint
-  # system instead and the rest is solved without it.
-  if (m == 0L || !model_state$gamma_equal) {
-    # Block diagonal: solve each class on its own, as before.
-    for (k in seq_len(K)) {
-      sol <- tryCatch(solve(A_k[[k]], rhs_k[[k]]), error = function(e) NULL)
-      if (!is.null(sol) && all(is.finite(sol))) {
-        Bk <- matrix(sol, p, d)
-        alpha_new[k, ]  <- Bk[, 1L]
-        if (m > 0L) gamma_new[[k]] <- Bk[, -1L, drop = FALSE]
-      }
-    }
-  } else {
-    n_free <- K * p + p * m
-    idx    <- .sn_coef_index(K, p, m)
-    A   <- matrix(0, n_free, n_free)
-    rhs <- numeric(n_free)
-    for (k in seq_len(K)) {
-      ii <- idx[[k]]
-      A[ii, ii] <- A[ii, ii] + A_k[[k]]
-      rhs[ii]   <- rhs[ii] + rhs_k[[k]]
-    }
-    active <- setdiff(seq_len(n_free),
-                      unlist(lapply(which(psi_den <= 1e-8),
-                                    function(k) (k - 1L) * p + seq_len(p))))
-    sub <- tryCatch(solve(A[active, active, drop = FALSE], rhs[active]),
-                    error = function(e) NULL)
-    if (!is.null(sub) && all(is.finite(sub))) {
-      sol <- rep(NA_real_, n_free)
-      sol[active] <- sub
-      for (k in seq_len(K)) {
-        Bk <- matrix(sol[idx[[k]]], p, d)
-        if (!all(is.finite(Bk))) next
-        alpha_new[k, ]  <- Bk[, 1L]
-        gamma_new[[k]] <- Bk[, -1L, drop = FALSE]
-      }
-    }
-  }
+  co <- .sn_solve_coef(model_state, A_k, rhs_k, psi_den)
+  alpha_new <- co$alpha
+  gamma_new <- co$gamma
 
   # ---- Psi, with the class-equality constraint imposed by pooling ------------
   if (q) {

@@ -340,6 +340,41 @@ test_that("a Psi outside the cone with a positive definite Sigma is a valid fit,
   expect_true(all(is.nan(log_likelihood(mm, Y)[, 1])))
 })
 
+test_that("EM at the edge of the cone steps across it and stays monotone", {
+  # A class with no slope variation at all: its slope variance's maximum sits
+  # below zero about half the time. The random-effects update can only creep
+  # towards zero; at the edge the M-step climbs the observed-data likelihood
+  # instead, which carries Psi across while every Sigma stays positive definite.
+  set.seed(4)
+  n <- 500; Tn <- 4
+  cls <- rbinom(n, 1, 0.3)
+  icept <- ifelse(cls == 1, 3, 0) + rnorm(n, 0, 0.8)
+  slope <- ifelse(cls == 1, 0.8, -0.2) + ifelse(cls == 1, 0, rnorm(n, 0, 0.35))
+  Y <- outer(icept, rep(1, Tn)) + outer(slope, 0:3) +
+    matrix(rnorm(n * Tn, 0, 0.7), n, Tn)
+  L  <- .lcga_design(0:3, 1)
+  mm <- structured_normal_model(2, L, psi = "free", residual_equal = TRUE)
+  mm$parameters$alpha <- rbind(c(0, -0.2), c(3, 0.8))
+  mm$parameters$psi   <- list(diag(c(0.64, 0.12)), diag(c(0.64, 1e-8)))
+  mm$parameters$theta <- matrix(0.49, 2, Tn)
+  w <- c(0.7, 0.3)
+  expect_true(.sn_psi_at_edge(mm))
+
+  ll <- function(mm, w) {
+    le <- sweep(log_likelihood(mm, Y), 2, log(w), "+")
+    m <- apply(le, 1, max)
+    list(ll = sum(m + log(rowSums(exp(le - m)))), R = exp(le - m) / rowSums(exp(le - m)))
+  }
+  e <- ll(mm, w); trace <- e$ll
+  for (i in 1:30) {
+    mm <- m_step(mm, Y, e$R); w <- colMeans(e$R)
+    e <- ll(mm, w); trace <- c(trace, e$ll)
+  }
+  expect_true(all(diff(trace) > -1e-8))
+  expect_lt(mm$parameters$psi[[2]][2, 2], 0)
+  expect_true(all(eigen(.sn_sigma(mm, 2), only.values = TRUE)$values > 0))
+})
+
 test_that("a differenced score next to where the model stops existing is one-sided", {
   # The finish differences the case log-likelihoods. A point a hair inside the
   # region where every Sigma_k is positive definite has one side of its

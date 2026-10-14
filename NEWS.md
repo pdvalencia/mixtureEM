@@ -1,5 +1,24 @@
 # mixtureEM (development version)
 
+## Growth mixture models: EM can now carry Psi past the edge of its usual range
+
+The EM update of the growth-factor covariance Psi imputes each case's growth
+factors, so it is a sum of outer products: it could approach a Psi with a
+zero eigenvalue but never cross it. When the likelihood's maximum lies past
+that edge, as it does for a small class whose growth factors vary less than
+their residuals allow, a start in that basin crept along the edge and
+stopped below the maximum, and the search reported a lower solution. Once
+Psi reaches the edge, the M-step now climbs the class-weighted likelihood of
+the repeated measures directly, with Psi free and only each class's
+covariance of the repeated measures held positive definite. Both updates are
+generalised EM steps for the same likelihood, so EM stays monotone.
+
+**Numbers move** only on fits with a start that reached the edge. On a
+simulated three-class linear model with class-specific variances (n = 450,
+200 starts), the log-likelihood goes from -567.813 to -566.972, a solution
+whose 1.3% class has two negative growth-factor variances. Fits whose Psi
+never reached the edge are unchanged to the last digit.
+
 ## Growth mixture models: a start that ends on a degenerate spike is set aside
 
 On an outcome with many tied scores, such as a scale with a floor, a growth
