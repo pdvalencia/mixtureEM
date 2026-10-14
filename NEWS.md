@@ -18,6 +18,31 @@ precision. Both functions now return it invisibly after printing, so an
 unassigned call no longer prints the raw list after the table, and the table
 can be shown again with `print()` without refitting.
 
+## The latent transition step 3 now reaches its maximum
+
+Step 3 of `fit_lta(n_steps = 3)` maximises its log-likelihood plus the prior
+set by `smoothing`, but its stopping rule, its choice among restarts and the
+check that keeps its Newton-type finish all compared the plain
+log-likelihood. With the prior on, EM therefore stopped early and the finish,
+which does reach the maximum, was discarded. All three now compare the
+objective step 3 maximises, and step 3 ends at the maximum (gradient below
+1e-6, from as much as 0.08 before).
+
+**Numbers move** for three-step fits with `smoothing > 0` and no covariates
+on the statuses: initial-status and transition probabilities by up to 1.4e-4,
+standard errors by up to 1.5e-4 relative. Fits with covariates on the
+statuses, and fits with `smoothing = 0`, are unchanged.
+
+## Sandwich standard errors use uncentred scores
+
+Without `strata` or `cluster`, the robust and corrected standard errors of
+the class regression (three-step, two-step and joint), the outer-product
+step-1 variance and the pooled distal-outcome sandwiches now build their
+middle term from the uncentred case scores, as the latent transition model's
+sandwich already did. With a prior the case scores do not sum to zero at the
+estimate, and centring them dropped that part. Fits without a prior are
+unchanged; with one, standard errors move by an amount of order 1/n^2.
+
 ## Three-step latent transition standard errors include the priors too
 
 `fit_lta(n_steps = 3)` fits its initial-status and transition probabilities

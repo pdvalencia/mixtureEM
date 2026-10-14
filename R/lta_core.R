@@ -1241,6 +1241,14 @@
 .lta_log_prior <- function(state, X, alpha, marginals = NULL) {
   if (!is.null(state$ri))
     return(.lta_ri_log_prior(state, X, alpha, marginals))
+  # A fixed emission (the three-step's step 3) has no free measurement
+  # parameter, and a distal outcome attached to it is fitted without a prior,
+  # so the structural term is the whole prior its M-step adds. Pricing it here
+  # puts EM's stopping rule, the restart ranking and the acceptance of the
+  # finish on the objective step 3 climbs; returning NA used to leave them on
+  # the plain log-likelihood, which rejected the finish whenever the prior was
+  # on and stopped EM early.
+  if (isTRUE(state$mm_fixed)) return(.lta_log_prior_dt(state, alpha))
 
   fam <- class(state$mm$models[[1]])[1]
   known <- c("bernoulli", "bernoulli_nan",     # marginal-preserving Beta prior
@@ -1253,10 +1261,8 @@
   # the case weights passed exactly when .lta_em() passes them. Gaussian
   # variances, nominal and count items and a mixed item block all read it from
   # there (Part 53; checked by the finish landing on a long EM run).
-  # A fixed emission (the three-step's step 3) keeps the rule it was validated
-  # on; the finish prices its structural term itself (.qn_lta_prior()).
   if (!fam %in% known) {
-    if (inherits(state$mm, "blocks") && !isTRUE(state$mm_fixed)) {
+    if (inherits(state$mm, "blocks")) {
       w  <- state$weights_vec
       mp <- .em_blocks_family_log_prior(state$mm, X, state$n_statuses,
                                         if (all(w == 1)) NULL else w)
