@@ -895,7 +895,8 @@ test_that("measurement_invariance = \"none\" runs end to end", {
 # prints it for this model, so each of its pieces is checked on its own terms:
 #
 #   S11   against the Hessian of a transition-free likelihood written from
-#         scratch here, which shares no code with the package's packing;
+#         scratch here, which shares no code with the package's packing (every
+#         prior is off in this fixture, so that Hessian is the whole objective's);
 #   H21   through what it means rather than how it is computed: V2 H21' is the
 #         slope of step 3's estimate in step 1's parameters, so step 3 is
 #         refitted at a nudged step 1 and the two slopes compared;
@@ -909,6 +910,7 @@ test_that("measurement_invariance = \"none\" runs end to end", {
   .ts3_cache[[key]] <- fit_lta(
     .ts3_sim(), n_statuses = 3, times = 4, measurement = "binary",
     n_init = 6, random_state = 1, n_cores = 1, smoothing = 0, n_steps = 3,
+    bayes_constants = list(categorical = 0),
     assignment = assignment, correction = correction)
 }
 
@@ -916,6 +918,7 @@ test_that("measurement_invariance = \"none\" runs end to end", {
   list(step1 = fit$step1, assignment = fit$threestep$assignment,
        correction = fit$threestep$correction,
        zero_floor = fit$threestep$zero_floor, modal = fit$threestep$modal,
+       smoothing = fit$threestep$smoothing,
        D = fit$threestep$classification_error)
 }
 
@@ -1007,6 +1010,34 @@ test_that("modal with no correction has nothing to propagate", {
   fit <- .ts3_w6("modal", "none")
   expect_null(fit$se$threestep)
   expect_true(fit$se$conditional)
+})
+
+test_that("with the prior on, V2 is the penalised objective's inverse information", {
+  # Step 3 maximises its log-likelihood plus the prior on the structural
+  # probabilities, so its estimate is a zero of the penalised score and its
+  # model-based variance is the inverse of that objective's curvature. Both
+  # are rebuilt here from the step-3 fit's own likelihood and prior.
+  fit <- fit_lta(.ts3_sim(), n_statuses = 3, times = 4, measurement = "binary",
+                 measurement_invariance = "full", n_init = 6, random_state = 1,
+                 n_cores = 1, n_steps = 3, assignment = "modal")
+  expect_equal(fit$threestep$smoothing, 1)
+  lay <- mixtureEM:::.lta_par_layout(fit)
+  par <- mixtureEM:::.lta_par_pack(fit, lay)
+  W   <- as.matrix(fit$data)
+  w   <- fit$weights_vec
+  ll  <- function(p) sum(w * mixtureEM:::.lta_ll_case(fit, W, p, lay))
+  lp  <- function(p) mixtureEM:::.lta_log_prior_dt(
+    mixtureEM:::.lta_par_unpack(p, fit, lay), 1)
+  Hd <- mixtureEM:::.step1_fd_hessian(ll, par)
+  Hp <- mixtureEM:::.step1_fd_hessian(lp, par)
+  se <- sqrt(diag(fit$se$threestep_V2))
+  # 1e-3: the rebuilt Hessian is taken with the test's own steps, and the
+  # fit's EM stop leaves the estimate a few hundredths of a logit short of the
+  # optimum on this nearly flat fixture. Leaving the prior out is off by up to
+  # 2% here.
+  expect_lt(max(abs(se / sqrt(diag(solve(-(Hd + Hp)))) - 1)), 1e-3)
+  # The prior adds curvature, so every model-based standard error shrinks.
+  expect_true(all(se < sqrt(diag(solve(-Hd)))))
 })
 
 # ==============================================================================

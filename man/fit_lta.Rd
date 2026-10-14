@@ -617,7 +617,11 @@ one of Bakk, Oberski and Vermunt (2014): step 3's own inverse information
 plus the variance of step 1's estimates, carried through the error
 matrices (and, under proportional assignment, through the weights the
 posteriors give the reduced data). The step-3-only part is kept as
-\verb{$se$threestep_V2} and step 1's variance as \verb{$se$step1_vcov}. Under
+\verb{$se$threestep_V2} and step 1's variance as \verb{$se$step1_vcov}. Both are
+the inverse information of the objective each step maximises, the
+log-likelihood plus the prior set by \code{smoothing} (and, in step 1, the
+item prior of \code{bayes_constants}), so they include the prior's
+curvature. Under
 \code{correction = "none"} with modal assignment step 1 never reaches step 3,
 and the standard errors are step 3's own.
 

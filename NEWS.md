@@ -18,6 +18,25 @@ precision. Both functions now return it invisibly after printing, so an
 unassigned call no longer prints the raw list after the table, and the table
 can be shown again with `print()` without refitting.
 
+## Three-step latent transition standard errors include the priors too
+
+`fit_lta(n_steps = 3)` fits its initial-status and transition probabilities
+with the prior set by `smoothing`, and step 1 with its item prior as well, so
+both steps maximise a penalised log-likelihood. The step-3 standard errors
+were computed from the plain one. They are now the penalised objective's:
+the prior's curvature enters step 3's information (`$se$threestep_V2`), step
+1's information (`$se$step1_vcov`), and, under `strata` or `cluster`, the
+middle of the design-based sandwich. The fitted object records the
+`smoothing` both steps used as `$threestep$smoothing`.
+
+**Numbers move** for fits with `smoothing > 0` and no covariates on the
+statuses. Standard errors fall by 0.05 percent at n = 1000 and by up to 2.5
+percent at n = 400, where an initial status holds 6 percent of the sample;
+the largest changes are on rare statuses and transitions near 0. Estimates do
+not change. Fits with `smoothing = 0` and `bayes_constants = list(categorical
+= 0)` are unchanged, and so are the structural blocks with covariates, which
+carry no prior.
+
 ## Covariate standard errors now include the priors the estimates were fitted with
 
 The class regression of a three-step, two-step or joint step-3 fit is

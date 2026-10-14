@@ -174,7 +174,14 @@
     integer(nrow(step1$gamma[[1L]])))
   dimnames(modal) <- list(NULL, step1$longitudinal$time_labels)
 
+  # The prior both steps were fitted under (step 1 and step 3 each receive the
+  # caller's `smoothing`), which the variance needs: it is the penalised
+  # objective's (.lta_threestep_vcov()).
+  smoothing <- if (is.null(cl$smoothing)) formals(fit_lta)$smoothing else
+    eval(cl$smoothing, env)
+
   list(step1       = step1,
+       smoothing   = smoothing,
        assignment  = assignment,
        correction  = correction,
        alignment   = alignment,
@@ -605,6 +612,18 @@
 # it. So S11 is the variance of the model step 1 fitted, not of a model with K
 # free rows per occasion.
 #
+# Both informations are the penalised objective's. Neither step maximises the
+# plain likelihood: each carries the prior on its structural probabilities
+# (`alpha`, the caller's `smoothing`, which both steps receive) and step 1 the
+# prior on its item probabilities too, so each estimate is a zero of the
+# penalised score, and the curvature that describes its sampling spread is the
+# curvature of that objective -- the likelihood's plus the prior's. The plain
+# Hessian alone overstates the variance wherever the prior is felt: a sparse
+# origin row, a rare status, a small sample. The same reasoning, and the same
+# sandwich under a survey design, as the cross-sectional step 3's
+# (.step3_covariate_vcov(), R/step3_variance.R). A covariate block carries no
+# prior (.lta_log_prior_dt() skips it), so there the two coincide.
+#
 # Returns NULL when there is nothing to propagate (modal assignment with
 # `correction = "none"`: every table is the identity and every weight a case
 # weight) or when either fit falls outside the packing.
@@ -613,6 +632,10 @@
   modal <- identical(s12$assignment, "modal")
   none  <- identical(s12$correction, "none")
   if (modal && none) return(NULL)
+  alpha <- s12$smoothing
+  if (is.null(alpha))
+    stop("`s12` carries no `smoothing`: the variance cannot tell which prior ",
+         "the two steps were fitted under.", call. = FALSE)
   if (!isTRUE(fit$mm_fixed) || !is.null(fit$ri) || !is.null(step1$ri) ||
       (fit$n_classes %||% 1L) > 1L)
     return(NULL)
@@ -658,7 +681,16 @@
   s1$weights_vec <- w1c
 
   ll1 <- function(r) sum(w1c * .lta_ll_case(s1, X1c, r[src], lay1))
-  S11 <- .psd_pinv(-.step1_fd_hessian(ll1, r0))
+  # Step 1's prior, priced off the state the way its own EM priced it. The K
+  # origin rows of an occasion are equal here, and K copies of a row at
+  # alpha / K^2 per cell carry exactly the one vector's alpha / K, so the
+  # unflagged copy prices the transition-free model correctly. A family whose
+  # prior has no closed form gives NA, and the plain likelihood is used.
+  lp1 <- function(r)
+    .lta_log_prior(.lta_par_unpack(r[src], s1, lay1), X1c, alpha)
+  if (is.na(lp1(r0))) lp1 <- function(r) 0
+  Hp1 <- .step1_fd_hessian(lp1, r0)
+  S11 <- .psd_pinv(-(.step1_fd_hessian(ll1, r0) + Hp1))
   S11 <- (S11 + t(S11)) / 2
 
   # What step 3 reads off step 1, at an arbitrary point of step 1's vector.
@@ -737,7 +769,11 @@
 
   info <- .lta_twostep_information(fit, W3, w3, lay3, c(par3, r0), idx1, idx2,
                                    ll = ll)
-  V2 <- .psd_pinv(-info$H22)
+  # The prior reads step 3's structural vector only, so it adds to H22 and
+  # leaves the cross derivative alone. No forward-backward pass: it is cheap.
+  Hp3 <- .step1_fd_hessian(function(v)
+    .lta_log_prior_dt(.lta_par_unpack(v, fit, lay3), alpha), par3)
+  V2 <- .psd_pinv(-(info$H22 + Hp3))
   V2 <- (V2 + t(V2)) / 2
   V  <- V2 + V2 %*% t(info$H12) %*% S11 %*% info$H12 %*% V2
   V  <- (V + t(V)) / 2
@@ -753,7 +789,12 @@
   # and comparing across PSUs within stratum (compute_survey_B()) then counts
   # the clustering of both steps and of their covariance. With independent
   # cases its expectation is the V above. Scores are taken on the distinct
-  # rows, as everything else here is, and expanded back to the cases.
+  # rows, as everything else here is, and expanded back to the cases. The
+  # scores are the data's; each step's prior curvature joins the meat with a
+  # minus sign -- step 3's directly, step 1's carried through the same cross
+  # derivative as its scores -- so that with each step's meat equal to its
+  # data's information the sandwich is exactly the V above (the cross-sectional
+  # sandwich's form).
   B11 <- B33 <- NULL
   if (isTRUE(fit$has_survey_design)) {
     if (!modal || nrow(W3) != length(w1) || length(fit$strata) != length(w1))
@@ -776,11 +817,12 @@
     Sc3 <- w3 * G3[pat3$idx, , drop = FALSE]
 
     U <- Sc3 + Sc1 %*% S11 %*% info$H12
-    V <- V2 %*% compute_survey_B(U, fit$strata, fit$cluster) %*% V2
+    Hp <- Hp3 + t(info$H12) %*% S11 %*% Hp1 %*% S11 %*% info$H12
+    V <- V2 %*% (compute_survey_B(U, fit$strata, fit$cluster) - Hp) %*% V2
     V <- (V + t(V)) / 2
     if (!all(is.finite(V))) return(NULL)
-    B11 <- S11 %*% compute_survey_B(Sc1, fit$strata, fit$cluster) %*% S11
-    B33 <- V2 %*% compute_survey_B(Sc3, fit$strata, fit$cluster) %*% V2
+    B11 <- S11 %*% (compute_survey_B(Sc1, fit$strata, fit$cluster) - Hp1) %*% S11
+    B33 <- V2 %*% (compute_survey_B(Sc3, fit$strata, fit$cluster) - Hp3) %*% V2
     method <- paste(method, "with the survey-linearized sandwich over both steps")
   }
 
@@ -1003,6 +1045,7 @@
   fit$threestep <- list(correction           = s12$correction,
                         assignment           = s12$assignment,
                         zero_floor           = s12$zero_floor,
+                        smoothing            = s12$smoothing,
                         prevalences_step1    = s12$prevalences,
                         classification_error = s12$D,
                         modal                = s12$modal,
