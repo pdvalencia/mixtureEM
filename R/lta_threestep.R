@@ -621,8 +621,8 @@
 # Hessian alone overstates the variance wherever the prior is felt: a sparse
 # origin row, a rare status, a small sample. The same reasoning, and the same
 # sandwich under a survey design, as the cross-sectional step 3's
-# (.step3_covariate_vcov(), R/step3_variance.R). A covariate block carries no
-# prior (.lta_log_prior_dt() skips it), so there the two coincide.
+# (.step3_covariate_vcov(), R/step3_variance.R). A covariate block carries its
+# prior over the covariate patterns, which .lta_log_prior_dt() prices too.
 #
 # Returns NULL when there is nothing to propagate (modal assignment with
 # `correction = "none"`: every table is the identity and every weight a case

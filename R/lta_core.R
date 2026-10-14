@@ -524,7 +524,8 @@
       # downstream now reads. Covariates and several classes are mutually
       # exclusive (fit_lta() refuses the combination), so `c` is always 1 here.
       if (has_delta_cov) {
-        state <- .lta_mstep_delta_cov(state, es$gamma[[1]], augment = alpha > 0)
+        state <- .lta_mstep_delta_cov(state, es$gamma[[1]], augment = alpha > 0,
+                                       alpha = alpha)
         state$delta_c[[c]] <- state$delta
       } else if (isTRUE(state$tie_initial_status) && C > 1L) {
         state$delta_c[[c]] <- delta_tied
@@ -539,7 +540,8 @@
 
       # --- transition matrices ------------------------------------------------
       if (Tn > 1L && has_tau_cov) {
-        state <- .lta_mstep_tau_cov(state, es, augment = alpha > 0)
+        state <- .lta_mstep_tau_cov(state, es, augment = alpha > 0,
+                                     alpha = alpha)
         state$tau_c[[c]] <- state$tau
       } else if (Tn > 1L) {
         Xi <- .lta_pair_counts(es, wc, K, Tn, C)
@@ -1199,9 +1201,9 @@
 # used everywhere before 2026-08-31. An INCOMPLETE penalty would be worse than
 # no penalty, because the sum would not be monotone either. The gap is the
 # measurement families whose prior is not the marginal-preserving Beta one:
-# Gaussian variances, Poisson rates and the polytomous Dirichlet. `smoothing`
-# is inert wherever a covariate M-step replaces a normalised count, so those
-# blocks are skipped on exactly the condition the M-step branches on.
+# Gaussian variances, Poisson rates and the polytomous Dirichlet. A block a
+# covariate M-step fits as a regression is priced from the same pieces that
+# M-step hands .fit_mnl() (.lta_cov_prior_pieces(), R/lta_covariates.R).
 # The delta/tau (and, with several classes, class-mixing) terms of the prior,
 # unaffected by whether the measurement side is a plain table or a random
 # intercept: factored out so `.lta_log_prior()` and `.lta_ri_log_prior()`
@@ -1235,6 +1237,12 @@
       }
     }
   }
+  # A block a covariate regression replaces carries the same prior spread over
+  # the distinct covariate patterns, priced from the pieces the covariate
+  # M-steps hand .fit_mnl() (R/lta_covariates.R), so the two cannot differ.
+  if (!is.null(state$Z_delta) || (Tn > 1L && !is.null(state$Z_tau)))
+    for (pc in .lta_cov_prior_pieces(state, alpha))
+      val <- val + .lta_cov_prior_value(pc)
   val
 }
 
@@ -1328,6 +1336,7 @@
   val <- 0
   grad <- numeric(0)
   curv <- numeric(0)
+  cov_pieces <- NULL
   for (b in layout) {
     g <- numeric(b$len)
     h <- numeric(b$len)
@@ -1363,6 +1372,20 @@
       val <- val + a_tau * sum(log(p))
       g <- a_tau * (1 - m * p[-m])
       h <- -a_tau * m * p[-m] * (1 - p[-m])
+    } else if (b$kind %in% c("delta_beta", "tau_beta") && alpha > 0) {
+      # A covariate regression: the piece .lta_log_prior_dt() prices for the
+      # same block, with .covariate_prior_derivs()'s closed-form derivatives,
+      # whose coefficient order is the packing's.
+      if (is.null(cov_pieces)) cov_pieces <- .lta_cov_prior_pieces(state, alpha)
+      # `[[` rather than `$`: a block without `k` would partially match `kind`.
+      pc <- Find(function(p) identical(p$kind, b$kind) &&
+                   identical(p[["i_mat"]], b[["i_mat"]]) &&
+                   identical(p[["k"]], b[["k"]]),
+                 cov_pieces)
+      d <- .covariate_prior_derivs(pc$beta, pc$Zu, pc$a)
+      val <- val + .lta_cov_prior_value(pc)
+      g <- d$gradient
+      h <- diag(d$hessian)
     } else if (b$kind == "rho" && a_cat > 0) {
       p  <- pmin(pmax(state$mm$models[[b$grp[1]]]$parameters$pis[, b$j],
                       1e-300), 1 - 1e-300)

@@ -207,9 +207,9 @@
 #'   the climb steps past it, and never returns a fit worse than the one it was
 #'   given. This is the same refinement [`fit_mixture()`] has always applied.
 #'   It is a no-op - silently, and the fit is unchanged - for models whose free
-#'   parameters it cannot differentiate: covariate models and measurement
-#'   families other than binary and continuous. Mixtures over chains
-#'   (`n_classes` > 1) are refined like any other supported model.
+#'   parameters it cannot differentiate: measurement families other than binary
+#'   and continuous. Mixtures over chains (`n_classes` > 1) and covariate
+#'   models are refined like any other supported model.
 #' @param refine_from A model fitted by [`fit_lta()`] on the same data and with
 #'   the same shape, whose solution this fit continues from. No random starts
 #'   are run and `n_init` is ignored, because the search that produced the donor
@@ -248,12 +248,18 @@
 #'   the class weights, and it does **not** govern the measurement model, whose
 #'   prior is `bayes_constants`.
 #'
-#'   It also does not reach the transitions once anything predicts them. With
-#'   `predictors_transition`, or with a `group` whose `group_effects` include
-#'   the transitions, each transition matrix is the fitted value of a
-#'   multinomial logit rather than a smoothed table of counts, and `smoothing`
-#'   has no effect on it. The initial status prevalences behave the same way
-#'   under `predictors_initial`.
+#'   It reaches the regressions too, once covariates predict the statuses.
+#'   With `predictors_initial`, `predictors_transition`, or a `group` whose
+#'   `group_effects` include them, the initial status and the transitions are
+#'   multinomial logits rather than tables of counts, and the same mass is
+#'   spread over the distinct covariate patterns: `smoothing / (K U)`
+#'   pseudo-cases per status and pattern for the initial status, and
+#'   `smoothing / (K^2 U)` per origin, destination and pattern for each
+#'   transition matrix, `U` being the number of distinct covariate patterns.
+#'   That is the prior [`fit_mixture()`] puts on its class regression. It keeps
+#'   a coefficient finite when a covariate pattern never makes a transition,
+#'   and it pulls a rare pattern harder than a common one, since its mass does
+#'   not grow with the pattern's size.
 #'
 #'   The mass is one pseudo-case per *conditional table*, so with `K` statuses
 #'   an origin row of a transition matrix carries a `K`th of it. It is spread
@@ -399,8 +405,8 @@
 #'   have driven to zero, and `smoothing_influence` gives, for each origin row,
 #'   the cases expected in it and the share of the estimate the `smoothing`
 #'   prior is carrying. `smoothing_influence` is `NULL` when `smoothing` is 0 or
-#'   when covariates predict the transitions, since the prior does not reach
-#'   them then.
+#'   when covariates predict the transitions, since a transition is then a
+#'   regression with no origin row of counts to report a pull on.
 #'
 #'   With `n_classes` > 1 those parameters gain a class index: `delta` becomes a
 #'   classes-by-statuses matrix, `tau` a list of per-class lists, and
@@ -2091,13 +2097,11 @@ fit_lta <- function(indicators,
 #
 # Covariates on the transitions take the whole thing out of scope. That M-step
 # is a multinomial logit fitted by .lta_mstep_tau_cov() (R/lta_covariates.R),
-# which never calls .lta_normalise(), so `smoothing` does not reach the
-# transition matrices at all on that path and there is no pull to report. A
+# whose prior is spread over the covariate patterns rather than over origin
+# rows of counts, so there is no row-level pull of the kind reported here. A
 # grouping variable enters the same way, as dummy predictors saturated over the
 # transition rows, so `group_effects` of "both" or "transitions" is covered by
-# the same test. Without this guard the row counts are real but the prior they
-# are compared against is not applied, and the message would send the reader
-# after a `smoothing` that is doing nothing.
+# the same test.
 .lta_smoothing_influence <- function(state, alpha) {
   # The transition-free model has no origin rows to report a pull for: its
   # prior is one Dirichlet on each occasion's prevalence vector, which is the

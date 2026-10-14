@@ -135,18 +135,107 @@
 # M-step for the regressions
 # ------------------------------------------------------------------------------
 
-# `augment` is .fit_mnl()'s K ghost observations (weight 0.01 at the covariate
-# means), which keep the Newton steps finite under complete separation but
-# also enter the likelihood being maximised. .lta_em() switches them off when
-# `smoothing = 0`, where the fit is meant to be plain maximum likelihood, and
-# leaves them on otherwise, so a default fit is unchanged. Off, a separated
-# cell is left to drift towards the boundary, as it does in any ML fit.
+# The prior `smoothing` sets (`alpha`) reaches a regression the way it reaches
+# the cross-sectional class regression: .fit_mnl() appends alpha / (K U0)
+# pseudo-cases to every cell of every distinct row of the design it is given,
+# U0 rows in all. For the initial status that is alpha / (K U) per covariate
+# pattern and status, U the number of distinct covariate patterns -- the
+# no-covariate rule (alpha / K per status) spread over the patterns. For a
+# transition matrix it is alpha / (K^2 U) per pattern, origin and destination,
+# the no-covariate rule (alpha / K^2 per cell, one pseudo-case per matrix)
+# spread the same way. Which `alpha` each regression is handed for that is
+# .lta_tau_cov_alpha()'s business. With `smoothing = 0` there is no prior, and
+# `augment = FALSE` also drops .fit_mnl()'s ghost rows, so the fit is plain
+# maximum likelihood and a separated cell drifts towards the boundary, as in
+# any ML fit.
+
+# The `alpha` one transition regression is handed, so that .fit_mnl()'s
+# alpha / (K U0) comes out at alpha / (K^2 U) per pattern, origin and
+# destination for every estimated matrix:
+#   "by_origin": one regression per origin on the bare covariates, U0 = U, so
+#                each carries alpha / K;
+#   "common":    one regression whose design holds the origin dummies, U0 = K U;
+#   "slopes":    one regression over all occasions with occasion contrasts,
+#                U0 = K U (Tn - 1), so it carries alpha once per occasion's
+#                matrix, as the free matrices do;
+#   transition-free (`tau_independent`): no origin, U0 = U, alpha per
+#                occasion's vector, as the no-covariate M-step gives it.
+.lta_tau_cov_alpha <- function(state, alpha) {
+  if (identical(state$transition_effects, "by_origin"))
+    return(alpha / state$n_statuses)
+  if (!is.null(.lta_tau_occasion_contrasts(state, 1L, 1L)))
+    return(alpha * (state$n_times - 1L))
+  alpha
+}
+
+# The covariate blocks' prior, one piece per regression: its coefficients, the
+# distinct rows of the design .fit_mnl() is handed for it, and the `alpha` it
+# is handed. A transition design is a function of the covariate row, the
+# origin and (under "slopes") the occasion, so its distinct rows are built
+# from the distinct covariate rows instead of from the stacked n-row design.
+#
+# A random start holds plain probability tables and no coefficients until its
+# first M-step (.lta_random_start()), so a piece without coefficients carries
+# the probabilities that state implies at each design row instead (`P`), and
+# EM's first objective prices the model the start actually is.
+.lta_cov_prior_pieces <- function(state, alpha) {
+  K   <- state$n_statuses
+  Tn  <- state$n_times
+  rep_row <- function(p, n) matrix(p, n, K, byrow = TRUE)
+  out <- list()
+  if (!is.null(state$Z_delta)) {
+    Zu <- unique(state$Z_delta)
+    out[[1L]] <- list(kind = "delta_beta", beta = state$delta_beta, Zu = Zu,
+                      a = alpha,
+                      P = if (is.null(state$delta_beta))
+                        rep_row(state$delta_c[[1L]] %||% state$delta, nrow(Zu)))
+  }
+  if (is.null(state$Z_tau) || Tn < 2L) return(out)
+  su  <- state
+  su$Z_tau <- unique(state$Z_tau)
+  U   <- nrow(su$Z_tau)
+  a   <- .lta_tau_cov_alpha(state, alpha)
+  occ <- !is.null(.lta_tau_occasion_contrasts(state, 1L, 1L))
+  mats <- if (isTRUE(state$tau_homogeneous)) 1L else Tn - 1L
+  no_beta <- is.null(state$tau_beta)
+  tau0    <- state$tau_c[[1L]] %||% state$tau
+  for (m in seq_len(mats)) {
+    ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else m
+    if (identical(state$transition_effects, "by_origin")) {
+      for (k in seq_len(K))
+        out[[length(out) + 1L]] <- list(
+          kind = "tau_beta", i_mat = m, k = k,
+          beta = if (!no_beta) state$tau_beta[[m]][[k]], Zu = su$Z_tau, a = a,
+          P = if (no_beta) rep_row(tau0[[ts[1L]]][k, ], U))
+    } else {
+      ks  <- if (isTRUE(state$tau_independent)) 1L else seq_len(K)
+      tts <- if (occ) ts else ts[1L]
+      Zu  <- do.call(rbind, lapply(tts, function(t) do.call(rbind,
+        lapply(ks, function(k) .lta_tau_design(su, k, t)))))
+      P   <- if (no_beta) do.call(rbind, lapply(tts, function(t) do.call(rbind,
+        lapply(ks, function(k) rep_row(tau0[[t]][k, ], U)))))
+      out[[length(out) + 1L]] <- list(kind = "tau_beta", i_mat = m, k = NULL,
+                                      beta = if (!no_beta) state$tau_beta[[m]],
+                                      Zu = Zu, a = a, P = P)
+    }
+  }
+  out
+}
+
+# The value of one piece: alpha / (K U0) times the log-probabilities of every
+# status at every distinct design row, which is what .fit_mnl()'s pseudo-cases
+# add to the objective it maximises.
+.lta_cov_prior_value <- function(piece) {
+  if (!(piece$a > 0)) return(0)
+  P <- piece$P %||% softmax_rows(piece$Zu %*% t(piece$beta))
+  piece$a / (ncol(P) * nrow(piece$Zu)) * sum(log(pmax(P, 1e-300)))
+}
 
 # Initial status: an ordinary weighted multinomial logit on the Time 1
 # posteriors, which already sum to one across statuses.
-.lta_mstep_delta_cov <- function(state, gamma1, augment = TRUE) {
+.lta_mstep_delta_cov <- function(state, gamma1, augment = TRUE, alpha = 0) {
   fit <- .fit_mnl(state$Z_delta, gamma1, weights = state$weights_vec,
-                  start = state$delta_beta, augment = augment)
+                  start = state$delta_beta, augment = augment, alpha = alpha)
   state$delta_beta    <- fit$beta
   state$delta_hessian <- fit$hessian
   state$delta         <- colSums(fit$prob * state$weights_vec) /
@@ -160,7 +249,7 @@
 # summing to one, so the mass is normalised out of the responsibilities and
 # folded into the case weight instead - algebraically identical, and it keeps
 # the shared fitter free of special cases.
-.lta_mstep_tau_cov <- function(state, fb, augment = TRUE) {
+.lta_mstep_tau_cov <- function(state, fb, augment = TRUE, alpha = 0) {
   K  <- state$n_statuses
   Tn <- state$n_times
   w  <- state$weights_vec
@@ -169,6 +258,7 @@
   mats <- if (isTRUE(state$tau_homogeneous)) 1L else Tn - 1L
   betas <- vector("list", mats)
   hess  <- vector("list", mats)
+  a_reg <- .lta_tau_cov_alpha(state, alpha)
 
   for (m in seq_len(mats)) {
     ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else m
@@ -188,7 +278,8 @@
           Zs[rows, ]   <- state$Z_tau
         }
         f <- .fit_mnl(Zs, resp, weights = wt,
-                      start = state$tau_beta[[m]][[k]], augment = augment)
+                      start = state$tau_beta[[m]][[k]], augment = augment,
+                      alpha = a_reg)
         bk[[k]] <- f$beta; hk[[k]] <- f$hessian
       }
       betas[[m]] <- bk; hess[[m]] <- hk
@@ -220,7 +311,7 @@
         wt[rows]     <- w * mass
       }
       f <- .fit_mnl(Zs, resp, weights = wt, start = state$tau_beta[[m]],
-                    augment = augment)
+                    augment = augment, alpha = a_reg)
       betas[[m]] <- f$beta; hess[[m]] <- f$hessian
     }
   }

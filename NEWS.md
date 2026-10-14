@@ -18,6 +18,29 @@ precision. Both functions now return it invisibly after printing, so an
 unassigned call no longer prints the raw list after the table, and the table
 can be shown again with `print()` without refitting.
 
+## `smoothing` now reaches latent transition models with covariates
+
+With `predictors_initial`, `predictors_transition`, or a `group` whose
+`group_effects` reach the statuses, the initial status and the transitions
+of `fit_lta()` are multinomial logits, and `smoothing` used to have no
+effect on them. They now carry the same prior as the tables they replace,
+spread over the distinct covariate patterns: `smoothing / (K U)`
+pseudo-cases per status and pattern for the initial status and
+`smoothing / (K^2 U)` per origin, destination and pattern for each
+transition matrix, with `U` distinct covariate patterns. That is the prior
+the class regression of `fit_mixture()` already carries. It keeps a
+coefficient finite where a covariate pattern never makes a transition,
+which plain maximum likelihood sends to infinity.
+
+**Numbers move** for every latent transition fit with covariates on the
+statuses and `smoothing > 0`, which is the default: one-step, two-step,
+three-step, random-intercept and grouped models alike. On simulated designs
+with 300 to 500 cases the probabilities moved by 2e-3 to 6.5e-3, and a
+move probability in a covariate pattern holding 8 percent of the sample by 6
+percent of its value, since the prior's mass does not grow with a pattern's
+size. At 2000 cases they moved by 3e-4. Standard errors move by up to a few
+percent. `smoothing = 0` still gives plain maximum likelihood.
+
 ## The latent transition step 3 now reaches its maximum
 
 Step 3 of `fit_lta(n_steps = 3)` maximises its log-likelihood plus the prior
@@ -59,8 +82,7 @@ statuses. Standard errors fall by 0.05 percent at n = 1000 and by up to 2.5
 percent at n = 400, where an initial status holds 6 percent of the sample;
 the largest changes are on rare statuses and transitions near 0. Estimates do
 not change. Fits with `smoothing = 0` and `bayes_constants = list(categorical
-= 0)` are unchanged, and so are the structural blocks with covariates, which
-carry no prior.
+= 0)` are unchanged.
 
 ## Covariate standard errors now include the priors the estimates were fitted with
 

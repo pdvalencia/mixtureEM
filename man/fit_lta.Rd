@@ -246,9 +246,9 @@ on a near-flat likelihood ridge can sit measurably short of the maximum;
 the climb steps past it, and never returns a fit worse than the one it was
 given. This is the same refinement \code{\link[=fit_mixture]{fit_mixture()}} has always applied.
 It is a no-op - silently, and the fit is unchanged - for models whose free
-parameters it cannot differentiate: covariate models and measurement
-families other than binary and continuous. Mixtures over chains
-(\code{n_classes} > 1) are refined like any other supported model.}
+parameters it cannot differentiate: measurement families other than binary
+and continuous. Mixtures over chains (\code{n_classes} > 1) and covariate
+models are refined like any other supported model.}
 
 \item{refine_from}{A model fitted by \code{\link[=fit_lta]{fit_lta()}} on the same data and with
 the same shape, whose solution this fit continues from. No random starts
@@ -291,12 +291,18 @@ the status prevalences, the transition matrices and - with \code{n_classes} > 1 
 the class weights, and it does \strong{not} govern the measurement model, whose
 prior is \code{bayes_constants}.
 
-It also does not reach the transitions once anything predicts them. With
-\code{predictors_transition}, or with a \code{group} whose \code{group_effects} include
-the transitions, each transition matrix is the fitted value of a
-multinomial logit rather than a smoothed table of counts, and \code{smoothing}
-has no effect on it. The initial status prevalences behave the same way
-under \code{predictors_initial}.
+It reaches the regressions too, once covariates predict the statuses.
+With \code{predictors_initial}, \code{predictors_transition}, or a \code{group} whose
+\code{group_effects} include them, the initial status and the transitions are
+multinomial logits rather than tables of counts, and the same mass is
+spread over the distinct covariate patterns: \verb{smoothing / (K U)}
+pseudo-cases per status and pattern for the initial status, and
+\verb{smoothing / (K^2 U)} per origin, destination and pattern for each
+transition matrix, \code{U} being the number of distinct covariate patterns.
+That is the prior \code{\link[=fit_mixture]{fit_mixture()}} puts on its class regression. It keeps
+a coefficient finite when a covariate pattern never makes a transition,
+and it pulls a rare pattern harder than a common one, since its mass does
+not grow with the pattern's size.
 
 The mass is one pseudo-case per \emph{conditional table}, so with \code{K} statuses
 an origin row of a transition matrix carries a \code{K}th of it. It is spread
@@ -460,8 +466,8 @@ Two diagnostics come with it. \code{boundary} lists the transition cells the dat
 have driven to zero, and \code{smoothing_influence} gives, for each origin row,
 the cases expected in it and the share of the estimate the \code{smoothing}
 prior is carrying. \code{smoothing_influence} is \code{NULL} when \code{smoothing} is 0 or
-when covariates predict the transitions, since the prior does not reach
-them then.
+when covariates predict the transitions, since a transition is then a
+regression with no origin row of counts to report a pull on.
 
 With \code{n_classes} > 1 those parameters gain a class index: \code{delta} becomes a
 classes-by-statuses matrix, \code{tau} a list of per-class lists, and
