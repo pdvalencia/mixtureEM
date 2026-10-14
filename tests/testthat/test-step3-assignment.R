@@ -162,8 +162,11 @@ test_that("bayes_constants$latent = 0 reproduces the unpenalised step three", {
   expect_equal(as.vector(fc$sm$parameters$beta[1, ]),
                c(0.745542992496, -0.673660063212, 0.544359886248),
                tolerance = 1e-4)
+  # The standard errors are re-recorded: fit0 keeps its item prior, and since
+  # the corrected variance takes step 1's information from the objective step
+  # 1 maximised, that prior's curvature is in it (0.1% smaller than before).
   expect_equal(.free_cov_se(fc),
-               c(0.197280928482, 0.175671366223, 0.170233042872),
+               c(0.197081912170, 0.175646813572, 0.170232432103),
                tolerance = 1e-4)
 })
 
