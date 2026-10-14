@@ -1,5 +1,19 @@
 # mixtureEM (development version)
 
+## Growth mixture models: standard errors for the growth parameters
+
+`growth_estimates()` returns every parameter of a `fit_gmm()` fit with a
+standard error, a z statistic and a p-value: the growth-factor means or
+intercepts, the growth-factor regressions on `growth_predictors`, the
+growth-factor variances and covariances, the residual variances, the fitted
+trajectory and the class-size logits. Three estimators are offered: the
+sandwich (`se = "robust"`, the default), the inverse observed information
+(`"hessian"`) and the inverse outer product of the case scores (`"opg"`).
+They are computed from the likelihood of the fitted model and carried to the
+reported scale by the delta method. A growth-factor covariance outside the
+positive semi-definite cone still gets standard errors. The standard errors
+are computed on request, so nothing `fit_gmm()` reports changes.
+
 ## Growth mixture models: EM can now carry Psi past the edge of its usual range
 
 The EM update of the growth-factor covariance Psi imputes each case's growth
