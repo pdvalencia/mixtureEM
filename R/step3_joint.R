@@ -193,7 +193,8 @@
     method <- "Inverse observed information of the step-3 log-likelihood (joint model)"
   } else {
     meat   <- (if (is.null(strata)) crossprod(S * w)
-               else compute_survey_B(S * w, strata, cluster)) - Hp
+               else .score_meat(S * w, strata, cluster,
+                                isTRUE(model_state$has_survey_design))) - Hp
     V      <- B_inv %*% meat %*% B_inv
     method <- if (is.null(Cn))
       paste("Case-clustered sandwich of the BCH-weighted step-3",

@@ -147,11 +147,10 @@
     return(list(V = pad(V2), method = "Two-step observed information (step 2 only)"))
 
   if (identical(se, "robust")) {
-    strata <- if (isTRUE(sm$has_survey_design) && length(sm$strata) == nrow(X))
-      sm$strata else rep(1L, nrow(X))
-    cluster <- if (isTRUE(sm$has_survey_design) && length(sm$cluster) == nrow(X))
-      sm$cluster else seq_len(nrow(X))
-    D2 <- V2 %*% (compute_survey_B(info$S2, strata, cluster) - Hp) %*% V2
+    survey <- isTRUE(sm$has_survey_design) && length(sm$strata) == nrow(X) &&
+      length(sm$cluster) == nrow(X)
+    D2 <- V2 %*% (.score_meat(info$S2, sm$strata, sm$cluster, survey) - Hp) %*%
+      V2
     return(list(V = pad((D2 + t(D2)) / 2),
                 method = sprintf("Two-step sandwich (%s)",
                                  if (isTRUE(sm$has_survey_design))

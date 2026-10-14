@@ -86,7 +86,9 @@ test_that("a three-step fit ends at the penalised maximum and its variances are 
     if (se == "hessian") {
       expect_equal(V, Hi, tolerance = 1e-6)
     } else {
-      M <- n / (n - 1) * crossprod(sweep(S, 2, colMeans(S)))
+      # The meat is the uncentred outer product: the data scores sum to minus
+      # the prior's gradient here, and that piece stays in.
+      M <- n / (n - 1) * crossprod(S)
       expect_equal(V, Hi %*% (M - pr$hessian) %*% Hi, tolerance = 1e-6)
     }
   }
@@ -108,7 +110,7 @@ test_that("without the latent prior the step-3 variance is the plain sandwich", 
   expect_lt(max(abs(colSums(S))), 1e-6)
   Hi  <- solve(-.step3_hessian(pc, Z, w, fr$r, 3))
   expect_equal(f$sm$parameters$V_robust[fr$idx, fr$idx],
-               Hi %*% (n / (n - 1) * crossprod(sweep(S, 2, colMeans(S)))) %*% Hi,
+               Hi %*% (n / (n - 1) * crossprod(S)) %*% Hi,
                tolerance = 1e-6)
 })
 

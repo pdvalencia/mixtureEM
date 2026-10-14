@@ -531,9 +531,9 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
       ) / (2 * eps_nd)
     }
 
-    meat     <- compute_survey_B(score_mat,
-                                 model_state$strata[keep],
-                                 model_state$cluster[keep])
+    meat     <- .score_meat(score_mat, model_state$strata[keep],
+                            model_state$cluster[keep],
+                            isTRUE(model_state$has_survey_design))
     B_inv    <- pinv(-H_marg)
     V_robust <- B_inv %*% meat %*% B_inv
 
@@ -589,9 +589,9 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
         ) / (2 * eps_nd)
       }
 
-      meat_k  <- compute_survey_B(score_k,
-                                  model_state$strata[keep],
-                                  model_state$cluster[keep])
+      meat_k  <- .score_meat(score_k, model_state$strata[keep],
+                             model_state$cluster[keep],
+                             isTRUE(model_state$has_survey_design))
       B_inv_k <- pinv(-H_k)
       V_k     <- B_inv_k %*% meat_k %*% B_inv_k
 

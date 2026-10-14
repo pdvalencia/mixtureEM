@@ -700,8 +700,7 @@ NULL
 # Returns a list of `V` and the `method` actually used, which is not always the
 # one asked for: see the fallback below.
 .step1_variance <- function(model_state, X, par, scores, w, method) {
-  outer_v <- function() pinv(compute_survey_B(scores, rep(1L, nrow(scores)),
-                                              seq_len(nrow(scores))))
+  outer_v <- function() pinv(.score_meat(scores))
   if (method == "outer")
     return(list(V = outer_v(), method = "outer", fallback = FALSE))
 
@@ -832,14 +831,13 @@ NULL
 
   # --- D3: sandwich over case-level (or PSU-level) scores ---------------------
   S      <- .step3_scores(pieces, Zmat, w, K)
-  strata <- if (isTRUE(model_state$sm$has_survey_design) &&
-                length(model_state$sm$strata) == nrow(Zmat))
-    model_state$sm$strata else rep(1L, nrow(Zmat))
-  cluster <- if (isTRUE(model_state$sm$has_survey_design) &&
-                 length(model_state$sm$cluster) == nrow(Zmat))
-    model_state$sm$cluster else seq_len(nrow(Zmat))
+  survey <- isTRUE(model_state$sm$has_survey_design) &&
+    length(model_state$sm$strata) == nrow(Zmat) &&
+    length(model_state$sm$cluster) == nrow(Zmat)
 
-  D3 <- H3_inv %*% (compute_survey_B(S, strata, cluster) - Hp) %*% H3_inv
+  D3 <- H3_inv %*% (.score_meat(S, model_state$sm$strata,
+                                model_state$sm$cluster, survey) - Hp) %*%
+    H3_inv
   label_D3 <- if (isTRUE(model_state$sm$has_survey_design))
     "survey-linearized" else "robust"
 

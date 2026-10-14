@@ -350,6 +350,20 @@ compute_survey_B <- function(score_mat, strata, cluster) {
   return(B)
 }
 
+# The meat of a sandwich over case-level scores (already carrying their case
+# weights). Under a survey design it is the linearization above. Without one it
+# is N / (N - 1) times the plain outer product, NOT centred on the mean score:
+# every case is its own PSU, and at a penalised maximum the data's scores do
+# not sum to zero -- they balance the prior's gradient -- so centring would
+# remove a piece of the estimating equation the sandwich is built on. Without
+# a prior the two coincide.
+.score_meat <- function(S, strata = NULL, cluster = NULL, survey = FALSE) {
+  if (isTRUE(survey)) return(compute_survey_B(S, strata, cluster))
+  S <- as.matrix(S)
+  n <- nrow(S)
+  (n / max(n - 1, 1)) * crossprod(S)
+}
+
 # Relative Entropy (normalised by log(K), scales 0-1)
 relative_entropy <- function(absolute_entropy, n_samples, n_classes) {
   if (n_classes <= 1) return(1)
