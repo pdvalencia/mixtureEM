@@ -2,6 +2,102 @@
 
 ## mixtureEM (development version)
 
+### Growth mixture models: standard errors for the growth parameters
+
+[`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)
+returns every parameter of a
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+fit with a standard error, a z statistic and a p-value: the
+growth-factor means or intercepts, the growth-factor regressions on
+`growth_predictors`, the growth-factor variances and covariances, the
+residual variances, the fitted trajectory and the class-size logits.
+Three estimators are offered: the sandwich (`se = "robust"`, the
+default), the inverse observed information (`"hessian"`) and the inverse
+outer product of the case scores (`"opg"`). They are computed from the
+likelihood of the fitted model and carried to the reported scale by the
+delta method. A growth-factor covariance outside the positive
+semi-definite cone still gets standard errors. The standard errors are
+computed on request, so nothing
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+reports changes.
+
+### Growth mixture models: EM can now carry Psi past the edge of its usual range
+
+The EM update of the growth-factor covariance Psi imputes each case’s
+growth factors, so it is a sum of outer products: it could approach a
+Psi with a zero eigenvalue but never cross it. When the likelihood’s
+maximum lies past that edge, as it does for a small class whose growth
+factors vary less than their residuals allow, a start in that basin
+crept along the edge and stopped below the maximum, and the search
+reported a lower solution. Once Psi reaches the edge, the M-step now
+climbs the class-weighted likelihood of the repeated measures directly,
+with Psi free and only each class’s covariance of the repeated measures
+held positive definite. Both updates are generalised EM steps for the
+same likelihood, so EM stays monotone.
+
+**Numbers move** only on fits with a start that reached the edge. On a
+simulated three-class linear model with class-specific variances (n =
+450, 200 starts), the log-likelihood goes from -567.813 to -566.972, a
+solution whose 1.3% class has two negative growth-factor variances. Fits
+whose Psi never reached the edge are unchanged to the last digit.
+
+### Growth mixture models: a start that ends on a degenerate spike is set aside
+
+On an outcome with many tied scores, such as a scale with a floor, a
+growth mixture model can place a class on the tied cases with no spread
+left. That class’s covariance of the repeated measures becomes singular
+and the likelihood grows without limit, so a start that ends there
+outscored every meaningful solution and was reported, with the
+collapsed-variance warning.
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+now counts such a start as one that did not converge and ranks and
+finishes the others; the print method reports how many were set aside,
+and “found by k of n starts” counts only the converged ones. Only when
+every start ends on a spike is one reported, and the warning then says
+so. A start is stopped as soon as it reaches a spike, instead of
+creeping towards it for thousands of iterations, which makes such fits
+two to five times faster without moving any number.
+
+**Numbers move** only on fits whose reported solution was such a spike.
+On a three-class linear model with four occasions and 22% of first-wave
+scores at the scale floor (n = 442), the log-likelihood goes from
+-489.194, a spike, to -773.443, the best admissible solution. Fits that
+never met a spike are unchanged to the last digit.
+
+### Growth mixture models: class-specific variances, and a growth-factor covariance without bounds
+
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+has a third `psi` form, `psi = "variances"`: the growth-factor variances
+differ by class and the covariances between growth factors are held
+equal. It sits between `"equal"` and `"free"`, and with a single random
+effect it is the same model as `"free"`.
+
+The growth-factor covariance matrix Psi is now estimated without bounds.
+The likelihood depends on it only through each class’s covariance of the
+repeated measures, so its maximum can lie at a Psi with a negative
+variance or a correlation beyond +/-1 while every class’s covariance of
+the repeated measures stays positive definite. Such a fit is now
+reported as estimated, with every parameter counted, and a warning names
+the class and the value, says the log-likelihood and BIC are valid, and
+suggests the model change that usually removes it. A step that would
+make a class’s covariance of the repeated measures singular is still
+refused.
+
+**Numbers move** wherever Psi used to stop at the edge of the admissible
+region: the log-likelihood rises and the estimates move, with the
+parameter count unchanged. On a two-class linear model with five
+occasions and attrition (n = 436), a free Psi rises from -845.412 to
+-844.148. On data with no within-class growth-factor variation the
+variances now land slightly below zero, so such a fit warns that Psi is
+outside its usual range instead of reporting a collapsed variance. Fits
+whose Psi lies inside the admissible region do not change beyond the
+last digits the optimiser controls.
+
+The count of restarts that found the reported solution (“found by k of n
+starts”) now also counts a restart that reached the point the winning
+restart was finished from. Where the maximum lies outside the admissible
+region, EM stops at its edge and every restart used to read as a miss.
+
 ### A BCH categorical outcome no longer runs off to minus infinity
 
 Under `correction = "BCH"` a class can carry a negative net weight on

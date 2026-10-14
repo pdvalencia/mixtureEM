@@ -55,6 +55,8 @@
   : Repeated-Measures Latent Class Analysis
 - [`gaussian_model()`](https://pdvalencia.github.io/mixtureEM/reference/gaussian_model.md)
   : Constructor for Gaussian models
+- [`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)
+  : Growth Mixture Parameter Estimates with Standard Errors
 - [`lcga_model()`](https://pdvalencia.github.io/mixtureEM/reference/lcga_model.md)
   : Constructor for latent class growth models
 - [`liang_park_sim`](https://pdvalencia.github.io/mixtureEM/reference/liang_park_sim.md)

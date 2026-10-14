@@ -31,11 +31,13 @@ are allowed to differ in, and Ram and Grimm (2009, pp. 569-570) give the
 three levels. *Means* — classes differ in mean change only — is
 `psi = "equal"`, the default here. *Means + Covs* — classes also differ
 in how much interindividual variation there is within them — is
-`psi = "free"`; the residual variances are a separate switch,
-`residual_equal = FALSE`, and should not be merged with it. *Means +
-Covs + Pattern*, where classes differ in the shape of change as well,
-would need class-specific time scores; `fit_gmm()` builds one design for
-every class, so that level is not available.
+`psi = "free"`, or `psi = "variances"` when only the growth-factor
+variances differ and their covariances are held equal; the residual
+variances are a separate switch, `residual_equal = FALSE`, and should
+not be merged with it. *Means + Covs + Pattern*, where classes differ in
+the shape of change as well, would need class-specific time scores;
+`fit_gmm()` builds one design for every class, so that level is not
+available.
 
 Two cautions worth carrying into any such analysis. Classes will be
 found whether or not there are groups to find: a skewed or otherwise
@@ -47,6 +49,17 @@ represent true processes that generated the data is unknown" — the
 remedies they name are replication on new data and checking that class
 membership relates to other measured variables in the ways theory
 predicts.
+
+The likelihood of a mixture of normals is unbounded: it grows without
+limit as a class's covariance \\\Sigma_k\\ becomes singular on cases
+that share the same values (Kiefer & Wolfowitz, 1956; Day, 1969). An
+outcome with many tied scores, such as a scale with a floor, lets a
+class sit on the tied cases with no spread left, and a start that ends
+there outscores every meaningful solution while describing the ties
+rather than a subgroup. The search therefore counts such a start as one
+that did not converge and reports the best of the others (McLachlan &
+Peel, 2000, ch. 3); the print method says how many were set aside. Only
+when every start ends that way is such a point reported, with a warning.
 
 Contrast
 [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md),
@@ -66,7 +79,7 @@ fit_gmm(
   times = NULL,
   degree = 1,
   random_effects = c("intercept_slope", "intercept", "none", "all"),
-  psi = c("equal", "free"),
+  psi = c("equal", "variances", "free"),
   residual = c("occasion", "constant"),
   residual_equal = TRUE,
   time_scores = NULL,
@@ -128,11 +141,25 @@ fit_gmm(
 
 - psi:
 
-  Whether the growth-factor covariance \\\Psi\\ is held `"equal"` across
-  classes (the default) or estimated `"free"`ly in each. Equality is the
-  better default in practice as well as by convention: it is what BIC
-  typically selects, and a class-specific \\\Psi\\ is where growth
-  mixture models most often produce a negative variance.
+  How the growth-factor covariance \\\Psi\\ may differ across classes:
+  held `"equal"` (the default); class-specific `"variances"` with the
+  covariances between growth factors held equal; or estimated `"free"`ly
+  in each class. `"variances"` sits between the other two, and with a
+  single random effect it is the same model as `"free"`.
+
+  \\\Psi\\ is estimated without bounds. The likelihood depends on it
+  only through each class's covariance of the repeated measures,
+  \\\Sigma_k = \Lambda \Psi_k \Lambda' + \Theta_k\\, so the maximum can
+  lie at a \\\Psi\\ with a negative variance or a correlation beyond
+  \\\pm 1\\ while every \\\Sigma_k\\ remains positive definite. Such a
+  fit is reported as estimated, with every parameter counted, and a
+  warning names the class and the value; its log-likelihood and BIC are
+  valid, but the value itself is not a variance or a correlation. Under
+  `"equal"` or `"variances"` it usually means the classes' covariances
+  differ (try `"free"`); under `"free"`, that a variance is truly zero.
+  Equality is the better default in practice as well as by convention:
+  it is what BIC typically selects, and a class-specific \\\Psi\\ is
+  where growth mixture models most often produce a negative variance.
 
   It is not free, though, and the cost runs the other way. Simulation
   work reported by Lee et al. (2023, p. 651) finds that equality
@@ -235,6 +262,15 @@ to latent variable mixture modeling (part 2): Longitudinal latent class
 growth analysis and growth mixture models. *Journal of Pediatric
 Psychology*, *39*(2), 188-203.
 [doi:10.1093/jpepsy/jst085](https://doi.org/10.1093/jpepsy/jst085)
+
+Day, N. E. (1969). Estimating the components of a mixture of normal
+distributions. *Biometrika*, *56*(3), 463-474.
+
+Kiefer, J., & Wolfowitz, J. (1956). Consistency of the maximum
+likelihood estimator in the presence of infinitely many incidental
+parameters. *The Annals of Mathematical Statistics*, *27*(4), 887-906.
+
+McLachlan, G. J., & Peel, D. (2000). *Finite Mixture Models*. Wiley.
 
 Jung, T., & Wickrama, K. A. S. (2008). An introduction to latent class
 growth analysis and growth mixture modeling. *Social and Personality

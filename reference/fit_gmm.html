@@ -26,7 +26,9 @@ Applied papers usually name a growth mixture model by what the classes are
 allowed to differ in, and Ram and Grimm (2009, pp. 569-570) give the three
 levels. Means — classes differ in mean change only — is psi = &quot;equal&quot;,
 the default here. Means + Covs — classes also differ in how much
-interindividual variation there is within them — is psi = &quot;free&quot;; the
+interindividual variation there is within them — is psi = &quot;free&quot;, or
+psi = &quot;variances&quot; when only the growth-factor variances differ and their
+covariances are held equal; the
 residual variances are a separate switch, residual_equal = FALSE, and
 should not be merged with it. Means + Covs + Pattern, where classes differ
 in the shape of change as well, would need class-specific time scores;
@@ -41,6 +43,16 @@ among groups will be found; but whether they represent true processes that
 generated the data is unknown&quot; — the remedies they name are replication on
 new data and checking that class membership relates to other measured
 variables in the ways theory predicts.
+The likelihood of a mixture of normals is unbounded: it grows without limit
+as a class's covariance \(\Sigma_k\) becomes singular on cases that share
+the same values (Kiefer &amp;amp; Wolfowitz, 1956; Day, 1969). An outcome with many
+tied scores, such as a scale with a floor, lets a class sit on the tied cases
+with no spread left, and a start that ends there outscores every meaningful
+solution while describing the ties rather than a subgroup. The search
+therefore counts such a start as one that did not converge and reports the
+best of the others (McLachlan &amp;amp; Peel, 2000, ch. 3); the print method says
+how many were set aside. Only when every start ends that way is such a
+point reported, with a warning.
 Contrast fit_lcga(), which fixes the growth-factor variances at zero, so
 every case in a class sits on that class's curve up to occasion-level noise.
 LCGA is the more parsimonious model and, in criminology especially, often the
@@ -73,7 +85,9 @@ Applied papers usually name a growth mixture model by what the classes are
 allowed to differ in, and Ram and Grimm (2009, pp. 569-570) give the three
 levels. Means — classes differ in mean change only — is psi = &quot;equal&quot;,
 the default here. Means + Covs — classes also differ in how much
-interindividual variation there is within them — is psi = &quot;free&quot;; the
+interindividual variation there is within them — is psi = &quot;free&quot;, or
+psi = &quot;variances&quot; when only the growth-factor variances differ and their
+covariances are held equal; the
 residual variances are a separate switch, residual_equal = FALSE, and
 should not be merged with it. Means + Covs + Pattern, where classes differ
 in the shape of change as well, would need class-specific time scores;
@@ -88,6 +102,16 @@ among groups will be found; but whether they represent true processes that
 generated the data is unknown&quot; — the remedies they name are replication on
 new data and checking that class membership relates to other measured
 variables in the ways theory predicts.
+The likelihood of a mixture of normals is unbounded: it grows without limit
+as a class's covariance \(\Sigma_k\) becomes singular on cases that share
+the same values (Kiefer &amp;amp; Wolfowitz, 1956; Day, 1969). An outcome with many
+tied scores, such as a scale with a floor, lets a class sit on the tied cases
+with no spread left, and a start that ends there outscores every meaningful
+solution while describing the ties rather than a subgroup. The search
+therefore counts such a start as one that did not converge and reports the
+best of the others (McLachlan &amp;amp; Peel, 2000, ch. 3); the print method says
+how many were set aside. Only when every start ends that way is such a
+point reported, with a warning.
 Contrast fit_lcga(), which fixes the growth-factor variances at zero, so
 every case in a class sits on that class's curve up to occasion-level noise.
 LCGA is the more parsimonious model and, in criminology especially, often the
@@ -168,7 +192,9 @@ covariates.</p>
 allowed to differ in, and Ram and Grimm (2009, pp. 569-570) give the three
 levels. <em>Means</em> — classes differ in mean change only — is <code>psi = "equal"</code>,
 the default here. <em>Means + Covs</em> — classes also differ in how much
-interindividual variation there is within them — is <code>psi = "free"</code>; the
+interindividual variation there is within them — is <code>psi = "free"</code>, or
+<code>psi = "variances"</code> when only the growth-factor variances differ and their
+covariances are held equal; the
 residual variances are a separate switch, <code>residual_equal = FALSE</code>, and
 should not be merged with it. <em>Means + Covs + Pattern</em>, where classes differ
 in the shape of change as well, would need class-specific time scores;
@@ -183,6 +209,16 @@ among groups will be found; but whether they represent true processes that
 generated the data is unknown" — the remedies they name are replication on
 new data and checking that class membership relates to other measured
 variables in the ways theory predicts.</p>
+<p>The likelihood of a mixture of normals is unbounded: it grows without limit
+as a class's covariance \(\Sigma_k\) becomes singular on cases that share
+the same values (Kiefer &amp; Wolfowitz, 1956; Day, 1969). An outcome with many
+tied scores, such as a scale with a floor, lets a class sit on the tied cases
+with no spread left, and a start that ends there outscores every meaningful
+solution while describing the ties rather than a subgroup. The search
+therefore counts such a start as one that did not converge and reports the
+best of the others (McLachlan &amp; Peel, 2000, ch. 3); the print method says
+how many were set aside. Only when every start ends that way is such a
+point reported, with a warning.</p>
 <p>Contrast <code><a href="fit_lcga.html">fit_lcga()</a></code>, which fixes the growth-factor variances at zero, so
 every case in a class sits on that class's curve up to occasion-level noise.
 LCGA is the more parsimonious model and, in criminology especially, often the
@@ -199,7 +235,7 @@ made on BIC.</p>
 <span>  times <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  degree <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  random_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"intercept_slope"</span>, <span class="st">"intercept"</span>, <span class="st">"none"</span>, <span class="st">"all"</span><span class="op">)</span>,</span>
-<span>  psi <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"equal"</span>, <span class="st">"free"</span><span class="op">)</span>,</span>
+<span>  psi <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"equal"</span>, <span class="st">"variances"</span>, <span class="st">"free"</span><span class="op">)</span>,</span>
 <span>  residual <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"occasion"</span>, <span class="st">"constant"</span><span class="op">)</span>,</span>
 <span>  residual_equal <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  time_scores <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -258,8 +294,21 @@ variances free over occasions by default.</p></li>
 
 
 <dt id="arg-psi">psi<a class="anchor" aria-label="anchor" href="#arg-psi"></a></dt>
-<dd><p>Whether the growth-factor covariance \(\Psi\) is held <code>"equal"</code>
-across classes (the default) or estimated <code>"free"</code>ly in each.
+<dd><p>How the growth-factor covariance \(\Psi\) may differ across
+classes: held <code>"equal"</code> (the default); class-specific <code>"variances"</code> with
+the covariances between growth factors held equal; or estimated <code>"free"</code>ly
+in each class. <code>"variances"</code> sits between the other two, and with a single
+random effect it is the same model as <code>"free"</code>.</p>
+<p>\(\Psi\) is estimated without bounds. The likelihood depends on it only
+through each class's covariance of the repeated measures,
+\(\Sigma_k = \Lambda \Psi_k \Lambda' + \Theta_k\), so the maximum can lie
+at a \(\Psi\) with a negative variance or a correlation beyond
+\(\pm 1\) while every \(\Sigma_k\) remains positive definite. Such a fit
+is reported as estimated, with every parameter counted, and a warning
+names the class and the value; its log-likelihood and BIC are valid, but
+the value itself is not a variance or a correlation. Under <code>"equal"</code> or
+<code>"variances"</code> it usually means the classes' covariances differ (try
+<code>"free"</code>); under <code>"free"</code>, that a variance is truly zero.
 Equality is the better default in practice as well as by convention: it is
 what BIC typically selects, and a class-specific \(\Psi\) is
 where growth mixture models most often produce a negative variance.</p>
@@ -359,6 +408,12 @@ outcomes using the EM algorithm. <em>Biometrics</em>, <em>55</em>(2), 463-469.</
 latent variable mixture modeling (part 2): Longitudinal latent class growth
 analysis and growth mixture models. <em>Journal of Pediatric Psychology</em>,
 <em>39</em>(2), 188-203. <a href="https://doi.org/10.1093/jpepsy/jst085" class="external-link">doi:10.1093/jpepsy/jst085</a></p>
+<p>Day, N. E. (1969). Estimating the components of a mixture of normal
+distributions. <em>Biometrika</em>, <em>56</em>(3), 463-474.</p>
+<p>Kiefer, J., &amp; Wolfowitz, J. (1956). Consistency of the maximum likelihood
+estimator in the presence of infinitely many incidental parameters. <em>The
+Annals of Mathematical Statistics</em>, <em>27</em>(4), 887-906.</p>
+<p>McLachlan, G. J., &amp; Peel, D. (2000). <em>Finite Mixture Models</em>. Wiley.</p>
 <p>Jung, T., &amp; Wickrama, K. A. S. (2008). An introduction to latent class growth
 analysis and growth mixture modeling. <em>Social and Personality Psychology
 Compass</em>, <em>2</em>(1), 302-317. <a href="https://doi.org/10.1111/j.1751-9004.2007.00054.x" class="external-link">doi:10.1111/j.1751-9004.2007.00054.x</a></p>

@@ -39,8 +39,9 @@ structured_normal_model(
 
 - psi:
 
-  Whether the growth-factor covariance is held `"equal"` across classes
-  or estimated `"free"`ly in each.
+  Whether the growth-factor covariance is held `"equal"` across classes,
+  has class-specific `"variances"` with the covariances held equal, or
+  is estimated `"free"`ly in each.
 
 - residual:
 
