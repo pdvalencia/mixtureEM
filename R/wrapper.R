@@ -4094,6 +4094,9 @@ print.mixture_model <- function(x, ...) {
 #'     p-value. Those two moments are what say which distribution produced a
 #'     given p-value, and are not printed.
 #'
+#'   The table is printed when the fits finish and the object is returned
+#'   invisibly; `print()` shows it again ([print.mixture_comparison()]: a short
+#'   view by default, `columns = "all"` for every column), and
 #'   [`plot()`][plot.mixture_comparison] draws the criteria against K.
 #'
 #' @examples
@@ -4226,22 +4229,19 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
     fit_table <- .vlmr_augment(fit_table, models, vlmr)
   }
   best_bic_k  <- fit_table$Classes[which.min(fit_table$BIC)]
-  cat("\n=== Model Selection Summary ===\n")
-  # Rounded column by column: round() on the whole frame fails once one of the
-  # columns is logical.
-  printed <- fit_table
-  num     <- vapply(printed, is.numeric, logical(1))
-  printed[num] <- lapply(printed[num], round, 3)
-  print(printed)
-  flagged <- fit_table$Classes[which(fit_table$Unreplicated)]
-  if (length(flagged)) {
-    # Every K in one call is fitted at the same `n_init`, so the advice is read
-    # off the first flagged model rather than repeated per row.
-    m1 <- models[[paste0("K", flagged[1])]]$metrics
-    cat(sprintf("\nUnreplicated maximum at K = %s - %s.\n",
-                paste(flagged, collapse = ", "),
-                .replication_advice(m1$n_requested %||% m1$n_starts)))
+  # Classed so that print() and plot() have something to dispatch on. The list
+  # is otherwise plain, and `result$fit_table` keeps every column at full
+  # precision whatever the printed view shows.
+  out <- list(fit_table = fit_table, models = models, best_k = best_bic_k)
+  # The means and standard deviations of the two reference distributions are
+  # what tell a suspicious user which distribution produced a p-value, so they
+  # are returned; they are not printed, because the table is already wide.
+  if (vlmr != "none") {
+    out$vlmr <- attr(fit_table, "vlmr_detail")
+    attr(out$fit_table, "vlmr_detail") <- NULL
   }
+  class(out) <- "mixture_comparison"
+  print(out)
   # A sweep over K crosses the identification boundary without anyone
   # looking, and the models past it still report a log-likelihood and a BIC.
   neg_df <- Filter(function(k) {
@@ -4259,19 +4259,9 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
       if (length(neg_df) > 1L) "models have" else "model has",
       if (length(neg_df) > 1L) "they" else "it",
       if (length(neg_df) > 1L) "their" else "its"), call. = FALSE)
-  cat(sprintf("\n-> Best model according to BIC: %d classes\n", best_bic_k))
-  # Classed purely so that plot() has something to dispatch on. The list is
-  # unchanged otherwise, and `result$fit_table` behaves exactly as before.
-  out <- list(fit_table = fit_table, models = models, best_k = best_bic_k)
-  # The means and standard deviations of the two reference distributions are
-  # what tell a suspicious user which distribution produced a p-value, so they
-  # are returned; they are not printed, because the table is already wide.
-  if (vlmr != "none") {
-    out$vlmr <- attr(fit_table, "vlmr_detail")
-    attr(out$fit_table, "vlmr_detail") <- NULL
-  }
-  class(out) <- "mixture_comparison"
-  return(out)
+  # Already printed above; returned invisibly so an unassigned call does not
+  # print it a second time.
+  invisible(out)
 }
 
 # Appends the two enumeration columns that are properties of the table rather
@@ -4290,6 +4280,93 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
   rel     <- exp(sic - max(sic))
   tab$cmP <- rel / sum(rel)
   tab
+}
+
+#' Print a Model-Comparison Table
+#'
+#' Prints the table [compare_mixtures()] and [compare_longitudinal()] return.
+#' The default view keeps the columns with the strongest record for choosing
+#' the number of classes, so the table fits one screen: the log-likelihood and
+#' parameter count, `BIC` (the best-supported information criterion in the
+#' simulations of Nylund, Asparouhov & Muthen, 2007), `SABIC` (better than BIC
+#' for categorical indicators at smaller samples, same source), `AIC3` (strong
+#' for latent class models with categorical indicators; Dias, 2006), `Entropy`
+#' (classification quality, not a criterion for K; Masyn, 2013) and the VLMR
+#' p-values when they were requested. `columns = "all"` adds `AIC`, `CAIC`,
+#' `AWE`, `ICL`, `BF` and `cmP`, the full table of Masyn (2013). Nothing is
+#' dropped from `x$fit_table`, which keeps every column at full precision.
+#'
+#' A log-likelihood marked `*` is a maximum that only one start reached.
+#' `BF` spans many orders of magnitude, and its reading bands stop at 100 and
+#' start at 0.1 (Wagenmakers, 2007), so it is printed as `> 100` and `< 0.1`
+#' beyond them; `cmP` below 0.001 is printed as `< 0.001`.
+#'
+#' @param x A `mixture_comparison` object.
+#' @param columns `"default"` for the short table, `"all"` for every column.
+#' @param ... Ignored.
+#' @return `x`, invisibly.
+#' @references
+#' Dias, J. G. (2006). Latent class analysis and model selection. In M. Spiliopoulou
+#' et al. (Eds.), \emph{From Data and Information Analysis to Knowledge
+#' Engineering} (pp. 95-102). Springer.
+#'
+#' Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
+#' T. D. Little (Ed.), \emph{The Oxford Handbook of Quantitative Methods}
+#' (Vol. 2, pp. 551-611). Oxford University Press.
+#'
+#' Nylund, K. L., Asparouhov, T., & Muthen, B. O. (2007). Deciding on the number
+#' of classes in latent class analysis and growth mixture modeling: A Monte
+#' Carlo simulation study. \emph{Structural Equation Modeling}, \emph{14}(4),
+#' 535-569. \doi{10.1080/10705510701575396}
+#'
+#' Wagenmakers, E.-J. (2007). A practical solution to the pervasive problems
+#' of p values. \emph{Psychonomic Bulletin & Review}, \emph{14}(5), 779-804.
+#' \doi{10.3758/BF03194105}
+#' @export
+print.mixture_comparison <- function(x, columns = c("default", "all"), ...) {
+  columns <- match.arg(columns)
+  tab     <- x$fit_table
+  num <- function(v, d = 3) ifelse(is.na(v), "", formatC(v, format = "f", digits = d))
+  unrep <- if (is.null(tab$Unreplicated)) rep(FALSE, nrow(tab))
+           else tab$Unreplicated %in% TRUE
+
+  out <- data.frame(Classes = tab$Classes,
+                    LL = paste0(num(tab$LL), ifelse(unrep, "*", " ")),
+                    Params = tab$Params, check.names = FALSE)
+  shown <- if (columns == "all")
+    c("AIC", "BIC", "CAIC", "AWE", "AIC3", "ICL", "SABIC", "Entropy")
+  else c("BIC", "SABIC", "AIC3", "Entropy")
+  for (nm in intersect(shown, names(tab)))
+    out[[nm]] <- num(tab[[nm]])
+  if (columns == "all") {
+    if (!is.null(tab$BF))
+      out$BF <- ifelse(is.na(tab$BF), "",
+                ifelse(tab$BF > 100, "> 100",
+                ifelse(tab$BF < 0.1, "< 0.1", formatC(tab$BF, format = "f", digits = 2))))
+    if (!is.null(tab$cmP))
+      out$cmP <- ifelse(tab$cmP < 0.001, "< 0.001", num(tab$cmP))
+  }
+  for (nm in grep("^VLMR", names(tab), value = TRUE))
+    out[[nm]] <- num(tab[[nm]])
+
+  cat("\n=== Model Selection Summary ===\n")
+  print(out, row.names = FALSE, right = TRUE)
+
+  if (any(unrep)) {
+    flagged <- tab$Classes[unrep]
+    # Every K in one call is fitted at the same `n_init`, so the advice is read
+    # off the first flagged model rather than repeated per row.
+    m1 <- x$models[[paste0("K", flagged[1])]]
+    m1 <- (if (!is.null(m1$step1)) m1$step1 else m1)$metrics
+    cat(sprintf("\n* Unreplicated maximum at K = %s - %s.\n",
+                paste(flagged, collapse = ", "),
+                .replication_advice(m1$n_requested %||% m1$n_starts)))
+  }
+  cat(sprintf("\n-> Best model according to BIC: %d %s\n", x$best_k,
+              attr(x, "unit") %||% "classes"))
+  if (columns == "default")
+    cat("   print(x, columns = \"all\") adds AIC, CAIC, AWE, ICL, BF and cmP.\n")
+  invisible(x)
 }
 
 #' Extract Covariate Odds Ratios from a Fitted Mixture Model

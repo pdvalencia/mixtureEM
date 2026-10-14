@@ -237,6 +237,10 @@ test_that("compare_mixtures() gains the same column and still prints", {
     res <- compare_mixtures(X, k_range = 1:2, measurement = "binary",
                             n_init = 2))
   expect_true("Unreplicated" %in% names(res$fit_table))
-  # A logical column used to break the rounding on the way to the console.
-  expect_true(any(grepl("Unreplicated", out)))
+  expect_true(any(grepl("Model Selection Summary", out)))
+  # Printed as a mark on the log-likelihood with a footnote, not a column.
+  res$fit_table$Unreplicated <- c(FALSE, TRUE)
+  out <- utils::capture.output(print(res))
+  expect_true(any(grepl("^ +2 +-[0-9.]+\\*", out)))
+  expect_true(any(grepl("Unreplicated maximum at K = 2", out, fixed = TRUE)))
 })

@@ -54,8 +54,11 @@ An object of class \code{mixture_comparison}, a list with \code{fit_table}
 \code{\link[=compare_mixtures]{compare_mixtures()}}), the fitted \code{models} (named
 \code{"K2"}, \code{"K3"}, ...) and
 \code{best_k}, the class count with the lowest BIC. It indexes exactly as a
-plain list; \code{\link[=plot.mixture_comparison]{plot()}} draws the criteria
-against K.
+plain list; \code{\link[=print.mixture_comparison]{print.mixture_comparison()}} shows the table (a short view by
+default, \code{columns = "all"} for every column), and
+\code{\link[=plot.mixture_comparison]{plot()}} draws the criteria against K. Under
+\code{verbose} the table is printed when the fits finish and the object is
+returned invisibly.
 }
 \description{
 Fits a series of models with increasing numbers of latent classes (RMLCA) or

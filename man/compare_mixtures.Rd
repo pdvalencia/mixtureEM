@@ -78,6 +78,9 @@ p-value. Those two moments are what say which distribution produced a
 given p-value, and are not printed.
 }
 
+The table is printed when the fits finish and the object is returned
+invisibly; \code{print()} shows it again (\code{\link[=print.mixture_comparison]{print.mixture_comparison()}}: a short
+view by default, \code{columns = "all"} for every column), and
 \code{\link[=plot.mixture_comparison]{plot()}} draws the criteria against K.
 }
 \description{

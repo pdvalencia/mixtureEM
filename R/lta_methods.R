@@ -620,8 +620,11 @@ lta_g2 <- function(object) {
 #'   [`compare_mixtures()`]), the fitted `models` (named
 #'   `"K2"`, `"K3"`, ...) and
 #'   `best_k`, the class count with the lowest BIC. It indexes exactly as a
-#'   plain list; [`plot()`][plot.mixture_comparison] draws the criteria
-#'   against K.
+#'   plain list; [print.mixture_comparison()] shows the table (a short view by
+#'   default, `columns = "all"` for every column), and
+#'   [`plot()`][plot.mixture_comparison] draws the criteria against K. Under
+#'   `verbose` the table is printed when the fits finish and the object is
+#'   returned invisibly.
 #' @references
 #' van de Schoot, R., Sijbrandij, M., Winter, S. D., Depaoli, S., & Vermunt,
 #' J. K. (2017). The GRoLTS-checklist: Guidelines for reporting on latent
@@ -704,20 +707,6 @@ compare_longitudinal <- function(indicators, k_range = NULL,
   # .vlmr_pair() declines it by class rather than by a special case.
   if (vlmr != "none") tab <- .vlmr_augment(tab, models, vlmr)
   best <- tab$Classes[which.min(tab$BIC)]
-  if (verbose) {
-    message("\n=== Model Selection Summary ===")
-    print(format(tab, digits = 4))
-    flagged <- tab$Classes[which(tab$Unreplicated)]
-    if (length(flagged)) {
-      # Every K in one call is fitted at the same `n_init`, so the advice is
-      # read off the first flagged model rather than repeated per row.
-      m1 <- models[[paste0("K", flagged[1])]]$metrics
-      message(sprintf("Unreplicated maximum at K = %s - %s.",
-                      paste(flagged, collapse = ", "),
-                      .replication_advice(m1$n_requested %||% m1$n_starts)))
-    }
-    message(sprintf("\n-> Best model according to BIC: %d", best))
-  }
   # Same class as compare_mixtures() returns, so one plot method serves both.
   out <- list(fit_table = tab, models = models, best_k = best)
   if (vlmr != "none") {
@@ -725,6 +714,14 @@ compare_longitudinal <- function(indicators, k_range = NULL,
     attr(out$fit_table, "vlmr_detail") <- NULL
   }
   class(out) <- "mixture_comparison"
+  attr(out, "unit") <- if (model == "lta") "statuses" else "classes"
+  # The table and its footnotes come from print.mixture_comparison(), as for
+  # compare_mixtures(). Printed here under `verbose`, and then returned
+  # invisibly so it is not printed twice; returned visibly otherwise.
+  if (verbose) {
+    print(out)
+    return(invisible(out))
+  }
   out
 }
 

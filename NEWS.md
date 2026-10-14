@@ -1,5 +1,23 @@
 # mixtureEM (development version)
 
+## A shorter model-comparison table, with a print method
+
+`compare_mixtures()` and `compare_longitudinal()` now print their table
+through `print.mixture_comparison()`, which shows by default the columns with
+the strongest record for choosing the number of classes: the log-likelihood,
+the parameter count, BIC, SABIC, AIC3, entropy, and the VLMR p-values when
+they were requested. The table fits one screen. `print(x, columns = "all")`
+adds AIC, CAIC, AWE, ICL, BF and cmP. A maximum reached by only one start is
+marked `*` on its log-likelihood, with the advice in a footnote, instead of
+taking a column. BF is printed as `> 100` or `< 0.1` beyond the bands it is
+read on, and to two decimals between them, rather than in scientific
+notation; cmP below 0.001 is printed as `< 0.001`.
+
+The returned object is unchanged, and `fit_table` keeps every column at full
+precision. Both functions now return it invisibly after printing, so an
+unassigned call no longer prints the raw list after the table, and the table
+can be shown again with `print()` without refitting.
+
 ## Covariate standard errors now include the priors the estimates were fitted with
 
 The class regression of a three-step, two-step or joint step-3 fit is
