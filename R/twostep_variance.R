@@ -133,7 +133,14 @@
     return(list(V = matrix(0, K * D, K * D), method = "None (no free parameters)"))
 
   info <- .twostep_information(model_state, X, Y, w)
-  V2   <- pinv(-info$H22)
+  # theta2 maximises the likelihood plus the latent prior the class regression
+  # is fitted with, so its information carries the prior's curvature too (the
+  # note above .step3_scores(), R/step3_variance.R). th2 is .step1_pack_sm()'s
+  # order, beta recentred on row K, which is the helper's.
+  beta0 <- sweep(sm$parameters$beta, 2, sm$parameters$beta[K, ], "-")
+  Hp   <- .covariate_prior_derivs(beta0, .covariate_design(sm, Y),
+                                  .bayes_alpha(sm, "latent"))$hessian
+  V2   <- pinv(-(info$H22 + Hp))
   V2   <- (V2 + t(V2)) / 2
 
   if (identical(se, "hessian"))
@@ -144,7 +151,7 @@
       sm$strata else rep(1L, nrow(X))
     cluster <- if (isTRUE(sm$has_survey_design) && length(sm$cluster) == nrow(X))
       sm$cluster else seq_len(nrow(X))
-    D2 <- V2 %*% compute_survey_B(info$S2, strata, cluster) %*% V2
+    D2 <- V2 %*% (compute_survey_B(info$S2, strata, cluster) - Hp) %*% V2
     return(list(V = pad((D2 + t(D2)) / 2),
                 method = sprintf("Two-step sandwich (%s)",
                                  if (isTRUE(sm$has_survey_design))

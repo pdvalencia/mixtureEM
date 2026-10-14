@@ -411,6 +411,19 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
     model_state$sm <- m_step(model_state$sm, Y_clean, W, weights = w_clean)
   }
 
+  # EM stops a lone class regression short of the maximum (gradient ~1e-2); a
+  # few Newton steps on the same penalised objective finish it, so the variance
+  # attached below is evaluated at the estimate it describes. The E-step is
+  # re-taken so the posteriors and log-likelihood written back match.
+  if (max_iter > 0 && inherits(model_state$sm, "covariate")) {
+    model_state$sm$parameters$beta <- .step3_newton_polish(
+      model_state$sm$parameters$beta,
+      .covariate_design(model_state$sm, Y_clean), A1, C_row_norm, w_clean,
+      .bayes_alpha(model_state$sm, "latent"))
+    e <- step3_e(model_state$sm)
+    W <- e$W; ll_case <- e$ll_case; current_ll <- e$current_ll
+  }
+
   # With max_iter = 0 the loop never ran: take one E-step at the start so the
   # posteriors and per-case log-likelihood written back below exist.
   if (max_iter == 0) {

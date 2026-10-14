@@ -223,11 +223,16 @@ test_that("the two-step V2 is the inverse observed information of the joint like
   fit <- .ts_fit(d, "binary", "predictors", n_steps = 2, se = "hessian")
   expect_match(fit$sm$parameters$V_method, "step 2 only")
 
+  # The structural coefficients are fitted with the latent prior (alpha = 1,
+  # spread over the unique covariate patterns), so the information is that of
+  # the likelihood plus the prior.
   A  <- log_likelihood(fit$mm, d$X)
   Zm <- cbind(1, as.matrix(d$Z))
+  U  <- unique(Zm)
   nll <- function(b) {
     eta <- Zm %*% t(rbind(b, 0))
-    -sum(logsumexp(A + eta - log(rowSums(exp(eta))), MARGIN = 1))
+    lp  <- (1 / (2 * nrow(U))) * sum(log(softmax_rows(U %*% t(rbind(b, 0)))))
+    -sum(logsumexp(A + eta - log(rowSums(exp(eta))), MARGIN = 1)) - lp
   }
   B  <- fit$sm$parameters$beta
   b0 <- B[1, ] - B[2, ]

@@ -28,15 +28,32 @@ group, or with item DIF. For a growth mixture model or an LCGA as
 step 1, the \code{"robust"} estimator is
 reported instead, with a warning, and \code{summary()} names it.}
 \item{\code{"robust"}}{The step-3 sandwich only,
-\eqn{D_3 = (-H_3)^{-1} M (-H_3)^{-1}}, with \eqn{H_3} the marginal
-step-3 Hessian and \eqn{M} the outer product of the case-level scores
-(PSU-level within strata when a survey design is attached). Proportional
-assignment gives each case \eqn{K} weighted records, so this sandwich is
-needed even before any step-1 uncertainty is considered.}
+\eqn{D_3 = (-H_3)^{-1} (M - H_p) (-H_3)^{-1}}, with \eqn{H_3} the
+Hessian of the penalised step-3 log-likelihood, \eqn{H_p} the prior's
+share of it (see below), and \eqn{M} the outer product of the case-level
+scores (PSU-level within strata when a survey design is attached).
+Proportional assignment gives each case \eqn{K} weighted records, so
+this sandwich is needed even before any step-1 uncertainty is
+considered.}
 \item{\code{"hessian"}}{\eqn{(-H_3)^{-1}} alone. Provided for
 completeness; it ignores the record duplication and is not
 recommended.}
 }
+
+\strong{The priors.} The class regression is fitted with the Dirichlet
+prior \code{bayes_constants$latent} (\eqn{\alpha / K} pseudo-cases per
+class, spread over the unique covariate patterns), and step 1 with its own
+priors, so both estimates maximise a penalised log-likelihood, and every
+variance above is that objective's: \eqn{H_3}, the derivative in \eqn{J}
+and the step-1 information behind \eqn{D_1} all include the prior's
+curvature, and \eqn{H_p} is subtracted once from the middle of the
+sandwich. When the model holds, \eqn{M} estimates \eqn{-H_3 + H_p}, so
+\code{"robust"} and \code{"hessian"} agree. The prior's share is
+\eqn{O(1/n)}: in a simulation from a fitted three-class model it changed no
+coverage at n = 300 or more, and at n = 150 brought the standard errors
+closer to the empirical spread of the estimates. With
+\code{bayes_constants = list(latent = 0)} the step-3 variances are those of
+the plain likelihood.
 
 None of these is the Hessian the package reported previously, which came from
 the M-step and measured the curvature of the \emph{Q function} rather than of
@@ -99,7 +116,8 @@ of Gong and Samaniego (1981) as written for this case by Bakk and Kuha
 \describe{
 \item{\code{"corrected"} (default)}{\eqn{V = V_2 + V_1}, where
 \eqn{V_2 = I_{22}^{-1}} is the inverse observed information of the joint
-log-likelihood in the structural parameters, and
+log-likelihood in the structural parameters (with the latent prior's
+curvature, as above), and
 \eqn{V_1 = I_{22}^{-1} I_{12}' \Sigma_{11} I_{12} I_{22}^{-1}} carries the
 sampling variance \eqn{\Sigma_{11}} of the step-1 measurement parameters
 through the cross-information \eqn{I_{12}}. Both blocks of the
@@ -107,7 +125,7 @@ information matrix are differenced numerically from the joint
 log-likelihood; \eqn{\Sigma_{11}} is the step-1 observed information
 inverted, or the outer product of the step-1 scores above 100
 measurement parameters.}
-\item{\code{"robust"}}{The sandwich \eqn{V_2 M V_2} with \eqn{M} the outer
+\item{\code{"robust"}}{The sandwich \eqn{V_2 (M - H_p) V_2} with \eqn{M} the outer
 product of the case-level scores of the joint log-likelihood (PSU-level
 within strata under a survey design), without the step-1 term.}
 \item{\code{"hessian"}}{\eqn{V_2} alone: what an analysis that treats the

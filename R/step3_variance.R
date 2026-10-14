@@ -70,15 +70,32 @@
 #'     step 1, the \code{"robust"} estimator is
 #'     reported instead, with a warning, and \code{summary()} names it.}
 #'   \item{\code{"robust"}}{The step-3 sandwich only,
-#'     \eqn{D_3 = (-H_3)^{-1} M (-H_3)^{-1}}, with \eqn{H_3} the marginal
-#'     step-3 Hessian and \eqn{M} the outer product of the case-level scores
-#'     (PSU-level within strata when a survey design is attached). Proportional
-#'     assignment gives each case \eqn{K} weighted records, so this sandwich is
-#'     needed even before any step-1 uncertainty is considered.}
+#'     \eqn{D_3 = (-H_3)^{-1} (M - H_p) (-H_3)^{-1}}, with \eqn{H_3} the
+#'     Hessian of the penalised step-3 log-likelihood, \eqn{H_p} the prior's
+#'     share of it (see below), and \eqn{M} the outer product of the case-level
+#'     scores (PSU-level within strata when a survey design is attached).
+#'     Proportional assignment gives each case \eqn{K} weighted records, so
+#'     this sandwich is needed even before any step-1 uncertainty is
+#'     considered.}
 #'   \item{\code{"hessian"}}{\eqn{(-H_3)^{-1}} alone. Provided for
 #'     completeness; it ignores the record duplication and is not
 #'     recommended.}
 #' }
+#'
+#' \strong{The priors.} The class regression is fitted with the Dirichlet
+#' prior \code{bayes_constants$latent} (\eqn{\alpha / K} pseudo-cases per
+#' class, spread over the unique covariate patterns), and step 1 with its own
+#' priors, so both estimates maximise a penalised log-likelihood, and every
+#' variance above is that objective's: \eqn{H_3}, the derivative in \eqn{J}
+#' and the step-1 information behind \eqn{D_1} all include the prior's
+#' curvature, and \eqn{H_p} is subtracted once from the middle of the
+#' sandwich. When the model holds, \eqn{M} estimates \eqn{-H_3 + H_p}, so
+#' \code{"robust"} and \code{"hessian"} agree. The prior's share is
+#' \eqn{O(1/n)}: in a simulation from a fitted three-class model it changed no
+#' coverage at n = 300 or more, and at n = 150 brought the standard errors
+#' closer to the empirical spread of the estimates. With
+#' \code{bayes_constants = list(latent = 0)} the step-3 variances are those of
+#' the plain likelihood.
 #'
 #' None of these is the Hessian the package reported previously, which came from
 #' the M-step and measured the curvature of the \emph{Q function} rather than of
@@ -140,7 +157,8 @@
 #' \describe{
 #'   \item{\code{"corrected"} (default)}{\eqn{V = V_2 + V_1}, where
 #'     \eqn{V_2 = I_{22}^{-1}} is the inverse observed information of the joint
-#'     log-likelihood in the structural parameters, and
+#'     log-likelihood in the structural parameters (with the latent prior's
+#'     curvature, as above), and
 #'     \eqn{V_1 = I_{22}^{-1} I_{12}' \Sigma_{11} I_{12} I_{22}^{-1}} carries the
 #'     sampling variance \eqn{\Sigma_{11}} of the step-1 measurement parameters
 #'     through the cross-information \eqn{I_{12}}. Both blocks of the
@@ -148,7 +166,7 @@
 #'     log-likelihood; \eqn{\Sigma_{11}} is the step-1 observed information
 #'     inverted, or the outer product of the step-1 scores above 100
 #'     measurement parameters.}
-#'   \item{\code{"robust"}}{The sandwich \eqn{V_2 M V_2} with \eqn{M} the outer
+#'   \item{\code{"robust"}}{The sandwich \eqn{V_2 (M - H_p) V_2} with \eqn{M} the outer
 #'     product of the case-level scores of the joint log-likelihood (PSU-level
 #'     within strata under a survey design), without the step-1 term.}
 #'   \item{\code{"hessian"}}{\eqn{V_2} alone: what an analysis that treats the
@@ -244,16 +262,25 @@ NULL
   list(P = P, W = P * ((resp1 / Zk) %*% t(Cn)), Zk = Zk, Cn = Cn)
 }
 
-# The bread and the meat below run over the observed rows only. The step-3
-# multinomial logit is fitted with a prior — bayes_constants$latent written as
-# fractional pseudo-rows, one per class per unique covariate pattern
-# (see .fit_mnl() in R/covariate.R) — and those rows are deliberately absent
-# here, so the reported variance is the unpenalised sandwich evaluated at a
-# penalised point estimate. The prior contributes O(1) curvature against the
-# data's O(n), so the mismatch is O(1/n), and it is conservative: leaving the
-# prior out of the bread makes -H3 smaller and hence the interval wider. The
-# coverage table in the step3_se documentation was measured with the prior
-# active, so it is empirical evidence that the difference is immaterial.
+# The scores and the Hessian below run over the observed rows only. The
+# step-3 multinomial logit is fitted with a prior — bayes_constants$latent
+# written as fractional pseudo-rows, one per class per unique covariate pattern
+# (see .fit_mnl() in R/covariate.R) — so the estimate maximises a penalised
+# objective, and its variance is that objective's: the prior's curvature
+# (.covariate_prior_hessian() below) joins the data's in the bread, and is
+# subtracted once from the meat,
+#
+#   V = Ht^-1 (B - Hp) Ht^-1,   Ht = H + Hp.
+#
+# When the model holds, B estimates -H, the middle becomes -Ht and V reduces to
+# -Ht^-1, the inverse information of the penalised objective, which is what
+# se = "hessian" reports; leaving Hp out of both places instead reduces to the
+# inverse information of a likelihood the estimate does not maximise. The
+# difference is O(1/n). In simulation from a fitted three-class model (300
+# replications per size) the two forms were indistinguishable at n = 300 and
+# 734, and at n = 150 this one tracked the empirical standard deviation of the
+# estimates about twice as closely (mean |SE/SD - 1| 0.05 against 0.10) at
+# equal coverage.
 
 # n x ((K-1)*D) matrix of case-level scores, blocked by class.
 .step3_scores <- function(pieces, Zmat, w, K) {
@@ -286,6 +313,89 @@ NULL
     }
   }
   H
+}
+
+# Gradient and Hessian of the latent prior .fit_mnl() fits the class regression
+# with, (alpha / (K U0)) sum_u sum_k log p_uk over the U0 unique rows of Zmat,
+# with respect to the free coefficients in the class-major order every reader
+# here uses (.step3_hessian(), .step1_pack_sm(), .nested_block_pack()): rows
+# 1..K-1 of `beta`, row K the anchor. Because sum_k p_uk = 1, the gradient in
+# class j is (alpha / (K U0)) sum_u (1 - K p_uj) z_u and the Hessian block
+# (j, l) is -(alpha / U0) sum_u (1{j = l} p_uj - p_uj p_ul) z_u z_u'. Both are
+# zero at alpha = 0, the unpenalised fit.
+.covariate_prior_derivs <- function(beta, Zmat, alpha) {
+  K <- nrow(beta)
+  D <- ncol(Zmat)
+  p <- (K - 1L) * D
+  if (!(alpha > 0) || p == 0L)
+    return(list(gradient = numeric(p), hessian = matrix(0, p, p)))
+  U  <- unique(Zmat)
+  U0 <- nrow(U)
+  P  <- softmax_rows(U %*% t(beta))
+  g  <- (alpha / (K * U0)) * as.vector(t(U) %*% (1 - K * P[, seq_len(K - 1L),
+                                                           drop = FALSE]))
+  # t(U) %*% G is D x (K-1); class-major order reads it column by column.
+  H <- matrix(0, p, p)
+  for (j in seq_len(K - 1L)) {
+    for (l in j:(K - 1L)) {
+      coef <- -(alpha / U0) *
+        ((if (j == l) P[, j] else 0) - P[, j] * P[, l])
+      blk <- t(U) %*% sweep(U, 1, coef, "*")
+      H[((j - 1L) * D + 1L):(j * D), ((l - 1L) * D + 1L):(l * D)] <- blk
+      if (l != j)
+        H[((l - 1L) * D + 1L):(l * D), ((j - 1L) * D + 1L):(j * D)] <- t(blk)
+    }
+  }
+  list(gradient = g, hessian = H)
+}
+
+# Newton steps on the penalised step-3 objective of a lone covariate model,
+#   sum_i w_i sum_k A1_ik log (P_i Cn)_k  +  the latent prior,
+# from wherever fit_ml()'s EM loop stopped. EM's relative-change rule stops it
+# while the gradient is still of order 1e-2, and each of its M-steps is itself a
+# BFGS run to a relative tolerance, so the coefficients sit some 1e-4 from the
+# maximum. Newton converges quadratically from there in two or three steps, on
+# the closed-form gradient and Hessian the variance code already computes, so
+# the point estimate and its variance refer to the same maximum. A step that
+# does not increase the objective is halved; one that never does leaves `beta`
+# where EM put it.
+.step3_newton_polish <- function(beta, Zmat, A1, Cn, w, alpha,
+                                 max_iter = 20L, tol = 1e-10) {
+  K <- nrow(beta)
+  D <- ncol(Zmat)
+  if (K < 2L || D < 1L || is.null(Cn)) return(beta)
+  U  <- unique(Zmat)
+  U0 <- nrow(U)
+  as_beta <- function(p) rbind(matrix(p, K - 1L, D, byrow = TRUE), 0)
+  obj <- function(b) {
+    P  <- softmax_rows(Zmat %*% t(b))
+    ll <- sum(w * rowSums(A1 * log(pmax(P %*% Cn, 1e-300))))
+    if (alpha > 0)
+      ll <- ll + (alpha / (K * U0)) * sum(log(softmax_rows(U %*% t(b))))
+    ll
+  }
+  par <- as.vector(t(beta[seq_len(K - 1L), , drop = FALSE]))
+  cur <- obj(beta)
+  for (it in seq_len(max_iter)) {
+    b      <- as_beta(par)
+    pieces <- .step3_pieces(b, Zmat, A1, Cn)
+    pr     <- .covariate_prior_derivs(b, Zmat, alpha)
+    g      <- colSums(.step3_scores(pieces, Zmat, w, K)) + pr$gradient
+    H      <- .step3_hessian(pieces, Zmat, w, A1, K) + pr$hessian
+    step   <- tryCatch(solve(-H, g), error = function(e) NULL)
+    if (is.null(step) || !all(is.finite(step))) break
+    t <- 1
+    repeat {
+      new <- obj(as_beta(par + t * step))
+      if (is.finite(new) && new >= cur) break
+      t <- t / 2
+      if (t < 1e-4) return(as_beta(par))
+    }
+    par <- par + t * step
+    cur <- new
+    if (max(abs(t * step)) < tol) break
+  }
+  as_beta(par)
 }
 
 # The classification table P(assigned = k | true = j) under proportional
@@ -595,7 +705,17 @@ NULL
   if (method == "outer")
     return(list(V = outer_v(), method = "outer", fallback = FALSE))
 
+  # Step 1 maximised the log-likelihood plus its prior (.em_log_prior()), so
+  # its information is that sum's curvature. The prior's centre (the item
+  # marginals) is a property of the data, held fixed while theta1 moves. A
+  # model the prior cannot be priced for (NA) keeps the likelihood alone.
   ll <- function(v) sum(w * .step1_ll_case(model_state, X, v))
+  m0 <- tryCatch(.em_prior_marginals(model_state, X), error = function(e) NULL)
+  lp <- function(v) tryCatch(
+    .em_log_prior(.step1_unpack(model_state, v), X, marginals = m0),
+    error = function(e) NA_real_)
+  if (is.finite(lp(par)))
+    ll <- local({ f <- ll; function(v) f(v) + lp(v) })
   H  <- .step1_fd_hessian(ll, par)
 
   V1 <- pinv(-H)
@@ -699,7 +819,12 @@ NULL
     return(list(V = matrix(0, K * D, K * D), method = "None (no free parameters)"))
 
   pieces <- .step3_pieces(beta, Zmat, resp1, Cn)
-  H3     <- .step3_hessian(pieces, Zmat, w, resp1, K)
+  # The penalised objective's curvature: the data's plus the prior's (see the
+  # note above .step3_scores()). Every estimator below inverts this, including
+  # the sensitivity J of the corrected one, since the step-1 parameters move
+  # the estimate through the same penalised score equations.
+  Hp     <- .covariate_prior_derivs(beta, Zmat, .bayes_alpha(sm, "latent"))$hessian
+  H3     <- .step3_hessian(pieces, Zmat, w, resp1, K) + Hp
   H3_inv <- pinv(-H3)
 
   if (identical(se, "hessian"))
@@ -714,7 +839,7 @@ NULL
                  length(model_state$sm$cluster) == nrow(Zmat))
     model_state$sm$cluster else seq_len(nrow(Zmat))
 
-  D3 <- H3_inv %*% compute_survey_B(S, strata, cluster) %*% H3_inv
+  D3 <- H3_inv %*% (compute_survey_B(S, strata, cluster) - Hp) %*% H3_inv
   label_D3 <- if (isTRUE(model_state$sm$has_survey_design))
     "survey-linearized" else "robust"
 

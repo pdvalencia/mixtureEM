@@ -1,5 +1,29 @@
 # mixtureEM (development version)
 
+## Covariate standard errors now include the priors the estimates were fitted with
+
+The class regression of a three-step, two-step or joint step-3 fit is
+estimated with the Dirichlet prior `bayes_constants$latent`, and step 1 with
+its own priors, so the coefficients maximise a penalised log-likelihood. Their
+standard errors were nevertheless computed from the plain likelihood. They are
+now that penalised objective's: the prior's curvature enters the Hessian, the
+sensitivity of step 3 to step 1, and the step-1 information behind
+`se = "corrected"`, and is subtracted once from the middle of the sandwich.
+When the model holds, the robust and Hessian standard errors now agree. The
+step-3 fit also ends with a few Newton steps on the same objective, so the
+reported coefficients sit at its maximum rather than where EM's stopping rule
+left them, about 1e-4 away.
+
+**Numbers move** by O(1/n). On a three-class, seven-item binary model with five
+covariates (n = 734), robust Wald statistics rise by 0.1 to 0.25 percent and
+corrected ones by up to 0.2 percent; coefficients move in the fourth decimal.
+The effect is largest when classes are small or an item probability is near
+0 or 1, where the prior carries real curvature. In a simulation from that
+model, coverage was unchanged at n = 300 and 734, and at n = 150 the new
+standard errors tracked the spread of the estimates about twice as closely.
+Setting `bayes_constants = list(latent = 0)` at step 3 removes the step-3
+part of the change.
+
 ## Growth mixture models: standard errors for the growth parameters
 
 `growth_estimates()` returns every parameter of a `fit_gmm()` fit with a

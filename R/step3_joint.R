@@ -160,13 +160,40 @@
   }
   H <- (H + t(H)) / 2
 
+  # A covariate block is fitted with the latent prior, so the joint estimate
+  # maximises the step-3 log-likelihood plus that prior: its curvature joins the
+  # bread and is taken once out of the meat, as for a lone class regression
+  # (the note above .step3_scores(), R/step3_variance.R). The block's free rows
+  # are packed in their natural order with the anchor dropped
+  # (.nested_block_pack()), which is the helper's order once the anchor is
+  # moved last.
+  Hp    <- matrix(0, n_par, n_par)
+  ends  <- cumsum(lens)
+  first <- 1L
+  for (j in seq_along(sm$models)) {
+    m  <- sm$models[[j]]
+    nc <- if (lone) ncol(Y) else sm$columns_per_model[[names(sm$models)[j]]]
+    if (inherits(m, "covariate")) {
+      B    <- m$parameters$beta
+      a    <- .covariate_anchor(B)
+      Bord <- sweep(B[c(setdiff(seq_len(nrow(B)), a), a), , drop = FALSE],
+                    2, B[a, ], "-")
+      Zm   <- .covariate_design(m, Y[, first:(first + nc - 1L), drop = FALSE])
+      idx  <- (ends[j] - lens[j] + 1L):ends[j]
+      Hp[idx, idx] <- .covariate_prior_derivs(Bord, Zm,
+                                              .bayes_alpha(m, "latent"))$hessian
+    }
+    first <- first + nc
+  }
+  H <- H + Hp
+
   B_inv <- pinv(-H)
   if (identical(se, "hessian") && !is.null(Cn)) {
     V      <- B_inv
     method <- "Inverse observed information of the step-3 log-likelihood (joint model)"
   } else {
-    meat   <- if (is.null(strata)) crossprod(S * w)
-              else compute_survey_B(S * w, strata, cluster)
+    meat   <- (if (is.null(strata)) crossprod(S * w)
+               else compute_survey_B(S * w, strata, cluster)) - Hp
     V      <- B_inv %*% meat %*% B_inv
     method <- if (is.null(Cn))
       paste("Case-clustered sandwich of the BCH-weighted step-3",
