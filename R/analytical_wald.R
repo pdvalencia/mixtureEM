@@ -52,7 +52,11 @@
 #' \code{\link{covariate_se}}) and names it in the returned \code{Method}
 #' column. For small samples or poorly conditioned Hessians, consider
 #' \code{\link{wald_omnibus_test}} instead, which uses bootstrapped standard
-#' errors from \code{\link{bootstrap_covariates}}.
+#' errors from \code{\link{bootstrap_covariates}}. To test any other
+#' hypothesis about the coefficients -- that two classes share a coefficient,
+#' or that a coefficient takes a stated value -- use \code{\link{wald_test}},
+#' which takes the constraints directly; with every one of this covariate's
+#' coefficients set to zero it gives this same statistic.
 #'
 #' A caveat that applies to any Wald test of a strong effect: under the
 #' Hauck-Donner phenomenon a coefficient large enough to nearly separate a
@@ -168,9 +172,14 @@ analytical_wald_test <- function(model, term_name, ref_class = 1) {
 #' @export
 print.mixture_wald <- function(x, ...) {
   cat("=========================================================\n")
-  cat("                 WALD TEST (COVARIATE)                   \n")
-  cat("=========================================================\n")
-  cat(sprintf("  Covariate : %s\n", x$Covariate))
+  if (is.null(x$Covariate)) {
+    cat("                WALD TEST (CONSTRAINTS)                  \n")
+    cat("=========================================================\n")
+  } else {
+    cat("                 WALD TEST (COVARIATE)                   \n")
+    cat("=========================================================\n")
+    cat(sprintf("  Covariate : %s\n", x$Covariate))
+  }
   cat(sprintf("  Method    : %s\n", x$Method))
   cat("---------------------------------------------------------\n")
   cat(sprintf("  Wald \u03c7\u00b2(%d) = %.3f,  p%s\n",

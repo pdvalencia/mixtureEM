@@ -1,5 +1,20 @@
 # mixtureEM (development version)
 
+## `wald_test()`: Wald tests of linear constraints
+
+The new `wald_test()` tests user-stated linear equality constraints on a
+fitted model's parameters without refitting under them: that a growth-factor
+mean is the same in every class, that two classes share a slope variance,
+that a covariate coefficient takes a stated value. Parameters are named by the
+labels `growth_estimates()` reports for a `fit_gmm()` or `fit_lcga()` fit
+(`"growth_mean[intercept, 1]"`) and by the names of `vcov()` for a covariate
+model (`"Class 2:age"`). Constraints are a list of label pairs, meaning
+equality, or of named weight vectors, or a matrix with labels as column names.
+On growth models the covariance is `growth_estimates()`'s, robust by default.
+On a covariate model, setting all of one covariate's coefficients to zero
+gives the statistic `analytical_wald_test()` reports. No existing number
+changes.
+
 ## `fit_lcga()`'s priors follow `bayes_constants`
 
 Each `fit_lcga()` family now carries the same kind of prior the package's

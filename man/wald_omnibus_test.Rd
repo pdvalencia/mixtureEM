@@ -35,7 +35,9 @@ Compared to \code{\link{analytical_wald_test}}, this test rests on no
 asymptotic variance approximation at all, and carries the step-1
 variability the analytical estimators approximate to first order (see
 \code{\link{covariate_se}}), so it is worth the wait in small samples or
-when classes overlap substantially.
+when classes overlap substantially. Hypotheses other than "this covariate
+has no effect" -- equal coefficients across classes, equal growth means,
+any linear constraint -- are tested by \code{\link{wald_test}}.
 }
 \examples{
 \dontrun{
