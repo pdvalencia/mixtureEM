@@ -52,6 +52,15 @@ percent at n = 2000 and 1.4 to 12 percent at n = 120 to 500, the largest
 on parameters near the boundary. Fits with every prior off and
 `standard_errors = "robust"` are unchanged.
 
+The curvature of the prior, and the step-2 and step-3 curvature of the
+two-step and three-step fits, are taken by central differences on a
+relative step of 2e-4 rather than 1e-5. At 1e-5 a second difference is
+mostly rounding error, which differs between platforms; the robust
+sandwich magnifies it, and on some platforms two routes to the same
+standard error disagreed by more than one percent. On the test designs
+the change is below 0.06 percent on the platform used to measure it, and
+estimates are unchanged.
+
 ### `smoothing` now reaches latent transition models with covariates
 
 With `predictors_initial`, `predictors_transition`, or a `group` whose

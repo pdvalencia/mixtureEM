@@ -201,7 +201,7 @@ results <- summary(fit_cov)
 #>   risk                     1.891  [    1.414,     2.529]    < .001
 #> 
 #> Class 3 ON
-#>   Intercept                0.409  [    0.204,     0.822]     0.012
+#>   Intercept                0.409  [    0.204,     0.823]     0.012
 #>   risk                     0.982  [    0.726,     1.328]     0.905
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
