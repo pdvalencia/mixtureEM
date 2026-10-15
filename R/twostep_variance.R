@@ -287,6 +287,7 @@
 #   structural block at the joint maximum.
 # @param X Indicator matrix both steps were fitted to.
 # @param step1 The step-one fit, as carried on the object as `$step1`.
+# @param alpha The `smoothing` both steps were fitted with.
 #
 # @return NULL when the model is outside the packing, or a list of `V` (the
 #   structural block's covariance matrix), `V2` (its step-two-only part), `S11`
@@ -294,7 +295,7 @@
 #   label. Returning NULL rather than signalling is deliberate: a model the
 #   packing cannot describe keeps the estimator it already had, the way
 #   .lta_standard_errors()'s robust branch declines.
-.lta_twostep_vcov <- function(state, X, step1) {
+.lta_twostep_vcov <- function(state, X, step1, alpha = 0) {
   if (is.null(step1) || !inherits(step1, "lta_model")) return(NULL)
   if (!.lta_par_packable(state) || !.lta_par_packable(step1)) return(NULL)
 
@@ -326,14 +327,27 @@
   # here, once.
   se1 <- step1$se
   if (is.null(se1) || is.null(se1$vcov))
-    se1 <- tryCatch(.lta_standard_errors(step1, X), error = function(e) NULL)
+    se1 <- tryCatch(.lta_standard_errors(step1, X, alpha = alpha),
+                    error = function(e) NULL)
   if (is.null(se1) || is.null(se1$vcov)) return(NULL)
   if (nrow(se1$vcov) != length(par1)) return(NULL)
   S11 <- se1$vcov[idx1_s1, idx1_s1, drop = FALSE]
 
   info <- .lta_twostep_information(state, X, state$weights_vec, layout, par,
                                   idx1, idx2)
-  V2 <- .psd_pinv(-info$H22)
+  # Step 2 maximises the log-likelihood plus the structural prior, so its
+  # information is that objective's: the prior's curvature joins H22. The
+  # prior reads the structural vector and the fixed items only, so the cross
+  # derivative H12 is the likelihood's alone. S11 above is step 1's own
+  # variance, the penalised curvature of the objective step 1 maximised.
+  marg <- if (is.null(state$ri))
+    tryCatch(.lta_prior_marginals(state, X), error = function(e) NULL)
+  lp2 <- function(v) {
+    p <- par; p[idx2] <- v
+    .lta_log_prior(.lta_par_unpack(p, state, layout), X, alpha, marg)
+  }
+  Hp22 <- if (is.na(lp2(par[idx2]))) 0 else .step1_fd_hessian(lp2, par[idx2])
+  V2 <- .psd_pinv(-(info$H22 + Hp22))
   V2 <- (V2 + t(V2)) / 2
   V1 <- V2 %*% t(info$H12) %*% S11 %*% info$H12 %*% V2
   V  <- V2 + V1

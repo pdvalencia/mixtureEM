@@ -330,16 +330,22 @@ first occasion. Ignored whenever the labels already carry meaning, which is
 the case when \code{forbidden_transitions} defines an ordering of stages or when
 covariates index the statuses through their regression coefficients.}
 
-\item{standard_errors}{Compute standard errors for \eqn{\delta} and
-\eqn{\tau}. \code{TRUE} (the default) uses the outer product of the case-level
-scores; \code{FALSE} skips them; \code{"robust"} returns the sandwich estimator, with
-the observed information as its bread. \code{"robust"} costs a
-finite-difference Hessian -- \eqn{2p(p + 1)} likelihood evaluations -- and
-so takes minutes rather than seconds on a model of any size. It is
-supported for random-intercept fits. Where the model still cannot be
-packed on an unconstrained scale (covariates, or a measurement family
-whose parameters are not all free) \code{"robust"} falls back silently to the
-default estimator, and \code{summary()} then does not report robust errors.}
+\item{standard_errors}{Compute standard errors. \code{TRUE} (the default) uses
+the inverse observed information of the objective the fit maximises: the
+log-likelihood plus the priors set by \code{smoothing} and \code{bayes_constants},
+so the standard errors include the prior's curvature, which matters for
+rare statuses, transitions near zero and small samples. \code{FALSE} skips
+them. \code{"robust"} returns the sandwich estimator around the same
+curvature, \eqn{H^{-1} (B - H_p) H^{-1}}, with \eqn{B} the outer product of
+the case scores and \eqn{H_p} the prior's curvature, so that it reduces to
+the default when the model is correctly specified; under \code{strata} or
+\code{cluster} the default is that sandwich with the design-based \eqn{B}. The
+observed information costs \eqn{2p} passes over the data, \eqn{p} the
+number of free parameters, so it takes seconds on most models and longer
+on a large random-intercept model. A model whose parameters cannot all be
+packed on an unconstrained scale (nominal, count or mixed indicators)
+gets the outer product of the case scores instead, and \code{"robust"} is not
+available for it; \verb{$se$method} names the estimator used.}
 
 \item{predictors_initial}{Optional covariates predicting the latent status at
 the first occasion (Collins & Lanza, sec. 8.10.1).}
@@ -474,8 +480,8 @@ classes-by-statuses matrix, \code{tau} a list of per-class lists, and
 \code{class_weights}, \code{class_posterior} and \code{gamma_by_class} are added.
 \code{prevalences} stays the whole-sample marginal, with the per-class ones in
 its \code{"by_class"} attribute; \code{\link[=status_prevalences]{status_prevalences()}} and
-\code{\link[=transition_matrix]{transition_matrix()}} take a \code{class} argument to reach them. Standard
-errors are not available for a mixture over chains and \code{se} is \code{NULL}.
+\code{\link[=transition_matrix]{transition_matrix()}} take a \code{class} argument to reach them, and the
+standard errors cover the class weights too.
 
 \code{metrics$entropy} (the headline number, printed by \code{print()}) is the
 relative entropy of the joint latent-status path across all occasions at
@@ -553,10 +559,11 @@ uncertainty. Step 2 holds the measurement parameters fixed, but they were
 estimated rather than known, and their sampling error propagates into
 everything built on top of them. What is reported is therefore the
 pseudo-maximum-likelihood variance of Bakk & Kuha's equation 5,
-\eqn{V = V_2 + V_1}: \eqn{V_2} is the inverse observed information of the
-full likelihood in the structural coefficients, and \eqn{V_1} carries the
-step-1 variance across through the cross-curvature between the two
-blocks. \eqn{V_1} is negligible when the statuses are well separated and
+\eqn{V = V_2 + V_1}: \eqn{V_2} is the inverse observed information, in the
+structural coefficients, of the full likelihood plus the structural prior
+set by \code{smoothing}, and \eqn{V_1} carries step 1's variance -- its own
+default standard errors -- across through the cross-curvature between
+the two blocks. \eqn{V_1} is negligible when the statuses are well separated and
 is most of the variance when they are not, which is the same condition
 that governs the attenuation above. The measurement parameters of a
 two-step fit report the step-1 fit's own standard errors, since that is

@@ -288,16 +288,22 @@
 #'   first occasion. Ignored whenever the labels already carry meaning, which is
 #'   the case when `forbidden_transitions` defines an ordering of stages or when
 #'   covariates index the statuses through their regression coefficients.
-#' @param standard_errors Compute standard errors for \eqn{\delta} and
-#'   \eqn{\tau}. `TRUE` (the default) uses the outer product of the case-level
-#'   scores; `FALSE` skips them; `"robust"` returns the sandwich estimator, with
-#'   the observed information as its bread. `"robust"` costs a
-#'   finite-difference Hessian -- \eqn{2p(p + 1)} likelihood evaluations -- and
-#'   so takes minutes rather than seconds on a model of any size. It is
-#'   supported for random-intercept fits. Where the model still cannot be
-#'   packed on an unconstrained scale (covariates, or a measurement family
-#'   whose parameters are not all free) `"robust"` falls back silently to the
-#'   default estimator, and `summary()` then does not report robust errors.
+#' @param standard_errors Compute standard errors. `TRUE` (the default) uses
+#'   the inverse observed information of the objective the fit maximises: the
+#'   log-likelihood plus the priors set by `smoothing` and `bayes_constants`,
+#'   so the standard errors include the prior's curvature, which matters for
+#'   rare statuses, transitions near zero and small samples. `FALSE` skips
+#'   them. `"robust"` returns the sandwich estimator around the same
+#'   curvature, \eqn{H^{-1} (B - H_p) H^{-1}}, with \eqn{B} the outer product of
+#'   the case scores and \eqn{H_p} the prior's curvature, so that it reduces to
+#'   the default when the model is correctly specified; under `strata` or
+#'   `cluster` the default is that sandwich with the design-based \eqn{B}. The
+#'   observed information costs \eqn{2p} passes over the data, \eqn{p} the
+#'   number of free parameters, so it takes seconds on most models and longer
+#'   on a large random-intercept model. A model whose parameters cannot all be
+#'   packed on an unconstrained scale (nominal, count or mixed indicators)
+#'   gets the outer product of the case scores instead, and `"robust"` is not
+#'   available for it; `$se$method` names the estimator used.
 #' @param predictors_initial Optional covariates predicting the latent status at
 #'   the first occasion (Collins & Lanza, sec. 8.10.1).
 #' @param predictors_transition Optional covariates predicting the transitions
@@ -413,8 +419,8 @@
 #'   `class_weights`, `class_posterior` and `gamma_by_class` are added.
 #'   `prevalences` stays the whole-sample marginal, with the per-class ones in
 #'   its `"by_class"` attribute; [`status_prevalences()`] and
-#'   [`transition_matrix()`] take a `class` argument to reach them. Standard
-#'   errors are not available for a mixture over chains and `se` is `NULL`.
+#'   [`transition_matrix()`] take a `class` argument to reach them, and the
+#'   standard errors cover the class weights too.
 #'
 #'   `metrics$entropy` (the headline number, printed by `print()`) is the
 #'   relative entropy of the joint latent-status path across all occasions at
@@ -461,10 +467,11 @@
 #'   estimated rather than known, and their sampling error propagates into
 #'   everything built on top of them. What is reported is therefore the
 #'   pseudo-maximum-likelihood variance of Bakk & Kuha's equation 5,
-#'   \eqn{V = V_2 + V_1}: \eqn{V_2} is the inverse observed information of the
-#'   full likelihood in the structural coefficients, and \eqn{V_1} carries the
-#'   step-1 variance across through the cross-curvature between the two
-#'   blocks. \eqn{V_1} is negligible when the statuses are well separated and
+#'   \eqn{V = V_2 + V_1}: \eqn{V_2} is the inverse observed information, in the
+#'   structural coefficients, of the full likelihood plus the structural prior
+#'   set by `smoothing`, and \eqn{V_1} carries step 1's variance -- its own
+#'   default standard errors -- across through the cross-curvature between
+#'   the two blocks. \eqn{V_1} is negligible when the statuses are well separated and
 #'   is most of the variance when they are not, which is the same condition
 #'   that governs the attenuation above. The measurement parameters of a
 #'   two-step fit report the step-1 fit's own standard errors, since that is
@@ -1742,7 +1749,7 @@ fit_lta <- function(indicators,
   if (!identical(standard_errors, FALSE))
     best$se <- .lta_standard_errors(
       best, X, robust = identical(standard_errors, "robust"),
-      step1 = if (n_steps == 2L) step1 else NULL)
+      step1 = if (n_steps == 2L) step1 else NULL, alpha = alpha)
 
   # Recorded on the object as well as warned about: a warning is transient, and
   # someone reading a saved fit months later should still be able to see it.
@@ -2321,17 +2328,20 @@ fit_lta <- function(indicators,
 }
 
 # ------------------------------------------------------------------------------
-# Standard errors (outer product of gradients)
+# Standard errors
 # ------------------------------------------------------------------------------
 #
 # By the Fisher identity the score of the observed-data log-likelihood equals the
 # expectation of the complete-data score given the data, so the E-step quantities
-# already computed give each case's score directly. Stacking them gives the
-# empirical information, and inverting it the covariance matrix. Parameters are
-# taken on their multinomial-logit scale (last category anchored), which is where
-# the normal approximation behaves; standard errors for the probabilities
-# themselves follow by the delta method.
-.lta_standard_errors <- function(state, X, robust = FALSE, step1 = NULL) {
+# already computed give each case's score directly. Their sum is the gradient,
+# and differencing it gives the observed information; their outer product is the
+# sandwich's meat. Parameters are taken on their multinomial-logit scale (last
+# category anchored), which is where the normal approximation behaves; standard
+# errors for the probabilities themselves follow by the delta method.
+#
+# `alpha` is the fit's `smoothing`, which the curvature of the objective needs.
+.lta_standard_errors <- function(state, X, robust = FALSE, step1 = NULL,
+                                 alpha = 0) {
   sc <- .lta_score_matrix(state, X)
   if (is.null(sc)) return(NULL)
   S <- sc$S; blocks <- sc$blocks; conditional <- sc$conditional
@@ -2365,20 +2375,15 @@ fit_lta <- function(indicators,
                 twostep_V2 = NULL, method = "Observed information"))
   }
 
-  # The small-sample correction N / (N - 1) on the case-score outer product is
-  # the usual finite-population fix for a sample covariance matrix estimated
-  # from N contributions; applying it here (rather than leaving the raw outer
-  # product) keeps this estimator's scale consistent with the same correction
-  # applied to the sandwich meat below.
+  # The uncentred outer product of the case scores, with the small-sample
+  # factor N / (N - 1). It is the sandwich's meat below, and the whole
+  # estimator for a model the packing cannot describe.
   n_cases <- state$n_eff %||% length(w)
   info <- (n_cases / max(n_cases - 1, 1)) * (t(S) %*% sweep(S, 1, w, "*"))
-  V    <- tryCatch(pinv(info), error = function(e) NULL)
-  if (is.null(V)) return(NULL)
 
-  # With a complex survey design the empirical information is replaced by the
-  # linearization sandwich, aggregating the same case-level scores to the
-  # primary sampling unit within stratum. This is the machinery already behind
-  # the covariate model's design-based variance (compute_survey_B in utils.R).
+  # With a complex survey design the meat is the linearization sandwich's,
+  # aggregating the same case-level scores to the primary sampling unit within
+  # stratum (compute_survey_B in utils.R).
   meat <- info
   design_based <- FALSE
   if (isTRUE(state$has_survey_design)) {
@@ -2387,32 +2392,50 @@ fit_lta <- function(indicators,
       error = function(e) NULL)
     if (!is.null(m)) {
       meat <- m
-      V <- V %*% m %*% V
       design_based <- TRUE
     }
   }
 
-  # Opt-in sandwich with the observed-information bread, the textbook form of
-  # the estimator. The outer-product bread above is the
-  # cheaper estimator and stays the default here: the finite-difference Hessian
-  # this needs is 2p(p+1) forward-backward passes. The fallback is silent by
-  # design -- a model the packing cannot describe gets the existing estimator
-  # and `robust = FALSE` rather than an error -- which is why the flag is
-  # returned and reported.
+  # The fit maximises the log-likelihood plus the priors (`smoothing` on the
+  # structural blocks, `bayes_constants` on the items), so the curvature that
+  # describes its sampling spread is that objective's: Ht = Hd + Hp. The
+  # default is its inverse, the observed information of the objective the
+  # estimate maximises; `robust` is the sandwich Ht^-1 (B - Hp) Ht^-1, whose
+  # meat takes the prior's curvature out once more so that it reduces to the
+  # default when the data's meat B equals the data's information -Hd; and a
+  # survey design gets the same sandwich with the linearized meat. With every
+  # prior off, Hp = 0 and these are the plain observed information and the
+  # textbook sandwich.
+  #
+  # A model the packing cannot describe (nominal, count or mixed items, and
+  # the three-step's fixed emission before its own variance replaces this one)
+  # keeps the outer-product estimator, with the survey meat when there is a
+  # design. `method` says which estimator was used.
   robust_used <- FALSE
-  if (isTRUE(robust) && .lta_par_packable(state)) {
-    layout <- .lta_par_layout(state)
-    par    <- .lta_par_pack(state, layout)
-    if (length(par) == ncol(S)) {
-      A  <- -.step1_fd_hessian(
-        function(v) sum(w * .lta_ll_case(state, X, v, layout)), par)
-      Ai <- .psd_pinv(A)
-      Vr <- Ai %*% meat %*% Ai
-      if (all(is.finite(Vr))) {
-        V <- Vr
-        robust_used <- TRUE
-      }
-    }
+  H <- if (.lta_par_packable(state))
+    tryCatch(.lta_penalised_hessian(state, X, alpha),
+             error = function(e) NULL)
+  if (!is.null(H) && nrow(H$Ht) == ncol(S)) {
+    Ai <- .psd_pinv(-H$Ht)
+    Ai <- (Ai + t(Ai)) / 2
+    V  <- if (isTRUE(robust) || design_based)
+      Ai %*% (meat - H$Hp) %*% Ai else Ai
+    V  <- (V + t(V)) / 2
+    if (!all(is.finite(V))) H <- NULL
+  } else H <- NULL
+  if (!is.null(H)) {
+    robust_used <- isTRUE(robust)
+    v_method <- if (design_based)
+      "Survey-linearized sandwich around the observed information"
+    else if (robust_used) "Robust sandwich around the observed information"
+    else "Observed information"
+  } else {
+    V <- tryCatch(pinv(info), error = function(e) NULL)
+    if (is.null(V)) return(NULL)
+    if (design_based) V <- V %*% meat %*% V
+    v_method <- if (design_based)
+      "Survey-linearized sandwich around the outer product of the case scores"
+    else "Outer product of the case scores"
   }
 
   # The two-step estimator's own variance, when this is a two-step fit and the
@@ -2432,9 +2455,9 @@ fit_lta <- function(indicators,
   # choice for the same reason.
   twostep_used <- FALSE
   twostep_V2 <- NULL
-  v_method <- NULL
   if (!is.null(step1) && !isTRUE(robust)) {
-    ts <- tryCatch(.lta_twostep_vcov(state, X, step1), error = function(e) NULL)
+    ts <- tryCatch(.lta_twostep_vcov(state, X, step1, alpha),
+                   error = function(e) NULL)
     if (!is.null(ts) && nrow(V) == length(ts$idx1) + length(ts$idx2)) {
       Vt <- matrix(0, nrow(V), ncol(V))
       Vt[ts$idx2, ts$idx2] <- ts$V
@@ -2468,6 +2491,35 @@ fit_lta <- function(indicators,
        conditional = conditional, design_based = design_based,
        robust = robust_used, twostep = twostep_used, twostep_V2 = twostep_V2,
        method = v_method)
+}
+
+# The curvature of the objective a fit maximises, on the packed vector:
+# Hd, the log-likelihood's, by central differences of its analytic gradient
+# (the case scores summed under the case weights) -- 2p score passes, where
+# differencing the log-likelihood itself would take 2p(p + 1) -- and Hp, the
+# prior's, by differences of .lta_log_prior(), which runs no forward-backward
+# pass. A prior that cannot be written down (NA) contributes nothing, the
+# convention of the three-step's variance.
+.lta_penalised_hessian <- function(state, X, alpha) {
+  layout <- .lta_par_layout(state)
+  par    <- .lta_par_pack(state, layout)
+  w      <- state$weights_vec
+  grad_at <- function(p)
+    colSums(w * .lta_score_matrix(.lta_par_unpack(p, state, layout), X)$S)
+  Hd <- vapply(seq_along(par), function(j) {
+    h <- 1e-5 * max(1, abs(par[j]))
+    e <- numeric(length(par)); e[j] <- h
+    (grad_at(par + e) - grad_at(par - e)) / (2 * h)
+  }, numeric(length(par)))
+  Hd <- (Hd + t(Hd)) / 2
+
+  marg <- if (is.null(state$ri))
+    tryCatch(.lta_prior_marginals(state, X), error = function(e) NULL)
+  lp <- function(p) .lta_log_prior(.lta_par_unpack(p, state, layout), X, alpha,
+                                   marg)
+  Hp <- if (is.na(lp(par))) matrix(0, length(par), length(par)) else
+    .step1_fd_hessian(lp, par)
+  list(Hd = Hd, Hp = Hp, Ht = Hd + Hp)
 }
 
 # Delta method onto the probability scale. For a multinomial logit with the
@@ -2588,8 +2640,9 @@ fit_lta <- function(indicators,
 # multinomial-logit scale with the last category anchored. Column order is the
 # packing order: delta, then the transition rows, then the measurement blocks.
 # `.lta_refine_lbfgs()` sums these rows under the case weights to get the
-# gradient of the log-likelihood; `.lta_standard_errors()` takes their outer
-# product to get the empirical information. Same matrix, two uses.
+# gradient of the log-likelihood; `.lta_standard_errors()` differences that sum
+# for the observed information and takes their outer product for the
+# sandwich's meat. Same matrix, every use.
 #
 # The forward-backward pass is run here rather than read off `state`, so the
 # scores describe the parameters currently in `state` even when no E-step has

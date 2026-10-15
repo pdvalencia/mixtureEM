@@ -254,7 +254,9 @@ test_that("an ordinary fit is untouched by the freeze machinery", {
          predictors_transition = .ts_sep()$Z, n_steps = 2, n_init = 4)
 
 # sqrt of the diagonals of V2 and of V, structural block only, in packing
-# order, plus the vector of standard errors an independent Hessian gives.
+# order, plus the vector of standard errors an independent Hessian gives. Step
+# 2 maximises the log-likelihood plus the structural prior (the default
+# `smoothing = 1` here), so that is the objective the Hessian is taken of.
 .ts_se_pieces <- function(fit, X) {
   layout <- mixtureEM:::.lta_par_layout(fit)
   par    <- mixtureEM:::.lta_par_pack(fit, layout)
@@ -262,7 +264,9 @@ test_that("an ordinary fit is untouched by the freeze machinery", {
   w      <- fit$weights_vec
   ll     <- function(v) {
     p <- par; p[idx] <- v
-    sum(w * mixtureEM:::.lta_ll_case(fit, X, p, layout))
+    sum(w * mixtureEM:::.lta_ll_case(fit, X, p, layout)) +
+      mixtureEM:::.lta_log_prior(mixtureEM:::.lta_par_unpack(p, fit, layout),
+                                 X, 1)
   }
   list(sd2   = sqrt(diag(fit$se$twostep_V2)),
        sd    = sqrt(diag(fit$se$vcov[idx, idx, drop = FALSE])),

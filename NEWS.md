@@ -18,6 +18,31 @@ precision. Both functions now return it invisibly after printing, so an
 unassigned call no longer prints the raw list after the table, and the table
 can be shown again with `print()` without refitting.
 
+## Latent transition standard errors come from the observed information, priors included
+
+`fit_lta()`'s default standard errors used to be the inverse outer product of
+the case scores, and both they and `standard_errors = "robust"` left out the
+priors the estimates are fitted with. The default is now the inverse
+observed information of the objective the fit maximises, the log-likelihood
+plus the priors set by `smoothing` and `bayes_constants`; `"robust"` is the
+sandwich around that curvature with the prior's curvature taken out of its
+middle term, and so is the default under `strata` or `cluster`. The
+two-step's step-2 variance carries the structural prior's curvature as well,
+and its step-1 variance is step 1's new default. The observed information is
+built from the analytic scores, so it costs two passes over the data per
+free parameter. `$se$method` names the estimator. Models whose parameters
+cannot all be put on an unconstrained scale (nominal, count or mixed
+indicators) keep the outer-product estimator.
+
+**Numbers move** for every one-step and two-step latent transition fit that
+computes standard errors. The outer-product estimator is unreliable for a
+parameter near the boundary: on a simulated design with a transition of
+0.002 it gave that transition a standard error of 0.88, against 0.006 now.
+On simulated designs the median change was 0.3 to 0.6 percent at n = 2000
+and 1.4 to 12 percent at n = 120 to 500, the largest on parameters near the
+boundary. Fits with every prior off and `standard_errors = "robust"` are
+unchanged.
+
 ## `smoothing` now reaches latent transition models with covariates
 
 With `predictors_initial`, `predictors_transition`, or a `group` whose
