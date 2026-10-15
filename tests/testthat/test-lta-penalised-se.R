@@ -27,7 +27,7 @@
   lp  <- function(p) .lta_log_prior(.lta_par_unpack(p, fit, lay), X, alpha)
   S   <- .lta_score_matrix(fit, X)$S
   n   <- sum(w)
-  list(Hd = .step1_fd_hessian(ll, par), Hp = .step1_fd_hessian(lp, par),
+  list(Hd = .fd_hessian_ref(ll, par), Hp = .fd_hessian_ref(lp, par),
        B = n / (n - 1) * crossprod(S, w * S))
 }
 

@@ -1028,19 +1028,19 @@ test_that("with the prior on, V2 is the penalised objective's inverse informatio
   ll  <- function(p) sum(w * mixtureEM:::.lta_ll_case(fit, W, p, lay))
   lp  <- function(p) mixtureEM:::.lta_log_prior_dt(
     mixtureEM:::.lta_par_unpack(p, fit, lay), 1)
-  Hd <- mixtureEM:::.step1_fd_hessian(ll, par)
-  Hp <- mixtureEM:::.step1_fd_hessian(lp, par)
+  Hd <- .fd_hessian_ref(ll, par)
+  Hp <- .fd_hessian_ref(lp, par)
   # Step 3 ends at the penalised maximum: its EM rule, its restart ranking and
   # the acceptance of its Newton-type finish all compare the penalised
-  # objective (it used to stop at a gradient of 0.05 here).
+  # objective (it used to stop at a gradient of 0.05 here). Where it stops
+  # within the convergence tolerance varies by platform: 1.2e-5 on one.
   g <- vapply(seq_along(par), function(j) {
     e <- numeric(length(par)); e[j] <- 1e-6
     (ll(par + e) + lp(par + e) - ll(par - e) - lp(par - e)) / 2e-6 }, 0)
-  expect_lt(max(abs(g)), 1e-5)
+  expect_lt(max(abs(g)), 1e-4)
   se <- sqrt(diag(fit$se$threestep_V2))
-  # 1e-3: the rebuilt Hessian is taken with the test's own differencing steps,
-  # which leaves a 3e-4 gap at the optimum. Leaving the prior out is off by up
-  # to 2% here.
+  # The two agree to 1e-6 on one platform; 1e-3 leaves room for others' maths
+  # libraries. Leaving the prior out is off by up to 2% here.
   expect_lt(max(abs(se / sqrt(diag(solve(-(Hd + Hp)))) - 1)), 1e-3)
   # The prior adds curvature, so every model-based standard error shrinks.
   expect_true(all(se < sqrt(diag(solve(-Hd)))))

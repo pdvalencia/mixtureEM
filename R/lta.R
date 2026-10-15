@@ -2518,7 +2518,7 @@ fit_lta <- function(indicators,
   lp <- function(p) .lta_log_prior(.lta_par_unpack(p, state, layout), X, alpha,
                                    marg)
   Hp <- if (is.na(lp(par))) matrix(0, length(par), length(par)) else
-    .step1_fd_hessian(lp, par)
+    .step1_fd_hessian(lp, par, .lta_fd_step)
   list(Hd = Hd, Hp = Hp, Ht = Hd + Hp)
 }
 

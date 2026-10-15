@@ -242,15 +242,25 @@
 # .lta_standard_errors() pays because a sandwich needs it and this does not.
 
 # I22 and I12 of the joint log-likelihood at the fitted point, by the same
-# four-point central difference on the same relative step .step1_fd_hessian()
-# uses. Returned as second derivatives of the log-likelihood; negate for
+# four-point central difference .step1_fd_hessian() uses, on the relative
+# step `.lta_fd_step` rather than its 1e-5. A second difference of a
+# log-likelihood in the thousands at 1e-5 is mostly rounding, which differs
+# between platforms' maths libraries and, once inverted, moved standard errors
+# by a percent or more; at 2e-4 it agrees with the curvature of the analytic
+# score to 1e-7. The prior's curvature, which every latent transition variance
+# adds, is differenced on the same step for the same reason: at 1e-5 it sits
+# off the plateau that steps from 3e-5 to 2e-4 agree on, and the sandwich
+# magnifies that. Returned as second derivatives of the log-likelihood; negate
+# for
 # information. `ll` is the objective on the whole vector; the default is the
 # joint log-likelihood of `state`, and the three-step passes its own, in which
 # the step-1 coordinates reach step 3 through the classification error.
+.lta_fd_step <- 2e-4
+
 .lta_twostep_information <- function(state, X, w, layout, par, idx1, idx2,
                                      ll = function(v)
                                        sum(w * .lta_ll_case(state, X, v, layout))) {
-  h  <- .step1_fd_step * pmax(1, abs(par))
+  h  <- .lta_fd_step * pmax(1, abs(par))
   bump <- function(i, s) { v <- par; v[i] <- v[i] + s * h[i]; v }
   two  <- function(i, si, j, sj) {
     v <- par; v[i] <- v[i] + si * h[i]; v[j] <- v[j] + sj * h[j]; ll(v)
@@ -346,7 +356,8 @@
     p <- par; p[idx2] <- v
     .lta_log_prior(.lta_par_unpack(p, state, layout), X, alpha, marg)
   }
-  Hp22 <- if (is.na(lp2(par[idx2]))) 0 else .step1_fd_hessian(lp2, par[idx2])
+  Hp22 <- if (is.na(lp2(par[idx2]))) 0 else
+    .step1_fd_hessian(lp2, par[idx2], .lta_fd_step)
   V2 <- .psd_pinv(-(info$H22 + Hp22))
   V2 <- (V2 + t(V2)) / 2
   V1 <- V2 %*% t(info$H12) %*% S11 %*% info$H12 %*% V2

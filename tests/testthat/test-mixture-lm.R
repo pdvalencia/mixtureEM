@@ -169,9 +169,11 @@ test_that("the collapse detector finds classes describing the same chain", {
 test_that("a fit records whether its classes collapsed", {
   set.seed(24)
   X <- matrix(rbinom(300 * 9, 1, 0.5), ncol = 9)
-  fit <- fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
-                 n_classes = 2, n_init = 2, random_state = 31,
-                 standard_errors = FALSE, max_iter = 200, tol = 1e-8)
+  # The data are pure noise, so the collapse warning may or may not fire.
+  fit <- suppressWarnings(
+    fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+            n_classes = 2, n_init = 2, random_state = 31,
+            standard_errors = FALSE, max_iter = 200, tol = 1e-8))
   # Whether EM collapses these classes is not guaranteed - it is noise - but
   # the verdict stored on the object must be the detector's own, so that a fit
   # read back months later still carries it.

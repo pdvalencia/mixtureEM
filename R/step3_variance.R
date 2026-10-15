@@ -737,12 +737,13 @@ NULL
 
 # Symmetric numerical Hessian of a scalar function of the step-one parameter
 # vector, by the four-point central second difference, on the same relative
-# step every other step-one derivative uses. Kept in one place because
-# .step1_variance() and the VLMR test (R/vlmr.R) need the same matrix: the
+# step every other step-one derivative uses unless `step` says otherwise. Kept
+# in one place because .step1_variance() and the VLMR test (R/vlmr.R) need the
+# same matrix: the
 # former negates and inverts it, the latter passes it on as Vuong's `A`.
-.step1_fd_hessian <- function(ll, par) {
+.step1_fd_hessian <- function(ll, par, step = .step1_fd_step) {
   p <- length(par)
-  h <- .step1_fd_step * pmax(1, abs(par))
+  h <- step * pmax(1, abs(par))
   H <- matrix(0, p, p)
   for (a in seq_len(p)) {
     for (b in a:p) {

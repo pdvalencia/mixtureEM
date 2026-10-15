@@ -196,9 +196,12 @@ test_that("a distal outcome rides the existing three-step machinery", {
   # call is possible: `outcome` has to stay free for the distal outcome that
   # fit_mixture() consumes. Naming the repeated variable `outcome` silently
   # rebound this argument and the fit failed inside the reshaping code.
-  fit <- suppressMessages(
+  # The step-1 correction to the outcome's standard errors is not built for
+  # an LCGA measurement model yet, and the fit says so.
+  expect_warning(fit <- suppressMessages(
     fit_lcga(y, times = 4, n_classes = 2, outcome = distal,
-             n_init = 5, random_state = 1))
+             n_init = 5, random_state = 1)),
+    "corrected standard errors are not available")
 
   # Trajectory class -> distal outcome is the commonest applied design of all,
   # so the recovered class means matter as much as the trajectories.

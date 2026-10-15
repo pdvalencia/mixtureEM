@@ -187,3 +187,23 @@
   colnames(X) <- paste0("t", rep(seq_len(Tn), each = J), "_i", rep(seq_len(J), Tn))
   X
 }
+
+# A reference Hessian by central differences of `f`, for the files that check
+# a standard error against the curvature of the objective the fit maximises.
+# The step is twenty times the package's own: a second difference of a
+# log-likelihood in the thousands at a step of 1e-5 is mostly rounding, which
+# differs between platforms' maths libraries and, once inverted, moved the
+# rebuilt standard errors by up to 2 percent. At 2e-4 the rebuilt curvature
+# agrees with the package's analytic-score route to 1e-7.
+.fd_hessian_ref <- function(f, par, step = 2e-4) {
+  p <- length(par)
+  h <- step * pmax(1, abs(par))
+  H <- matrix(0, p, p)
+  for (a in seq_len(p)) for (b in a:p) {
+    ea <- numeric(p); ea[a] <- h[a]
+    eb <- numeric(p); eb[b] <- h[b]
+    H[a, b] <- H[b, a] <- (f(par + ea + eb) - f(par + ea - eb) -
+                             f(par - ea + eb) + f(par - ea - eb)) / (4 * h[a] * h[b])
+  }
+  H
+}
