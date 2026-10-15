@@ -82,15 +82,43 @@ lcga_model <- function(n_components, design, family = "binomial", ...) {
   )
 }
 
-# Observed marginal response at each occasion, which centres the prior that
-# keeps a class from separating. Weighted when a survey design is in play, for
+# What the priors are centred on, pooled over every observed record: the mean
+# response `m` and its variance `s2` (divisor N, not N - 1), plus `occ`, the
+# occasions observed at least once, which are the design points the binomial
+# and Poisson pseudo-rows sit on. Weighted when a survey design is in play, for
 # the same reason refine_lbfgs() weights its Bernoulli marginal: the same data
 # supplied as weighted patterns and as expanded rows must give one answer.
 .lcga_marginal <- function(X, weights = NULL) {
-  if (is.null(weights)) return(colMeans(X, na.rm = TRUE))
   obs <- !is.na(X)
+  w   <- if (is.null(weights)) obs * 1 else obs * weights
   X0  <- replace(X, !obs, 0)
-  colSums(X0 * weights) / pmax(colSums(obs * weights), 1e-12)
+  sw  <- max(sum(w), 1e-12)
+  m   <- sum(X0 * w) / sw
+  list(m = m, s2 = sum(w * (X0 - m)^2 * obs) / sw, occ = colSums(obs) > 0)
+}
+
+# The binomial and Poisson priors as GLM pseudo-rows: one row per observed
+# occasion, holding the pooled mean m. A binomial row of weight alpha / (K U)
+# adds (alpha / (K U)) [m log mu + (1 - m) log(1 - mu)] to a class's objective,
+# the Dirichlet prior of Galindo-Garre & Vermunt (2006) spread evenly over the U
+# design points, so a class gains alpha / K pseudo-cases in all, whatever the
+# number of occasions. A Poisson row of weight alpha / (K U m) adds
+# (alpha / (K U)) [log lambda - lambda / m], the gamma prior that adds alpha / K
+# events to each class at the pooled rate. The Gaussian family puts no prior on
+# its coefficients (its prior is on the residual variance, m_step.lcga()), and a
+# constant of zero switches either prior off.
+.lcga_prior_rows <- function(mm, cen) {
+  D <- mm$design[cen$occ, , drop = FALSE]
+  U <- nrow(D)
+  a <- switch(mm$fam$name,
+              binomial = .bayes_alpha(mm, "categorical"),
+              poisson  = .bayes_alpha(mm, "poisson"),
+              0)
+  if (a <= 0 || U == 0L || (mm$fam$name == "poisson" && cen$m <= 0))
+    return(list(D = D[0L, , drop = FALSE], y = numeric(0), w = numeric(0)))
+  w <- a / (mm$n_components * U)
+  if (mm$fam$name == "poisson") w <- w / cen$m
+  list(D = D, y = rep(cen$m, U), w = rep(w, U))
 }
 
 # Starting values: the pooled trajectory, perturbed once per class.
@@ -134,24 +162,26 @@ init_params.lcga <- function(model_state, X, resp, random_state = NULL, ...) {
   model_state
 }
 
-# M-step: one posterior-weighted GLM per class.
+# M-step: one posterior-weighted GLM per class, with each family's prior taken
+# from its own `bayes_constants` entry: `categorical` for binomial, `poisson`
+# for Poisson (both as pseudo-rows, .lcga_prior_rows()), and `variances` for the
+# Gaussian residual variance. The variance prior is the inverse-gamma term
+# -(1/2)(alpha / K)[log sigma2 + s2 / sigma2], s2 the pooled variance of the
+# outcome: alpha / K pseudo-observations one pooled standard deviation from the
+# class mean, so the update is (RSS + (alpha / K) s2) / (N + alpha / K) and a
+# class cannot shrink its variance to zero.
 #' @exportS3Method
-# The separation-guarding prior here is deliberately NOT wired to
-# `bayes_constants`: it is a prior on GLM coefficients on a link scale, shared by
-# the binomial, Poisson and Gaussian families, and none of the four named
-# constants describes it. Giving it one of their names would let a user who
-# turned off, say, the categorical prior silently change a Gaussian trajectory
-# model too. It stays at 1 until it gets a name of its own.
-m_step.lcga <- function(model_state, X, resp, weights = NULL, alpha = 1.0, ...) {
+m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
   if (!is.null(weights)) resp <- sweep(resp, 1, weights, "*")
 
   K   <- model_state$n_components
   fam <- model_state$fam
   lng <- .lcga_long(model_state, X)
 
-  prior <- .wglm_prior_rows(model_state$design,
-                            .lcga_marginal(X, weights),
-                            alpha / K)
+  cen   <- .lcga_marginal(X, weights)
+  prior <- .lcga_prior_rows(model_state, cen)
+  a_var <- if (fam$name == "gaussian")
+    .bayes_alpha(model_state, "variances") / K else 0
 
   y_obs <- replace(lng$y, !lng$observed, 0)
 
@@ -169,6 +199,11 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, alpha = 1.0, ...) 
                      start = coefs[k, ])
     coefs[k, ]    <- fit$coefficients
     dispersion[k] <- fit$dispersion
+    if (a_var > 0) {
+      mu  <- as.vector(lng$D %*% fit$coefficients)
+      rss <- sum(w_k * (y_obs - mu)^2)
+      dispersion[k] <- max((rss + a_var * cen$s2) / (sum(w_k) + a_var), 1e-6)
+    }
   }
 
   model_state$parameters$coefs      <- coefs

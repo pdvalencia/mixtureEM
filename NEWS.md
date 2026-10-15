@@ -1,5 +1,28 @@
 # mixtureEM (development version)
 
+## `fit_lcga()`'s priors follow `bayes_constants`
+
+Each `fit_lcga()` family now carries the same kind of prior the package's
+cross-sectional emissions do, and each is switched by its own
+`bayes_constants` entry. A binomial outcome gets the Dirichlet prior of
+Galindo-Garre and Vermunt (2006), `categorical / K` pseudo-cases per class
+spread evenly over the observed occasions and centred on the proportion pooled
+over all observed records. A Poisson outcome gets a gamma prior adding
+`poisson / K` events per class at the pooled rate. A Gaussian outcome has no
+prior on its trajectory coefficients any more; its residual variances get the
+inverse-gamma prior the cross-sectional Gaussian emissions use, `variances / K`
+pseudo-observations one pooled standard deviation from the class mean, which
+keeps a class from collapsing onto its own mean. Setting the relevant constant
+(or all four) to zero gives plain maximum likelihood.
+
+Until now `fit_lcga()` used one fixed prior for all three families that no
+constant could reach: it was centred on each occasion's own mean, carried
+`1 / K` pseudo-cases at every occasion, so it grew with the number of
+occasions, and on a Gaussian outcome it pulled the trajectory coefficients
+too. Default `fit_lcga()` estimates and log-likelihoods therefore move for
+every family. The moves are small at moderate sample sizes: on a 436-case
+binary example the default fit's log-likelihood moved by 0.006.
+
 ## Corrected step-3 standard errors on a growth step 1
 
 A three-step covariate model on a `fit_gmm()` or `fit_lcga()` step 1 now

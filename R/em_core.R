@@ -312,7 +312,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 # The two growth emissions are covered as flat models only. The growth mixture
 # (R/structured_normal.R) has no measurement prior, so its objective is the
 # likelihood plus the class-weight term; latent class growth (R/lcga.R) adds
-# its GLM pseudo-rows (.lcga_log_prior()). Neither is ever a block of a
+# its family's prior (.lcga_log_prior()). Neither is ever a block of a
 # composite model.
 .em_prior_supported <- c("bernoulli", "bernoulli_nan", "bernoulli_dif",
                          "multinoulli", "multinoulli_nan",
@@ -365,7 +365,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
       function(j) .ordinal_item_cols(mm, j))),
     gaussian_diag     = ,
     gaussian_diag_nan = list(s2 = .marginal_var(X, wt)),
-    lcga              = list(m = .lcga_marginal(X, wt)),
+    lcga              = .lcga_marginal(X, wt),
     structured_normal = list(),
     NULL)
 }
@@ -524,45 +524,39 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
       val <- val - 0.5 * (a / K) * sum(log(v) + s2 / v)
     }
   } else if (fam == "lcga") {
-    val <- val + .lcga_log_prior(mm, marginals$m)
+    val <- val + .lcga_log_prior(mm, marginals)
   }
   # structured_normal: no measurement prior; its objective is the likelihood
   # plus the class-weight term .em_log_prior() adds.
   val
 }
 
-# The separation-guarding pseudo-rows m_step.lcga() appends to every class's
-# GLM (.wglm_prior_rows(), R/glm_mstep.R): one row per occasion with a finite
-# observed marginal, holding that marginal, weighted 1 / K (the M-step's
-# alpha is fixed at 1, R/lcga.R). The GLM maximises them as data, so the
-# log-prior is their log-likelihood: the binomial and Poisson kernels (the
-# response is a fraction, so no normalising constant is defined, and none is
-# needed, since it does not depend on the parameters), and the full normal
-# density for the Gaussian family, whose dispersion is estimated over the
-# pseudo-rows too.
-.lcga_log_prior <- function(mm, m) {
-  keep <- is.finite(m)
-  if (!any(keep)) return(0)
+# The latent class growth priors (R/lcga.R), as the M-step maximises them: the
+# binomial and Poisson pseudo-rows of .lcga_prior_rows(), whose weighted
+# log-likelihood is the log-prior (kernels only -- the response is a fraction,
+# and no normalising constant depends on the parameters), and the Gaussian
+# residual-variance term of m_step.lcga(). `cen` is .lcga_marginal()'s output.
+.lcga_log_prior <- function(mm, cen) {
   K   <- mm$n_components
   fam <- mm$fam
-  mu  <- fam$linkinv(mm$design[keep, , drop = FALSE] %*%
-                       t(mm$parameters$coefs))            # T' x K
-  y   <- matrix(m[keep], nrow = sum(keep), ncol = K)
-  val <- switch(fam$name,
+  if (fam$name == "gaussian") {
+    a <- .bayes_alpha(mm, "variances")
+    if (a <= 0) return(0)
+    v <- pmax(mm$parameters$dispersion, 1e-300)
+    return(-0.5 * (a / K) * sum(log(v) + cen$s2 / v))
+  }
+  pr <- .lcga_prior_rows(mm, cen)
+  if (!length(pr$y)) return(0)
+  mu <- fam$linkinv(pr$D %*% t(mm$parameters$coefs))      # U x K
+  switch(fam$name,
     binomial = {
       mu <- pmin(pmax(mu, 1e-15), 1 - 1e-15)
-      sum(y * log(mu) + (1 - y) * log1p(-mu))
+      sum(pr$w * (pr$y * log(mu) + (1 - pr$y) * log1p(-mu)))
     },
     poisson = {
       mu <- pmax(mu, 1e-15)
-      sum(y * log(mu) - mu)
-    },
-    gaussian = {
-      d <- matrix(mm$parameters$dispersion, nrow = sum(keep), ncol = K,
-                  byrow = TRUE)
-      sum(stats::dnorm(y, mu, sqrt(d), log = TRUE))
+      sum(pr$w * (pr$y * log(mu) - mu))
     })
-  val / K
 }
 
 # `blocks` (time_blocks/group_blocks): an item held invariant across blocks gets
