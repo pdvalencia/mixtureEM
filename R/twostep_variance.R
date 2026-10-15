@@ -85,7 +85,11 @@
     }
   }
 
-  th1 <- .step1_pack_mm(mm)
+  # A growth step 1 packs for the three-step correction, but the two-step
+  # term built on it has not been graded yet, so it keeps its documented
+  # fallback (step 2's information alone, with the fit-time warning).
+  th1 <- if (.step1_family(mm) %in% .step1_growth_families) NULL else
+    .step1_pack_mm(mm)
   if (is.null(th1) || !length(th1))
     return(list(H22 = H22, H12 = NULL, S2 = S2))
 

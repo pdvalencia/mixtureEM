@@ -404,7 +404,7 @@ test_that("a fitted covariate model is always anchored on its last class", {
                fit$sm$parameters$hessian[fidx, fidx], tolerance = 1e-6)
 })
 
-test_that("a measurement model without an unconstrained packing falls back cleanly", {
+test_that("an LCGA step 1 is packed and carries the correction", {
   set.seed(5)
   n   <- 300
   cls <- sample(1:2, n, TRUE)
@@ -413,15 +413,18 @@ test_that("a measurement model without an unconstrained packing falls back clean
     numeric(4)))
   Z <- data.frame(z = rnorm(n))
 
-  expect_warning(
+  expect_no_warning(
     fit <- suppressMessages(fit_lcga(Y, n_classes = 2, times = 4,
                                      family = "gaussian", predictors = Z,
                                      n_steps = 3, correction = "ML",
-                                     n_init = 3, random_state = 1)),
-    "not available for a `lcga`")
-  expect_null(.step1_pack(fit))
-  expect_false(is.null(fit$sm$parameters$V_robust))
-  expect_match(fit$sm$parameters$V_method, "step-1 correction unavailable")
+                                     n_init = 3, random_state = 1)))
+  th1 <- .step1_pack(fit)
+  expect_length(th1, length(fit$mm$parameters$coefs) + 2L + 1L)
+  # Packing and unpacking at the fitted point reproduces the step-1 model.
+  back <- .step1_unpack(fit, th1)
+  expect_equal(back$mm$parameters$coefs, fit$mm$parameters$coefs)
+  expect_equal(back$mm$parameters$dispersion, fit$mm$parameters$dispersion)
+  expect_match(fit$sm$parameters$V_method, "Bakk-Oberski-Vermunt")
 })
 
 test_that("a survey design still reaches the meat of the sandwich", {

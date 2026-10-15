@@ -24,9 +24,11 @@ recommends; the second-order form of their eq. 18 adds a term that
 vanishes asymptotically. \eqn{D_1} needs the step-1 model in an
 unconstrained parameterisation, which exists for binary, categorical,
 count and continuous indicators, alone, mixed, in time blocks, by
-group, or with item DIF. For a growth mixture model or an LCGA as
-step 1, the \code{"robust"} estimator is
-reported instead, with a warning, and \code{summary()} names it.}
+group, or with item DIF, and for a growth mixture model or an LCGA as
+step 1. A growth step 1 is put on the scale its estimation works on
+(growth-factor means, covariance elements, log residual standard
+deviations); the corrected variance does not depend on that choice,
+because \eqn{J} and \eqn{D_1} change by the same Jacobian.}
 \item{\code{"robust"}}{The step-3 sandwich only,
 \eqn{D_3 = (-H_3)^{-1} (M - H_p) (-H_3)^{-1}}, with \eqn{H_3} the
 Hessian of the penalised step-3 log-likelihood, \eqn{H_p} the prior's
@@ -159,9 +161,10 @@ estimated jointly and no carry-over correction applies; and a two-step fit
 whose structural model is a distal outcome rather than class predictors.
 The step-1 term additionally requires a measurement model whose parameters
 this package can put on an unconstrained scale — binary, polytomous,
-Gaussian, count, mixed, and repeated-measures models qualify; growth models
-do not, and there the robust sandwich (three-step) or \eqn{V_2} (two-step)
-is reported instead.
+Gaussian, count, mixed, and repeated-measures models qualify, and growth
+models (\code{fit_gmm()}, \code{fit_lcga()}) qualify for the three-step
+term. A two-step fit on a growth step 1 does not carry it yet: there
+\eqn{V_2} is reported instead, with a warning.
 }
 
 \references{

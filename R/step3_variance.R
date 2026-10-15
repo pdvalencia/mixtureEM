@@ -66,9 +66,11 @@
 #'     vanishes asymptotically. \eqn{D_1} needs the step-1 model in an
 #'     unconstrained parameterisation, which exists for binary, categorical,
 #'     count and continuous indicators, alone, mixed, in time blocks, by
-#'     group, or with item DIF. For a growth mixture model or an LCGA as
-#'     step 1, the \code{"robust"} estimator is
-#'     reported instead, with a warning, and \code{summary()} names it.}
+#'     group, or with item DIF, and for a growth mixture model or an LCGA as
+#'     step 1. A growth step 1 is put on the scale its estimation works on
+#'     (growth-factor means, covariance elements, log residual standard
+#'     deviations); the corrected variance does not depend on that choice,
+#'     because \eqn{J} and \eqn{D_1} change by the same Jacobian.}
 #'   \item{\code{"robust"}}{The step-3 sandwich only,
 #'     \eqn{D_3 = (-H_3)^{-1} (M - H_p) (-H_3)^{-1}}, with \eqn{H_3} the
 #'     Hessian of the penalised step-3 log-likelihood, \eqn{H_p} the prior's
@@ -198,9 +200,10 @@
 #' whose structural model is a distal outcome rather than class predictors.
 #' The step-1 term additionally requires a measurement model whose parameters
 #' this package can put on an unconstrained scale — binary, polytomous,
-#' Gaussian, count, mixed, and repeated-measures models qualify; growth models
-#' do not, and there the robust sandwich (three-step) or \eqn{V_2} (two-step)
-#' is reported instead.
+#' Gaussian, count, mixed, and repeated-measures models qualify, and growth
+#' models (\code{fit_gmm()}, \code{fit_lcga()}) qualify for the three-step
+#' term. A two-step fit on a growth step 1 does not carry it yet: there
+#' \eqn{V_2} is reported instead, with a warning.
 #'
 #' @references
 #' Bakk, Z., Oberski, D. L., & Vermunt, J. K. (2014). Relating latent class
@@ -520,9 +523,19 @@ NULL
       setdiff(seq_len(mm$n_items), mm$invariant_items))
 }
 
+# The growth families have no items to pack one by one; they borrow the
+# packing the Newton-type finish uses (R/qn_pack.R). The step-1 term
+# J D1 J' is unchanged by a smooth one-to-one change of parameterisation (J
+# and D1 transform by the same Jacobian), so any such packing gives the same
+# corrected variance. The Psi unit that packing divides by is read from the
+# state an unpack starts from, which here is always the fitted step 1.
+.step1_growth_families <- c("structured_normal", "lcga")
+
 # Pack an emission (measurement model) — NULL when the family is unsupported.
 .step1_pack_mm <- function(mm) {
   if (inherits(mm, "bernoulli_dif")) return(.dif_pack(mm))
+  if (.step1_family(mm) %in% .step1_growth_families)
+    return(.qn_pack_flat(mm)$par)
   if (inherits(mm, "blocks")) {
     free  <- .blocks_free_items(mm)
     parts <- lapply(seq_along(mm$models),
@@ -540,6 +553,8 @@ NULL
 
 .step1_unpack_mm <- function(mm, par) {
   if (inherits(mm, "bernoulli_dif")) return(.dif_unpack(mm, par))
+  if (.step1_family(mm) %in% .step1_growth_families)
+    return(.qn_unpack_flat(mm, par))
   if (inherits(mm, "blocks")) {
     free <- .blocks_free_items(mm)
     at   <- 0L

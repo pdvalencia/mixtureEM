@@ -675,10 +675,18 @@ test_that("the VLMR test runs on a growth model", {
   f1 <- fit_gmm(Y, times = 4, n_classes = 1, n_init = 2, random_state = 1)
   f2 <- fit_gmm(Y, times = 4, n_classes = 2, n_init = 3, random_state = 1)
 
-  # Growth parameters have no step-one packing, so the test borrows the
-  # finish's (R/qn_pack.R) rather than declining.
-  expect_null(.step1_pack(f2))
+  # The step-one packing of a growth model and the finish's (R/qn_pack.R) are
+  # two coordinates for one model; the test uses only eigenvalues, so it must
+  # not depend on which of them it is given.
+  expect_false(is.null(.step1_pack(f2)))
   res <- .vlmr_pair(f1, f2, c("standard", "robust"))
+  res_fin <- local({
+    local_mocked_bindings(.joint_pack = function(model_state) NULL)
+    .vlmr_pair(f1, f2, c("standard", "robust"))
+  })
+  for (v in c("standard", "robust"))
+    expect_equal(res[[v]][c("mean", "sd", "p")], res_fin[[v]][c("mean", "sd", "p")],
+                 tolerance = 1e-4)
   expect_null(res$reason)
   expect_equal(res$LR, 2 * (f2$metrics$ll - f1$metrics$ll), tolerance = 1e-6)
   for (v in c("standard", "robust")) {

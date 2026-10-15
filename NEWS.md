@@ -1,5 +1,20 @@
 # mixtureEM (development version)
 
+## Corrected step-3 standard errors on a growth step 1
+
+A three-step covariate model on a `fit_gmm()` or `fit_lcga()` step 1 now
+carries the step-1 term of the corrected standard errors (`se =
+"corrected"`, the default): the uncertainty in the trajectory classes is
+passed through to the class-prediction coefficients, as it already was for
+every other measurement model. Until now these fits warned and reported the
+step-3 sandwich, which treats the classes as known, so their corrected
+standard errors grow; on simulated two-class growth data the intercept's
+grew by up to a quarter and the slope's by about one percent. `se =
+"robust"` and `se = "hessian"` are unchanged, and so are the estimates. A
+two-step fit on a growth step 1 still reports step 2's observed information
+with a warning, and the weighted likelihood-ratio scaling is still not
+computed for growth models.
+
 ## A shorter model-comparison table, with a print method
 
 `compare_mixtures()` and `compare_longitudinal()` now print their table

@@ -217,13 +217,15 @@
 # has no unconstrained packing (`group_prevalence`), a fit that was not a
 # genuine one-step joint EM (`n_steps != 1`, so `mm` and `sm` were never
 # estimated under one shared E-step), or a measurement model with no
-# unconstrained packing at all (`.step1_pack_mm()` returns NULL for growth and
-# other structured families). Restricted to `mixture_model` fits for the same
+# unconstrained packing at all. A growth measurement model packs since the
+# three-step correction needed it, but its scaling factor has not been
+# checked yet, so it is refused here as before. Restricted to `mixture_model` fits for the same
 # reason `.vlmr_pair()` is: an `lta_model`'s state does not share
 # `.joint_pack()`'s field names (`n_components`, `weights`), so calling it in
 # would go straight to malformed output, never a clean NULL.
 .scaling_pieces <- function(info) {
   if (!inherits(info$fit, "mixture_model")) return(NULL)
+  if (.step1_family(info$fit$mm) %in% .step1_growth_families) return(NULL)
   pieces <- .vlmr_pieces(info$fit)
   if (is.null(pieces)) return(NULL)
   A <- -pieces$A
