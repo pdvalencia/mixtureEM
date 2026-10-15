@@ -124,8 +124,12 @@ An object of class `mixture_comparison`, a list with `fit_table`
 [`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)),
 the fitted `models` (named `"K2"`, `"K3"`, ...) and `best_k`, the class
 count with the lowest BIC. It indexes exactly as a plain list;
+[`print.mixture_comparison()`](https://pdvalencia.github.io/mixtureEM/reference/print.mixture_comparison.md)
+shows the table (a short view by default, `columns = "all"` for every
+column), and
 [`plot()`](https://pdvalencia.github.io/mixtureEM/reference/plot.mixture_comparison.md)
-draws the criteria against K.
+draws the criteria against K. Under `verbose` the table is printed when
+the fits finish and the object is returned invisibly.
 
 ## References
 

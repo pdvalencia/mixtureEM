@@ -29,17 +29,32 @@ selects among three estimators of the covariate covariance matrix.
 
 - `"robust"`:
 
-  The step-3 sandwich only, \\D_3 = (-H_3)^{-1} M (-H_3)^{-1}\\, with
-  \\H_3\\ the marginal step-3 Hessian and \\M\\ the outer product of the
-  case-level scores (PSU-level within strata when a survey design is
-  attached). Proportional assignment gives each case \\K\\ weighted
-  records, so this sandwich is needed even before any step-1 uncertainty
-  is considered.
+  The step-3 sandwich only, \\D_3 = (-H_3)^{-1} (M - H_p) (-H_3)^{-1}\\,
+  with \\H_3\\ the Hessian of the penalised step-3 log-likelihood,
+  \\H_p\\ the prior's share of it (see below), and \\M\\ the outer
+  product of the case-level scores (PSU-level within strata when a
+  survey design is attached). Proportional assignment gives each case
+  \\K\\ weighted records, so this sandwich is needed even before any
+  step-1 uncertainty is considered.
 
 - `"hessian"`:
 
   \\(-H_3)^{-1}\\ alone. Provided for completeness; it ignores the
   record duplication and is not recommended.
+
+**The priors.** The class regression is fitted with the Dirichlet prior
+`bayes_constants$latent` (\\\alpha / K\\ pseudo-cases per class, spread
+over the unique covariate patterns), and step 1 with its own priors, so
+both estimates maximise a penalised log-likelihood, and every variance
+above is that objective's: \\H_3\\, the derivative in \\J\\ and the
+step-1 information behind \\D_1\\ all include the prior's curvature, and
+\\H_p\\ is subtracted once from the middle of the sandwich. When the
+model holds, \\M\\ estimates \\-H_3 + H_p\\, so `"robust"` and
+`"hessian"` agree. The prior's share is \\O(1/n)\\: in a simulation from
+a fitted three-class model it changed no coverage at n = 300 or more,
+and at n = 150 brought the standard errors closer to the empirical
+spread of the estimates. With `bayes_constants = list(latent = 0)` the
+step-3 variances are those of the plain likelihood.
 
 None of these is the Hessian the package reported previously, which came
 from the M-step and measured the curvature of the *Q function* rather
@@ -108,17 +123,18 @@ Gong and Samaniego (1981) as written for this case by Bakk and Kuha
 
   \\V = V_2 + V_1\\, where \\V_2 = I\_{22}^{-1}\\ is the inverse
   observed information of the joint log-likelihood in the structural
-  parameters, and \\V_1 = I\_{22}^{-1} I\_{12}' \Sigma\_{11} I\_{12}
-  I\_{22}^{-1}\\ carries the sampling variance \\\Sigma\_{11}\\ of the
-  step-1 measurement parameters through the cross-information
-  \\I\_{12}\\. Both blocks of the information matrix are differenced
-  numerically from the joint log-likelihood; \\\Sigma\_{11}\\ is the
-  step-1 observed information inverted, or the outer product of the
-  step-1 scores above 100 measurement parameters.
+  parameters (with the latent prior's curvature, as above), and \\V_1 =
+  I\_{22}^{-1} I\_{12}' \Sigma\_{11} I\_{12} I\_{22}^{-1}\\ carries the
+  sampling variance \\\Sigma\_{11}\\ of the step-1 measurement
+  parameters through the cross-information \\I\_{12}\\. Both blocks of
+  the information matrix are differenced numerically from the joint
+  log-likelihood; \\\Sigma\_{11}\\ is the step-1 observed information
+  inverted, or the outer product of the step-1 scores above 100
+  measurement parameters.
 
 - `"robust"`:
 
-  The sandwich \\V_2 M V_2\\ with \\M\\ the outer product of the
+  The sandwich \\V_2 (M - H_p) V_2\\ with \\M\\ the outer product of the
   case-level scores of the joint log-likelihood (PSU-level within strata
   under a survey design), without the step-1 term.
 

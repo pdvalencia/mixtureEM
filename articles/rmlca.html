@@ -140,16 +140,13 @@ the information criteria side by side:</p>
 <span><span class="co">#&gt; be equal.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; === Model Selection Summary ===</span></span>
-<span><span class="co">#&gt;   Classes    LL Params  AIC  BIC CAIC  AWE AIC3  ICL SABIC Entropy Unreplicated</span></span>
-<span><span class="co">#&gt; 1       2 -2001      9 4021 4064 4073 4152 4030 4406  4035  0.7261        FALSE</span></span>
-<span><span class="co">#&gt; 2       3 -1981     14 3991 4058 4072 4195 4005 4759  4013  0.6456        FALSE</span></span>
-<span><span class="co">#&gt; 3       4 -1980     19 3998 4089 4108 4275 4017 5121  4028  0.5863        FALSE</span></span>
-<span><span class="co">#&gt;          BF       cmP</span></span>
-<span><span class="co">#&gt; 1 4.913e-02 4.683e-02</span></span>
-<span><span class="co">#&gt; 2 5.241e+06 9.532e-01</span></span>
-<span><span class="co">#&gt; 3        NA 1.819e-07</span></span>
+<span><span class="co">#&gt;  Classes         LL Params      BIC    SABIC     AIC3 Entropy</span></span>
+<span><span class="co">#&gt;        2 -2001.342       9 4063.905 4035.323 4029.684   0.726</span></span>
+<span><span class="co">#&gt;        3 -1981.323      14 4057.879 4013.417 4004.645   0.646</span></span>
+<span><span class="co">#&gt;        4 -1979.789      19 4088.823 4028.482 4016.577   0.586</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; -&gt; Best model according to BIC: 3</span></span></code></pre></div>
+<span><span class="co">#&gt; -&gt; Best model according to BIC: 3 classes</span></span>
+<span><span class="co">#&gt;    print(x, columns = "all") adds AIC, CAIC, AWE, ICL, BF and cmP.</span></span></code></pre></div>
 <p>BIC correctly picks the three classes we generated.</p>
 <p>The warning concerns the four-class row and is expected. Four yes/no
 answers can form only 2⁴ = 16 response patterns, so the table the model
@@ -256,17 +253,17 @@ raises the odds of the Escalating pathway:</p>
 <span><span class="co">#&gt;                               OR         [95% CI]         P-Value</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 2 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.605  [    0.286,     1.283]     0.190</span></span>
-<span><span class="co">#&gt;   risk                     1.891  [    1.410,     2.535]    &lt; .001</span></span>
+<span><span class="co">#&gt;   Intercept                0.606  [    0.294,     1.248]     0.174</span></span>
+<span><span class="co">#&gt;   risk                     1.891  [    1.414,     2.529]    &lt; .001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 3 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.409  [    0.196,     0.854]     0.017</span></span>
-<span><span class="co">#&gt;   risk                     0.982  [    0.719,     1.341]     0.909</span></span>
+<span><span class="co">#&gt;   Intercept                0.409  [    0.204,     0.822]     0.012</span></span>
+<span><span class="co">#&gt;   risk                     0.982  [    0.726,     1.328]     0.905</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;                          Wald Chi2   df  P-Value</span></span>
-<span><span class="co">#&gt;   risk                      21.240    2    &lt; .001</span></span>
+<span><span class="co">#&gt;   risk                      21.538    2    &lt; .001</span></span>
 <span><span class="co">#&gt;   Note: a non-significant test beside large coefficients can be the</span></span>
 <span><span class="co">#&gt;         Hauck-Donner effect; confirm with wald_omnibus_test().</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>

@@ -558,7 +558,7 @@ comprehension</em>:</p>
 <span><span class="co">#&gt; The factor's sign is fixed by making the largest loading positive;</span></span>
 <span><span class="co">#&gt; reversing that convention reverses every coefficient here.</span></span>
 <span><span class="co">#&gt;     Term Estimate    SE      z      p</span></span>
-<span><span class="co">#&gt;  poverty   -0.882 0.057 -15.45 &lt;1e-16</span></span>
+<span><span class="co">#&gt;  poverty   -0.882 0.052 -16.98 &lt;1e-16</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
 <p>Read the sign of the trait coefficient against the loadings, which
@@ -576,11 +576,11 @@ come with theirs:</p>
 <div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/random_intercept_loadings.html">random_intercept_loadings</a></span><span class="op">(</span><span class="va">fit_pov_tr</span><span class="op">)</span></span>
 <span><span class="co">#&gt;        item  loading         se        z</span></span>
-<span><span class="co">#&gt; 1   letters 3.100185 0.11865993 26.12664</span></span>
-<span><span class="co">#&gt; 2 beginning 2.440890 0.07676834 31.79553</span></span>
-<span><span class="co">#&gt; 3    ending 2.309170 0.06588853 35.04661</span></span>
-<span><span class="co">#&gt; 4     sight 3.414121 0.14180735 24.07577</span></span>
-<span><span class="co">#&gt; 5   context 3.469876 0.15729171 22.06013</span></span></code></pre></div>
+<span><span class="co">#&gt; 1   letters 3.100185 0.13852613 22.37979</span></span>
+<span><span class="co">#&gt; 2 beginning 2.440890 0.08803800 27.72542</span></span>
+<span><span class="co">#&gt; 3    ending 2.309170 0.07667911 30.11471</span></span>
+<span><span class="co">#&gt; 4     sight 3.414121 0.14932218 22.86413</span></span>
+<span><span class="co">#&gt; 5   context 3.469876 0.16449055 21.09468</span></span></code></pre></div>
 <p><code><a href="../reference/random_intercept_scores.html">random_intercept_scores()</a></code> returns each child’s estimated
 position on the trait, which is the natural quantity to relate to
 anything else in the data:</p>

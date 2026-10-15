@@ -100,6 +100,8 @@
   : Print a Fitted Growth Mixture Model
 - [`print(`*`<lcga>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/print.lcga.md)
   : Print a Fitted Latent Class Growth Model
+- [`print(`*`<mixture_comparison>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/print.mixture_comparison.md)
+  : Print a Model-Comparison Table
 - [`print(`*`<mixture_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/print.mixture_model.md)
   : Print a Brief Summary of a Fitted Mixture Model
 - [`print(`*`<rmlca>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/print.rmlca.md)

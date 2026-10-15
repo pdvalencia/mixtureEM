@@ -2,6 +2,155 @@
 
 ## mixtureEM (development version)
 
+### A shorter model-comparison table, with a print method
+
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+and
+[`compare_longitudinal()`](https://pdvalencia.github.io/mixtureEM/reference/compare_longitudinal.md)
+now print their table through
+[`print.mixture_comparison()`](https://pdvalencia.github.io/mixtureEM/reference/print.mixture_comparison.md),
+which shows by default the columns with the strongest record for
+choosing the number of classes: the log-likelihood, the parameter count,
+BIC, SABIC, AIC3, entropy, and the VLMR p-values when they were
+requested. The table fits one screen. `print(x, columns = "all")` adds
+AIC, CAIC, AWE, ICL, BF and cmP. A maximum reached by only one start is
+marked `*` on its log-likelihood, with the advice in a footnote, instead
+of taking a column. BF is printed as `> 100` or `< 0.1` beyond the bands
+it is read on, and to two decimals between them, rather than in
+scientific notation; cmP below 0.001 is printed as `< 0.001`.
+
+The returned object is unchanged, and `fit_table` keeps every column at
+full precision. Both functions now return it invisibly after printing,
+so an unassigned call no longer prints the raw list after the table, and
+the table can be shown again with
+[`print()`](https://rdrr.io/r/base/print.html) without refitting.
+
+### Latent transition standard errors come from the observed information, priors included
+
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)’s
+default standard errors used to be the inverse outer product of the case
+scores, and both they and `standard_errors = "robust"` left out the
+priors the estimates are fitted with. The default is now the inverse
+observed information of the objective the fit maximises, the
+log-likelihood plus the priors set by `smoothing` and `bayes_constants`;
+`"robust"` is the sandwich around that curvature with the prior’s
+curvature taken out of its middle term, and so is the default under
+`strata` or `cluster`. The two-step’s step-2 variance carries the
+structural prior’s curvature as well, and its step-1 variance is step
+1’s new default. The observed information is built from the analytic
+scores, so it costs two passes over the data per free parameter.
+`$se$method` names the estimator. Models whose parameters cannot all be
+put on an unconstrained scale (nominal, count or mixed indicators) keep
+the outer-product estimator.
+
+**Numbers move** for every one-step and two-step latent transition fit
+that computes standard errors. The outer-product estimator is unreliable
+for a parameter near the boundary: on a simulated design with a
+transition of 0.002 it gave that transition a standard error of 0.88,
+against 0.006 now. On simulated designs the median change was 0.3 to 0.6
+percent at n = 2000 and 1.4 to 12 percent at n = 120 to 500, the largest
+on parameters near the boundary. Fits with every prior off and
+`standard_errors = "robust"` are unchanged.
+
+### `smoothing` now reaches latent transition models with covariates
+
+With `predictors_initial`, `predictors_transition`, or a `group` whose
+`group_effects` reach the statuses, the initial status and the
+transitions of
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+are multinomial logits, and `smoothing` used to have no effect on them.
+They now carry the same prior as the tables they replace, spread over
+the distinct covariate patterns: `smoothing / (K U)` pseudo-cases per
+status and pattern for the initial status and `smoothing / (K^2 U)` per
+origin, destination and pattern for each transition matrix, with `U`
+distinct covariate patterns. That is the prior the class regression of
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+already carries. It keeps a coefficient finite where a covariate pattern
+never makes a transition, which plain maximum likelihood sends to
+infinity.
+
+**Numbers move** for every latent transition fit with covariates on the
+statuses and `smoothing > 0`, which is the default: one-step, two-step,
+three-step, random-intercept and grouped models alike. On simulated
+designs with 300 to 500 cases the probabilities moved by 2e-3 to 6.5e-3,
+and a move probability in a covariate pattern holding 8 percent of the
+sample by 6 percent of its value, since the prior’s mass does not grow
+with a pattern’s size. At 2000 cases they moved by 3e-4. Standard errors
+move by up to a few percent. `smoothing = 0` still gives plain maximum
+likelihood.
+
+### The latent transition step 3 now reaches its maximum
+
+Step 3 of `fit_lta(n_steps = 3)` maximises its log-likelihood plus the
+prior set by `smoothing`, but its stopping rule, its choice among
+restarts and the check that keeps its Newton-type finish all compared
+the plain log-likelihood. With the prior on, EM therefore stopped early
+and the finish, which does reach the maximum, was discarded. All three
+now compare the objective step 3 maximises, and step 3 ends at the
+maximum (gradient below 1e-6, from as much as 0.08 before).
+
+**Numbers move** for three-step fits with `smoothing > 0` and no
+covariates on the statuses: initial-status and transition probabilities
+by up to 1.4e-4, standard errors by up to 1.5e-4 relative. Fits with
+covariates on the statuses, and fits with `smoothing = 0`, are
+unchanged.
+
+### Sandwich standard errors use uncentred scores
+
+Without `strata` or `cluster`, the robust and corrected standard errors
+of the class regression (three-step, two-step and joint), the
+outer-product step-1 variance and the pooled distal-outcome sandwiches
+now build their middle term from the uncentred case scores, as the
+latent transition model’s sandwich already did. With a prior the case
+scores do not sum to zero at the estimate, and centring them dropped
+that part. Fits without a prior are unchanged; with one, standard errors
+move by an amount of order 1/n^2.
+
+### Three-step latent transition standard errors include the priors too
+
+`fit_lta(n_steps = 3)` fits its initial-status and transition
+probabilities with the prior set by `smoothing`, and step 1 with its
+item prior as well, so both steps maximise a penalised log-likelihood.
+The step-3 standard errors were computed from the plain one. They are
+now the penalised objective’s: the prior’s curvature enters step 3’s
+information (`$se$threestep_V2`), step 1’s information
+(`$se$step1_vcov`), and, under `strata` or `cluster`, the middle of the
+design-based sandwich. The fitted object records the `smoothing` both
+steps used as `$threestep$smoothing`.
+
+**Numbers move** for fits with `smoothing > 0` and no covariates on the
+statuses. Standard errors fall by 0.05 percent at n = 1000 and by up to
+2.5 percent at n = 400, where an initial status holds 6 percent of the
+sample; the largest changes are on rare statuses and transitions near 0.
+Estimates do not change. Fits with `smoothing = 0` and
+`bayes_constants = list(categorical = 0)` are unchanged.
+
+### Covariate standard errors now include the priors the estimates were fitted with
+
+The class regression of a three-step, two-step or joint step-3 fit is
+estimated with the Dirichlet prior `bayes_constants$latent`, and step 1
+with its own priors, so the coefficients maximise a penalised
+log-likelihood. Their standard errors were nevertheless computed from
+the plain likelihood. They are now that penalised objective’s: the
+prior’s curvature enters the Hessian, the sensitivity of step 3 to step
+1, and the step-1 information behind `se = "corrected"`, and is
+subtracted once from the middle of the sandwich. When the model holds,
+the robust and Hessian standard errors now agree. The step-3 fit also
+ends with a few Newton steps on the same objective, so the reported
+coefficients sit at its maximum rather than where EM’s stopping rule
+left them, about 1e-4 away.
+
+**Numbers move** by O(1/n). On a three-class, seven-item binary model
+with five covariates (n = 734), robust Wald statistics rise by 0.1 to
+0.25 percent and corrected ones by up to 0.2 percent; coefficients move
+in the fourth decimal. The effect is largest when classes are small or
+an item probability is near 0 or 1, where the prior carries real
+curvature. In a simulation from that model, coverage was unchanged at n
+= 300 and 734, and at n = 150 the new standard errors tracked the spread
+of the estimates about twice as closely. Setting
+`bayes_constants = list(latent = 0)` at step 3 removes the step-3 part
+of the change.
+
 ### Growth mixture models: standard errors for the growth parameters
 
 [`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)

@@ -68,16 +68,13 @@ selection <- compare_longitudinal(drink, k_range = 2:4, model = "rmlca",
 #> be equal.
 #> 
 #> === Model Selection Summary ===
-#>   Classes    LL Params  AIC  BIC CAIC  AWE AIC3  ICL SABIC Entropy Unreplicated
-#> 1       2 -2001      9 4021 4064 4073 4152 4030 4406  4035  0.7261        FALSE
-#> 2       3 -1981     14 3991 4058 4072 4195 4005 4759  4013  0.6456        FALSE
-#> 3       4 -1980     19 3998 4089 4108 4275 4017 5121  4028  0.5863        FALSE
-#>          BF       cmP
-#> 1 4.913e-02 4.683e-02
-#> 2 5.241e+06 9.532e-01
-#> 3        NA 1.819e-07
+#>  Classes         LL Params      BIC    SABIC     AIC3 Entropy
+#>        2 -2001.342       9 4063.905 4035.323 4029.684   0.726
+#>        3 -1981.323      14 4057.879 4013.417 4004.645   0.646
+#>        4 -1979.789      19 4088.823 4028.482 4016.577   0.586
 #> 
-#> -> Best model according to BIC: 3
+#> -> Best model according to BIC: 3 classes
+#>    print(x, columns = "all") adds AIC, CAIC, AWE, ICL, BF and cmP.
 ```
 
 BIC correctly picks the three classes we generated.
@@ -200,17 +197,17 @@ results <- summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.605  [    0.286,     1.283]     0.190
-#>   risk                     1.891  [    1.410,     2.535]    < .001
+#>   Intercept                0.606  [    0.294,     1.248]     0.174
+#>   risk                     1.891  [    1.414,     2.529]    < .001
 #> 
 #> Class 3 ON
-#>   Intercept                0.409  [    0.196,     0.854]     0.017
-#>   risk                     0.982  [    0.719,     1.341]     0.909
+#>   Intercept                0.409  [    0.204,     0.822]     0.012
+#>   risk                     0.982  [    0.726,     1.328]     0.905
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   risk                      21.240    2    < .001
+#>   risk                      21.538    2    < .001
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================

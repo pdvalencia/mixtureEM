@@ -150,7 +150,7 @@ outcome_contrasts(fit_out)
 #> Standard errors: sandwich covariance of the class means
 #> 
 #>   Contrast       Estimate        SE  [95% CI]            P-Value
-#>   2 vs 1           -0.096     0.743  [ -1.552,   1.359]     0.897
+#>   2 vs 1           -0.096     0.515  [ -1.105,   0.912]     0.851
 
 # Which classes differ in the slope of the outcome on a covariate
 x     <- rnorm(100)
@@ -163,5 +163,5 @@ outcome_contrasts(fit_m, term = "x")
 #> Standard errors: covariance of the class-specific slopes on x
 #> 
 #>   Contrast       Estimate        SE  [95% CI]            P-Value
-#>   2 vs 1           -0.063     0.875  [ -1.778,   1.652]     0.942
+#>   2 vs 1           -0.063     0.517  [ -1.077,   0.950]     0.903
 ```

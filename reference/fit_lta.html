@@ -420,9 +420,9 @@ on a near-flat likelihood ridge can sit measurably short of the maximum;
 the climb steps past it, and never returns a fit worse than the one it was
 given. This is the same refinement <code><a href="fit_mixture.html">fit_mixture()</a></code> has always applied.
 It is a no-op - silently, and the fit is unchanged - for models whose free
-parameters it cannot differentiate: covariate models and measurement
-families other than binary and continuous. Mixtures over chains
-(<code>n_classes</code> &gt; 1) are refined like any other supported model.</p></dd>
+parameters it cannot differentiate: measurement families other than binary
+and continuous. Mixtures over chains (<code>n_classes</code> &gt; 1) and covariate
+models are refined like any other supported model.</p></dd>
 
 
 <dt id="arg-refine-from">refine_from<a class="anchor" aria-label="anchor" href="#arg-refine-from"></a></dt>
@@ -472,12 +472,18 @@ sample size; set it to <code>0</code> for unsmoothed maximum likelihood. It gove
 the status prevalences, the transition matrices and - with <code>n_classes</code> &gt; 1 -
 the class weights, and it does <strong>not</strong> govern the measurement model, whose
 prior is <code>bayes_constants</code>.</p>
-<p>It also does not reach the transitions once anything predicts them. With
-<code>predictors_transition</code>, or with a <code>group</code> whose <code>group_effects</code> include
-the transitions, each transition matrix is the fitted value of a
-multinomial logit rather than a smoothed table of counts, and <code>smoothing</code>
-has no effect on it. The initial status prevalences behave the same way
-under <code>predictors_initial</code>.</p>
+<p>It reaches the regressions too, once covariates predict the statuses.
+With <code>predictors_initial</code>, <code>predictors_transition</code>, or a <code>group</code> whose
+<code>group_effects</code> include them, the initial status and the transitions are
+multinomial logits rather than tables of counts, and the same mass is
+spread over the distinct covariate patterns: <code>smoothing / (K U)</code>
+pseudo-cases per status and pattern for the initial status, and
+<code>smoothing / (K^2 U)</code> per origin, destination and pattern for each
+transition matrix, <code>U</code> being the number of distinct covariate patterns.
+That is the prior <code><a href="fit_mixture.html">fit_mixture()</a></code> puts on its class regression. It keeps
+a coefficient finite when a covariate pattern never makes a transition,
+and it pulls a rare pattern harder than a common one, since its mass does
+not grow with the pattern's size.</p>
 <p>The mass is one pseudo-case per <em>conditional table</em>, so with <code>K</code> statuses
 an origin row of a transition matrix carries a <code>K</code>th of it. It is spread
 evenly rather than in proportion to how often each destination is
@@ -509,16 +515,22 @@ covariates index the statuses through their regression coefficients.</p></dd>
 
 
 <dt id="arg-standard-errors">standard_errors<a class="anchor" aria-label="anchor" href="#arg-standard-errors"></a></dt>
-<dd><p>Compute standard errors for \(\delta\) and
-\(\tau\). <code>TRUE</code> (the default) uses the outer product of the case-level
-scores; <code>FALSE</code> skips them; <code>"robust"</code> returns the sandwich estimator, with
-the observed information as its bread. <code>"robust"</code> costs a
-finite-difference Hessian – \(2p(p + 1)\) likelihood evaluations – and
-so takes minutes rather than seconds on a model of any size. It is
-supported for random-intercept fits. Where the model still cannot be
-packed on an unconstrained scale (covariates, or a measurement family
-whose parameters are not all free) <code>"robust"</code> falls back silently to the
-default estimator, and <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> then does not report robust errors.</p></dd>
+<dd><p>Compute standard errors. <code>TRUE</code> (the default) uses
+the inverse observed information of the objective the fit maximises: the
+log-likelihood plus the priors set by <code>smoothing</code> and <code>bayes_constants</code>,
+so the standard errors include the prior's curvature, which matters for
+rare statuses, transitions near zero and small samples. <code>FALSE</code> skips
+them. <code>"robust"</code> returns the sandwich estimator around the same
+curvature, \(H^{-1} (B - H_p) H^{-1}\), with \(B\) the outer product of
+the case scores and \(H_p\) the prior's curvature, so that it reduces to
+the default when the model is correctly specified; under <code>strata</code> or
+<code>cluster</code> the default is that sandwich with the design-based \(B\). The
+observed information costs \(2p\) passes over the data, \(p\) the
+number of free parameters, so it takes seconds on most models and longer
+on a large random-intercept model. A model whose parameters cannot all be
+packed on an unconstrained scale (nominal, count or mixed indicators)
+gets the outer product of the case scores instead, and <code>"robust"</code> is not
+available for it; <code>$se$method</code> names the estimator used.</p></dd>
 
 
 <dt id="arg-predictors-initial">predictors_initial<a class="anchor" aria-label="anchor" href="#arg-predictors-initial"></a></dt>
@@ -673,15 +685,15 @@ occasion), <code>gamma</code> (posterior status probabilities by occasion), <cod
 have driven to zero, and <code>smoothing_influence</code> gives, for each origin row,
 the cases expected in it and the share of the estimate the <code>smoothing</code>
 prior is carrying. <code>smoothing_influence</code> is <code>NULL</code> when <code>smoothing</code> is 0 or
-when covariates predict the transitions, since the prior does not reach
-them then.</p>
+when covariates predict the transitions, since a transition is then a
+regression with no origin row of counts to report a pull on.</p>
 <p>With <code>n_classes</code> &gt; 1 those parameters gain a class index: <code>delta</code> becomes a
 classes-by-statuses matrix, <code>tau</code> a list of per-class lists, and
 <code>class_weights</code>, <code>class_posterior</code> and <code>gamma_by_class</code> are added.
 <code>prevalences</code> stays the whole-sample marginal, with the per-class ones in
 its <code>"by_class"</code> attribute; <code><a href="status_prevalences.html">status_prevalences()</a></code> and
-<code><a href="transition_matrix.html">transition_matrix()</a></code> take a <code>class</code> argument to reach them. Standard
-errors are not available for a mixture over chains and <code>se</code> is <code>NULL</code>.</p>
+<code><a href="transition_matrix.html">transition_matrix()</a></code> take a <code>class</code> argument to reach them, and the
+standard errors cover the class weights too.</p>
 <p><code>metrics$entropy</code> (the headline number, printed by <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code>) is the
 relative entropy of the joint latent-status path across all occasions at
 once: one classification per case over the <code>K^T</code> possible paths,
@@ -727,10 +739,11 @@ uncertainty. Step 2 holds the measurement parameters fixed, but they were
 estimated rather than known, and their sampling error propagates into
 everything built on top of them. What is reported is therefore the
 pseudo-maximum-likelihood variance of Bakk &amp; Kuha's equation 5,
-\(V = V_2 + V_1\): \(V_2\) is the inverse observed information of the
-full likelihood in the structural coefficients, and \(V_1\) carries the
-step-1 variance across through the cross-curvature between the two
-blocks. \(V_1\) is negligible when the statuses are well separated and
+\(V = V_2 + V_1\): \(V_2\) is the inverse observed information, in the
+structural coefficients, of the full likelihood plus the structural prior
+set by <code>smoothing</code>, and \(V_1\) carries step 1's variance – its own
+default standard errors – across through the cross-curvature between
+the two blocks. \(V_1\) is negligible when the statuses are well separated and
 is most of the variance when they are not, which is the same condition
 that governs the attenuation above. The measurement parameters of a
 two-step fit report the step-1 fit's own standard errors, since that is
@@ -792,7 +805,11 @@ one of Bakk, Oberski and Vermunt (2014): step 3's own inverse information
 plus the variance of step 1's estimates, carried through the error
 matrices (and, under proportional assignment, through the weights the
 posteriors give the reduced data). The step-3-only part is kept as
-<code>$se$threestep_V2</code> and step 1's variance as <code>$se$step1_vcov</code>. Under
+<code>$se$threestep_V2</code> and step 1's variance as <code>$se$step1_vcov</code>. Both are
+the inverse information of the objective each step maximises, the
+log-likelihood plus the prior set by <code>smoothing</code> (and, in step 1, the
+item prior of <code>bayes_constants</code>), so they include the prior's
+curvature. Under
 <code>correction = "none"</code> with modal assignment step 1 never reaches step 3,
 and the standard errors are step 3's own.</p>
 <p>With <code>strata</code> or <code>cluster</code> and <code>assignment = "modal"</code>, the variance is

@@ -227,15 +227,15 @@ summary(fit_out)
 #> CONTINUOUS DISTAL OUTCOME (MEANS)
 #> ---------------------------------------------------------
 #> 
-#> Omnibus test (class differences): Wald chi^2(1) = 0.02, p   0.897
+#> Omnibus test (class differences): Wald chi^2(1) = 0.04, p   0.851
 #> 
 #>                  Mean       [95% CI]        SE
-#>   Class 1       25.063  [24.550, 25.577]     0.262
-#>   Class 2       24.967  [23.920, 26.014]     0.534
+#>   Class 1       25.063  [24.601, 25.526]     0.236
+#>   Class 2       24.967  [24.328, 25.606]     0.326
 #> 
 #> Pairwise class differences:
 #>                     Difference       [95% CI]        P-Value
-#>   Class 2 vs 1        -0.096  [-1.552,  1.359]     0.897
+#>   Class 2 vs 1        -0.096  [-1.105,  0.912]     0.851
 #> =========================================================
 
 # The same outcome named in a formula against its data frame

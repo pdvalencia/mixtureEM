@@ -71,22 +71,16 @@ selection <- compare_mixtures(X = items, measurement = "binary",
 #> Fitting 6-class model...
 #> 
 #> === Model Selection Summary ===
-#>   Classes        LL Params      AIC      BIC     CAIC      AWE     AIC3
-#> 1       1 -3905.807     16 7843.615 7907.478 7923.478 8051.342 7859.615
-#> 2       2 -2900.078     33 5866.156 5997.875 6030.875 6294.593 5899.156
-#> 3       3 -2654.569     50 5409.138 5608.711 5658.711 6058.284 5459.138
-#> 4       4 -2531.141     67 5196.282 5463.710 5530.710 6066.138 5263.282
-#> 5       5 -2474.484     84 5116.968 5452.251 5536.251 6207.534 5200.968
-#> 6       6 -2423.384    101 5048.769 5451.907 5552.907 6360.045 5149.769
-#>        ICL    SABIC Entropy Unreplicated    BF   cmP
-#> 1 7907.478 7856.709   1.000        FALSE 0.000 0.000
-#> 2 6026.726 5893.163   0.948        FALSE 0.000 0.000
-#> 3 5667.049 5450.057   0.934        FALSE 0.000 0.000
-#> 4 5567.019 5251.115   0.907        FALSE 0.003 0.001
-#> 5 5545.487 5185.713   0.928        FALSE 0.842 0.456
-#> 6 5559.594 5131.427   0.925        FALSE    NA 0.542
+#>  Classes         LL Params      BIC    SABIC     AIC3 Entropy
+#>        1 -3905.807      16 7907.478 7856.709 7859.615   1.000
+#>        2 -2900.078      33 5997.875 5893.163 5899.156   0.948
+#>        3 -2654.569      50 5608.711 5450.057 5459.138   0.934
+#>        4 -2531.141      67 5463.710 5251.115 5263.282   0.907
+#>        5 -2474.484      84 5452.251 5185.713 5200.968   0.928
+#>        6 -2423.384     101 5451.907 5131.427 5149.769   0.925
 #> 
 #> -> Best model according to BIC: 6 classes
+#>    print(x, columns = "all") adds AIC, CAIC, AWE, ICL, BF and cmP.
 ```
 
 BIC keeps improving for a few classes past 4 (a common pattern in LCA,
@@ -251,35 +245,35 @@ results <- summary(fit_cov)
 #>                                       OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                        1.395  [    0.241,     8.080]     0.710
-#>   sex.Female                       2.752  [    1.120,     6.765]     0.027
-#>   age                              0.933  [    0.868,     1.004]     0.062
-#>   sexual_orientation.Nothtrsxl     0.892  [    0.362,     2.198]     0.804
-#>   relationship_duration.Long       1.143  [    0.531,     2.459]     0.733
+#>   Intercept                        1.396  [    0.243,     8.030]     0.709
+#>   sex.Female                       2.753  [    1.122,     6.752]     0.027
+#>   age                              0.933  [    0.868,     1.003]     0.060
+#>   sexual_orientation.Nothtrsxl     0.892  [    0.363,     2.194]     0.804
+#>   relationship_duration.Long       1.143  [    0.532,     2.454]     0.732
 #> 
 #> Class 3 ON
-#>   Intercept                        0.239  [    0.073,     0.783]     0.018
+#>   Intercept                        0.239  [    0.073,     0.781]     0.018
 #>   sex.Female                       0.329  [    0.175,     0.619]    < .001
-#>   age                              1.048  [    1.004,     1.094]     0.034
-#>   sexual_orientation.Nothtrsxl     1.469  [    0.589,     3.667]     0.410
-#>   relationship_duration.Long       0.606  [    0.252,     1.460]     0.265
+#>   age                              1.048  [    1.004,     1.094]     0.033
+#>   sexual_orientation.Nothtrsxl     1.469  [    0.590,     3.661]     0.409
+#>   relationship_duration.Long       0.606  [    0.252,     1.456]     0.263
 #> 
 #> Class 4 ON
-#>   Intercept                        0.184  [    0.056,     0.604]     0.005
-#>   sex.Female                       0.630  [    0.317,     1.253]     0.188
-#>   age                              1.030  [    0.988,     1.073]     0.163
-#>   sexual_orientation.Nothtrsxl     2.669  [    1.162,     6.128]     0.021
-#>   relationship_duration.Long       1.133  [    0.535,     2.399]     0.744
+#>   Intercept                        0.184  [    0.056,     0.603]     0.005
+#>   sex.Female                       0.630  [    0.318,     1.252]     0.187
+#>   age                              1.030  [    0.988,     1.073]     0.162
+#>   sexual_orientation.Nothtrsxl     2.669  [    1.164,     6.120]     0.020
+#>   relationship_duration.Long       1.133  [    0.536,     2.395]     0.743
 #>   Abbreviated names:
 #>     sexual_orientation.Nothtrsxl = sexual_orientation.Not heterosexual
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                           Wald Chi2   df  P-Value
-#>   sex                        23.157    3    < .001
-#>   age                        10.872    3     0.012
-#>   sexual_orientation          6.879    3     0.076
-#>   relationship_duration       1.868    3     0.600
+#>   sex                        23.253    3    < .001
+#>   age                        10.978    3     0.012
+#>   sexual_orientation          6.904    3     0.075
+#>   relationship_duration       1.880    3     0.598
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================
@@ -298,20 +292,20 @@ tables invisibly, so the odds ratios are available as a data frame:
 ``` r
 
 head(results$coefficients)
-#>   class                                term    estimate         se          z
-#> 1     2                           Intercept  0.33306822 0.89607400  0.3716972
-#> 2     2                          sex.Female  1.01245511 0.45885688  2.2064726
-#> 3     2                                 age -0.06925868 0.03712243 -1.8656825
-#> 4     2 sexual_orientation.Not heterosexual -0.11387298 0.45981302 -0.2476506
-#> 5     2          relationship_duration.Long  0.13355860 0.39093526  0.3416387
-#> 6     3                           Intercept -1.42969938 0.60473223 -2.3641859
+#>   class                                term    estimate        se         z
+#> 1     2                           Intercept  0.33366232 0.8925938  0.373812
+#> 2     2                          sex.Female  1.01254307 0.4577726  2.211891
+#> 3     2                                 age -0.06928884 0.0369074 -1.877370
+#> 4     2 sexual_orientation.Not heterosexual -0.11389010 0.4589567 -0.248150
+#> 5     2          relationship_duration.Long  0.13361840 0.3897853  0.342800
+#> 6     3                           Intercept -1.42973254 0.6031192 -2.370564
 #>            p        OR   OR_lower  OR_upper
-#> 1 0.71011829 1.3952425 0.24093290 8.0798496
-#> 2 0.02735093 2.7523501 1.11973900 6.7653541
-#> 3 0.06208580 0.9330853 0.86760508 1.0035074
-#> 4 0.80440474 0.8923713 0.36236384 2.1975883
-#> 5 0.73262284 1.1428882 0.53116928 2.4590909
-#> 6 0.01806975 0.2393809 0.07316965 0.7831553
+#> 1 0.70854416 1.3960716 0.24272612 8.0296923
+#> 2 0.02697419 2.7525921 1.12221995 6.7515852
+#> 3 0.06046744 0.9330571 0.86794464 1.0030543
+#> 4 0.80401833 0.8923560 0.36296635 2.1938652
+#> 5 0.73174895 1.1429566 0.53239965 2.4537014
+#> 6 0.01776097 0.2393729 0.07339892 0.7806573
 ```
 
 Reference class 1 is Fidelity (the largest class). Reading the odds

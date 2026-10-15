@@ -535,7 +535,7 @@ lta_covariate_summary(fit_pov_tr)
 #> The factor's sign is fixed by making the largest loading positive;
 #> reversing that convention reverses every coefficient here.
 #>     Term Estimate    SE      z      p
-#>  poverty   -0.882 0.057 -15.45 <1e-16
+#>  poverty   -0.882 0.052 -16.98 <1e-16
 #> 
 #> =========================================================
 ```
@@ -557,11 +557,11 @@ come with theirs:
 
 random_intercept_loadings(fit_pov_tr)
 #>        item  loading         se        z
-#> 1   letters 3.100185 0.11865993 26.12664
-#> 2 beginning 2.440890 0.07676834 31.79553
-#> 3    ending 2.309170 0.06588853 35.04661
-#> 4     sight 3.414121 0.14180735 24.07577
-#> 5   context 3.469876 0.15729171 22.06013
+#> 1   letters 3.100185 0.13852613 22.37979
+#> 2 beginning 2.440890 0.08803800 27.72542
+#> 3    ending 2.309170 0.07667911 30.11471
+#> 4     sight 3.414121 0.14932218 22.86413
+#> 5   context 3.469876 0.16449055 21.09468
 ```
 
 [`random_intercept_scores()`](https://pdvalencia.github.io/mixtureEM/reference/random_intercept_scores.md)

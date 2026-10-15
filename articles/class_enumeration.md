@@ -10,7 +10,7 @@ classes?* There is no single decisive statistic, so the standard
 practice is to fit a range of solutions and weigh several kinds of
 evidence together (Nylund et al., 2007):
 
-1.  **Information criteria** (BIC, SABIC, AIC) — lower is better.
+1.  **Information criteria** (BIC, SABIC, AIC3) — lower is better.
 2.  **The bootstrap likelihood ratio test (BLRT)** — a formal test of
     *k* classes against *k* − 1.
 3.  **Classification quality** (entropy, average posterior
@@ -77,21 +77,21 @@ selection <- compare_mixtures(ratings, k_range = 1:5,
 #> Fitting 5-class model...
 #> 
 #> === Model Selection Summary ===
-#>   Classes       LL Params      AIC      BIC     CAIC      AWE     AIC3      ICL
-#> 1       1 -524.465      7 1062.930 1082.324 1089.324 1136.719 1069.930 1082.324
-#> 2       2 -318.159     15  666.318  707.879  722.879  824.439  681.318  713.934
-#> 3       3 -294.935     23  635.869  699.595  722.595  878.321  658.869  721.600
-#> 4       4 -290.739     31  643.478  729.369  760.369  970.260  674.478  777.728
-#> 5       5 -288.513     39  655.026  763.083  802.083 1066.139  694.026  815.438
-#>      SABIC Entropy Unreplicated           BF   cmP
-#> 1 1060.196   1.000        FALSE        0.000 0.000
-#> 2  660.460   0.963        FALSE        0.016 0.016
-#> 3  626.886   0.915        FALSE  2919580.443 0.984
-#> 4  631.370   0.852        FALSE 20933986.839 0.000
-#> 5  639.794   0.862        FALSE           NA 0.000
+#>  Classes        LL Params      BIC    SABIC     AIC3 Entropy
+#>        1 -524.465       7 1082.324 1060.196 1069.930   1.000
+#>        2 -318.159      15  707.879  660.460  681.318   0.963
+#>        3 -294.935      23  699.595  626.886  658.869   0.915
+#>        4 -290.739      31  729.369  631.370  674.478   0.852
+#>        5 -288.513      39  763.083  639.794  694.026   0.862
 #> 
 #> -> Best model according to BIC: 3 classes
+#>    print(x, columns = "all") adds AIC, CAIC, AWE, ICL, BF and cmP.
 ```
+
+The printed view keeps the criteria with the strongest simulation
+record; `print(selection, columns = "all")` adds AIC, CAIC, AWE, ICL and
+the approximate Bayes factor and correct-model probability, and
+`selection$fit_table` holds every column at full precision.
 
 BIC prefers three classes here — the solution the methodological
 literature has repeatedly recovered for these data: clearly negative

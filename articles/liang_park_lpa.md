@@ -80,20 +80,15 @@ comp <- compare_mixtures(ind, k_range = 1:5, measurement = "continuous",
 #> Fitting 5-class model...
 #> 
 #> === Model Selection Summary ===
-#>   Classes        LL Params      AIC      BIC     CAIC      AWE     AIC3
-#> 1       1 -2504.138     10 5028.276 5065.314 5075.314 5152.352 5038.276
-#> 2       2 -2218.115     16 4468.230 4527.491 4543.491 4666.751 4484.230
-#> 3       3 -2093.758     22 4231.516 4312.999 4334.999 4504.482 4253.516
-#> 4       4 -2066.064     28 4188.128 4291.834 4319.834 4535.540 4216.128
-#> 5       5 -2029.261     34 4126.521 4252.450 4286.450 4548.378 4160.521
-#>        ICL    SABIC Entropy Unreplicated BF cmP
-#> 1 5065.314 5033.600   1.000        FALSE  0   0
-#> 2 4578.554 4476.748   0.877        FALSE  0   0
-#> 3 4378.817 4243.228   0.900        FALSE  0   0
-#> 4 4400.106 4203.034   0.870        FALSE  0   0
-#> 5 4370.826 4144.622   0.877        FALSE NA   1
+#>  Classes         LL Params      BIC    SABIC     AIC3 Entropy
+#>        1 -2504.138      10 5065.314 5033.600 5038.276   1.000
+#>        2 -2218.115      16 4527.491 4476.748 4484.230   0.877
+#>        3 -2093.758      22 4312.999 4243.228 4253.516   0.900
+#>        4 -2066.064      28 4291.834 4203.034 4216.128   0.870
+#>        5 -2029.261      34 4252.450 4144.622 4160.521   0.877
 #> 
 #> -> Best model according to BIC: 5 classes
+#>    print(x, columns = "all") adds AIC, CAIC, AWE, ICL, BF and cmP.
 plot(comp)
 ```
 
@@ -251,38 +246,38 @@ summary(covs)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept               15.253  [    0.459,   506.967]     0.127
-#>   age                      0.987  [    0.955,     1.020]     0.446
-#>   male                     4.509  [    2.253,     9.024]    < .001
-#>   sh_experience            0.538  [    0.239,     1.213]     0.135
-#>   org_intolerance_sh       1.823  [    1.111,     2.990]     0.017
-#>   masc_job_context         0.630  [    0.154,     2.576]     0.520
-#>   anger                    0.577  [    0.333,     1.000]     0.050
-#>   empathy                  0.874  [    0.489,     1.563]     0.650
-#>   curb_expectancy          0.608  [    0.385,     0.959]     0.032
+#>   Intercept               15.248  [    0.462,   503.231]     0.127
+#>   age                      0.987  [    0.955,     1.020]     0.445
+#>   male                     4.508  [    2.256,     9.011]    < .001
+#>   sh_experience            0.538  [    0.239,     1.211]     0.134
+#>   org_intolerance_sh       1.823  [    1.113,     2.986]     0.017
+#>   masc_job_context         0.630  [    0.155,     2.569]     0.520
+#>   anger                    0.577  [    0.334,     0.999]     0.050
+#>   empathy                  0.874  [    0.490,     1.561]     0.650
+#>   curb_expectancy          0.608  [    0.386,     0.958]     0.032
 #> 
 #> Class 3 ON
-#>   Intercept                0.000  [    0.000,     0.059]     0.002
-#>   age                      0.968  [    0.935,     1.001]     0.059
-#>   male                     1.413  [    0.659,     3.028]     0.374
-#>   sh_experience            1.636  [    0.891,     3.006]     0.112
-#>   org_intolerance_sh       1.576  [    1.053,     2.359]     0.027
-#>   masc_job_context         0.339  [    0.085,     1.356]     0.126
-#>   anger                    2.778  [    1.234,     6.252]     0.014
-#>   empathy                  1.125  [    0.605,     2.093]     0.710
-#>   curb_expectancy          1.346  [    0.797,     2.275]     0.266
+#>   Intercept                0.000  [    0.000,     0.058]     0.002
+#>   age                      0.968  [    0.935,     1.001]     0.058
+#>   male                     1.413  [    0.661,     3.023]     0.373
+#>   sh_experience            1.636  [    0.892,     3.003]     0.112
+#>   org_intolerance_sh       1.576  [    1.054,     2.357]     0.027
+#>   masc_job_context         0.339  [    0.085,     1.352]     0.125
+#>   anger                    2.778  [    1.237,     6.239]     0.013
+#>   empathy                  1.125  [    0.605,     2.090]     0.710
+#>   curb_expectancy          1.346  [    0.798,     2.270]     0.265
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   age                        3.583    2     0.167
-#>   male                      18.904    2    < .001
-#>   sh_experience              6.415    2     0.040
-#>   org_intolerance_sh         8.663    2     0.013
-#>   masc_job_context           2.354    2     0.308
-#>   anger                     14.485    2    < .001
-#>   empathy                    0.563    2     0.755
-#>   curb_expectancy            8.450    2     0.015
+#>   age                        3.597    2     0.166
+#>   male                      18.975    2    < .001
+#>   sh_experience              6.443    2     0.040
+#>   org_intolerance_sh         8.707    2     0.013
+#>   masc_job_context           2.364    2     0.307
+#>   anger                     14.541    2    < .001
+#>   empathy                    0.565    2     0.754
+#>   curb_expectancy            8.491    2     0.014
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================
@@ -320,7 +315,7 @@ summary(add_outcome(fit, liang_park_sim$harasser_aggression,
 #> CONTINUOUS DISTAL OUTCOME (MEANS)
 #> ---------------------------------------------------------
 #> 
-#> Omnibus test (class differences): Wald chi^2(2) = 212.94, p  < .001
+#> Omnibus test (class differences): Wald chi^2(2) = 212.99, p  < .001
 #> 
 #>                  Mean       [95% CI]        SE
 #>   Class 1        2.622  [ 2.412,  2.833]     0.108
@@ -343,7 +338,7 @@ summary(add_outcome(fit, liang_park_sim$target_gratitude,
 #> CONTINUOUS DISTAL OUTCOME (MEANS)
 #> ---------------------------------------------------------
 #> 
-#> Omnibus test (class differences): Wald chi^2(2) = 93.01, p  < .001
+#> Omnibus test (class differences): Wald chi^2(2) = 93.02, p  < .001
 #> 
 #>                  Mean       [95% CI]        SE
 #>   Class 1        3.179  [ 2.977,  3.380]     0.103
@@ -353,7 +348,7 @@ summary(add_outcome(fit, liang_park_sim$target_gratitude,
 #> Pairwise class differences:
 #>                     Difference       [95% CI]        P-Value
 #>   Class 2 vs 1        -1.237  [-1.561, -0.912]    < .001
-#>   Class 3 vs 1         0.413  [ 0.075,  0.751]     0.017
+#>   Class 3 vs 1         0.413  [ 0.075,  0.750]     0.017
 #>   Class 3 vs 2         1.649  [ 1.293,  2.006]    < .001
 #> =========================================================
 summary(add_outcome(fit, liang_park_sim$third_party_elevation,
@@ -366,7 +361,7 @@ summary(add_outcome(fit, liang_park_sim$third_party_elevation,
 #> CONTINUOUS DISTAL OUTCOME (MEANS)
 #> ---------------------------------------------------------
 #> 
-#> Omnibus test (class differences): Wald chi^2(2) = 82.14, p  < .001
+#> Omnibus test (class differences): Wald chi^2(2) = 82.16, p  < .001
 #> 
 #>                  Mean       [95% CI]        SE
 #>   Class 1        2.385  [ 2.211,  2.560]     0.089
@@ -376,7 +371,7 @@ summary(add_outcome(fit, liang_park_sim$third_party_elevation,
 #> Pairwise class differences:
 #>                     Difference       [95% CI]        P-Value
 #>   Class 2 vs 1        -0.735  [-1.017, -0.452]    < .001
-#>   Class 3 vs 1         0.686  [ 0.398,  0.974]    < .001
+#>   Class 3 vs 1         0.686  [ 0.399,  0.974]    < .001
 #>   Class 3 vs 2         1.421  [ 1.113,  1.729]    < .001
 #> =========================================================
 ```

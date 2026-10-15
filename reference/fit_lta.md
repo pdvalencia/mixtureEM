@@ -336,9 +336,9 @@ fit_lta(
   [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
   has always applied. It is a no-op - silently, and the fit is
   unchanged - for models whose free parameters it cannot differentiate:
-  covariate models and measurement families other than binary and
-  continuous. Mixtures over chains (`n_classes` \> 1) are refined like
-  any other supported model.
+  measurement families other than binary and continuous. Mixtures over
+  chains (`n_classes` \> 1) and covariate models are refined like any
+  other supported model.
 
 - refine_from:
 
@@ -390,12 +390,20 @@ fit_lta(
   and - with `n_classes` \> 1 - the class weights, and it does **not**
   govern the measurement model, whose prior is `bayes_constants`.
 
-  It also does not reach the transitions once anything predicts them.
-  With `predictors_transition`, or with a `group` whose `group_effects`
-  include the transitions, each transition matrix is the fitted value of
-  a multinomial logit rather than a smoothed table of counts, and
-  `smoothing` has no effect on it. The initial status prevalences behave
-  the same way under `predictors_initial`.
+  It reaches the regressions too, once covariates predict the statuses.
+  With `predictors_initial`, `predictors_transition`, or a `group` whose
+  `group_effects` include them, the initial status and the transitions
+  are multinomial logits rather than tables of counts, and the same mass
+  is spread over the distinct covariate patterns: `smoothing / (K U)`
+  pseudo-cases per status and pattern for the initial status, and
+  `smoothing / (K^2 U)` per origin, destination and pattern for each
+  transition matrix, `U` being the number of distinct covariate
+  patterns. That is the prior
+  [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+  puts on its class regression. It keeps a coefficient finite when a
+  covariate pattern never makes a transition, and it pulls a rare
+  pattern harder than a common one, since its mass does not grow with
+  the pattern's size.
 
   The mass is one pseudo-case per *conditional table*, so with `K`
   statuses an origin row of a transition matrix carries a `K`th of it.
@@ -431,18 +439,23 @@ fit_lta(
 
 - standard_errors:
 
-  Compute standard errors for \\\delta\\ and \\\tau\\. `TRUE` (the
-  default) uses the outer product of the case-level scores; `FALSE`
-  skips them; `"robust"` returns the sandwich estimator, with the
-  observed information as its bread. `"robust"` costs a
-  finite-difference Hessian – \\2p(p + 1)\\ likelihood evaluations – and
-  so takes minutes rather than seconds on a model of any size. It is
-  supported for random-intercept fits. Where the model still cannot be
-  packed on an unconstrained scale (covariates, or a measurement family
-  whose parameters are not all free) `"robust"` falls back silently to
-  the default estimator, and
-  [`summary()`](https://rdrr.io/r/base/summary.html) then does not
-  report robust errors.
+  Compute standard errors. `TRUE` (the default) uses the inverse
+  observed information of the objective the fit maximises: the
+  log-likelihood plus the priors set by `smoothing` and
+  `bayes_constants`, so the standard errors include the prior's
+  curvature, which matters for rare statuses, transitions near zero and
+  small samples. `FALSE` skips them. `"robust"` returns the sandwich
+  estimator around the same curvature, \\H^{-1} (B - H_p) H^{-1}\\, with
+  \\B\\ the outer product of the case scores and \\H_p\\ the prior's
+  curvature, so that it reduces to the default when the model is
+  correctly specified; under `strata` or `cluster` the default is that
+  sandwich with the design-based \\B\\. The observed information costs
+  \\2p\\ passes over the data, \\p\\ the number of free parameters, so
+  it takes seconds on most models and longer on a large random-intercept
+  model. A model whose parameters cannot all be packed on an
+  unconstrained scale (nominal, count or mixed indicators) gets the
+  outer product of the case scores instead, and `"robust"` is not
+  available for it; `$se$method` names the estimator used.
 
 - predictors_initial:
 
@@ -604,8 +617,9 @@ Two diagnostics come with it. `boundary` lists the transition cells the
 data have driven to zero, and `smoothing_influence` gives, for each
 origin row, the cases expected in it and the share of the estimate the
 `smoothing` prior is carrying. `smoothing_influence` is `NULL` when
-`smoothing` is 0 or when covariates predict the transitions, since the
-prior does not reach them then.
+`smoothing` is 0 or when covariates predict the transitions, since a
+transition is then a regression with no origin row of counts to report a
+pull on.
 
 With `n_classes` \> 1 those parameters gain a class index: `delta`
 becomes a classes-by-statuses matrix, `tau` a list of per-class lists,
@@ -615,8 +629,8 @@ in its `"by_class"` attribute;
 [`status_prevalences()`](https://pdvalencia.github.io/mixtureEM/reference/status_prevalences.md)
 and
 [`transition_matrix()`](https://pdvalencia.github.io/mixtureEM/reference/transition_matrix.md)
-take a `class` argument to reach them. Standard errors are not available
-for a mixture over chains and `se` is `NULL`.
+take a `class` argument to reach them, and the standard errors cover the
+class weights too.
 
 `metrics$entropy` (the headline number, printed by
 [`print()`](https://rdrr.io/r/base/print.html)) is the relative entropy
@@ -666,14 +680,15 @@ uncertainty. Step 2 holds the measurement parameters fixed, but they
 were estimated rather than known, and their sampling error propagates
 into everything built on top of them. What is reported is therefore the
 pseudo-maximum-likelihood variance of Bakk & Kuha's equation 5, \\V =
-V_2 + V_1\\: \\V_2\\ is the inverse observed information of the full
-likelihood in the structural coefficients, and \\V_1\\ carries the
-step-1 variance across through the cross-curvature between the two
-blocks. \\V_1\\ is negligible when the statuses are well separated and
-is most of the variance when they are not, which is the same condition
-that governs the attenuation above. The measurement parameters of a
-two-step fit report the step-1 fit's own standard errors, since that is
-the fit that estimated them.
+V_2 + V_1\\: \\V_2\\ is the inverse observed information, in the
+structural coefficients, of the full likelihood plus the structural
+prior set by `smoothing`, and \\V_1\\ carries step 1's variance – its
+own default standard errors – across through the cross-curvature between
+the two blocks. \\V_1\\ is negligible when the statuses are well
+separated and is most of the variance when they are not, which is the
+same condition that governs the attenuation above. The measurement
+parameters of a two-step fit report the step-1 fit's own standard
+errors, since that is the fit that estimated them.
 
 Two costs come with it. The information matrices are differenced
 numerically, which is a few thousand likelihood evaluations and can take
@@ -740,9 +755,12 @@ one of Bakk, Oberski and Vermunt (2014): step 3's own inverse
 information plus the variance of step 1's estimates, carried through the
 error matrices (and, under proportional assignment, through the weights
 the posteriors give the reduced data). The step-3-only part is kept as
-`$se$threestep_V2` and step 1's variance as `$se$step1_vcov`. Under
-`correction = "none"` with modal assignment step 1 never reaches step 3,
-and the standard errors are step 3's own.
+`$se$threestep_V2` and step 1's variance as `$se$step1_vcov`. Both are
+the inverse information of the objective each step maximises, the
+log-likelihood plus the prior set by `smoothing` (and, in step 1, the
+item prior of `bayes_constants`), so they include the prior's curvature.
+Under `correction = "none"` with modal assignment step 1 never reaches
+step 3, and the standard errors are step 3's own.
 
 With `strata` or `cluster` and `assignment = "modal"`, the variance is
 the design-based sandwich over both steps at once: each case's scores in

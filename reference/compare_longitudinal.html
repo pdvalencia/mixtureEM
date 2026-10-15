@@ -232,8 +232,11 @@ criteria, since step 3's log-likelihood is of the assigned statuses.</p></dd>
 <code><a href="compare_mixtures.html">compare_mixtures()</a></code>), the fitted <code>models</code> (named
 <code>"K2"</code>, <code>"K3"</code>, ...) and
 <code>best_k</code>, the class count with the lowest BIC. It indexes exactly as a
-plain list; <code><a href="plot.mixture_comparison.html">plot()</a></code> draws the criteria
-against K.</p>
+plain list; <code><a href="print.mixture_comparison.html">print.mixture_comparison()</a></code> shows the table (a short view by
+default, <code>columns = "all"</code> for every column), and
+<code><a href="plot.mixture_comparison.html">plot()</a></code> draws the criteria against K. Under
+<code>verbose</code> the table is printed when the fits finish and the object is
+returned invisibly.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
