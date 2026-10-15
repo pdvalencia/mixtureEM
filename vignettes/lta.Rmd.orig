@@ -213,23 +213,24 @@ above. `status_prevalences()` says which is which —
 round(status_prevalences(fit_pov), 3)
 ```
 
-— here status 3 is the low-alphabet stage (the one 69% start in), status 2
+— here status 2 is the low-alphabet stage (the one 69% start in), status 3
 early word reading and status 1 comprehension. The coefficients are
 multinomial logits against the last status, so with this labelling every
-contrast is *relative to the low-alphabet stage*:
+contrast is *relative to early word reading*:
 
 ```{r poverty-coefs}
 lta_covariate_summary(fit_pov)
 ```
 
-Poverty lowers the odds of starting kindergarten beyond the low-alphabet
-stage (OR 0.23 for early word reading, 0.12 for comprehension), and lowers
-the odds of reaching comprehension in every interval. The effect is
-sharpest over the summer, where a child in poverty has 0.40 times the odds
-of reaching early word reading and 0.12 times the odds of reaching
-comprehension, relative to staying in low alphabet. The `from:` terms are the origin-status
-intercepts and are not of interest in themselves; the ones with enormous
-standard errors belong to cells almost nobody occupies.
+Turned around to be against the low-alphabet stage (subtract the status 2
+coefficient), poverty lowers the odds of starting kindergarten beyond it
+(OR 0.23 for early word reading, 0.13 for comprehension), and lowers the
+odds of reaching comprehension in every interval. The effect is sharpest
+over the summer, where a child in poverty has 0.40 times the odds of
+reaching early word reading and 0.12 times the odds of reaching
+comprehension, relative to staying in low alphabet. The `from:` terms are
+the origin-status intercepts and are not of interest in themselves; the
+ones with large standard errors belong to cells almost nobody occupies.
 
 ### The same question in three steps
 
@@ -261,8 +262,8 @@ lta_covariate_summary(fit_pov3)
 
 Turned around to be against low alphabet, as above, the answer barely moves.
 A child in poverty has 0.25 times the odds of starting kindergarten in early
-word reading (0.23 in one step) and 0.15 times the odds of starting in
-comprehension (0.12). Over the summer those odds are 0.39 and 0.10 (0.40 and
+word reading (0.23 in one step) and 0.16 times the odds of starting in
+comprehension (0.13). Over the summer those odds are 0.40 and 0.11 (0.40 and
 0.12). The poverty effect was not an artefact of letting poverty shape the
 statuses. When the two routes disagree, the three-step answer is the one to
 trust about the covariate, because its statuses are the ones the indicators
