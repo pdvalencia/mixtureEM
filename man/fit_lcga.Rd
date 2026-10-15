@@ -163,6 +163,7 @@ identifying differences in longitudinal change among unobserved groups.
 565-576. \doi{10.1177/0165025409343765}
 }
 \seealso{
+\code{\link[=growth_estimates]{growth_estimates()}} for the coefficients with standard errors,
 \code{\link[=fit_rmlca]{fit_rmlca()}} for unconstrained trajectory classes and
 \code{\link[=fit_lta]{fit_lta()}} for a model in which class membership itself changes.
 }

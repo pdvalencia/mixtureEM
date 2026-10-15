@@ -377,7 +377,8 @@ n_parameters.lcga <- function(model_state, ...) {
 #'   family, per-class coefficients, the fitted trajectories, and — for
 #'   `family = "gaussian"` — the per-class residual variance.
 #'
-#' @seealso [`fit_rmlca()`] for unconstrained trajectory classes and
+#' @seealso [`growth_estimates()`] for the coefficients with standard errors,
+#'   [`fit_rmlca()`] for unconstrained trajectory classes and
 #'   [`fit_lta()`] for a model in which class membership itself changes.
 #'
 #' @examples

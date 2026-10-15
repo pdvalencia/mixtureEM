@@ -9,7 +9,11 @@
 #' (intercepts, when there are `growth_predictors`), the growth-factor
 #' regressions, the growth-factor variances and covariances, the residual
 #' variances, the fitted trajectory and the class-size logits -- with a
-#' standard error, a z statistic and a two-sided p-value.
+#' standard error, a z statistic and a two-sided p-value. For a [`fit_lcga()`]
+#' fit it returns the growth coefficients of each class (on the link scale:
+#' logits for `"binomial"`, log rates for `"poisson"`), the residual variance
+#' (`"gaussian"` only), the fitted trajectory on the response scale and the
+#' class-size logits.
 #'
 #' @details
 #' The standard errors are computed from the log-likelihood of the fitted model
@@ -53,7 +57,7 @@
 #' Under `n_steps = 3` the standard errors here are those of the step-1 model,
 #' which is where the growth parameters are estimated.
 #'
-#' @param fit A model returned by [`fit_gmm()`].
+#' @param fit A model returned by [`fit_gmm()`] or [`fit_lcga()`].
 #' @param se Which standard-error estimator: `"robust"` (default), `"hessian"`
 #'   or `"opg"`. See Details.
 #'
@@ -77,7 +81,7 @@
 #' classes. *Psychological Methods*, *8*(3), 338-363.
 #' \doi{10.1037/1082-989X.8.3.338}
 #'
-#' @seealso [`fit_gmm()`], [`measurement_summary()`].
+#' @seealso [`fit_gmm()`], [`fit_lcga()`], [`measurement_summary()`].
 #'
 #' @examples
 #' \donttest{
@@ -93,8 +97,10 @@
 #' @export
 growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
   se <- match.arg(se)
-  if (!inherits(fit, "gmm") || !identical(fit$growth$model, "gmm"))
-    stop("`fit` must be a growth mixture model from fit_gmm().", call. = FALSE)
+  if (!inherits(fit, c("gmm", "lcga")) ||
+      !isTRUE(fit$growth$model %in% c("gmm", "lcga")))
+    stop("`fit` must be a growth model from fit_gmm() or fit_lcga().",
+         call. = FALSE)
   v <- .gmm_vcov(fit)
   V <- v[[se]]
   est <- v$table$estimate
@@ -116,12 +122,23 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
   g  <- fit$growth
   mm <- st$mm
   K  <- fit$n_components
+  if (identical(g$model, "lcga")) {
+    g$coefficients <- mm$parameters$coefs
+    g$fitted <- .lcga_fitted(mm)
+    if (identical(g$family, "gaussian"))
+      g$residual_variance <- mm$parameters$dispersion
+    return(.growth_reported_table(g, K, st, logits))
+  }
   g$means <- mm$parameters$alpha
   if (!is.null(g$coefficients))
     g$coefficients <- .gmm_name_coefficients(mm, g$covariate_names)
   g$psi <- mm$parameters$psi[seq_len(if (isTRUE(mm$psi_equal)) 1L else K)]
   g$residual_variance <- mm$parameters$theta
   g$fitted <- .sn_fitted(mm)
+  .growth_reported_table(g, K, st, logits)
+}
+
+.growth_reported_table <- function(g, K, st, logits) {
   blocks <- .growth_blocks(list(growth = g, n_components = K))
   tab <- do.call(rbind, lapply(blocks, function(b)
     .growth_rows(b$mat, b$parameter, K)))

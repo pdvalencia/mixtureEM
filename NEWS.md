@@ -193,6 +193,11 @@ reported scale by the delta method. A growth-factor covariance outside the
 positive semi-definite cone still gets standard errors. The standard errors
 are computed on request, so nothing `fit_gmm()` reports changes.
 
+`growth_estimates()` also takes a `fit_lcga()` fit, with the same three
+estimators: each class's growth coefficients on the link scale, the residual
+variance for a Gaussian outcome, the fitted trajectory on the response scale
+and the class-size logits.
+
 ## Growth mixture models: EM can now carry Psi past the edge of its usual range
 
 The EM update of the growth-factor covariance Psi imputes each case's growth

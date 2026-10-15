@@ -7,7 +7,7 @@
 growth_estimates(fit, se = c("robust", "hessian", "opg"))
 }
 \arguments{
-\item{fit}{A model returned by \code{\link[=fit_gmm]{fit_gmm()}}.}
+\item{fit}{A model returned by \code{\link[=fit_gmm]{fit_gmm()}} or \code{\link[=fit_lcga]{fit_lcga()}}.}
 
 \item{se}{Which standard-error estimator: \code{"robust"} (default), \code{"hessian"}
 or \code{"opg"}. See Details.}
@@ -25,7 +25,11 @@ Returns every parameter of a \code{\link[=fit_gmm]{fit_gmm()}} fit -- the growth
 (intercepts, when there are \code{growth_predictors}), the growth-factor
 regressions, the growth-factor variances and covariances, the residual
 variances, the fitted trajectory and the class-size logits -- with a
-standard error, a z statistic and a two-sided p-value.
+standard error, a z statistic and a two-sided p-value. For a \code{\link[=fit_lcga]{fit_lcga()}}
+fit it returns the growth coefficients of each class (on the link scale:
+logits for \code{"binomial"}, log rates for \code{"poisson"}), the residual variance
+(\code{"gaussian"} only), the fitted trajectory on the response scale and the
+class-size logits.
 }
 \details{
 The standard errors are computed from the log-likelihood of the fitted model
@@ -96,5 +100,5 @@ classes. \emph{Psychological Methods}, \emph{8}(3), 338-363.
 \doi{10.1037/1082-989X.8.3.338}
 }
 \seealso{
-\code{\link[=fit_gmm]{fit_gmm()}}, \code{\link[=measurement_summary]{measurement_summary()}}.
+\code{\link[=fit_gmm]{fit_gmm()}}, \code{\link[=fit_lcga]{fit_lcga()}}, \code{\link[=measurement_summary]{measurement_summary()}}.
 }

@@ -95,6 +95,61 @@ test_that("growth regressions and a free Psi get standard errors", {
   expect_lt(abs(b - 0.5), 4 * s)
 })
 
-test_that("growth_estimates() refuses a fit that is not a growth mixture", {
+test_that("growth_estimates() reproduces the information of a Gaussian LCGA", {
+  set.seed(4)
+  n   <- 400
+  cls <- rbinom(n, 1, 0.4)
+  y   <- outer(ifelse(cls == 1, 3, 1), rep(1, 4)) +
+    outer(ifelse(cls == 1, 0.5, 0.1), 0:3) + matrix(rnorm(n * 4, 0, 0.6), n, 4)
+  # Without the priors the estimate is a stationary point of the likelihood, so
+  # the information does not depend on whether a variance or its log is used.
+  fit <- suppressWarnings(fit_lcga(y, times = 4, n_classes = 2, family = "gaussian",
+                                   bayes_constants = list(latent = 0, variances = 0),
+                                   n_init = 5, random_state = 1))
+  ge  <- growth_estimates(fit, se = "hessian")
+
+  L  <- cbind(1, 0:3)
+  ll <- function(th) {
+    p1 <- plogis(th[7])
+    d  <- sapply(1:2, function(k) {
+      mu <- as.vector(L %*% th[2 * k - (1:0)])
+      log(c(p1, 1 - p1)[k]) +
+        rowSums(stats::dnorm(y, rep(mu, each = n), sqrt(th[4 + k]), log = TRUE))
+    })
+    m <- apply(d, 1, max)
+    sum(m + log(rowSums(exp(d - m))))
+  }
+  B  <- fit$growth$coefficients
+  th <- c(B[1, ], B[2, ], fit$growth$residual_variance, qlogis(fit$weights[1]))
+  ref <- sqrt(diag(solve(-stats::optimHess(th, ll))))
+
+  pick <- function(parameter, item, class)
+    ge$se[ge$parameter == parameter & ge$item == item & ge$class == class]
+  ours <- c(pick("growth_mean", "intercept", 1), pick("growth_mean", "linear", 1),
+            pick("growth_mean", "intercept", 2), pick("growth_mean", "linear", 2),
+            pick("residual_variance", "Variance", 1),
+            pick("residual_variance", "Variance", 2),
+            pick("class_logit", "log(p1/p2)", 1))
+  expect_length(ours, 7L)
+  expect_lt(max(abs(ours / ref - 1)), 2e-3)
+})
+
+test_that("a binary LCGA gets standard errors on the reported scale", {
+  set.seed(5)
+  n   <- 400
+  cls <- rbinom(n, 1, 0.5)
+  eta <- outer(ifelse(cls == 1, 0, -0.8), rep(1, 4)) +
+    outer(ifelse(cls == 1, 1.1, -0.1), 0:3)
+  y   <- matrix(rbinom(n * 4, 1, plogis(eta)), n, 4)
+  fit <- suppressWarnings(fit_lcga(y, times = 4, n_classes = 2, n_init = 5,
+                                   random_state = 1))
+  ge  <- growth_estimates(fit)
+  expect_true(all(is.finite(ge$se)))
+  expect_false("residual_variance" %in% ge$parameter)
+  ms <- suppressWarnings(utils::capture.output(m <- measurement_summary(fit)))
+  expect_equal(ge$estimate[seq_len(nrow(m))], m$estimate)
+})
+
+test_that("growth_estimates() refuses a fit that is not a growth model", {
   expect_error(growth_estimates(list()), "fit_gmm")
 })
