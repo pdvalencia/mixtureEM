@@ -14,6 +14,7 @@ fit_mixture(
   outcome_covariates = NULL,
   outcome_type = c("auto", "continuous", "categorical"),
   slopes = "pooled",
+  outcome_variances = c("equal", "class_specific"),
   group = NULL,
   group_effects = c("both", "measurement", "prevalence", "none"),
   group_invariant_items = NULL,
@@ -133,6 +134,12 @@ some covariates while adjusting for others. The last form is
 continuous-outcome only. For a continuous outcome,
 \code{"class_specific"} is the same model as naming every covariate, and
 is fitted as one.}
+
+\item{outcome_variances}{For a continuous \code{outcome}: \code{"equal"}
+(default; one variance, or residual variance when there are
+\code{outcome_covariates}, shared by the classes) or
+\code{"class_specific"} (one per class). As in \code{\link[=add_outcome]{add_outcome()}}'s
+\code{variances}.}
 
 \item{group}{Optional observed grouping variable for a multiple-group
 model (Collins & Lanza, 2010, sec. 5.7-5.12), e.g. grade or gender.

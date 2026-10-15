@@ -489,9 +489,12 @@
     return(if (is.null(v)) NULL else .qn_part(v, "logit"))
   }
   if (inherits(sm, "group_prevalence")) return(.qn_pack_gp(sm))
-  if (inherits(sm, "distal_continuous"))
+  if (inherits(sm, "distal_continuous")) {
+    v <- if (identical(sm$variances, "equal")) p$covariances[1L] else
+      p$covariances
     return(.qn_join(list(.qn_part(p$means, "free"),
-                         .qn_part(0.5 * log(p$covariances), "scale"))))
+                         .qn_part(0.5 * log(v), "scale"))))
+  }
   if (inherits(sm, "distal_continuous_regression"))
     return(.qn_join(list(.qn_part(p$betas, "free"),
                          .qn_part(0.5 * log(p$covariances[1L]), "scale"))))
@@ -525,7 +528,7 @@
   K <- sm$n_components
   if (inherits(sm, "distal_continuous")) {
     sm$parameters$means[] <- par[seq_len(K)]
-    sm$parameters$covariances[] <- exp(2 * par[K + seq_len(K)])
+    sm$parameters$covariances[] <- exp(2 * par[-seq_len(K)])
     return(sm)
   }
   if (inherits(sm, "distal_continuous_regression")) {

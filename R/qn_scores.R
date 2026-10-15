@@ -245,8 +245,9 @@
     y <- as.numeric(as.matrix(Y)[, 1L]); ok <- !is.na(y); y[!ok] <- 0
     mu <- p$means[, 1L]; v <- p$covariances[, 1L]
     e  <- outer(y, mu, "-") * ok
-    return(cbind(R * sweep(e, 2, v, "/"),
-                 R * (sweep(e * e, 2, v, "/") - ok)))
+    Sv <- R * (sweep(e * e, 2, v, "/") - ok)
+    if (identical(sm$variances, "equal")) Sv <- rowSums(Sv)
+    return(cbind(R * sweep(e, 2, v, "/"), Sv))
   }
   if (inherits(sm, "distal_continuous_regression")) {
     Yf <- as.matrix(Y)

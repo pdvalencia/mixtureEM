@@ -60,7 +60,9 @@
 # M-step, because the pooled slopes are then a weighted least-squares fit whose
 # weights are the class precisions; see m_step below.
 distal_continuous_pooled_model <- function(n_components, moderated = integer(0),
-                                           variances = "equal", ...) {
+                                           variances = "equal",
+                                           outcome_variances = NULL, ...) {
+  if (!is.null(outcome_variances)) variances <- outcome_variances
   state <- list(n_components = n_components, moderated = as.integer(moderated),
                 variances = variances, parameters = list())
   class(state) <- c("distal_continuous_pooled", "emission")

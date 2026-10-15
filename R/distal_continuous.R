@@ -2,8 +2,16 @@
 # S3 Distal Continuous Outcome (Weighted ANOVA) - ROBUST SEs
 # ==============================================================================
 
-distal_continuous_model <- function(n_components, ...) {
-  state <- list(n_components = n_components, parameters = list())
+# `variances`: "class_specific" (one residual variance per class) or "equal"
+# (one shared by every class). The means are weighted averages either way; only
+# the variance step differs.
+distal_continuous_model <- function(n_components, variances = "class_specific",
+                                    outcome_variances = NULL, ...) {
+  # fit_mixture() passes its choice under this name, because the same
+  # arguments also reach the measurement model.
+  if (!is.null(outcome_variances)) variances <- outcome_variances
+  state <- list(n_components = n_components, variances = variances,
+                parameters = list())
   class(state) <- c("distal_continuous", "emission")
   return(state)
 }
@@ -59,6 +67,16 @@ m_step.distal_continuous <- function(model_state, X, resp, weights = NULL, ...) 
     ses[k] <- se_k
   }
 
+  # One shared variance: the class sums of squares pooled over the classes,
+  #   sigma^2 = sum_k sum_i w_ik (y_i - mu_k)^2 / sum_k sum_i w_ik,
+  # with the same absolute weights as the class-specific form.
+  if (identical(model_state$variances, "equal")) {
+    A <- abs(resp_v)
+    den <- sum(A)
+    pooled <- if (den > 1e-5) sum(A * outer(Y_v, means, "-")^2) / den else 1e-5
+    vars[] <- max(pooled, 1e-5)
+  }
+
   model_state$parameters$means <- matrix(means, nrow = K, ncol = 1)
   model_state$parameters$covariances <- matrix(vars, nrow = K, ncol = 1)
   model_state$parameters$ses <- matrix(ses, nrow = K, ncol = 1)
@@ -87,5 +105,6 @@ log_likelihood.distal_continuous <- function(model_state, X, ...) {
 
 #' @exportS3Method
 n_parameters.distal_continuous <- function(model_state, ...) {
-  return(model_state$n_components * 2)
+  K <- model_state$n_components
+  K + if (identical(model_state$variances, "equal")) 1L else K
 }

@@ -63,8 +63,9 @@
 #'
 #' @return A data frame with one row per parameter and class: `parameter`
 #'   (`"growth_mean"`, `"growth_regression"`, `"growth_variance"`,
-#'   `"growth_covariance"`, `"residual_variance"`, `"fitted"` or
-#'   `"class_logit"`), `item`, `class`, `estimate`, `se`, `z` and `p_value`.
+#'   `"growth_covariance"`, `"residual_variance"`, `"fitted"`,
+#'   `"class_logit"`, or, for a continuous `outcome` fitted in one step,
+#'   `"outcome_mean"` and `"outcome_variance"`), `item`, `class`, `estimate`, `se`, `z` and `p_value`.
 #'   The covariance matrix of the reported parameters is attached as the
 #'   attribute `"vcov"`.
 #'
@@ -117,8 +118,26 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
 }
 
 # The growth parameters as reported, from a model state: the rows of
-# measurement_summary.gmm()'s table, then the class-size logits.
+# measurement_summary.gmm()'s table, then the class-size logits, then a
+# one-step continuous outcome's means and variances.
 .gmm_reported <- function(fit, st, logits) {
+  rbind(.gmm_reported_growth(fit, st, logits), .gmm_outcome_rows(fit, st))
+}
+
+# A shared variance is repeated across the classes, as any shared parameter is.
+.gmm_outcome_rows <- function(fit, st) {
+  sm <- st$sm
+  if (is.null(sm) || !identical(as.integer(fit$n_steps), 1L) ||
+      !inherits(sm, "distal_continuous")) return(NULL)
+  K  <- fit$n_components
+  nm <- colnames(fit$Y)[1L] %||% "outcome"
+  data.frame(parameter = rep(c("outcome_mean", "outcome_variance"), each = K),
+             item = nm, class = rep(seq_len(K), 2L),
+             estimate = c(sm$parameters$means[, 1L], sm$parameters$covariances[, 1L]),
+             stringsAsFactors = FALSE)
+}
+
+.gmm_reported_growth <- function(fit, st, logits) {
   g  <- fit$growth
   mm <- st$mm
   K  <- fit$n_components

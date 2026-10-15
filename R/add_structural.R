@@ -436,10 +436,13 @@ add_covariates <- function(fit, predictors,
 #'   the BCH-weighted log-likelihood and its standard errors are always the
 #'   sandwich clustered on the case. Under `se = "corrected"` both add step
 #'   1's uncertainty; see `se`.
-#' @param variances For a continuous outcome with `covariates`: `"equal"`
-#'   (default; one residual variance shared by the classes) or
-#'   `"class_specific"` (one per class). A continuous outcome without
-#'   covariates always has one variance per class.
+#' @param variances For a continuous outcome: `"equal"` (default; one
+#'   variance, or residual variance when there are `covariates`, shared by the
+#'   classes) or `"class_specific"` (one per class). The shared variance is
+#'   the more stable choice when a class is small, because one estimate pools
+#'   every case; one per class is the better description when the classes
+#'   really do differ in spread, and the two can be compared by their BIC on
+#'   the same fit.
 #' @param correction Bias correction for the third step: `"auto"` (default)
 #'   picks `"BCH"` for continuous outcomes (Bakk & Vermunt, 2016) and `"ML"`
 #'   for categorical outcomes; or set `"BCH"`, `"ML"`, `"none"` directly.
@@ -610,17 +613,13 @@ add_outcome <- function(fit, outcome, covariates = NULL,
                   steps = steps, variances = spec$variances)
 }
 
-# `variances = "class_specific"` exists only where the residual variance is a
-# choice: a continuous outcome adjusted for covariates. A continuous outcome
-# without covariates already has one variance per class, and a categorical one
-# has none.
+# `variances` is a choice for a continuous outcome, with or without covariates.
+# A categorical outcome has no residual variance.
 .apply_outcome_variances <- function(spec, variances) {
   if (identical(variances, "class_specific") &&
-      spec$engine != "continuous_outcome_adjusted")
-    stop('`variances = "class_specific"` applies to a continuous outcome with ',
-         '`covariates`. A continuous outcome without covariates already has ',
-         'one variance per class, and a categorical one has none.',
-         call. = FALSE)
+      !spec$engine %in% c("continuous_outcome", "continuous_outcome_adjusted"))
+    stop('`variances = "class_specific"` applies to a continuous outcome; ',
+         'a categorical one has no variance.', call. = FALSE)
   spec$variances <- variances
   spec
 }

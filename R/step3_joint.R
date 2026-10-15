@@ -65,8 +65,11 @@
          else p$covariances[1L, 1L]
     return(c(as.vector(p$beta_pooled), v))
   }
-  if (inherits(m, "distal_continuous"))
-    return(c(as.vector(p$means), as.vector(p$covariances)))
+  if (inherits(m, "distal_continuous")) {
+    v <- if (identical(m$variances, "equal")) p$covariances[1L, 1L]
+         else as.vector(p$covariances)
+    return(c(as.vector(p$means), v))
+  }
   # distal_pooled and distal_categorical: row-major, the order the Hessian and
   # .outcome_contrast_parts() index it in.
   as.vector(t(p$beta_pooled))
@@ -84,7 +87,7 @@
   } else if (inherits(m, "distal_continuous")) {
     K <- length(p$means)
     p$means[]       <- par[seq_len(K)]
-    p$covariances[] <- par[K + seq_len(K)]
+    p$covariances[] <- par[-seq_len(K)]
   } else {
     p$beta_pooled[] <- matrix(par, nrow(p$beta_pooled), ncol(p$beta_pooled),
                               byrow = TRUE)
@@ -259,7 +262,7 @@
       # V mean nothing. The means' rows do not depend on them: the mean-variance
       # cross derivatives vanish at the weighted means.
       if (!lone)
-        m$parameters$var_ses <- sqrt(pmax(diag(Vj)[K + seq_len(K)], 0))
+        m$parameters$var_ses <- rep_len(sqrt(pmax(diag(Vj)[-seq_len(K)], 0)), K)
     } else {
       m$parameters$hessian <- -pinv(Vj)
     }

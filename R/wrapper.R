@@ -2870,6 +2870,11 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   continuous-outcome only. For a continuous outcome,
 #'   \code{"class_specific"} is the same model as naming every covariate, and
 #'   is fitted as one.
+#' @param outcome_variances For a continuous \code{outcome}: \code{"equal"}
+#'   (default; one variance, or residual variance when there are
+#'   \code{outcome_covariates}, shared by the classes) or
+#'   \code{"class_specific"} (one per class). As in [add_outcome()]'s
+#'   \code{variances}.
 #' @param group Optional observed grouping variable for a multiple-group
 #'   model (Collins & Lanza, 2010, sec. 5.7-5.12), e.g. grade or gender.
 #'   Unlike \code{predictors}, which only ever shifts class membership, a
@@ -3394,6 +3399,7 @@ fit_mixture <- function(indicators = NULL,
                         outcome_covariates = NULL,
                         outcome_type = c("auto", "continuous", "categorical"),
                         slopes = "pooled",
+                        outcome_variances = c("equal", "class_specific"),
                         group = NULL,
                         group_effects = c("both", "measurement", "prevalence", "none"),
                         group_invariant_items = NULL,
@@ -3425,6 +3431,7 @@ fit_mixture <- function(indicators = NULL,
   se            <- match.arg(se)
   assignment    <- match.arg(assignment)
   outcome_type  <- match.arg(outcome_type)
+  outcome_variances <- match.arg(outcome_variances)
   group_effects <- match.arg(group_effects)
   weight_type   <- match.arg(weight_type)
   steps_set     <- !missing(n_steps)
@@ -3811,7 +3818,8 @@ fit_mixture <- function(indicators = NULL,
 
   dots <- c(list(...), cat_args,
             list(variances_equal = isTRUE(variances_equal),
-                 moderated = structural_moderated))
+                 moderated = structural_moderated,
+                 outcome_variances = outcome_variances))
   if (length(group_extra_args)) dots <- utils::modifyList(dots, group_extra_args)
 
   fit <- do.call(fit_mixture_internal, c(list(

@@ -346,6 +346,13 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   if (inherits(model_state$sm, c("distal_pooled", "distal_regression"))) {
     pi_k_clean <- colSums(A1 * w_clean) / sum(w_clean)
   }
+  # A lone continuous outcome is a density f(y | k), not a model of P(k), so
+  # step 3 has to carry the class proportions itself; they are re-estimated
+  # with the outcome parameters at every M-step (Vermunt, 2010, eq. 14).
+  cont_out <- inherits(model_state$sm, c("distal_continuous",
+                                          "distal_continuous_pooled",
+                                          "distal_continuous_regression"))
+  if (cont_out) pi_step3 <- colSums(A1 * w_clean) / sum(w_clean)
 
   prev_ll <- -Inf
 
@@ -362,11 +369,19 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
     #   W_eff[i,j] = pi_j * P(o_i|x=j) * sum_k [resp1[i,k]/Z[i,k]] * C_norm[j,k]
     #   LL         = sum_i sum_k resp1[i,k] * log Z_mat[i,k]
     #
-    # For continuous outcomes (distal_continuous*), log_sm returns
-    # log-likelihoods on the correct scale and row-normalisation is harmless
-    # because the Gaussian density cancels in the ratio.
+    # Continuous outcomes (distal_continuous*) use the same formulation with
+    # the proportions pi_step3 estimated in step 3. Row-normalising the
+    # densities instead would be the posterior under equal class sizes, which
+    # pulls every ambiguous case toward the small classes.
 
-    if (inherits(sm, c("distal_pooled", "distal_regression"))) {
+    if (cont_out) {
+      lsh   <- .row_max(log_sm)
+      joint <- sweep(exp(log_sm - lsh), 2, pi_step3, "*")
+      Z_mat <- joint %*% C_row_norm
+      ll_case    <- rowSums(A1 * log(pmax(Z_mat, 1e-300))) + as.vector(lsh)
+      current_ll <- sum(w_clean * ll_case)
+      W <- joint * ((A1 / pmax(Z_mat, 1e-300)) %*% t(C_row_norm))
+    } else if (inherits(sm, c("distal_pooled", "distal_regression"))) {
       po_given_x <- exp(log_sm)                      # n_clean x K
       Z_mat      <- sweep(po_given_x, 2, pi_k_clean, "*") %*% C_row_norm
       ll_case    <- rowSums(A1 * log(pmax(Z_mat, 1e-300)))
@@ -409,6 +424,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
     prev_ll <- current_ll
 
     model_state$sm <- m_step(model_state$sm, Y_clean, W, weights = w_clean)
+    if (cont_out) pi_step3 <- colSums(W * w_clean) / sum(w_clean)
   }
 
   # EM stops a lone class regression short of the maximum (gradient ~1e-2); a
@@ -430,6 +446,10 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
     e <- step3_e(model_state$sm)
     W <- e$W; ll_case <- e$ll_case
   }
+
+  if (max_iter > 0 && inherits(model_state$sm, "distal_continuous"))
+    model_state$sm <- .attach_step3_distal_vcov(
+      model_state$sm, Y_clean, A1, C_row_norm, w_clean, pi_step3, se)
 
   # ============================================================================
   # Variance estimation for structural models under ML step-3.
@@ -625,4 +645,45 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   model_state$lower_bound <- ll_case
 
   return(model_state)
+}
+
+# The ML step-3 covariance of a lone continuous outcome's class means. Step 3
+# estimates the class sizes, the means and the variances together, so the
+# means' variance comes from the curvature of that joint likelihood,
+#   l_i = sum_s a_is log sum_k pi_k f(y_i | k) C[k, s],
+# and not from the M-step's weighted means, which hold every case's class
+# weights fixed and so understate it. `se = "hessian"` gives the inverse
+# observed information; otherwise the sandwich H^-1 B H^-1 (White, 1982).
+# Step 1's estimates are treated as known.
+.attach_step3_distal_vcov <- function(sm, Y, A1, Cn, w, pk, se) {
+  K   <- sm$n_components
+  pk  <- pmax(pk, 1e-12)
+  par <- c(log(pk[-K] / pk[K]), .qn_pack_sm(sm)$par)
+  ia  <- seq_len(K - 1L)
+  case_ll <- function(th) {
+    a  <- c(th[ia], 0)
+    p  <- exp(a - max(a)); p <- p / sum(p)
+    ls <- log_likelihood(.qn_unpack_sm(sm, th[-ia]), Y)
+    lsh <- .row_max(ls)
+    Z  <- sweep(exp(ls - lsh), 2, p, "*") %*% Cn
+    rowSums(A1 * log(pmax(Z, 1e-300))) + as.vector(lsh)
+  }
+  idx  <- seq_along(par)
+  S    <- .qn_fd_scores(case_ll, par, idx)
+  grad <- function(x) colSums(w * .qn_fd_scores(case_ll, x, idx))
+  h    <- 1e-4 * pmax(1, abs(par))
+  H    <- vapply(idx, function(j) {
+    a <- par; a[j] <- a[j] + h[j]
+    b <- par; b[j] <- b[j] - h[j]
+    (grad(a) - grad(b)) / (2 * h[j])
+  }, numeric(length(par)))
+  Hi <- tryCatch(solve(-(H + t(H)) / 2), error = function(e) NULL)
+  if (is.null(Hi)) return(sm)
+  V  <- if (identical(se, "hessian")) Hi else Hi %*% crossprod(w * S) %*% Hi
+  m  <- K - 1L + seq_len(K)
+  sm$parameters$Sigma_mu <- V[m, m, drop = FALSE]
+  sm$parameters$ses      <- matrix(sqrt(pmax(diag(V)[m], 0)), ncol = 1)
+  sm$parameters$V_method <- if (identical(se, "hessian"))
+    "Observed information (step 3)" else "Sandwich (step 3)"
+  sm
 }

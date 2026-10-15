@@ -76,3 +76,27 @@ test_that("on a covariate model, wald_test() reproduces analytical_wald_test()",
   expect_equal(w$Wald_Chi2, a$Wald_Chi2, tolerance = 1e-3)
   expect_equal(w$df, a$df)
 })
+
+test_that("a one-step continuous outcome's means are labelled for wald_test()", {
+  set.seed(2)
+  n   <- 300
+  cls <- rbinom(n, 1, 0.5)
+  y   <- outer(ifelse(cls == 1, 3, 1) + rnorm(n, 0, 0.8), rep(1, 4)) +
+    outer(ifelse(cls == 1, 1, 0.2), 0:3) + matrix(rnorm(n * 4, 0, 0.6), n, 4)
+  dist <- rnorm(n, ifelse(cls == 1, 2, 0), 1)
+  fit <- suppressWarnings(fit_gmm(y, times = 4, n_classes = 2, n_init = 3,
+                                  random_state = 1, outcome = dist,
+                                  outcome_type = "continuous", n_steps = 1))
+  ge <- growth_estimates(fit)
+  om <- ge[ge$parameter == "outcome_mean", ]
+  ov <- ge[ge$parameter == "outcome_variance", ]
+  expect_equal(nrow(om), 2L)
+  expect_equal(om$estimate, as.vector(fit$sm$parameters$means), tolerance = 1e-10)
+  # One shared variance, repeated across the classes.
+  expect_equal(ov$estimate[1], ov$estimate[2])
+  lab <- sprintf("outcome_mean[%s, %d]", om$item, om$class)
+  V   <- attr(ge, "vcov")
+  i   <- which(ge$parameter == "outcome_mean")
+  ref <- diff(om$estimate)^2 / (V[i[1], i[1]] + V[i[2], i[2]] - 2 * V[i[1], i[2]])
+  expect_equal(wald_test(fit, list(lab))$Wald_Chi2, ref, tolerance = 1e-10)
+})

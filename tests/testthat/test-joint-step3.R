@@ -182,8 +182,9 @@ test_that("unsupported combinations are refused", {
                 predictors = s$d$z, slopes = "class_specific",
                 correction = "ML")),
     "pooled")
+  # A categorical outcome has no variance to split.
   expect_error(suppressMessages(
-    add_outcome(fit, s$d$y1, variances = "class_specific")),
+    add_outcome(fit, factor(s$d$y2), variances = "class_specific")),
     "class_specific")
 })
 

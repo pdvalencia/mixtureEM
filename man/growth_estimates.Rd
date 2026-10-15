@@ -15,8 +15,9 @@ or \code{"opg"}. See Details.}
 \value{
 A data frame with one row per parameter and class: \code{parameter}
 (\code{"growth_mean"}, \code{"growth_regression"}, \code{"growth_variance"},
-\code{"growth_covariance"}, \code{"residual_variance"}, \code{"fitted"} or
-\code{"class_logit"}), \code{item}, \code{class}, \code{estimate}, \code{se}, \code{z} and \code{p_value}.
+\code{"growth_covariance"}, \code{"residual_variance"}, \code{"fitted"},
+\code{"class_logit"}, or, for a continuous \code{outcome} fitted in one step,
+\code{"outcome_mean"} and \code{"outcome_variance"}), \code{item}, \code{class}, \code{estimate}, \code{se}, \code{z} and \code{p_value}.
 The covariance matrix of the reported parameters is attached as the
 attribute \code{"vcov"}.
 }

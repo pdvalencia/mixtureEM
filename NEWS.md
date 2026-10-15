@@ -1,5 +1,50 @@
 # mixtureEM (development version)
 
+## A continuous distal outcome's class sizes are estimated in ML step 3
+
+`add_outcome(correction = "ML")` on a continuous outcome now estimates the
+class proportions in step 3 together with the outcome's means and variances,
+as the bias-adjusted three-step estimator defines them (Vermunt, 2010). Until
+now the ML step 3 for a continuous outcome took every class to be the same
+size, which pulls ambiguous cases toward the small classes: with one large
+and two small classes, the class means of a well-separated example were off
+by about 0.1 in every class. Every `correction = "ML"` fit of a continuous
+outcome, with or without `covariates`, therefore moves, as does the one-call
+`fit_mixture(outcome = , n_steps = 3, correction = "ML")`. `"BCH"`, the
+one-step and two-step estimators, and a categorical outcome are unchanged.
+
+The standard errors of a continuous outcome's class means without
+`covariates`, under ML, now come from the step-3 likelihood with the class
+sizes, means and variances estimated together: the sandwich by default, the
+inverse observed information with `se = "hessian"`. The previous ones held
+every case's class weights fixed, which understates them, and the omnibus and
+pairwise tests now use the full covariance of the means rather than treating
+them as independent.
+
+## One shared variance for a continuous distal outcome, by default
+
+A continuous distal outcome without `covariates` now has one variance shared
+by the classes, as it already had with them. `add_outcome(variances = )`
+applies with or without `covariates`, and `fit_mixture()` (so `fit_gmm()`)
+gains `outcome_variances` for the one-step model. Set `"class_specific"` for
+one variance per class, the previous behaviour without covariates. One
+variance is the more stable estimate when a class is small, because it pools
+every case; one per class is the better description when the classes really
+do differ in spread, and the two can be compared by their BIC.
+
+This changes the default fit of every continuous outcome without covariates
+(BCH, ML and one-step): the variances, the number of parameters (K - 1
+fewer), the log-likelihood and information criteria of a one-step fit, the
+ML class means, and the standard errors and tests that depend on the
+variances. BCH class means do not change. `variances = "class_specific"`
+(`outcome_variances = "class_specific"` in one step) restores the previous
+numbers, apart from the ML step-3 change above.
+
+`growth_estimates()` on a one-step `fit_gmm()` with a continuous outcome now
+reports the outcome's class means and variance (`"outcome_mean"`,
+`"outcome_variance"`), so `wald_test()` can test whether the classes differ on
+the outcome, e.g. `list(c("outcome_mean[y, 1]", "outcome_mean[y, 2]"))`.
+
 ## `wald_test()`: Wald tests of linear constraints
 
 The new `wald_test()` tests user-stated linear equality constraints on a

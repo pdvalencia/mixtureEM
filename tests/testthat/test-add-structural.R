@@ -330,3 +330,54 @@ test_that("a categorical outcome under a negative net weight stops at the logit 
           sum(r[, 1] * (y - p1) * z) + sum(r[, 2] * (y - p2) * z))
   expect_lt(max(abs(g)), 1e-3)
 })
+
+test_that("ML step 3 for a continuous outcome estimates the class sizes, under either variance", {
+  # The textbook step 3 (Vermunt, 2010): modal assignment a_i, error matrix
+  # C[k, s] = P(a = s | class k) from the step-1 posteriors, and an EM over the
+  # class sizes, means and variances together.
+  d    <- .sim_step3_data()
+  fit0 <- suppressMessages(suppressWarnings(
+    fit_mixture(d$items, n_classes = 2, measurement = "binary",
+                n_init = 5, random_state = 9)))
+  post <- exp(fit0$log_resp)
+  hand <- function(equal) {
+    K <- ncol(post); a <- max.col(post); y <- d$bmi
+    C <- sweep(t(post) %*% diag(K)[a, ], 1, colSums(post), "/")
+    pk <- rep(1 / K, K); mu <- c(24, 26); v <- rep(var(y), K)
+    for (it in 1:4000) {
+      f  <- sapply(1:K, function(k) pk[k] * C[k, a] * dnorm(y, mu[k], sqrt(v[k])))
+      r  <- f / rowSums(f)
+      pk <- colMeans(r); mu <- colSums(r * y) / colSums(r)
+      ss <- colSums(r * outer(y, mu, "-")^2)
+      v  <- if (equal) rep(sum(ss) / length(y), K) else ss / colSums(r)
+    }
+    list(mu = mu, v = v)
+  }
+  for (v in c("equal", "class_specific")) {
+    fo <- suppressMessages(suppressWarnings(
+      add_outcome(fit0, d$bmi, outcome_type = "continuous", correction = "ML",
+                  assignment = "modal", variances = v)))
+    h  <- hand(v == "equal")
+    expect_equal(fo$sm$parameters$means[, 1], h$mu, tolerance = 1e-5)
+    expect_equal(fo$sm$parameters$covariances[, 1], h$v, tolerance = 1e-4)
+    expect_equal(n_parameters(fo$sm), if (v == "equal") 3L else 4L)
+    # The step-3 covariance is attached, so the omnibus test uses it.
+    expect_equal(dim(fo$sm$parameters$Sigma_mu), c(2L, 2L))
+  }
+})
+
+test_that("a continuous outcome without covariates shares one variance by default", {
+  d    <- .sim_step3_data()
+  fit0 <- suppressMessages(suppressWarnings(
+    fit_mixture(d$items, n_classes = 2, measurement = "binary",
+                n_init = 5, random_state = 9)))
+  fe <- suppressMessages(add_outcome(fit0, d$bmi, correction = "BCH"))
+  fc <- suppressMessages(add_outcome(fit0, d$bmi, correction = "BCH",
+                                     variances = "class_specific"))
+  ve <- fe$sm$parameters$covariances[, 1]
+  expect_equal(ve[1], ve[2])
+  expect_false(isTRUE(all.equal(fc$sm$parameters$covariances[1, 1],
+                                fc$sm$parameters$covariances[2, 1])))
+  # The class means are weighted averages either way.
+  expect_equal(fe$sm$parameters$means, fc$sm$parameters$means, tolerance = 1e-8)
+})
