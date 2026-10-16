@@ -73,7 +73,8 @@ Under \code{correction = "BCH"} there is no classification table: step 3 is
 fitted to the BCH-weighted log-likelihood, and \code{"corrected"} is its
 sandwich clustered on the case plus \eqn{J D_1 J'}, with step 1 reaching
 step 3 through the BCH weights rebuilt from the moved posteriors. The other
-two settings report the Hessian of that weighted fit.
+two settings report the case-clustered sandwich alone: the Hessian of the
+weighted fit counts each case fully in every class and is too narrow.
 
 How much this matters depends almost entirely on how well separated the
 classes are. A 250-replication coverage study on the design of Bakk et al.
@@ -152,10 +153,10 @@ Class predictors fitted together with distal outcomes
 too: the step-1 term is taken over the whole joint parameter vector, so the
 outcome parameters carry it as well. Under modal assignment the derivative
 holds each case's assigned class fixed and moves only the classification
-table built from it. Three cases fall back to the uncorrected Hessian, and
-say so in the printed output: \code{correction = "BCH"} (whose weights need
-their own variance treatment, and which is not recommended for covariates
-in any case; with \code{predictors} it reports the case-clustered sandwich);
+table built from it. \code{correction = "BCH"} (not recommended for
+covariates) reports the case-clustered sandwich of its weighted fit, with
+the step-1 term added under \code{"corrected"}. Two cases fall back to the
+uncorrected Hessian, and say so in the printed output:
 \code{n_steps = 1}, where measurement and structural parameters are
 estimated jointly and no carry-over correction applies; and a two-step fit
 whose structural model is a distal outcome rather than class predictors.

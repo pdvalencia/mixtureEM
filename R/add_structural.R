@@ -457,9 +457,10 @@ add_covariates <- function(fit, predictors,
 #'   uncertainty, and the printed output says so.
 #' @param se Standard-error estimator passed on to the third step:
 #'   `"corrected"` (default), `"robust"`, or `"hessian"`. It governs the
-#'   covariate part of the third step. A continuous distal outcome under
-#'   `correction = "BCH"` always reports a sandwich clustered on the case,
-#'   whatever this is set to, and so does a BCH model with `predictors`: the
+#'   covariate part of the third step. Under `correction = "BCH"` every
+#'   outcome, and a BCH model with `predictors`, reports a sandwich clustered
+#'   on the case whatever this is set to, with `"corrected"` adding step 1's
+#'   uncertainty: the
 #'   expanded data set carries one weighted
 #'   record per class per case, so a case-clustered sandwich is the only
 #'   estimator that prices the information the correction gives up. With

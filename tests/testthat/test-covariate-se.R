@@ -295,22 +295,25 @@ test_that("the estimator used is recorded and reported", {
   expect_match(analytical_wald_test(fit, "z")$Method, "Bakk")
 })
 
-test_that("BCH and one-step fits say they are using the uncorrected Hessian", {
+test_that("BCH reports the case-clustered sandwich; a one-step fit the Hessian", {
   d <- .cse_sim()
   bch_fit <- function(se) suppressWarnings(suppressMessages(fit_mixture(
     d$X, n_classes = 2, measurement = "binary", predictors = d$Z,
     n_steps = 3, correction = "BCH", se = se, n_init = 3, random_state = 1)))
-  bch <- bch_fit("robust")
-  # Under the default, BCH reports the corrected case-clustered sandwich.
+  # Under the default, BCH reports the corrected case-clustered sandwich;
+  # "robust" and "hessian" report the sandwich alone, never the Hessian of the
+  # weighted M-step, which counts each case fully in every class.
   expect_output(summary(bch_fit("corrected")), "Standard errors: Bakk.*BCH")
+  for (se in c("robust", "hessian")) {
+    bch <- bch_fit(se)
+    expect_false(is.null(bch$sm$parameters$V_robust))
+    expect_output(summary(bch), "Standard errors: Case-clustered sandwich")
+  }
   one <- suppressMessages(fit_mixture(
     d$X, n_classes = 2, measurement = "binary", predictors = d$Z,
     n_steps = 1, n_init = 3, random_state = 1))
-
-  for (f in list(bch, one)) {
-    expect_null(f$sm$parameters$V_robust)
-    expect_output(summary(f), "Standard errors: Q-function Hessian")
-  }
+  expect_null(one$sm$parameters$V_robust)
+  expect_output(summary(one), "Standard errors: Q-function Hessian")
 })
 
 test_that("the Hessian-based standard errors invert the free block, never the padded matrix", {

@@ -200,8 +200,9 @@
                                 isTRUE(model_state$has_survey_design))) - Hp
     V      <- B_inv %*% meat %*% B_inv
     method <- if (is.null(Cn))
-      paste("Case-clustered sandwich of the BCH-weighted step-3",
-            "log-likelihood (joint model); step-1 uncertainty not propagated")
+      paste0("Case-clustered sandwich of the BCH-weighted step-3 ",
+             "log-likelihood", if (lone) "" else " (joint model)",
+             "; step-1 uncertainty not propagated")
     else paste("Step-3 sandwich of the joint model; step-1 uncertainty",
                "not propagated")
     if (identical(se, "corrected") && !is.null(X) &&

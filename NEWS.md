@@ -1,5 +1,18 @@
 # mixtureEM (development version)
 
+## BCH class regressions and categorical outcomes report the case-clustered sandwich
+
+Under `correction = "BCH"`, `se = "robust"` and `se = "hessian"` on a class
+regression (`add_covariates()`) or on a categorical outcome fitted without
+`predictors` now report the sandwich clustered on the case, as a BCH model
+with `predictors` and a continuous BCH outcome already did. They used to
+report the Hessian of the weighted M-step, which counts every case fully in
+every class: in simulation those standard errors ran 18-32% below the spread
+of the estimates for covariate coefficients and 8-16% below for an outcome's
+logits. The standard errors grow accordingly; the estimates do not move, and
+neither does the default `se = "corrected"`, which already started from the
+sandwich. The printed estimator line now says "Case-clustered sandwich".
+
 ## A covariate model with the latent prior off is fitted by plain ML throughout
 
 With `bayes_constants = list(latent = 0)`, the class regression of a

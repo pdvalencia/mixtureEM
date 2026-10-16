@@ -89,9 +89,10 @@ uncertainty, and the printed output says so.}
 
 \item{se}{Standard-error estimator passed on to the third step:
 \code{"corrected"} (default), \code{"robust"}, or \code{"hessian"}. It governs the
-covariate part of the third step. A continuous distal outcome under
-\code{correction = "BCH"} always reports a sandwich clustered on the case,
-whatever this is set to, and so does a BCH model with \code{predictors}: the
+covariate part of the third step. Under \code{correction = "BCH"} every
+outcome, and a BCH model with \code{predictors}, reports a sandwich clustered
+on the case whatever this is set to, with \code{"corrected"} adding step 1's
+uncertainty: the
 expanded data set carries one weighted
 record per class per case, so a case-clustered sandwich is the only
 estimator that prices the information the correction gives up. With

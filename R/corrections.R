@@ -239,10 +239,16 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional",
   # estimates did. m_step() now builds it alongside the coefficients, from the
   # same U, W and mask, and there is no second copy to drift.
 
-  # Under `se = "corrected"` a block the joint code can pack takes the joint
-  # BCH variance as its one-block case: the case-clustered sandwich plus step
-  # 1's uncertainty, carried through the rebuilt BCH weights (R/step3_joint.R).
-  if (identical(se, "corrected") && .nested_packable(model_state$sm))
+  # A block the joint code can pack takes the joint BCH variance as its
+  # one-block case: the case-clustered sandwich, plus under `se = "corrected"`
+  # step 1's uncertainty carried through the rebuilt BCH weights
+  # (R/step3_joint.R). A class regression or a categorical outcome takes the
+  # sandwich under every `se`: the Hessian of the weighted M-step counts each
+  # case fully in every class and runs 18-32% narrow. A continuous outcome
+  # keeps the sandwich of its means built above unless `se = "corrected"`.
+  if (.nested_packable(model_state$sm) &&
+      (identical(se, "corrected") ||
+       inherits(model_state$sm, c("covariate", "distal_pooled"))))
     model_state <- .attach_nested_step3_vcov(
       model_state, Y, bch_resp, NULL, weights, se = se,
       strata = model_state$strata, cluster = model_state$cluster,
