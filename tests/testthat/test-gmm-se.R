@@ -150,6 +150,20 @@ test_that("a binary LCGA gets standard errors on the reported scale", {
   expect_equal(ge$estimate[seq_len(nrow(m))], m$estimate)
 })
 
+test_that("a single-class growth model gets standard errors and no class logits", {
+  # In a normal model the mean and covariance blocks of the information are
+  # orthogonal, so with complete data the growth means have the GLS
+  # covariance (L' Sigma^-1 L)^-1 / n at the fitted Sigma.
+  y   <- .gmm_se_data()
+  fit <- fit_gmm(y, times = 4, n_classes = 1, n_init = 1, random_state = 1)
+  ge  <- growth_estimates(fit, se = "hessian")
+  expect_false("class_logit" %in% ge$parameter)
+  L <- cbind(1, 0:3)
+  S <- L %*% fit$growth$psi[[1]] %*% t(L) + diag(fit$growth$residual_variance[1, ])
+  V <- solve(t(L) %*% solve(S) %*% L) / nrow(y)
+  expect_equal(ge$se[ge$parameter == "growth_mean"], sqrt(diag(V)), tolerance = 1e-4)
+})
+
 test_that("growth_estimates() refuses a fit that is not a growth model", {
   expect_error(growth_estimates(list()), "fit_gmm")
 })

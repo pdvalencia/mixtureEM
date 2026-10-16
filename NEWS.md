@@ -245,7 +245,8 @@ part of the change.
 standard error, a z statistic and a p-value: the growth-factor means or
 intercepts, the growth-factor regressions on `growth_predictors`, the
 growth-factor variances and covariances, the residual variances, the fitted
-trajectory and the class-size logits. Three estimators are offered: the
+trajectory and the class-size logits (none for a single-class latent growth
+curve model, `n_classes = 1`). Three estimators are offered: the
 sandwich (`se = "robust"`, the default), the inverse observed information
 (`"hessian"`) and the inverse outer product of the case scores (`"opg"`).
 They are computed from the likelihood of the fitted model and carried to the

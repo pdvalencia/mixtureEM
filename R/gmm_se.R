@@ -162,7 +162,7 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
   tab <- do.call(rbind, lapply(blocks, function(b)
     .growth_rows(b$mat, b$parameter, K)))
   tab <- tab[, c("parameter", "item", "class", "estimate")]
-  if (logits) {
+  if (logits && K > 1L) {
     w <- pmax(st$weights, 1e-300)
     tab <- rbind(tab, data.frame(parameter = "class_logit",
                                  item = sprintf("log(p%d/p%d)", seq_len(K - 1L), K),
