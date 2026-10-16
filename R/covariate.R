@@ -31,7 +31,10 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 # at the column means with weight 0.01, which makes complete separation
 # impossible during optimisation. The Hessian is then recomputed on the original
 # data only so that standard errors are not artificially shrunk by the
-# pseudo-data.
+# pseudo-data. The ghost still moves the estimate, so the mixture M-steps
+# (m_step.covariate() and the LTA covariate M-steps) pass `augment = alpha > 0`
+# and fit plain ML when the prior is off; `augment = TRUE` with `alpha = 0` is
+# left for callers that want the guard.
 #
 # With `alpha > 0` the ghost is replaced by the Dirichlet prior on the class
 # probabilities, written as fractional pseudo-data so this fitter needs no
@@ -185,9 +188,12 @@ m_step.covariate <- function(model_state, X, resp, weights = NULL, ...) {
   # It applies wherever those probabilities are estimated, and a covariate model
   # is where they are estimated as a regression rather than as K-1 free weights;
   # reading it here is what stops the prior from silently lapsing the moment
-  # covariates enter.
+  # covariates enter. With the prior zeroed there is no augmentation at all:
+  # the ghost rows would otherwise enter the likelihood being maximised, so a
+  # `latent = 0` fit would sit a hair off the plain-ML maximum (the LTA
+  # covariate M-steps do the same, R/lta_core.R).
   alpha      <- .bayes_alpha(model_state, "latent")
-  mnl        <- .fit_mnl(X_mat, resp, weights = w_vec, augment = TRUE,
+  mnl        <- .fit_mnl(X_mat, resp, weights = w_vec, augment = alpha > 0,
                          alpha = alpha)
   beta_final <- mnl$beta
   prob       <- mnl$prob

@@ -1,5 +1,17 @@
 # mixtureEM (development version)
 
+## A covariate model with the latent prior off is fitted by plain ML throughout
+
+With `bayes_constants = list(latent = 0)`, the class regression of a
+cross-sectional covariate model no longer adds a small guard observation per
+class at the covariate means, which had entered the likelihood being
+maximised. Every M-step now climbs the plain likelihood, as the latent
+transition model's covariate M-steps already did. Final estimates move by at
+most a few thousandths, and usually not at all, because the default
+convergence finish already ended on the plain maximum. The VLMR test, which
+refits its own models, moves in the second decimal of its reference mean.
+Fits with the default prior are unchanged.
+
 ## A continuous distal outcome's class sizes are estimated in ML step 3
 
 `add_outcome(correction = "ML")` on a continuous outcome now estimates the
