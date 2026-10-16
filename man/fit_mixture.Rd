@@ -74,7 +74,9 @@ choice the package makes.
 \strong{Missing values need no special handling.} Any indicator containing
 \code{NA} is estimated by full-information maximum likelihood under the
 usual missing-at-random assumption, chosen automatically; cases missing on
-every indicator are dropped, with a warning saying how many. There is
+every indicator are dropped, with a warning saying how many, except in a
+one-step fit with an \code{outcome}, where a case that observes the
+outcome is part of the joint likelihood and is kept. There is
 nothing to switch on. (The \code{"*_nan"} spellings are still accepted, and
 force the same estimator, but they are a leftover and you do not need them.)
 

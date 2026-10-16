@@ -367,3 +367,22 @@ test_that("the BLRT generator conditions on the observed covariates", {
   expect_error(generate_synthetic_data(fit$mm, rep(1L, 10L), 10L),
                "one case per original case")
 })
+
+test_that("covariates stay aligned when a one-step distal keeps an outcome-only case", {
+  set.seed(2041)
+  d <- .sim_cond(n = 300)
+  Y <- d$Y
+  Y[c(5, 150), ] <- NA
+  out <- rnorm(300, d$Y[, 4])
+  fit_of <- function(x)
+    suppressWarnings(fit_gmm(Y, times = 4, n_classes = 2, growth_predictors = x,
+                             outcome = out, outcome_type = "continuous",
+                             n_steps = 1, n_init = 3, random_state = 9))
+  fit <- fit_of(d$x)
+  expect_equal(fit$missing_data$n_empty_rows, 0L)
+  expect_equal(nrow(fit$log_resp), 300L)
+  # A case with no occasion has no trajectory for its covariate to shift, so
+  # changing its covariate cannot move the fit -- unless the rows have slipped.
+  x2 <- d$x; x2[c(5, 150)] <- x2[c(5, 150)] + 10
+  expect_equal(fit_of(x2)$metrics$ll, fit$metrics$ll, tolerance = 1e-10)
+})

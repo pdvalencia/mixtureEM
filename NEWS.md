@@ -1,5 +1,21 @@
 # mixtureEM (development version)
 
+## A one-step distal outcome keeps the cases that observe only the outcome
+
+In a one-step fit with an `outcome` (`fit_mixture(outcome = , n_steps = 1)`,
+and so `fit_gmm()`), a case with no observed indicator but an observed
+outcome is now kept. The outcome is part of the joint likelihood, so such a
+case contributes the log of its outcome's mixture density over the classes,
+and dropping it is not neutral: when the indicators go missing for reasons
+related to the outcome (a participant who leaves the study because their
+outcome is high), dropping those cases biases the class means of the outcome.
+In a simulation where about one case in eight lost every indicator, more
+often when the outcome was high, the high class's mean was 0.22 too low with
+those cases dropped and unbiased with them kept. Every one-step distal fit on
+data with such cases moves: its sample size, log-likelihood and estimates.
+A case with neither indicators nor outcome is still dropped, as are such
+cases in a stepwise fit, whose first step has no class to give them.
+
 ## BCH class regressions and categorical outcomes report the case-clustered sandwich
 
 Under `correction = "BCH"`, `se = "robust"` and `se = "hessian"` on a class

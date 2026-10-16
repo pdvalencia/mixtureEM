@@ -56,7 +56,7 @@
 # cases with no observed occasion before building the emission. Deleting the
 # same rows here keeps the two aligned; the deletion is reported there, as it
 # already is for every other model.
-.gmm_growth_covariates <- function(value, expr, X) {
+.gmm_growth_covariates <- function(value, expr, X, retain = NULL) {
   if (is.null(value)) return(NULL)
 
   gx <- prepare_covariates(.as_named_covariates(value, expr, "growth predictor"))
@@ -79,9 +79,20 @@
       .abbreviate_indices(bad)), call. = FALSE)
   }
 
-  drop <- .empty_rows(X)
+  drop <- .empty_rows(X, retain)
   if (length(drop)) gx <- gx[-drop, , drop = FALSE]
   gx
+}
+
+# The cases fit_mixture_internal() keeps for a one-step distal outcome, read
+# from the arguments fit_gmm() passes on, so the covariate rows above stay
+# aligned with them. An outcome named as a column of `data` is looked up there.
+.gmm_distal_retained <- function(dots, X) {
+  outcome <- dots$outcome
+  if (is.character(outcome) && length(outcome) == 1L && !is.null(dots$data))
+    outcome <- dots$data[[outcome]]
+  # fit_mixture() makes an outcome fit three-step unless told otherwise.
+  .distal_retained(outcome, dots$n_steps %||% 3L, nrow(X))
 }
 
 # Growth factor by covariate, one matrix per class, for the fitted object.
@@ -368,7 +379,7 @@ fit_gmm <- function(indicator,
                                        "predictor")
 
   gx <- .gmm_growth_covariates(growth_predictors, growth_predictors_expr,
-                               prep$X)
+                               prep$X, .gmm_distal_retained(list(...), prep$X))
 
   fit <- fit_mixture(
     indicators              = prep$X,

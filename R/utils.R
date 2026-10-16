@@ -47,9 +47,26 @@ logsumexp <- function(x, MARGIN = 1) {
 # mis-parsed delimiter, a merge that did not match) rather than a substantive
 # missing-data pattern, which is why the count is reported separately from
 # item-level missingness rather than folded into the FIML summary.
-.empty_rows <- function(X) {
+#
+# `retain` marks cases kept whatever their indicators: in a one-step fit with a
+# distal outcome the outcome is part of the joint likelihood, so a case that
+# observes it contributes log sum_k pi_k f(y_i | k) and is data, not an
+# artifact (see .distal_retained()).
+.empty_rows <- function(X, retain = NULL) {
   if (is.null(X) || nrow(X) == 0L) return(integer(0))
-  which(rowSums(!is.na(X)) == 0L)
+  rows <- which(rowSums(!is.na(X)) == 0L)
+  if (!is.null(retain)) rows <- rows[!retain[rows]]
+  rows
+}
+
+# Cases a one-step distal fit keeps although they observe no indicator: those
+# whose outcome is observed. NULL when nothing is retained (no outcome, or a
+# stepwise fit, whose step 1 has nothing to assign such a case from).
+.distal_retained <- function(outcome, n_steps, n) {
+  if (is.null(outcome) || !identical(as.integer(n_steps), 1L)) return(NULL)
+  y <- if (is.null(dim(outcome))) outcome else outcome[, 1L]
+  if (length(y) != n) return(NULL)
+  !is.na(y)
 }
 
 # Subset the cases of a row-aligned argument, whatever shape it arrived in.

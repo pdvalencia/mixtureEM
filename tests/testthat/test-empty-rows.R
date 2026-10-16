@@ -135,3 +135,35 @@ test_that("complete data are untouched by the empty-row check", {
   expect_equal(fit$missing_data$n_empty_rows, 0L)
   expect_equal(nrow(fit$data), 200L)
 })
+
+test_that("a one-step distal outcome keeps cases that observe only the outcome", {
+  # In a one-step fit the outcome is part of the joint likelihood, so a case
+  # with no indicator but an observed outcome contributes
+  # log sum_k pi_k f(y | k): it is data, and dropping it biases the class means
+  # whenever the indicators go missing for reasons related to the outcome.
+  set.seed(5)
+  X <- make_lca_data(n = 300)
+  z <- 1 + (rowMeans(X[, 1:3]) > 0.5)
+  y <- rnorm(300, ifelse(z == 1, 0, 2))
+  X[1:4, ] <- NA
+  y[4] <- NA                                   # this one has nothing at all
+
+  fit <- suppressWarnings(
+    fit_mixture(X, n_classes = 2, measurement = "binary", outcome = y,
+                outcome_type = "continuous", n_steps = 1, n_init = 3,
+                random_state = 1))
+  expect_equal(fit$missing_data$empty_rows, 4L)
+  expect_equal(nrow(fit$log_resp), 299L)
+
+  # Their posterior is the class prior updated by the outcome alone.
+  L  <- log_likelihood(fit$sm, fit$Y)[1:3, , drop = FALSE]
+  lp <- sweep(L, 2, log(fit$weights), "+")
+  expect_equal(exp(fit$log_resp[1:3, ]), exp(lp - log(rowSums(exp(lp)))),
+               tolerance = 1e-8, ignore_attr = TRUE)
+
+  # A stepwise fit has no step-1 posterior to give such a case: still removed.
+  s3 <- suppressWarnings(suppressMessages(
+    fit_mixture(X, n_classes = 2, measurement = "binary", outcome = y,
+                outcome_type = "continuous", n_init = 3, random_state = 1)))
+  expect_equal(s3$missing_data$empty_rows, 1:4)
+})

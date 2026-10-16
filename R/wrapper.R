@@ -2104,7 +2104,13 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   # missingness summary, the entropy, and the modal class counts all describe
   # the cases actually analysed. See .empty_rows() for why these cases distort
   # those quantities while contributing nothing to the likelihood.
-  empty_rows <- .empty_rows(X)
+  # Both spellings of a distal engine: the user-facing descriptor
+  # ("categorical_outcome_adjusted", ...) and the legacy class name
+  # ("distal_pooled", ...); build_emission.R maps the one onto the other.
+  distal_engine <- is.character(structural) && length(structural) == 1L &&
+    grepl("^distal|_outcome", structural)
+  empty_rows <- .empty_rows(
+    X, if (distal_engine) .distal_retained(Y, n_steps, nrow(X)))
   n_input_rows <- nrow(X)
 
   if (length(empty_rows) > 0L) {
@@ -2816,7 +2822,9 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   \strong{Missing values need no special handling.} Any indicator containing
 #'   \code{NA} is estimated by full-information maximum likelihood under the
 #'   usual missing-at-random assumption, chosen automatically; cases missing on
-#'   every indicator are dropped, with a warning saying how many. There is
+#'   every indicator are dropped, with a warning saying how many, except in a
+#'   one-step fit with an \code{outcome}, where a case that observes the
+#'   outcome is part of the joint likelihood and is kept. There is
 #'   nothing to switch on. (The \code{"*_nan"} spellings are still accepted, and
 #'   force the same estimator, but they are a leftover and you do not need them.)
 #'
