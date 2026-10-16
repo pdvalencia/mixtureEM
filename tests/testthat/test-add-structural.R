@@ -366,6 +366,34 @@ test_that("ML step 3 for a continuous outcome estimates the class sizes, under e
   }
 })
 
+test_that("ML step 3 for a categorical outcome estimates the class sizes", {
+  # The same textbook step 3 for P(o | k): the class sizes are re-estimated
+  # with the outcome probabilities, not held at the assigned shares. Priors off
+  # so the hand EM is plain ML.
+  d    <- .sim_step3_data()
+  off  <- list(categorical = 0, latent = 0, variances = 0, poisson = 0)
+  fit0 <- suppressMessages(suppressWarnings(
+    fit_mixture(d$items, n_classes = 2, measurement = "binary",
+                n_init = 5, random_state = 9, bayes_constants = off)))
+  post <- exp(fit0$log_resp)
+  K <- ncol(post); a <- max.col(post); o <- as.integer(d$grp == "b")
+  C <- sweep(t(post) %*% diag(K)[a, ], 1, colSums(post), "/")
+  pk <- tabulate(a, K) / length(a); p <- c(.3, .6)
+  for (it in 1:4000) {
+    f  <- sapply(1:K, function(k) pk[k] * C[k, a] * ifelse(o == 1, p[k], 1 - p[k]))
+    r  <- f / rowSums(f)
+    pk <- colMeans(r); p <- colSums(r * o) / colSums(r)
+  }
+  fo <- suppressMessages(suppressWarnings(
+    add_outcome(fit0, d$grp, outcome_type = "categorical", correction = "ML",
+                assignment = "modal")))
+  expect_equal(as.vector(fo$sm$parameters$beta_pooled), stats::qlogis(p),
+               tolerance = 1e-5)
+  expect_equal(colMeans(exp(fo$log_resp)), pk, tolerance = 1e-5)
+  # The held-at-assigned-shares rule is a different answer on these data.
+  expect_gt(max(abs(pk - tabulate(a, K) / length(a))), 1e-3)
+})
+
 test_that("a continuous outcome without covariates shares one variance by default", {
   d    <- .sim_step3_data()
   fit0 <- suppressMessages(suppressWarnings(

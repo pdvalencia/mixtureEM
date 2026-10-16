@@ -347,11 +347,12 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   model_state$sm <- init_params(model_state$sm, Y_clean, A1)
   model_state$sm <- m_step(model_state$sm, Y_clean, A1, weights = w_clean)
 
-  # Weighted class proportions; computed once for discrete models and reused
-  # both in the EM loop and in the variance estimation block below.
-  if (inherits(model_state$sm, c("distal_pooled", "distal_regression"))) {
-    pi_k_clean <- colSums(A1 * w_clean) / sum(w_clean)
-  }
+  # A categorical outcome is likewise a model of P(o | k), not of P(k), so its
+  # class proportions are step 3's own parameters too: they start at the
+  # assigned shares and are re-estimated at every M-step (Vermunt, 2010,
+  # eq. 14), and the variance block below treats them as estimated.
+  cat_out <- inherits(model_state$sm, c("distal_pooled", "distal_regression"))
+  if (cat_out) pi_k_clean <- colSums(A1 * w_clean) / sum(w_clean)
   # A lone continuous outcome is a density f(y | k), not a model of P(k), so
   # step 3 has to carry the class proportions itself; they are re-estimated
   # with the outcome parameters at every M-step (Vermunt, 2010, eq. 14).
@@ -431,6 +432,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
 
     model_state$sm <- m_step(model_state$sm, Y_clean, W, weights = w_clean)
     if (cont_out) pi_step3 <- colSums(W * w_clean) / sum(w_clean)
+    if (cat_out)  pi_k_clean <- colSums(W * w_clean) / sum(w_clean)
   }
 
   # EM stops a lone class regression short of the maximum (gradient ~1e-2); a
@@ -513,115 +515,39 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
         "Q-function Hessian (uncorrected; covariate combined with a distal outcome)"
   }
 
-  # --- distal_pooled (joint parameter vector, one shared Hessian) -------------
-
-  if (inherits(model_state$sm, "distal_pooled")) {
-    theta0          <- as.vector(model_state$sm$parameters$beta_pooled)
-    n_theta         <- length(theta0)
-    eps_nd          <- 1e-4
-    beta_pooled_dim <- dim(model_state$sm$parameters$beta_pooled)
-
-    marg_ll_fn <- function(theta) {
-      sm_tmp <- model_state$sm
-      sm_tmp$parameters$beta_pooled <-
-        matrix(theta, nrow = beta_pooled_dim[1], ncol = beta_pooled_dim[2])
-      po_x <- exp(log_likelihood(sm_tmp, Y_clean))
-      Z_m  <- sweep(po_x, 2, pi_k_clean, "*") %*% C_row_norm
-      sum(w_clean * rowSums(A1 * log(pmax(Z_m, 1e-300))))
-    }
-
-    H_marg <- matrix(0, n_theta, n_theta)
-    for (j in seq_len(n_theta)) {
-      for (k in j:n_theta) {
-        ej <- rep(0, n_theta); ej[j] <- eps_nd
-        ek <- rep(0, n_theta); ek[k] <- eps_nd
-        H_marg[j, k] <- H_marg[k, j] <-
-          (marg_ll_fn(theta0 + ej + ek) - marg_ll_fn(theta0 + ej - ek) -
-             marg_ll_fn(theta0 - ej + ek) + marg_ll_fn(theta0 - ej - ek)) /
-          (4 * eps_nd^2)
-      }
-    }
-
-    score_mat <- matrix(0, nrow(Y_clean), n_theta)
-    for (j in seq_len(n_theta)) {
-      ej   <- rep(0, n_theta); ej[j] <- eps_nd
-      sm_p <- model_state$sm; sm_m <- model_state$sm
-      sm_p$parameters$beta_pooled <-
-        matrix(theta0 + ej, nrow = beta_pooled_dim[1], ncol = beta_pooled_dim[2])
-      sm_m$parameters$beta_pooled <-
-        matrix(theta0 - ej, nrow = beta_pooled_dim[1], ncol = beta_pooled_dim[2])
-      Zp <- sweep(exp(log_likelihood(sm_p, Y_clean)), 2, pi_k_clean, "*") %*% C_row_norm
-      Zm <- sweep(exp(log_likelihood(sm_m, Y_clean)), 2, pi_k_clean, "*") %*% C_row_norm
-      score_mat[, j] <- rowSums(
-        A1 * (log(pmax(Zp, 1e-300)) - log(pmax(Zm, 1e-300)))
-      ) / (2 * eps_nd)
-    }
-
-    meat     <- .score_meat(score_mat, model_state$strata[keep],
-                            model_state$cluster[keep],
-                            isTRUE(model_state$has_survey_design))
-    B_inv    <- pinv(-H_marg)
-    V_robust <- B_inv %*% meat %*% B_inv
-
-    model_state$sm$parameters$hessian <- -pinv(V_robust)
-  }
-
-  # --- distal_regression (class-specific parameters, per-class Hessians) ------
+  # --- distal_pooled / distal_regression (lone categorical outcome) ----------
   #
-  # The marginal LL is block-diagonal in the class-specific parameter blocks
-  # because P(o_i | x=k) depends only on betas[k,,].  Each class k's sandwich
-  # is therefore computed independently from the others.
+  # One sandwich over the joint vector (class-size logits, outcome
+  # parameters): the sizes are estimated in step 3 too, so the outcome
+  # parameters' variance is their block of it. distal_pooled stores that block
+  # as one shared $hessian; distal_regression stores each class's own block in
+  # $hessians[[k]], which is where downstream inference reads from.
 
-  if (inherits(model_state$sm, "distal_regression")) {
-    betas_dim   <- dim(model_state$sm$parameters$betas)   # c(K, M-1, D)
-    K_dr        <- betas_dim[1]
-    n_per_class <- betas_dim[2] * betas_dim[3]             # (M-1) * D
-    eps_nd      <- 1e-4
-
-    for (kk in seq_len(K_dr)) {
-      theta_k <- as.vector(model_state$sm$parameters$betas[kk, , ])
-
-      marg_ll_k <- function(theta) {
-        sm_tmp <- model_state$sm
-        sm_tmp$parameters$betas[kk, , ] <-
-          array(theta, dim = betas_dim[2:3])
-        po_x <- exp(log_likelihood(sm_tmp, Y_clean))
-        Z_m  <- sweep(po_x, 2, pi_k_clean, "*") %*% C_row_norm
-        sum(w_clean * rowSums(A1 * log(pmax(Z_m, 1e-300))))
+  if (cat_out) {
+    meat_fn <- function(S) .score_meat(S, model_state$strata[keep],
+                                       model_state$cluster[keep],
+                                       isTRUE(model_state$has_survey_design))
+    if (inherits(model_state$sm, "distal_pooled")) {
+      bp_dim <- dim(model_state$sm$parameters$beta_pooled)
+      V <- .step3_cat_vcov(
+        model_state$sm, Y_clean, A1, C_row_norm, w_clean, pi_k_clean,
+        as.vector(model_state$sm$parameters$beta_pooled),
+        function(sm, th) {
+          sm$parameters$beta_pooled <- matrix(th, bp_dim[1], bp_dim[2]); sm },
+        meat_fn)
+      model_state$sm$parameters$hessian <- -pinv(V)
+    } else {
+      b_dim <- dim(model_state$sm$parameters$betas)          # c(K, M-1, D)
+      V <- .step3_cat_vcov(
+        model_state$sm, Y_clean, A1, C_row_norm, w_clean, pi_k_clean,
+        as.vector(model_state$sm$parameters$betas),
+        function(sm, th) { sm$parameters$betas <- array(th, b_dim); sm },
+        meat_fn)
+      cls <- slice.index(model_state$sm$parameters$betas, 1L)
+      for (kk in seq_len(b_dim[1])) {
+        ik <- which(cls == kk)
+        model_state$sm$parameters$hessians[[kk]] <- -pinv(V[ik, ik, drop = FALSE])
       }
-
-      H_k <- matrix(0, n_per_class, n_per_class)
-      for (j in seq_len(n_per_class)) {
-        for (l in j:n_per_class) {
-          ej <- rep(0, n_per_class); ej[j] <- eps_nd
-          el <- rep(0, n_per_class); el[l] <- eps_nd
-          H_k[j, l] <- H_k[l, j] <-
-            (marg_ll_k(theta_k + ej + el) - marg_ll_k(theta_k + ej - el) -
-               marg_ll_k(theta_k - ej + el) + marg_ll_k(theta_k - ej - el)) /
-            (4 * eps_nd^2)
-        }
-      }
-
-      score_k <- matrix(0, nrow(Y_clean), n_per_class)
-      for (j in seq_len(n_per_class)) {
-        ej   <- rep(0, n_per_class); ej[j] <- eps_nd
-        sm_p <- model_state$sm; sm_m <- model_state$sm
-        sm_p$parameters$betas[kk, , ] <- array(theta_k + ej, dim = betas_dim[2:3])
-        sm_m$parameters$betas[kk, , ] <- array(theta_k - ej, dim = betas_dim[2:3])
-        Zp <- sweep(exp(log_likelihood(sm_p, Y_clean)), 2, pi_k_clean, "*") %*% C_row_norm
-        Zm <- sweep(exp(log_likelihood(sm_m, Y_clean)), 2, pi_k_clean, "*") %*% C_row_norm
-        score_k[, j] <- rowSums(
-          A1 * (log(pmax(Zp, 1e-300)) - log(pmax(Zm, 1e-300)))
-        ) / (2 * eps_nd)
-      }
-
-      meat_k  <- .score_meat(score_k, model_state$strata[keep],
-                             model_state$cluster[keep],
-                             isTRUE(model_state$has_survey_design))
-      B_inv_k <- pinv(-H_k)
-      V_k     <- B_inv_k %*% meat_k %*% B_inv_k
-
-      model_state$sm$parameters$hessians[[kk]] <- -pinv(V_k)
     }
   }
 
@@ -692,4 +618,45 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   sm$parameters$V_method <- if (identical(se, "hessian"))
     "Observed information (step 3)" else "Sandwich (step 3)"
   sm
+}
+
+# The ML step-3 sandwich of a lone categorical outcome. The per-case
+# log-likelihood is l_i = sum_s a_is log sum_k pi_k P(o_i | k) C[k, s], and
+# the class sizes pi are step 3's parameters as well as the outcome's, so the
+# variance of the outcome parameters is their block of the sandwich over
+# (size logits, outcome parameters); fixing the sizes at their estimate would
+# treat them as known. `put(sm, theta)` writes an outcome vector back onto the
+# structural model. Returns that block.
+.step3_cat_vcov <- function(sm, Y, A1, Cn, w, pk, theta0, put, meat) {
+  K   <- length(pk)
+  pk  <- pmax(pk, 1e-12)
+  par <- c(log(pk[-K] / pk[K]), theta0)
+  ia  <- seq_len(K - 1L)
+  case_ll <- function(th) {
+    a <- c(th[ia], 0)
+    p <- exp(a - max(a)); p <- p / sum(p)
+    Z <- sweep(exp(log_likelihood(put(sm, th[-ia]), Y)), 2, p, "*") %*% Cn
+    rowSums(A1 * log(pmax(Z, 1e-300)))
+  }
+  n_p <- length(par)
+  eps <- 1e-4
+  S <- matrix(0, nrow(Y), n_p)
+  for (j in seq_len(n_p)) {
+    e <- replace(numeric(n_p), j, eps)
+    S[, j] <- (case_ll(par + e) - case_ll(par - e)) / (2 * eps)
+  }
+  tot <- function(th) sum(w * case_ll(th))
+  H <- matrix(0, n_p, n_p)
+  for (j in seq_len(n_p)) {
+    for (k in j:n_p) {
+      ej <- replace(numeric(n_p), j, eps)
+      ek <- replace(numeric(n_p), k, eps)
+      H[j, k] <- H[k, j] <-
+        (tot(par + ej + ek) - tot(par + ej - ek) -
+           tot(par - ej + ek) + tot(par - ej - ek)) / (4 * eps^2)
+    }
+  }
+  B_inv <- pinv(-H)
+  V <- B_inv %*% meat(S) %*% B_inv
+  V[-ia, -ia, drop = FALSE]
 }

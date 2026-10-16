@@ -16,6 +16,18 @@ data with such cases moves: its sample size, log-likelihood and estimates.
 A case with neither indicators nor outcome is still dropped, as are such
 cases in a stepwise fit, whose first step has no class to give them.
 
+## A categorical distal outcome's class sizes are estimated in ML step 3
+
+`add_outcome(correction = "ML")` on a categorical outcome now estimates the
+class proportions in step 3 together with the outcome probabilities, as the
+continuous outcome already did (Vermunt, 2010). The proportions used to be
+held at the shares of the assigned classes. The difference is negligible
+when the classes are well separated and matters when they are not: in a
+simulation with weak separation the small class's outcome probability was
+0.074 too high at n = 400 under the old rule and 0.036 under the new one.
+Every `correction = "ML"` fit of a categorical outcome moves, slightly, and
+its standard errors now count the class proportions as estimated.
+
 ## BCH class regressions and categorical outcomes report the case-clustered sandwich
 
 Under `correction = "BCH"`, `se = "robust"` and `se = "hessian"` on a class
