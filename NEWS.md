@@ -28,6 +28,14 @@ simulation with weak separation the small class's outcome probability was
 Every `correction = "ML"` fit of a categorical outcome moves, slightly, and
 its standard errors now count the class proportions as estimated.
 
+## The profile plot's legend and footnote stay on the device
+
+`plot()` of a fitted model no longer lets a long-labelled legend take more
+than about two fifths of the figure (its text shrinks instead), sizes the
+bottom margin from the measured width of the item names, and wraps the
+pooled-shares footnote of a multiple-group fit to the figure width rather
+than cutting it off.
+
 ## BCH class regressions and categorical outcomes report the case-clustered sandwich
 
 Under `correction = "BCH"`, `se = "robust"` and `se = "hessian"` on a class

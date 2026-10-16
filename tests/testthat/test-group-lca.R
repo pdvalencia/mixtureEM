@@ -588,3 +588,16 @@ test_that("EM climbs the group-spread prior on group blocks", {
     expect_lt(abs(obj(again) - obj(fit)), 1e-5)
   }
 })
+
+test_that("the profile plot keeps a pooled-share note and long labels on the device", {
+  d <- .make_group_data()
+  fit <- fit_mixture(d$X, n_classes = d$K, measurement = "binary",
+                     group = d$grp, group_effects = "prevalence",
+                     n_steps = 1, n_init = 3, random_state = 1)
+  expect_false(is.null(.group_pooled_note(fit)))
+  f <- tempfile(fileext = ".png")
+  grDevices::png(f, width = 5 * 72, height = 4 * 72)
+  on.exit({ grDevices::dev.off(); unlink(f) }, add = TRUE)
+  expect_no_error(plot(fit, class_labels = c("A very long first class label",
+                                             "And an equally long second one")))
+})

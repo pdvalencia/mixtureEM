@@ -328,11 +328,29 @@ plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
   # holds the legend (whose labels are already capped by .class_plot_labels),
   # the bottom margin the 45-degree item names. A fixed margin either clips
   # long labels or wastes space on short ones.
-  mar_right  <- min(3 + 0.45 * max(nchar(labels)), 18)
-  n_footnotes <- as.integer(any(grepl("\\*", colnames(plot_mat)))) +
-    as.integer(!is.null(.group_pooled_note(x)))
-  mar_bottom <- max(6, min(3.5 + 0.4 * max(nchar(colnames(plot_mat))), 12)) +
-    max(0, n_footnotes - 1)
+  # The legend never takes more than about two fifths of the device: past that
+  # it squeezes the panel the plot is for, so its text shrinks instead.
+  mar_need   <- 3 + 0.45 * max(nchar(labels))
+  mar_cap    <- max(8, 0.4 * par("din")[1] / par("csi"))
+  mar_right  <- min(mar_need, mar_cap)
+  legend_cex <- 0.9 * min(1, (mar_right - 1.5) / (mar_need - 1.5))
+  footnotes <- character(0)
+  if (any(grepl("\\*", colnames(plot_mat))))
+    footnotes <- c(footnotes,
+                   "* Continuous items min-max scaled; ordinal items shown as scaled expected category.")
+  footnotes <- c(footnotes, .group_pooled_note(x))
+  # Wrapped to the device width so a long note is not cut off at its edge;
+  # each wrapped line gets its own line of bottom margin. Text is measured on
+  # the open device, not estimated from a character count.
+  wrap_note <- function(s) {
+    w <- strwidth(s, units = "inches", cex = 0.8, font = 3)
+    strwrap(s, width = max(30, floor(0.95 * par("din")[1] * nchar(s) / w)))
+  }
+  footnotes  <- unlist(lapply(footnotes, wrap_note))
+  # The 45-degree item names drop by their width times sin(45 degrees).
+  lab_drop   <- max(strwidth(colnames(plot_mat), units = "inches", cex = 0.9)) *
+    sin(pi / 4) / par("csi")
+  mar_bottom <- max(5, min(2 + lab_drop, 12)) + max(0, length(footnotes) - 1)
   # The first item's rotated label leans left of the axis, so the left margin
   # grows with it too (the y-axis title needs the 4-line floor regardless).
   mar_left   <- max(4, min(2 + 0.25 * nchar(colnames(plot_mat)[1]), 8))
@@ -386,20 +404,18 @@ plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
     lty    = 1,
     lwd    = 2,
     bty    = "n",
-    cex    = 0.9,
+    cex    = legend_cex,
     title  = "Class"
   )
 
-  footnotes <- character(0)
-  if (any(grepl("\\*", colnames(plot_mat))))
-    footnotes <- c(footnotes,
-                   "* Continuous items min-max scaled; ordinal items shown as scaled expected category.")
-  footnotes <- c(footnotes, .group_pooled_note(x))
+  # Lines counted up from the bottom edge so the last one stays on the device,
+  # and started at the device's left edge rather than the panel's.
   for (i in seq_along(footnotes))
     mtext(
       footnotes[i],
-      side = 1, line = mar_bottom - 1.2 + (i - 1), adj = 0, cex = 0.8, font = 3,
-      col = "grey30"
+      side = 1, line = mar_bottom - 1.2 - (length(footnotes) - i),
+      adj = 0, at = graphics::grconvertX(0.02, "ndc", "user"),
+      cex = 0.8, font = 3, col = "grey30"
     )
 
   invisible(x)
