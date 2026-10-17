@@ -633,6 +633,20 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   m  <- K - 1L + seq_len(K)
   sm$parameters$Sigma_mu <- V[m, m, drop = FALSE]
   sm$parameters$ses      <- matrix(sqrt(pmax(diag(V)[m], 0)), ncol = 1)
+  # The whole matrix, carried to (sizes, means, variances) for the effect
+  # sizes in outcome_contrasts(): that layout re-sorts by class block by block.
+  to_pmv <- function(th) {
+    a <- c(th[ia], 0); p <- exp(a - max(a)); p <- p / sum(p)
+    u <- .qn_unpack_sm(sm, th[-ia])$parameters
+    c(p, u$means[, 1L], rep_len(u$covariances[, 1L], K))
+  }
+  J <- vapply(idx, function(j) {
+    a <- par; a[j] <- a[j] + h[j]
+    b <- par; b[j] <- b[j] - h[j]
+    (to_pmv(a) - to_pmv(b)) / (2 * h[j])
+  }, numeric(3L * K))
+  sm$parameters$V_pmv    <- J %*% V %*% t(J)
+  sm$parameters$pk_step3 <- to_pmv(par)[seq_len(K)]
   sm$parameters$V_method <- if (identical(se, "hessian"))
     "Observed information (step 3)" else "Sandwich (step 3)"
   sm

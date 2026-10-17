@@ -228,3 +228,44 @@ test_that("slope contrasts read the class-specific block of the joint covariance
   f0 <- suppressMessages(add_outcome(fit, y))
   expect_error(outcome_contrasts(f0, term = "x"), "has none")
 })
+
+# ------------------------------------------------------------------------------
+# Effect sizes: Cohen's d and LTB-omega
+# ------------------------------------------------------------------------------
+
+test_that("the effect sizes are the hand formulas, with delta-method SEs", {
+  th <- c(0.2, 0.3, 0.5, 1, 2, 4, 1, 2, 3)
+  pr <- .contrast_pairs(3)
+  mu <- th[4:6]; v <- th[7:9]; p <- th[1:3]
+  om <- sqrt(sum(p * (mu - sum(p * mu))^2))
+  expect_equal(unname(.effect_size_values(th, 3, pr)),
+               c((mu[pr$class] - mu[pr$reference]) /
+                   sqrt((v[pr$class] + v[pr$reference]) / 2),
+                 om, om / sqrt(sum(p * v) + om^2)), tolerance = 1e-12)
+  # With only mu_2 uncertain, the SE of d(2 vs 1) is |dd/dmu_2| * sd(mu_2).
+  V <- matrix(0, 9, 9); V[5, 5] <- 0.04
+  es <- .distal_effect_sizes(th, V, 3, pr, 0.95)
+  expect_equal(es$d_se[1], 0.2 / sqrt(1.5), tolerance = 1e-6)
+  expect_equal(es$d_se[2], 0)
+})
+
+test_that("an ML step-3 outcome reports d and omega; BCH says it cannot", {
+  set.seed(7)
+  n <- 400; z <- rbinom(n, 1, 0.5)
+  items <- matrix(rbinom(n * 5, 1, ifelse(z == 1, 0.85, 0.15)), nrow = n)
+  y <- rnorm(n, mean = 10 + 3 * z)
+  fit <- fit_mixture(items, n_classes = 2, measurement = "binary", n_init = 5)
+  fm <- suppressWarnings(suppressMessages(add_outcome(fit, y, correction = "ML")))
+  oc <- outcome_contrasts(fm, effect_size = TRUE)
+  p  <- fm$sm$parameters
+  expect_equal(oc$d, (p$means[2, 1] - p$means[1, 1]) /
+                 sqrt(mean(p$covariances[, 1])), tolerance = 1e-8)
+  expect_true(oc$d_se > 0 && oc$d_lower < oc$d && oc$d < oc$d_upper)
+  om <- attr(oc, "omega")
+  expect_true(om$standardized$estimate > 0.5 && om$standardized$se > 0)
+  expect_equal(sum(p$pk_step3), 1)
+  expect_output(print(oc), "Standardized LTB-omega")
+  expect_null(attr(outcome_contrasts(fm), "omega"))
+  fb <- suppressMessages(add_outcome(fit, y))
+  expect_error(outcome_contrasts(fb, effect_size = TRUE), "not available")
+})

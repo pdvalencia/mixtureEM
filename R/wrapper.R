@@ -139,6 +139,12 @@ sort_model_classes <- function(model_state) {
         sm$parameters$Sigma_mu <-
           sm$parameters$Sigma_mu[new_order, new_order, drop = FALSE]
       }
+      if (!is.null(sm$parameters[["V_pmv"]])) {
+        i3 <- c(new_order, length(new_order) + new_order,
+                2L * length(new_order) + new_order)
+        sm$parameters$V_pmv <- sm$parameters$V_pmv[i3, i3, drop = FALSE]
+        sm$parameters$pk_step3 <- sm$parameters$pk_step3[new_order]
+      }
       if (!is.null(sm$parameters[["cov_theta"]])) {
         # cov_theta is L x L, laid out like beta_pooled: intercepts, pooled
         # slopes, then one K-column block per class-specific ("moderated")

@@ -144,7 +144,47 @@
 #'   slopes (`slopes` in [add_outcome()] naming the covariate), the covariate
 #'   whose slopes to contrast, by its column name. `NULL` (the default)
 #'   contrasts the class intercepts instead. See "Slope contrasts" below.
+#' @param effect_size If `TRUE`, add standardized effect sizes for a
+#'   continuous outcome: Cohen's d for every contrast and the LTB-\eqn{\omega}
+#'   across all classes. Default `FALSE`. See "Effect sizes" below.
 #' @param ... Currently unused.
+#'
+#' @section Effect sizes:
+#' A contrast's p-value says whether two classes can be told apart, not how
+#' far apart they are; with enough cases a trivial gap is significant, and a
+#' large one can miss significance in a small class. `effect_size = TRUE`
+#' reports the size of the differences on a scale that does not depend on the
+#' outcome's units.
+#'
+#' For each pair, Cohen's d is the difference between the two class means
+#' divided by the square root of the average of the two class variances,
+#' \eqn{d_{jk} = (\mu_j - \mu_k) / \sqrt{(\sigma^2_j + \sigma^2_k)/2}}
+#' (Carter, 2026); with a variance shared by the classes it is the gap
+#' measured in within-class standard deviations. The point estimate is the
+#' standardized mean difference of Hedges and Olkin (2014).
+#'
+#' Across all classes, the LTB-\eqn{\omega} of Lanza, Tan and Bray (2013) is
+#' the spread of the class means around their overall mean, each weighted by
+#' its class size: \eqn{\omega = \sqrt{\sum_k \pi_k (\mu_k - \bar\mu)^2}},
+#' \eqn{\bar\mu = \sum_k \pi_k \mu_k}. It is in the outcome's units. The
+#' printed value is standardized by the outcome's total standard deviation,
+#' \eqn{\omega_{std} = \omega / \sqrt{\sum_k \pi_k \sigma^2_k + \omega^2}}, so
+#' that \eqn{\omega_{std}^2} is the share of the outcome's variance that lies
+#' between the classes. Both are in the `omega` attribute of the result
+#' (`$standardized` and `$raw`, each with `estimate`, `se`, `lower` and
+#' `upper`); the raw one is the \eqn{\omega} of Carter's reporting workflow.
+#' The effect size answers a different question from the omnibus test in
+#' [summary()] and does not replace it.
+#'
+#' Standard errors and intervals are by the delta method from the joint
+#' covariance of the class sizes, means and variances, so the uncertainty in
+#' the sizes and the variances is carried along with that of the means. That
+#' covariance is stored by a one-step [fit_gmm()] or [fit_lcga()] outcome
+#' (the robust sandwich of [growth_estimates()]) and by
+#' `add_outcome(correction = "ML")`; for other outcome models, including the
+#' BCH correction, `effect_size = TRUE` is an error. No thresholds such as
+#' "small" or "large" are attached: what size of difference matters depends on
+#' the outcome and the field.
 #'
 #' @section Choosing an adjustment:
 #' The adjustments answer different questions. `"holm"` and `"bonferroni"`
@@ -202,13 +242,26 @@
 #' rate in multiple testing under dependency. \emph{The Annals of Statistics},
 #' \emph{29}(4), 1165–1188. \doi{10.1214/aos/1013699998}
 #'
+#' Carter, D. B. (2026). Distal outcomes in mixture modeling: A guide for
+#' pairwise comparisons, multiplicity control, and effect size reporting.
+#' \emph{Behavior Research Methods}, \emph{58}, 268.
+#' \doi{10.3758/s13428-026-03144-4}
+#'
+#' Hedges, L. V., & Olkin, I. (2014). \emph{Statistical methods for
+#' meta-analysis}. Academic Press.
+#'
+#' Lanza, S. T., Tan, X., & Bray, B. C. (2013). Latent class analysis with
+#' distal outcomes: A flexible model-based approach. \emph{Structural Equation
+#' Modeling}, \emph{20}(1), 1–26. \doi{10.1080/10705511.2013.742377}
+#'
 #' @return A data frame of class `outcome_contrasts`, one row per contrast, with
 #'   columns `category` (the outcome category the contrast is on, `NA` for a
 #'   continuous outcome), `class`, `reference`, `estimate`, `se`, `lower`,
 #'   `upper`, `z` and `p`, plus `p_adj` when `adjust` is not `"none"` and
 #'   `OR`, `OR_lower`, `OR_upper` for a categorical outcome, whose estimates are
-#'   log odds. The `method` attribute names the covariance the standard errors
-#'   came from.
+#'   log odds. With `effect_size = TRUE`, also `d`, `d_se`, `d_lower` and
+#'   `d_upper`, and the `omega` attribute. The `method` attribute names the
+#'   covariance the standard errors came from.
 #'
 #' @seealso [add_outcome()] for fitting the outcome model and [summary()] for
 #'   the omnibus test; [wald_omnibus_test()] and [bootstrap_covariates()] for
@@ -233,8 +286,11 @@
 outcome_contrasts <- function(fit, ref = NULL,
                               adjust = c("none", "BH", "holm", "bonferroni"),
                               level = 0.95, outcome = NULL, term = NULL,
-                              ...) {
+                              effect_size = FALSE, ...) {
   adjust <- match.arg(adjust)
+  if (!is.logical(effect_size) || length(effect_size) != 1L ||
+      is.na(effect_size))
+    stop("`effect_size` must be TRUE or FALSE.", call. = FALSE)
   if (!is.null(term) && (!is.character(term) || length(term) != 1L))
     stop("`term` must be a single covariate name.", call. = FALSE)
   lta <- inherits(fit, "lta_model")
@@ -292,6 +348,20 @@ outcome_contrasts <- function(fit, ref = NULL,
   if (adjust != "none") cols <- c(cols, "p_adj")
   out <- out[, cols, drop = FALSE]
 
+  omega <- NULL
+  if (effect_size) {
+    if (lta || !identical(built$type, "continuous") || !is.null(term))
+      stop("Effect sizes are defined for the class means of a continuous ",
+           "outcome; this contrast is on ",
+           if (!is.null(term)) "a slope." else "another kind of parameter.",
+           call. = FALSE)
+    inp <- .effect_size_inputs(fit, K)
+    es  <- .distal_effect_sizes(inp$theta, inp$V, K, pairs, level)
+    out$d <- es$d; out$d_se <- es$d_se
+    out$d_lower <- es$d_lower; out$d_upper <- es$d_upper
+    omega <- es$omega
+  }
+
   if (identical(built$type, "categorical")) {
     out$OR       <- exp(out$estimate)
     out$OR_lower <- exp(out$lower)
@@ -304,6 +374,7 @@ outcome_contrasts <- function(fit, ref = NULL,
   attr(out, "level")        <- level
   attr(out, "adjust")       <- adjust
   attr(out, "outcome")      <- attr(fit, "distal_label")
+  attr(out, "omega")        <- omega
   class(out) <- c("outcome_contrasts", "data.frame")
   out
 }
@@ -446,6 +517,87 @@ outcome_contrasts <- function(fit, ref = NULL,
                        index = seq_len(K))))
 }
 
+# Effect sizes on a continuous outcome, from theta = (pi_1..pi_K, mu_1..mu_K,
+# V_1..V_K) and its 3K x 3K covariance. That layout, rather than the size
+# logits, is what the fits store, because re-sorting the classes then permutes
+# each block of K and nothing else. A variance shared by the classes appears K
+# times with identical rows, which the delta method below needs no help with.
+#
+# Pairwise d divides by the average of the two class variances; omega is the
+# pi-weighted spread of the class means around their weighted mean, in outcome
+# units, and omega_std is omega over the total outcome SD, so omega_std^2 is the
+# share of the outcome's variance that lies between the classes.
+.effect_size_values <- function(theta, K, pairs) {
+  p  <- theta[seq_len(K)]
+  mu <- theta[K + seq_len(K)]
+  v  <- theta[2L * K + seq_len(K)]
+  a  <- pairs$class; b <- pairs$reference
+  d  <- (mu[a] - mu[b]) / sqrt((v[a] + v[b]) / 2)
+  om <- sqrt(sum(p * (mu - sum(p * mu))^2))
+  c(d, omega = om, omega_std = om / sqrt(sum(p * v) + om^2))
+}
+
+.distal_effect_sizes <- function(theta, V, K, pairs, level) {
+  f   <- function(x) .effect_size_values(x, K, pairs)
+  est <- f(theta)
+  h   <- 1e-6 * pmax(1, abs(theta))
+  G   <- vapply(seq_along(theta), function(j) {
+    a <- theta; a[j] <- a[j] + h[j]
+    b <- theta; b[j] <- b[j] - h[j]
+    (f(a) - f(b)) / (2 * h[j])
+  }, numeric(length(est)))
+  G   <- matrix(G, length(est))
+  se  <- sqrt(pmax(rowSums((G %*% V) * G), 0))
+  crit <- stats::qnorm(1 - (1 - level) / 2)
+  one <- function(i) list(estimate = est[[i]], se = se[i],
+                          lower = est[[i]] - crit * se[i],
+                          upper = est[[i]] + crit * se[i])
+  np  <- nrow(pairs)
+  list(d = est[seq_len(np)], d_se = se[seq_len(np)],
+       d_lower = est[seq_len(np)] - crit * se[seq_len(np)],
+       d_upper = est[seq_len(np)] + crit * se[seq_len(np)],
+       omega = list(standardized = one(np + 2L), raw = one(np + 1L)))
+}
+
+# theta and its covariance for the fits that carry one: a one-step growth
+# model's joint sandwich (growth_estimates(se = "robust")), carried from the
+# size logits to the sizes, or the ML step-3 matrix stored as V_pmv. Anything
+# else stops, saying which fits have it.
+.effect_size_inputs <- function(fit, K) {
+  if (inherits(fit, c("gmm", "lcga")) &&
+      identical(as.integer(fit$n_steps), 1L)) {
+    ge <- growth_estimates(fit, se = "robust")
+    Vg <- attr(ge, "vcov")
+    il <- which(ge$parameter == "class_logit")
+    im <- which(ge$parameter == "outcome_mean")
+    iv <- which(ge$parameter == "outcome_variance")
+    if (!is.null(Vg) && length(il) == K - 1L && length(im) == K &&
+        length(iv) == K) {
+      a  <- c(ge$estimate[il], 0)
+      p  <- exp(a - max(a)); p <- p / sum(p)
+      # d pi / d logit_j = pi * (1[k = j] - pi_j); the class-K logit is fixed.
+      Jp <- (diag(p) - outer(p, p))[, seq_len(K - 1L), drop = FALSE]
+      idx <- c(il, im, iv)
+      J <- matrix(0, 3L * K, length(idx))
+      J[seq_len(K), seq_len(K - 1L)] <- Jp
+      J[K + seq_len(2L * K), K - 1L + seq_len(2L * K)] <- diag(2L * K)
+      return(list(theta = c(p, ge$estimate[im], ge$estimate[iv]),
+                  V = J %*% Vg[idx, idx, drop = FALSE] %*% t(J)))
+    }
+  }
+  cont <- .distal_submodel(fit$sm, "distal_continuous")
+  if (!is.null(cont) && !is.null(cont$parameters$V_pmv)) {
+    p <- cont$parameters
+    return(list(theta = c(p$pk_step3, p$means[, 1L],
+                          rep_len(p$covariances[, 1L], K)),
+                V = p$V_pmv))
+  }
+  stop("Effect sizes need the joint covariance of the class sizes, means and ",
+       "variances of a continuous outcome, which only a one-step fit_gmm() or ",
+       "fit_lcga() outcome and an add_outcome(correction = \"ML\") outcome ",
+       "carry. They are not available for this outcome model.", call. = FALSE)
+}
+
 #' @export
 print.outcome_contrasts <- function(x, ...) {
   cat("Class contrasts on the distal outcome\n")
@@ -453,6 +605,10 @@ print.outcome_contrasts <- function(x, ...) {
   if (!identical(attr(x, "adjust"), "none"))
     cat(sprintf("P-values adjusted across %d contrasts (%s)\n",
                 nrow(x), attr(x, "adjust")))
+  om <- attr(x, "omega")$standardized
+  if (!is.null(om))
+    cat(sprintf("Standardized LTB-omega = %.3f [%.3f, %.3f]\n",
+                om$estimate, om$lower, om$upper))
   cat("\n")
 
   poly <- any(!is.na(x$category))
@@ -471,6 +627,13 @@ print.outcome_contrasts <- function(x, ...) {
     cat(sprintf("  %-13s %9.3f %9.3f  [%7.3f, %7.3f]  %s\n",
                 lab, x$estimate[i], x$se[i], x$lower[i], x$upper[i],
                 .fmt_pval(p_col[i])))
+  }
+  if ("d" %in% names(x)) {
+    cat(sprintf("\n  %-13s %9s %9s  %-18s\n", "Contrast", "d", "SE", lvl))
+    for (i in seq_len(nrow(x)))
+      cat(sprintf("  %-13s %9.3f %9.3f  [%7.3f, %7.3f]\n",
+                  sprintf("%d vs %d", x$class[i], x$reference[i]),
+                  x$d[i], x$d_se[i], x$d_lower[i], x$d_upper[i]))
   }
   invisible(x)
 }

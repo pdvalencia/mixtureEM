@@ -11,6 +11,7 @@ outcome_contrasts(
   level = 0.95,
   outcome = NULL,
   term = NULL,
+  effect_size = FALSE,
   ...
 )
 }
@@ -41,6 +42,10 @@ slopes (\code{slopes} in \code{\link[=add_outcome]{add_outcome()}} naming the co
 whose slopes to contrast, by its column name. \code{NULL} (the default)
 contrasts the class intercepts instead. See "Slope contrasts" below.}
 
+\item{effect_size}{If \code{TRUE}, add standardized effect sizes for a
+continuous outcome: Cohen's d for every contrast and the LTB-\eqn{\omega}
+across all classes. Default \code{FALSE}. See "Effect sizes" below.}
+
 \item{...}{Currently unused.}
 }
 \value{
@@ -49,8 +54,9 @@ columns \code{category} (the outcome category the contrast is on, \code{NA} for 
 continuous outcome), \code{class}, \code{reference}, \code{estimate}, \code{se}, \code{lower},
 \code{upper}, \code{z} and \code{p}, plus \code{p_adj} when \code{adjust} is not \code{"none"} and
 \code{OR}, \code{OR_lower}, \code{OR_upper} for a categorical outcome, whose estimates are
-log odds. The \code{method} attribute names the covariance the standard errors
-came from.
+log odds. With \code{effect_size = TRUE}, also \code{d}, \code{d_se}, \code{d_lower} and
+\code{d_upper}, and the \code{omega} attribute. The \code{method} attribute names the
+covariance the standard errors came from.
 }
 \description{
 Tests which latent classes differ on a distal outcome attached by
@@ -73,6 +79,45 @@ and the naive version is conservative exactly when the correlation is
 positive. The full sandwich covariance the fit already carries is used
 wherever it is available.
 }
+\section{Effect sizes}{
+
+A contrast's p-value says whether two classes can be told apart, not how
+far apart they are; with enough cases a trivial gap is significant, and a
+large one can miss significance in a small class. \code{effect_size = TRUE}
+reports the size of the differences on a scale that does not depend on the
+outcome's units.
+
+For each pair, Cohen's d is the difference between the two class means
+divided by the square root of the average of the two class variances,
+\eqn{d_{jk} = (\mu_j - \mu_k) / \sqrt{(\sigma^2_j + \sigma^2_k)/2}}
+(Carter, 2026); with a variance shared by the classes it is the gap
+measured in within-class standard deviations. The point estimate is the
+standardized mean difference of Hedges and Olkin (2014).
+
+Across all classes, the LTB-\eqn{\omega} of Lanza, Tan and Bray (2013) is
+the spread of the class means around their overall mean, each weighted by
+its class size: \eqn{\omega = \sqrt{\sum_k \pi_k (\mu_k - \bar\mu)^2}},
+\eqn{\bar\mu = \sum_k \pi_k \mu_k}. It is in the outcome's units. The
+printed value is standardized by the outcome's total standard deviation,
+\eqn{\omega_{std} = \omega / \sqrt{\sum_k \pi_k \sigma^2_k + \omega^2}}, so
+that \eqn{\omega_{std}^2} is the share of the outcome's variance that lies
+between the classes. Both are in the \code{omega} attribute of the result
+(\verb{$standardized} and \verb{$raw}, each with \code{estimate}, \code{se}, \code{lower} and
+\code{upper}); the raw one is the \eqn{\omega} of Carter's reporting workflow.
+The effect size answers a different question from the omnibus test in
+\code{\link[=summary]{summary()}} and does not replace it.
+
+Standard errors and intervals are by the delta method from the joint
+covariance of the class sizes, means and variances, so the uncertainty in
+the sizes and the variances is carried along with that of the means. That
+covariance is stored by a one-step \code{\link[=fit_gmm]{fit_gmm()}} or \code{\link[=fit_lcga]{fit_lcga()}} outcome
+(the robust sandwich of \code{\link[=growth_estimates]{growth_estimates()}}) and by
+\code{add_outcome(correction = "ML")}; for other outcome models, including the
+BCH correction, \code{effect_size = TRUE} is an error. No thresholds such as
+"small" or "large" are attached: what size of difference matters depends on
+the outcome and the field.
+}
+
 \section{Choosing an adjustment}{
 
 The adjustments answer different questions. \code{"holm"} and \code{"bonferroni"}
@@ -147,6 +192,18 @@ Royal Statistical Society: Series B}, \emph{57}(1), 289–300.
 Benjamini, Y., & Yekutieli, D. (2001). The control of the false discovery
 rate in multiple testing under dependency. \emph{The Annals of Statistics},
 \emph{29}(4), 1165–1188. \doi{10.1214/aos/1013699998}
+
+Carter, D. B. (2026). Distal outcomes in mixture modeling: A guide for
+pairwise comparisons, multiplicity control, and effect size reporting.
+\emph{Behavior Research Methods}, \emph{58}, 268.
+\doi{10.3758/s13428-026-03144-4}
+
+Hedges, L. V., & Olkin, I. (2014). \emph{Statistical methods for
+meta-analysis}. Academic Press.
+
+Lanza, S. T., Tan, X., & Bray, B. C. (2013). Latent class analysis with
+distal outcomes: A flexible model-based approach. \emph{Structural Equation
+Modeling}, \emph{20}(1), 1–26. \doi{10.1080/10705511.2013.742377}
 }
 \seealso{
 \code{\link[=add_outcome]{add_outcome()}} for fitting the outcome model and \code{\link[=summary]{summary()}} for

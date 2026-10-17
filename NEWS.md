@@ -1,5 +1,18 @@
 # mixtureEM (development version)
 
+## `outcome_contrasts()` reports effect sizes
+
+`effect_size = TRUE` adds Cohen's d for each contrast of a continuous
+outcome, dividing by the average of the two class variances, and prints the
+standardized LTB-ω of Lanza, Tan and Bray (2013) for the classes as a whole;
+the raw ω, in outcome units, is in the `omega` attribute. Each comes with a
+delta-method standard error and interval taken from the joint covariance of
+the class sizes, means and variances. That covariance is available for a
+one-step `fit_gmm()` or `fit_lcga()` outcome and for
+`add_outcome(correction = "ML")`, which now keeps it; other outcome models
+say the effect sizes are not available. The default is `FALSE`, and no
+estimate, standard error or p-value already reported changes.
+
 ## `outcome_contrasts()` offers the Benjamini-Hochberg adjustment
 
 `adjust = "BH"` controls the false discovery rate across the reported
