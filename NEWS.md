@@ -1,5 +1,28 @@
 # mixtureEM (development version)
 
+## Standard errors on the measurement parameters, and error bars on the profile bar chart
+
+`measurement_estimates()` is new. It returns the item probabilities, class
+means and variances, count rates and class-size logits of a
+`fit_mixture()` model, each with a standard error, z statistic and p-value,
+from the same three estimators `growth_estimates()` offers (`"robust"`, the
+default, `"hessian"` and `"opg"`) and in the column layout
+`measurement_summary()` returns. A probability that has run to 0 or 1 is
+flagged in a `boundary` column, with one message naming the count; one
+whose logit has passed ±15 is held fixed, so it no longer leaves the whole
+information matrix singular and every other standard error `NA`.
+
+`plot(fit, type = "bar", error_bars = TRUE)` draws a confidence interval
+(`level`, default 0.95) on each bar of the standardized profile chart: the
+class mean's standard error divided by the bar's own denominator. Off by
+default; the chart is unchanged unless asked.
+
+The standard errors are those of the likelihood at the fitted point: with
+well-separated classes a class mean's reproduces the textbook
+`sd / sqrt(n_k)` and a variance's `var * sqrt(2 / n_k)`,
+and on a correctly specified model the sandwich and observed-information
+estimators agree. No existing estimate, standard error or plot changes.
+
 ## `print()` says when the best solution rests on a single case
 
 The search reported which maximum it found and how many starts reached it,

@@ -11,6 +11,8 @@
   class_labels = NULL,
   colors = NULL,
   scale = c("total", "within"),
+  error_bars = FALSE,
+  level = 0.95,
   ...
 )
 }
@@ -39,6 +41,14 @@ literature and is what makes the figure invariant to pre-standardization.
 classes, giving a Cohen's-d-like reading against residual rather than total
 dispersion. \code{"within"} is arguably the more informative quantity; it is not
 the default because it is not what applied papers plot.}
+
+\item{error_bars}{For \code{type = "bar"} only: draw a confidence interval on
+each bar, from the standard error of the class mean
+(\code{\link[=measurement_estimates]{measurement_estimates()}}, robust estimator) divided by the same
+denominator as the bar. Off by default. The intervals are conditional on
+the number of classes, and treat the z-score's denominator as fixed.}
+
+\item{level}{Confidence level of the error bars. Default \code{0.95}.}
 
 \item{...}{Currently unused; present for S3 compatibility.}
 }

@@ -162,7 +162,14 @@
 #
 # `type` names the renderer that asked, so the two error messages below name the
 # argument the user actually passed rather than always naming the bar chart.
-.profile_bar_heights <- function(x, scale = "total", type = "bar") {
+#
+# `se = TRUE` attaches the standard errors of the heights as attribute "se":
+# each class mean's standard error (measurement_estimates()) divided by the
+# same denominator its height was, which is the denominator held fixed. That
+# is exact for "total", whose denominator is a sample quantity, and a
+# first-order reading for "within", whose denominator is itself estimated.
+.profile_bar_heights <- function(x, scale = "total", type = "bar",
+                                 se = FALSE) {
 
   mm <- x$mm
   if (!(class(mm)[1] %in% c("gaussian_diag", "gaussian_diag_nan",
@@ -193,6 +200,11 @@
 
   w  <- x$sample_weights %||% rep(1, nrow(x$data))
   H  <- means
+  S  <- if (se) {
+    est <- measurement_estimates(x)
+    m   <- est[est$parameter == "mean", , drop = FALSE]
+    matrix(m$se, nrow(means), ncol(means))
+  }
   for (j in seq_len(ncol(means))) {
     obs <- x$data[, matched[j]]
     ok  <- !is.na(obs)
@@ -209,9 +221,11 @@
     if (!is.finite(s_j) || s_j <= 0) s_j <- 1  # a constant column: leave centred
 
     H[, j] <- (means[, j] - m_j) / s_j
+    if (se) S[, j] <- S[, j] / s_j
   }
 
   colnames(H) <- cols
+  if (se) attr(H, "se") <- S
   H
 }
 
@@ -268,6 +282,12 @@
 #'   classes, giving a Cohen's-d-like reading against residual rather than total
 #'   dispersion. `"within"` is arguably the more informative quantity; it is not
 #'   the default because it is not what applied papers plot.
+#' @param error_bars For `type = "bar"` only: draw a confidence interval on
+#'   each bar, from the standard error of the class mean
+#'   ([`measurement_estimates()`], robust estimator) divided by the same
+#'   denominator as the bar. Off by default. The intervals are conditional on
+#'   the number of classes, and treat the z-score's denominator as fixed.
+#' @param level Confidence level of the error bars. Default `0.95`.
 #' @param ... Currently unused; present for S3 compatibility.
 #'
 #' @return The fitted model, invisibly.
@@ -283,16 +303,20 @@
 plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
                                main = NULL,
                                class_labels = NULL, colors = NULL,
-                               scale = c("total", "within"), ...) {
+                               scale = c("total", "within"),
+                               error_bars = FALSE, level = 0.95, ...) {
 
   if (is.null(x$mm)) stop("No measurement model to plot.")
 
   type  <- match.arg(type)
   scale <- match.arg(scale)
+  if (isTRUE(error_bars) && !identical(type, "bar"))
+    stop("`error_bars` are drawn on type = \"bar\" only.", call. = FALSE)
 
   if (identical(type, "bar"))
     return(.plot_profile_bar(x, main = main, class_labels = class_labels,
-                             colors = colors, scale = scale))
+                             colors = colors, scale = scale,
+                             error_bars = isTRUE(error_bars), level = level))
 
   if (identical(type, "line"))
     return(.plot_profile_line(x, main = main, class_labels = class_labels,
@@ -429,9 +453,16 @@ plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
 # negative height downward from zero on its own, so the only things to add are
 # the zero line itself and a symmetric ylim.
 .plot_profile_bar <- function(x, main = NULL, class_labels = NULL,
-                              colors = NULL, scale = "total") {
+                              colors = NULL, scale = "total",
+                              error_bars = FALSE, level = 0.95) {
 
-  H <- .profile_bar_heights(x, scale = scale)
+  H <- .profile_bar_heights(x, scale = scale, se = error_bars)
+  # Whisker ends, NULL without error bars. A mean with no standard error (a
+  # singular information matrix) simply gets no whisker.
+  half <- if (error_bars) stats::qnorm(1 - (1 - level) / 2) * attr(H, "se")
+  lo <- if (error_bars) H - half
+  hi <- if (error_bars) H + half
+  attr(H, "se") <- NULL
 
   n_classes <- nrow(H)
   n_items   <- ncol(H)
@@ -457,13 +488,18 @@ plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
   # it holds and the bottom margin by the item names, which need room only in
   # proportion to their length when they are rotated.
   gp_note <- .group_pooled_note(x)
+  eb_note <- if (error_bars)
+    sprintf(paste("Whiskers: %s%% confidence intervals for the class means,",
+                  "conditional on the number of classes."),
+            format(100 * level))
+  notes <- c(gp_note, eb_note)
   mar_right  <- min(3 + 0.45 * max(nchar(labels)), 18)
   mar_bottom <- (if (rotate)
     max(6, min(3.5 + 0.4 * max(nchar(item_labels)), 12)) else 4) +
-    (if (is.null(gp_note)) 0 else 1)
+    length(notes)
   par(mar = c(mar_bottom, 4.5, 4, mar_right), xpd = TRUE)
 
-  lim  <- max(abs(H), na.rm = TRUE)
+  lim  <- max(abs(c(H, lo, hi)), na.rm = TRUE)
   if (!is.finite(lim) || lim == 0) lim <- 1
   ylim <- c(-1.1 * lim, 1.1 * lim)
 
@@ -476,6 +512,12 @@ plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
   )
 
   abline(h = 0, col = "grey20")
+  if (error_bars) {
+    ok <- is.finite(lo) & is.finite(hi) & hi > lo
+    if (any(ok))
+      graphics::arrows(at[ok], lo[ok], at[ok], hi[ok], angle = 90, code = 3,
+                       length = 0.03, col = "grey20")
+  }
 
   # One label per indicator group, centred under its cluster of bars. The offset
   # is measured from the plotting region barplot actually established, not from
@@ -497,9 +539,10 @@ plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
     border = NA, bty = "n", cex = 0.9, title = "Class"
   )
 
-  if (!is.null(gp_note))
-    mtext(gp_note, side = 1, line = mar_bottom - 1.2, adj = 0, cex = 0.8,
-          font = 3, col = "grey30")
+  # Counted up from the bottom edge, as the profile plot's footnotes are.
+  for (i in seq_along(notes))
+    mtext(notes[i], side = 1, line = mar_bottom - 1.2 - (length(notes) - i),
+          adj = 0, cex = 0.8, font = 3, col = "grey30")
 
   invisible(x)
 }

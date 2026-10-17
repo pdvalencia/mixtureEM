@@ -174,14 +174,20 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
 }
 
 # The three covariance matrices of the reported parameters.
+.gmm_vcov <- function(fit) .reported_vcov(fit, .gmm_reported, "growth model")
+
+# The same three matrices for any fit .qn_mixture_problem() can pack, with
+# `reported(fit, st, logits)` naming the parameters as they are reported and
+# `what` naming the model in the messages.
 #
-# The parameters are the ones the finish works on (.qn_pack_sn(), R/qn_pack.R):
-# Psi as its elements, so a matrix outside the cone is an ordinary point, and
-# Theta as log standard deviations. The scores are central differences of each
-# case's log-likelihood (.qn_fd_scores(), one-sided where the other side has no
-# likelihood), the observed information a central difference of their sum, and
-# the delta method carries all three to the reported scale.
-.gmm_vcov <- function(fit) {
+# The parameters are the ones the finish works on (.qn_pack_sn(), R/qn_pack.R,
+# and its siblings): Psi as its elements, so a matrix outside the cone is an
+# ordinary point, standard deviations and rates as logs, probabilities as
+# logits. The scores are central differences of each case's log-likelihood
+# (.qn_fd_scores(), one-sided where the other side has no likelihood), the
+# observed information a central difference of their sum, and the delta method
+# carries all three to the reported scale.
+.reported_vcov <- function(fit, reported, what, drop_walls = FALSE) {
   one_step <- !is.null(fit$sm) && identical(as.integer(fit$n_steps), 1L)
   st <- fit
   st$frozen <- NULL
@@ -189,7 +195,7 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
   Y  <- if (one_step) fit$Y else NULL
   pr <- .qn_mixture_problem(st, fit$data, Y)
   if (is.null(pr))
-    stop("This growth model has no parameter packing to differentiate.",
+    stop("This ", what, " has no parameter packing to differentiate.",
          call. = FALSE)
   par <- pr$par
   p   <- length(par)
@@ -213,23 +219,31 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
   meat <- crossprod(Sc)
   opg  <- crossprod(sqrt(w) * S)
 
+  # With `drop_walls`, a coordinate past the finish's wall (a probability run
+  # to 0 or 1) is held where it stopped, as a fixed value: the likelihood is
+  # flat along it, so leaving it in makes the whole information singular and
+  # takes every other standard error down with it. It gets a zero row and
+  # column, i.e. no sampling variance.
+  keep <- if (drop_walls) !.qn_wall_hit(par, pr$kind) else rep(TRUE, p)
   inv <- function(M) {
-    e <- eigen(M, symmetric = TRUE)
+    e <- eigen(M[keep, keep, drop = FALSE], symmetric = TRUE)
     if (min(e$values) <= 1e-8 * max(abs(e$values))) return(NULL)
-    e$vectors %*% (t(e$vectors) / e$values)
+    out <- matrix(0, p, p)
+    out[keep, keep] <- e$vectors %*% (t(e$vectors) / e$values)
+    out
   }
   Hi <- inv(info)
   Bi <- inv(opg)
   if (is.null(Hi) || is.null(Bi))
     warning(paste0(
-      "The information matrix of this growth model is singular, so some ",
+      "The information matrix of this ", what, " is singular, so some ",
       "parameter is not identified by the data and its standard error is ",
       "reported as NA. A class with almost no cases, or a variance at the ",
       "edge of what the model allows, is the usual reason."), call. = FALSE)
 
   logits <- !is.null(pr$lay$idx$weights)
-  rep_at <- function(x) .gmm_reported(fit, pr$unpack(x), logits)$estimate
-  tab <- .gmm_reported(fit, pr$unpack(par), logits)
+  rep_at <- function(x) reported(fit, pr$unpack(x), logits)$estimate
+  tab <- reported(fit, pr$unpack(par), logits)
   J <- vapply(idx, function(j) {
     a <- par; a[j] <- a[j] + h[j]
     b <- par; b[j] <- b[j] - h[j]
