@@ -40,6 +40,19 @@
   cbind(Intercept = 1, Z)
 }
 
+# Which of `n` cases miss a value of any covariate in the list `cov_args`
+# (NULL entries skipped). A covariate of a different length is left to
+# .lta_design()'s own row check, so it marks nothing here.
+.lta_covariate_missing <- function(cov_args, n) {
+  miss <- logical(n)
+  for (p in cov_args) {
+    if (is.null(p)) next
+    inc <- !stats::complete.cases(as.data.frame(p))
+    if (length(inc) == n) miss <- miss | inc
+  }
+  miss
+}
+
 # Dummy code a grouping variable, dropping the first level as the reference.
 .lta_group_design <- function(group, n) {
   g <- factor(group)

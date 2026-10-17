@@ -218,12 +218,54 @@ test_that("fit_lta() drops a case missing a covariate from a one-step fit", {
   expect_equal(f$metrics$ll, g$metrics$ll, tolerance = 1e-8)
   expect_equal(nrow(f$data), 295L)
 
-  # "mean" keeps every case, and so, for now, does the two-step estimator.
+  # "mean" keeps every case.
   fm <- suppressWarnings(do.call(fit_lta, c(list(
     s$X, predictors_transition = data.frame(z = z),
     missing_predictors = "mean"), args)))
   expect_equal(nrow(fm$data), 300L)
-  f2 <- suppressWarnings(do.call(fit_lta, c(list(
-    s$X, predictors_transition = data.frame(z = z), n_steps = 2), args)))
-  expect_equal(nrow(f2$data), 300L)
+})
+
+test_that("fit_lta(n_steps = 2 or 3) keeps the case in step 1 and weighs it zero after", {
+  s   <- .lta_cov_refine_sim()
+  z   <- s$Z$z
+  out <- c(3, 17, 40, 41, 99)
+  z[out] <- NA
+  args <- list(s$X, n_statuses = 2, times = 3, measurement = "binary",
+               predictors_initial = data.frame(z = z),
+               predictors_transition = data.frame(z = z), n_init = 3,
+               random_state = 2, max_iter = 200, n_cores = 1)
+  msg <- "5 cases missing a covariate were left out of the transition model \\(n = 295 used\\)"
+  fit <- function(...) suppressWarnings(do.call(fit_lta, c(args, list(...))))
+
+  # Two-step: the measurement model is step 1's on all 300, the structural
+  # step sees 295, and a dropped case keeps its step-1 posterior.
+  expect_message(f2 <- fit(n_steps = 2), msg)
+  f2m <- fit(n_steps = 2, missing_predictors = "mean")
+  expect_equal(nrow(f2$step1$data), 300L)
+  expect_equal(f2$step1$metrics$ll, f2m$step1$metrics$ll, tolerance = 1e-10)
+  expect_equal(sum(f2$weights_vec), 295)
+  expect_true(all(f2$weights_vec[out] == 0))
+  expect_equal(f2$gamma[[2]][out, ], f2$step1$gamma[[2]][out, ])
+  expect_false(isTRUE(all.equal(f2$tau_beta, f2m$tau_beta)))
+
+  # Three-step, each route: the classification error is step 1's on all 300
+  # whatever `missing_predictors` says, and step 3 weighs the 5 at zero.
+  expect_message(f3 <- fit(n_steps = 3, assignment = "modal"), msg)
+  f3m <- fit(n_steps = 3, assignment = "modal", missing_predictors = "mean")
+  expect_equal(f3$threestep$classification_error,
+               f3m$threestep$classification_error, tolerance = 1e-10)
+  expect_equal(sum(f3$weights_vec), 295)
+  expect_equal(f3$gamma[[1]][out, ], f3$step1$gamma[[1]][out, ])
+  expect_false(isTRUE(all.equal(f3$delta_beta, f3m$delta_beta)))
+  expect_true(all(is.finite(diag(f3$se$vcov))))
+  expect_message(fp <- fit(n_steps = 3, assignment = "proportional"), msg)
+  expect_equal(sum(fp$weights_vec), 295)
+  # The BCH path weights take the same zero (this weakly separated fixture
+  # has no interior BCH maximum, so the weights are checked directly).
+  s12 <- list(step1 = f3$step1, modal = f3$threestep$modal,
+              D = f3$threestep$classification_error, keep = !is.na(z))
+  bw  <- .lta_threestep_bch_weights(s12)
+  expect_true(all(bw[out, ] == 0))
+  expect_equal(bw[-out, ], .lta_threestep_bch_weights(
+    within(s12, keep <- NULL))[-out, ])
 })

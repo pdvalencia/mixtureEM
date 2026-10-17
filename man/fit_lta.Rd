@@ -470,8 +470,11 @@ value under the Gaussian marginal of the covariates, which for a single
 covariate is its mean. Deleting the case leaves the regressions unbiased
 when whether a covariate is missing depends on the covariate itself or
 on the status, and completing it with the mean does not (Little, 1992).
-The two- and three-step estimators complete missing covariates for now,
-whatever this is set to.}
+Under \code{n_steps = 2} or \code{3}, \code{"listwise"} keeps the case in step 1, where
+its responses still inform the measurement model and the classification
+error, and gives it weight zero in the step that fits the initial-status
+and transition regressions; it keeps its step-1 posterior. A missing
+\code{predictors_items} value is completed in either case.}
 
 \item{...}{Ignored.}
 }

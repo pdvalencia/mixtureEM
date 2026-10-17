@@ -409,8 +409,11 @@
 #'   covariate is its mean. Deleting the case leaves the regressions unbiased
 #'   when whether a covariate is missing depends on the covariate itself or
 #'   on the status, and completing it with the mean does not (Little, 1992).
-#'   The two- and three-step estimators complete missing covariates for now,
-#'   whatever this is set to.
+#'   Under `n_steps = 2` or `3`, `"listwise"` keeps the case in step 1, where
+#'   its responses still inform the measurement model and the classification
+#'   error, and gives it weight zero in the step that fits the initial-status
+#'   and transition regressions; it keeps its step-1 posterior. A missing
+#'   `predictors_items` value is completed in either case.
 #' @param ... Ignored.
 #'
 #' @return An object of class `"lta_model"` with components including `delta`,
@@ -900,18 +903,15 @@ fit_lta <- function(indicators,
   # --- Cases missing a covariate ----------------------------------------------
   # One-step only, and only under `missing_predictors = "listwise"`: a case
   # missing any covariate the model reads is dropped whole, as it would be from
-  # any regression. The two- and three-step estimators still complete it
-  # (`.lta_design()`), so their step 1 and later steps keep the same cases.
+  # any regression. The two-step keeps the case in step 1 and weighs it zero in
+  # step 2 (below, after step 1 is fitted); the three-step does the same in
+  # step 3 (.lta_threestep()).
   if (n_steps == 1L) {
     n_now    <- nrow(prep$X)
-    cov_args <- list(predictors_initial, predictors_transition,
-                     predictors_items, predictors_random_intercept)
-    miss <- logical(n_now)
-    for (p in cov_args) {
-      if (is.null(p)) next
-      inc <- !stats::complete.cases(as.data.frame(p))
-      if (length(inc) == n_now) miss <- miss | inc
-    }
+    miss <- .lta_covariate_missing(list(predictors_initial,
+                                        predictors_transition,
+                                        predictors_items,
+                                        predictors_random_intercept), n_now)
     cov_keep <- if (any(miss))
       .predictor_keep(matrix(ifelse(miss, NA_real_, 0)), missing_predictors,
                       whole_case = TRUE, noun = "covariate")
@@ -1274,6 +1274,7 @@ fit_lta <- function(indicators,
   # here because the two-step turns `refine` off below for the polish alone:
   # its step 2 is still taken to the maximum over the structural blocks.
   finish_on <- isTRUE(refine)
+  twostep_keep <- NULL
   if (n_steps == 2L) {
     if (is.null(predictors_initial) && is.null(predictors_transition) &&
         is.null(predictors_random_intercept))
@@ -1300,12 +1301,32 @@ fit_lta <- function(indicators,
     assign(".lta_step1_indicators", indicators, envir = env)
     cl$indicators <- quote(.lta_step1_indicators)
     cl$n_steps <- 1L
-    # Step 2 completes its covariates, so step 1 must keep the same cases.
+    # Step 1 keeps every case: a case missing a structural covariate is still
+    # evidence about the items. Only `predictors_items` reaches step 1, and it
+    # is completed there as before.
     cl$missing_predictors <- "mean"
     cl$predictors_initial <- NULL
     cl$predictors_transition <- NULL
     cl$predictors_random_intercept <- NULL
     step1 <- eval(cl, env)
+
+    # A case missing a covariate step 2 reads weighs zero in step 2, so it
+    # shapes the measurement model and nothing else, and keeps its step-1
+    # posterior (below, once the fit is back on the full sample). Its design
+    # row holds .lta_design()'s completed value, which a zero weight never
+    # reads.
+    miss2 <- .lta_covariate_missing(list(predictors_initial,
+                                         predictors_transition,
+                                         predictors_random_intercept), n)
+    twostep_keep <- if (any(miss2))
+      .predictor_keep(matrix(ifelse(miss2, NA_real_, 0)), missing_predictors,
+                      what = "transition model", noun = "covariate")
+    if (!is.null(twostep_keep)) {
+      w <- w * twostep_keep
+      state$weights_vec <- w
+      state$n_eff <- if (identical(weight_type, "frequency")) sum(w) else
+        sum(twostep_keep)
+    }
 
     refine_from    <- step1
     n_init         <- 1L
@@ -1710,6 +1731,13 @@ fit_lta <- function(indicators,
   n_replicated <- .qn_n_replicated(lapply(converged_pool, `[[`, "ll_case"),
                                    best$ll_case, best$weights_vec)
   best <- .lta_expand(best, coll, X, alpha)
+  # A two-step case left out of step 2 keeps the posterior step 1 gave it:
+  # step 2 never read it, and its completed covariate row describes no one.
+  if (!is.null(twostep_keep) && length(best$gamma) == length(step1$gamma)) {
+    out <- !twostep_keep
+    for (t in seq_along(best$gamma))
+      best$gamma[[t]][out, ] <- step1$gamma[[t]][out, ]
+  }
   best$.tau_design_cache <- NULL      # working memory, not part of the fit
   best$n_params <- .lta_n_parameters(best)
   best$data     <- X

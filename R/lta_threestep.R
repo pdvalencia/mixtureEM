@@ -89,7 +89,9 @@
   cl1$indicators <- quote(.lta_step1_indicators)
 
   cl1$n_steps                     <- 1L
-  # Step 3 completes its covariates, so step 1 must keep the same cases.
+  # Step 1 keeps every case; one missing a structural covariate weighs zero in
+  # step 3 instead (.lta_threestep()). Only `predictors_items` reaches step 1,
+  # and it is completed there.
   cl1$missing_predictors          <- "mean"
   cl1$predictors_initial          <- NULL
   cl1$predictors_transition       <- NULL
@@ -285,7 +287,7 @@
 .lta_threestep_reduce <- function(s12, Z = NULL) {
   K  <- s12$step1$n_statuses
   Tn <- s12$step1$n_times
-  w  <- s12$step1$weights_vec
+  w  <- .lta_threestep_case_w(s12)
 
   if (identical(s12$assignment, "modal"))
     return(list(W = s12$modal, weights = w, Z = Z))
@@ -373,22 +375,42 @@
 # The preparation is its own function because the variance below needs the same
 # case-scale design to rebuild the reduced data.
 .lta_threestep_Z <- function(s12, cl, env) {
-  n <- length(s12$step1$weights_vec)
+  n  <- length(s12$step1$weights_vec)
+  md <- s12$step1$missing_data
+
+  # On the caller's rows, cut to step 1's: step 1 drops a case with no
+  # observed indicator at any occasion, as the distal outcome is cut below.
+  raw <- function(nm) {
+    if (is.null(cl[[nm]])) return(NULL)
+    x <- .as_named_covariates(eval(cl[[nm]], env), NULL, nm)
+    if (!is.null(md) && length(md$empty_rows) && NROW(x) == md$n_input_rows)
+      x <- x[-md$empty_rows, , drop = FALSE]
+    x
+  }
+  R_delta <- raw("predictors_initial")
+  R_tau   <- raw("predictors_transition")
 
   # The intercept column .lta_design() prepends is dropped: fit_lta() adds its
   # own back. Position, not name, because a user's covariate may be called
   # anything at all.
-  prepared <- function(nm) {
-    if (is.null(cl[[nm]])) return(NULL)
-    .lta_design(eval(cl[[nm]], env), n, nm)[, -1L, drop = FALSE]
-  }
-  Z_delta <- prepared("predictors_initial")
-  Z_tau   <- prepared("predictors_transition")
+  prepared <- function(x, nm)
+    if (is.null(x)) NULL else .lta_design(x, n, nm)[, -1L, drop = FALSE]
+  Z_delta <- prepared(R_delta, "predictors_initial")
+  Z_tau   <- prepared(R_tau, "predictors_transition")
 
   # One key over both blocks: two cases are the same pattern only if they agree
-  # on everything step 3's structural model reads.
+  # on everything step 3's structural model reads. `missing` marks the cases
+  # whose design row holds a completed value rather than an observed one.
   list(delta = Z_delta, tau = Z_tau,
-       Z = if (is.null(Z_delta) && is.null(Z_tau)) NULL else cbind(Z_delta, Z_tau))
+       Z = if (is.null(Z_delta) && is.null(Z_tau)) NULL else cbind(Z_delta, Z_tau),
+       missing = .lta_covariate_missing(list(R_delta, R_tau), n))
+}
+
+# The step-1 case weights step 3 is fitted with: zero for a case left out of
+# the structural model by `missing_predictors = "listwise"` (`s12$keep`).
+.lta_threestep_case_w <- function(s12) {
+  w <- s12$step1$weights_vec
+  if (is.null(s12$keep)) w else w * s12$keep
 }
 
 .lta_threestep_step3 <- function(s12, cl, env) {
@@ -889,7 +911,7 @@
   K  <- s12$step1$n_statuses
   Tn <- s12$step1$n_times
   grid <- as.matrix(expand.grid(rep(list(seq_len(K)), Tn)))
-  out  <- matrix(s12$step1$weights_vec, nrow(s12$modal), nrow(grid))
+  out  <- matrix(.lta_threestep_case_w(s12), nrow(s12$modal), nrow(grid))
   for (t in seq_len(Tn)) {
     # s12$D[[t]] has rows the assigned status; its transpose is the table the
     # weights invert.
@@ -1033,6 +1055,18 @@
 .lta_threestep <- function(cl, env, correction, assignment) {
   s12 <- .lta_threestep_step12(cl, env, assignment = assignment,
                                correction = correction)
+
+  # A case missing a covariate step 3 reads stays in step 1 and its
+  # classification-error tables, and weighs zero in step 3 under "listwise"
+  # (.lta_threestep_case_w()), which every step-3 route and the corrected
+  # variance read; the step-1 term of that variance keeps every case.
+  mp <- if (is.null(cl$missing_predictors)) "listwise" else
+    match.arg(eval(cl$missing_predictors, env), c("listwise", "mean"))
+  miss <- .lta_threestep_Z(s12, cl, env)$missing
+  s12$keep <- if (any(miss))
+    .predictor_keep(matrix(ifelse(miss, NA_real_, 0)), mp,
+                    what = "transition model", noun = "covariate")
+
   bch_w <- NULL
   if (identical(correction, "BCH")) {
     bch_w <- .lta_threestep_bch_weights(s12)
@@ -1041,6 +1075,15 @@
     fit <- .lta_threestep_step3(s12, cl, env)
     fit <- .lta_threestep_attach_vcov(fit, s12,
                                       .lta_threestep_Z(s12, cl, env)$Z)
+  }
+
+  # Under modal assignment step 3's rows are the cases, and one it left out
+  # keeps its step-1 posterior: step 3 never read it.
+  if (!is.null(s12$keep) && identical(assignment, "modal")) {
+    out <- !s12$keep
+    for (t in seq_along(fit$gamma))
+      if (identical(dim(fit$gamma[[t]]), dim(s12$step1$gamma[[t]])))
+        fit$gamma[[t]][out, ] <- s12$step1$gamma[[t]][out, ]
   }
 
   fit$n_steps   <- 3L

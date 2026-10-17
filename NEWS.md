@@ -1,5 +1,26 @@
 # mixtureEM (development version)
 
+## Two- and three-step transition models leave out cases missing a covariate
+
+`fit_lta(n_steps = 2)` and `n_steps = 3` completed a missing
+`predictors_initial` or `predictors_transition` value with its mean. Under
+the default `missing_predictors = "listwise"` they now keep such a case in
+step 1, where its responses shape the measurement model and the
+classification-error tables, and give it weight zero in the step that fits
+the initial-status and transition regressions, with a message saying how
+many cases that was. The case keeps its step-1 posterior. This covers the
+ML three-step under modal and proportional assignment, its corrected
+standard errors (whose step-1 term still counts every case) and the BCH
+path weights. A missing `predictors_items` value is still completed.
+
+Every two- or three-step transition model fitted to data with a missing
+covariate moves: the number of cases in the structural step, its estimates,
+standard errors and log-likelihood. Step 1 does not change. On one example
+with 230 of 3,061 cases missing the covariate, the structural step now uses
+2,831 cases and the step-3 log-likelihood of the modal three-step moves from
+-7539.026 on 3,061 cases to -6966.407 on 2,831. `missing_predictors = "mean"` restores the
+previous numbers, and fits with complete covariates do not change.
+
 ## Cases missing an outcome covariate are left out too
 
 The listwise rule for class predictors (below) now covers the covariates of
@@ -10,9 +31,8 @@ argument of that name now covers `outcome_covariates` as well. A
 stepwise fit keeps a case missing a covariate in step 1 and in the
 classification-error table and leaves it out of step 3; a one-step fit
 drops it whole, including one kept only for its observed outcome. A missing
-outcome is still not a reason to delete a case. `fit_lta(n_steps = 2)` and
-`n_steps = 3` still complete missing covariates, whatever the argument says,
-and the help page says so.
+outcome is still not a reason to delete a case. The two- and three-step
+`fit_lta()` follow the stepwise rule (next section).
 
 The evidence is a simulation of an outcome regressed on the class and a
 covariate, and of a transition regressed on a covariate, with the covariate
