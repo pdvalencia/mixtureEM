@@ -116,6 +116,23 @@ test_that("a three-step fit names its correction by its literature name", {
   expect_match(text, "class membership on the predictors")
   # The fit indices are the measurement model's, never step 3's.
   expect_match(text, sprintf("%.2f", fit$step1_metrics$ll), fixed = TRUE)
+  # How many cases step 3 moved, read off classification_diagnostics().
+  capture.output(cd <- classification_diagnostics(fit))
+  expect_match(text, sprintf("The modal class of %d case", round(cd$class_shift$n_moved)),
+               fixed = TRUE)
+  expect_no_match(text, "Mahalanobis")   # binary indicators
+})
+
+test_that("a continuous fit reports its smallest class separation", {
+  set.seed(31)
+  z <- sample(1:2, 200, TRUE)
+  X <- outer(c(0, 2)[z], c(1, 1, 1)) + matrix(rnorm(600), 200)
+  fit <- suppressWarnings(fit_mixture(X, n_classes = 2,
+    measurement = "continuous", n_init = 3, random_state = 1))
+  capture.output(cd <- classification_diagnostics(fit))
+  text <- paste(report_methods(fit), collapse = " ")
+  expect_match(text, sprintf("two class means, against the pooled within-class variance, was %.2f",
+                             attr(cd$separation, "min")), fixed = TRUE)
 })
 
 test_that("grolts_report() walks all 21 items, prints no score, and refuses a non-trajectory fit", {

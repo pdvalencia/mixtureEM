@@ -1,5 +1,21 @@
 # mixtureEM (development version)
 
+## How far apart the classes are, and what modal assignment costs
+
+`classification_diagnostics()` prints and returns three new measurements,
+each with no threshold attached. For an all-continuous model, `separation`
+is the Mahalanobis distance between every pair of class means against the
+pooled within-class variance, with the smallest distance as its `"min"`
+attribute: the quantity class-enumeration power depends on (Tein, Coxe &
+Cham, 2013), which entropy does not measure. `profile_shift` gives each
+class's indicator means over its modally assigned cases minus the
+posterior-weighted means, for continuous and binary indicators: what
+exporting a modal class variable does to the profiles. For a fit with a
+structural model attached by the ML three-step, `class_shift` counts and
+cross-tabulates the cases whose modal class differs between the measurement
+model and step 3. `report_methods()` quotes the smallest separation and the
+number of cases moved. No estimate changes.
+
 ## The methods paragraph and the GRoLTS checklist, written from the fit
 
 `report_methods()` is new. Given a fitted model, or a comparison from

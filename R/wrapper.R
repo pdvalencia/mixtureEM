@@ -624,6 +624,44 @@ measurement_summary.default <- function(object,
 #'
 #' Both tables use the case weights when the model was fitted with any.
 #'
+#' Three further blocks print when they apply. None carries a threshold, a
+#' warning or a verdict; each is a measurement to report and judge.
+#'
+#' **Class separation** (all-continuous models only): the Mahalanobis distance
+#' between each pair of class means, against the pooled within-class variance
+#' of each indicator. It is a property of the parameters on the indicators' own
+#' scale, not of how cleanly cases were assigned, which is what entropy
+#' measures; with one indicator it is Cohen's d. The smallest distance is the
+#' one that limits class enumeration: Tein, Coxe and Cham (2013) found
+#' "little power to detect the correct number of classes for small (d = .2) or
+#' even medium (d = .5) inter-class distances, under any conditions or with any
+#' selection methods", and that sample size mattered far less than separation.
+#' Read it in one direction only. When the true classes are poorly separated
+#' the fitted classes are not the true ones, and their distance overstates the
+#' truth: in a simulation of three classes at true neighbouring distance 1
+#' (n = 600) the reported smallest distance averaged 1.6, while at true
+#' distance 3 it averaged 2.9. A small value says the classes are close; a
+#' moderate one does not by itself show they are not. For categorical
+#' indicators no distance is reported, since Cohen's d does not exist there.
+#'
+#' **Modal minus probability-weighted class means** (continuous and binary
+#' indicators; a binary mean is the proportion endorsing): each class's
+#' indicator means computed over the cases modally assigned to it, minus the
+#' same means weighted by the posterior probabilities of the measurement model.
+#' It shows how much exporting a modal class variable and analysing it as if it
+#' were known changes what the classes look like (Chen et al., 2026). The
+#' package's own answer to classification error is to correct for it, with
+#' [`add_covariates()`] and [`add_outcome()`]; this block is for the analysis
+#' that will use the exported variable anyway.
+#'
+#' **Cases moved by the third step** (a structural model attached with
+#' `correction = "ML"`): the modal class under the measurement model's
+#' posterior against the modal class under the step-3 posterior, as a count,
+#' a proportion and a cross-tabulation. The three-step method assumes the
+#' structural model leaves the classes as step 1 defined them (Vermunt,
+#' 2010); many moved cases mean the structural model is redefining the
+#' classes, and the one-step and two-step fits are the comparison to run.
+#'
 #' @param object A fitted \code{mixture_model} object returned by
 #'   \code{\link{fit_mixture}}.
 #' @param n_boot Non-negative integer. Number of case-resampling bootstrap
@@ -650,7 +688,11 @@ measurement_summary.default <- function(object,
 #'   classification, \eqn{[\mathrm{AvePP}_k/(1-\mathrm{AvePP}_k)] /
 #'   [\pi_k/(1-\pi_k)]}: how much better modal assignment does than guessing
 #'   from the class proportion alone. Masyn suggests values above 5 indicate
-#'   good separation. All are also printed to the console.
+#'   good separation. Also `separation`, the K x K distance matrix with its
+#'   smallest off-diagonal value as attribute `"min"`; `profile_shift`, the
+#'   K x indicators matrix of modal minus probability-weighted means; and
+#'   `class_shift`, a list of `table`, `n_moved` and `prop_moved`. Each is
+#'   `NULL` where it does not apply. All are also printed to the console.
 #'
 #' @examples
 #' set.seed(1)
@@ -663,6 +705,10 @@ measurement_summary.default <- function(object,
 #' number of clusters in a mixture model. \emph{Journal of Classification},
 #' \emph{13}(2), 195-212. \doi{10.1007/BF01246098}
 #'
+#' Chen et al. (2026). When is hard class assignment defensible? An
+#' uncertainty-aware framework for psychometric profile analysis.
+#' \emph{Educational and Psychological Measurement}.
+#'
 #' Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
 #' growth mixture models (GMM). In \emph{International Encyclopedia of
 #' Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
@@ -670,6 +716,15 @@ measurement_summary.default <- function(object,
 #'
 #' Nagin, D. S. (2005). \emph{Group-Based Modeling of Development}. Harvard
 #' University Press.
+#'
+#' Tein, J.-Y., Coxe, S., & Cham, H. (2013). Statistical power to detect the
+#' correct number of classes in latent profile analysis. \emph{Structural
+#' Equation Modeling}, \emph{20}(4), 640-657.
+#' \doi{10.1080/10705511.2013.824781}
+#'
+#' Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
+#' three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450-469.
+#' \doi{10.1093/pan/mpq025}
 #'
 #' Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
 #' T. D. Little (Ed.), \emph{The Oxford Handbook of Quantitative Methods}
@@ -720,8 +775,128 @@ classification_diagnostics.default <- function(object, n_boot = 0,
   printed[-1] <- lapply(printed[-1], round, 3)
   print(printed, row.names = FALSE)
 
+  sep <- .class_separation(object)
+  if (!is.null(sep)) {
+    cat("\nClass separation: Mahalanobis distance between class means,",
+        "\nagainst the pooled within-class variance\n")
+    print(round(sep, 3))
+    cat(sprintf("Smallest distance between two classes: %.3f\n",
+                attr(sep, "min")))
+  }
+
+  resp1 <- .step1_resp(object)
+  prof  <- .hard_soft_profile(object, resp1, w, K)
+  if (!is.null(prof)) {
+    cat("\nModal minus probability-weighted class means of the indicators",
+        "\n(how far exporting a modal class variable moves each profile)\n")
+    print(round(prof, 3))
+  }
+
+  shift <- .step3_class_shift(object, resp1, resp, w, K)
+  if (!is.null(shift)) {
+    cat(sprintf(paste0("\nCases whose modal class changed between the ",
+                       "measurement model and step 3: %s (%.1f%%)\n"),
+                format(round(shift$n_moved, 2)), 100 * shift$prop_moved))
+    print(shift$table)
+  }
+
   invisible(list(ave_pp = ave_pp, table = tab, error = attr(tab, "error"),
-                 classes = masyn))
+                 classes = masyn, separation = sep, profile_shift = prof,
+                 class_shift = shift))
+}
+
+# The posteriors of the measurement model alone. A fit whose structural model
+# was attached in a later step (`n_steps` 2 or 3) carries the joint posteriors
+# in $log_resp; one E-step on the frozen measurement model with the structural
+# model removed recovers the step-1 ones exactly, as .check_stepwise_fit() does
+# (R/add_structural.R). A one-step fit has no other posterior to recover.
+.step1_resp <- function(object) {
+  if (is.null(object$sm) || (object$n_steps %||% 1L) < 2L || is.null(object$data))
+    return(exp(object$log_resp))
+  s1 <- object
+  s1$sm <- NULL
+  exp(e_step(s1, s1$data, NULL)$log_resp)
+}
+
+# Pairwise Mahalanobis distance between class means, against the pooled
+# within-class variance sum_k pi_k sigma^2_kj of each indicator (1 under a
+# unit-variance model): the per-indicator Cohen's d of
+# .profile_bar_heights(scale = "within"), combined over indicators. Local
+# independence makes the within-class covariance diagonal, so the distance is
+# sqrt(sum_j d_j^2). Defined only for all-continuous diagonal models; a
+# categorical indicator has no Cohen's d, and no cited analogue is substituted.
+# Computed from the parameters, never from the posteriors.
+.class_separation <- function(object) {
+  mm <- object$mm
+  if (!(class(mm)[1] %in% c("gaussian_diag", "gaussian_diag_nan",
+                            "gaussian_unit", "gaussian_unit_nan")))
+    return(NULL)
+  mu <- mm$parameters$means
+  K  <- nrow(mu)
+  if (K < 2L) return(NULL)
+  s2 <- if (is.null(mm$parameters$covariances)) rep(1, ncol(mu))
+        else colSums(as.vector(object$weights) * mm$parameters$covariances)
+  D <- matrix(0, K, K, dimnames = list(paste("Class", 1:K), paste("Class", 1:K)))
+  for (k in 1:K) for (l in 1:K)
+    D[k, l] <- sqrt(sum((mu[k, ] - mu[l, ])^2 / s2))
+  attr(D, "min") <- min(D[upper.tri(D)])
+  D
+}
+
+# Continuous and binary indicator columns, by name, walking nested and block
+# measurement models. A binary column's mean is its endorsement rate; the
+# mean of a polytomous, ordinal or count code is not a profile, so those are
+# left out.
+.meanable_columns <- function(mm) {
+  if (inherits(mm, c("nested", "blocks")))
+    return(unlist(lapply(mm$models, .meanable_columns)))
+  # Unnamed columns fall back to position, as .match_indicator_columns() allows.
+  pos <- function(m) colnames(m) %||% paste0("V", seq_len(ncol(m)))
+  if (!is.null(mm$parameters$means)) return(pos(mm$parameters$means))
+  if (!is.null(mm$parameters$pis) && is.null(mm$max_val))
+    return(pos(mm$parameters$pis))
+  NULL
+}
+
+# Class means of the indicators computed twice from the measurement model's
+# posteriors: over the cases modally assigned to the class, and weighted by
+# the posterior. The difference is what exporting a modal class variable does
+# to each profile. NULL when no continuous or binary indicator can be matched
+# to the stored data.
+.hard_soft_profile <- function(object, resp, w, K) {
+  if (K < 2L || is.null(object$data)) return(NULL)
+  cols <- .meanable_columns(object$mm)
+  idx  <- .match_indicator_columns(cols, object$data)
+  if (is.null(idx)) return(NULL)
+  hard <- get_modal_resp(resp)
+  out  <- matrix(NA_real_, K, length(idx),
+                 dimnames = list(paste("Class", 1:K), cols))
+  for (j in seq_along(idx)) {
+    x  <- object$data[, idx[j]]
+    ok <- !is.na(x)
+    mh <- colSums(hard[ok, , drop = FALSE] * w[ok] * x[ok]) /
+          colSums(hard[ok, , drop = FALSE] * w[ok])
+    ms <- colSums(resp[ok, , drop = FALSE] * w[ok] * x[ok]) /
+          colSums(resp[ok, , drop = FALSE] * w[ok])
+    out[, j] <- mh - ms
+  }
+  out
+}
+
+# How many cases the ML third step moved: the modal class under the
+# measurement model's posterior against the modal class under step 3's.
+# Only the ML correction writes a step-3 posterior back onto the fit.
+.step3_class_shift <- function(object, resp1, resp3, w, K) {
+  if (is.null(object$sm) || !identical(as.integer(object$n_steps %||% 1L), 3L) ||
+      !identical(object$correction, "ML"))
+    return(NULL)
+  m1 <- factor(max.col(resp1, ties.method = "first"), levels = 1:K)
+  m3 <- factor(max.col(resp3, ties.method = "first"), levels = 1:K)
+  tab <- stats::xtabs(w ~ m1 + m3)
+  dimnames(tab) <- list("Step 1" = paste("Class", 1:K),
+                        "Step 3" = paste("Class", 1:K))
+  n_moved <- sum(w[m1 != m3])
+  list(table = tab, n_moved = n_moved, prop_moved = n_moved / sum(w))
 }
 
 # Masyn's (2013) per-class classification table. `Proportion` is the model's

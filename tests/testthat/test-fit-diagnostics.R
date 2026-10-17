@@ -502,7 +502,8 @@ test_that("the diagnostics print without error", {
   expect_output(print(bivariate_residuals(fit)), "Largest")
   expect_output(print(classification_table(fit)), "Classification error")
   expect_output(cd <- classification_diagnostics(fit), "AvePP")
-  expect_named(cd, c("ave_pp", "table", "error", "classes"))
+  expect_named(cd, c("ave_pp", "table", "error", "classes", "separation",
+                     "profile_shift", "class_shift"))
 
   # The heat table, including a residual past the scale's saturation point:
   # clamping, not zlim, is what has to keep that cell drawn.
@@ -781,3 +782,58 @@ test_that("classification_diagnostics() carries Masyn's per-class table", {
   expect_true(all(ci$Lower <= ci$Proportion & ci$Proportion <= ci$Upper))
   expect_true(all(ci$Upper - ci$Lower < 0.2))
 })
+
+# ------------------------------------------------------------------------------
+# Class separation, modal-vs-weighted profiles, and the step-3 class shift
+# ------------------------------------------------------------------------------
+
+test_that("class separation is the Mahalanobis distance on the pooled within-class variance", {
+  set.seed(31)
+  z <- sample(1:3, 300, TRUE)
+  X <- outer(c(0, 1.5, 3)[z], c(1, 1, 0.5)) + matrix(rnorm(900), 300)
+  colnames(X) <- c("a", "b", "c")
+  fit <- suppressWarnings(fit_mixture(X, n_classes = 3,
+    measurement = "continuous", n_init = 5, random_state = 1))
+  capture.output(cd <- classification_diagnostics(fit))
+  mu <- fit$mm$parameters$means
+  s2 <- colSums(as.vector(fit$weights) * fit$mm$parameters$covariances)
+  expect_equal(cd$separation[1, 3], sqrt(sum((mu[1, ] - mu[3, ])^2 / s2)))
+  expect_equal(attr(cd$separation, "min"),
+               min(cd$separation[upper.tri(cd$separation)]))
+  expect_equal(unname(diag(cd$separation)), rep(0, 3))
+
+  # Modal minus posterior-weighted means of the raw data, by hand.
+  r <- exp(fit$log_resp)
+  h <- mixtureEM:::get_modal_resp(r)
+  by_hand <- crossprod(h, X) / colSums(h) - crossprod(r, X) / colSums(r)
+  expect_equal(unname(cd$profile_shift), unname(by_hand))
+  expect_null(cd$class_shift)          # no structural model attached
+})
+
+test_that("a categorical fit gets no separation; an ML three-step fit reports the cases it moved", {
+  set.seed(2)
+  z <- rbinom(200, 1, 0.5)
+  X <- matrix(rbinom(200 * 5, 1, rep(ifelse(z == 1, 0.8, 0.2), 5)), ncol = 5)
+  x <- matrix(rnorm(200) + 2 * z, ncol = 1)
+  fit <- suppressWarnings(fit_mixture(X, n_classes = 2, measurement = "binary",
+    predictors = x, n_steps = 3, correction = "ML", n_init = 3,
+    random_state = 1))
+  capture.output(cd <- classification_diagnostics(fit))
+  expect_null(cd$separation)
+  expect_equal(dim(cd$profile_shift), c(2L, 5L))
+
+  # The step-1 modal class, from the measurement model alone, against step 3.
+  s1 <- fit; s1$sm <- NULL
+  m1 <- max.col(mixtureEM:::e_step(s1, s1$data, NULL)$log_resp, "first")
+  m3 <- max.col(fit$log_resp, "first")
+  expect_equal(cd$class_shift$n_moved, sum(m1 != m3))
+  expect_equal(sum(cd$class_shift$table), 200)
+  expect_equal(sum(diag(cd$class_shift$table)), 200 - sum(m1 != m3))
+
+  bch <- suppressWarnings(fit_mixture(X, n_classes = 2, measurement = "binary",
+    predictors = x, n_steps = 3, correction = "BCH", n_init = 3,
+    random_state = 1))
+  capture.output(cd2 <- classification_diagnostics(bch))
+  expect_null(cd2$class_shift)
+})
+

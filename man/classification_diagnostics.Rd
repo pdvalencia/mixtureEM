@@ -48,7 +48,11 @@ proportion), \code{Lower} and \code{Upper} (its bootstrap interval, when \code{n
 classification, \eqn{[\mathrm{AvePP}_k/(1-\mathrm{AvePP}_k)] /
   [\pi_k/(1-\pi_k)]}: how much better modal assignment does than guessing
 from the class proportion alone. Masyn suggests values above 5 indicate
-good separation. All are also printed to the console.
+good separation. Also \code{separation}, the K x K distance matrix with its
+smallest off-diagonal value as attribute \code{"min"}; \code{profile_shift}, the
+K x indicators matrix of modal minus probability-weighted means; and
+\code{class_shift}, a list of \code{table}, \code{n_moved} and \code{prop_moved}. Each is
+\code{NULL} where it does not apply. All are also printed to the console.
 }
 \description{
 Prints the two tables that describe how cleanly the model assigns cases.
@@ -77,6 +81,44 @@ carried as the \code{Entropy} column of \code{\link[=compare_mixtures]{compare_m
 \code{\link[=compare_longitudinal]{compare_longitudinal()}}, where it is documented.
 
 Both tables use the case weights when the model was fitted with any.
+
+Three further blocks print when they apply. None carries a threshold, a
+warning or a verdict; each is a measurement to report and judge.
+
+\strong{Class separation} (all-continuous models only): the Mahalanobis distance
+between each pair of class means, against the pooled within-class variance
+of each indicator. It is a property of the parameters on the indicators' own
+scale, not of how cleanly cases were assigned, which is what entropy
+measures; with one indicator it is Cohen's d. The smallest distance is the
+one that limits class enumeration: Tein, Coxe and Cham (2013) found
+"little power to detect the correct number of classes for small (d = .2) or
+even medium (d = .5) inter-class distances, under any conditions or with any
+selection methods", and that sample size mattered far less than separation.
+Read it in one direction only. When the true classes are poorly separated
+the fitted classes are not the true ones, and their distance overstates the
+truth: in a simulation of three classes at true neighbouring distance 1
+(n = 600) the reported smallest distance averaged 1.6, while at true
+distance 3 it averaged 2.9. A small value says the classes are close; a
+moderate one does not by itself show they are not. For categorical
+indicators no distance is reported, since Cohen's d does not exist there.
+
+\strong{Modal minus probability-weighted class means} (continuous and binary
+indicators; a binary mean is the proportion endorsing): each class's
+indicator means computed over the cases modally assigned to it, minus the
+same means weighted by the posterior probabilities of the measurement model.
+It shows how much exporting a modal class variable and analysing it as if it
+were known changes what the classes look like (Chen et al., 2026). The
+package's own answer to classification error is to correct for it, with
+\code{\link[=add_covariates]{add_covariates()}} and \code{\link[=add_outcome]{add_outcome()}}; this block is for the analysis
+that will use the exported variable anyway.
+
+\strong{Cases moved by the third step} (a structural model attached with
+\code{correction = "ML"}): the modal class under the measurement model's
+posterior against the modal class under the step-3 posterior, as a count,
+a proportion and a cross-tabulation. The three-step method assumes the
+structural model leaves the classes as step 1 defined them (Vermunt,
+2010); many moved cases mean the structural model is redefining the
+classes, and the one-step and two-step fits are the comparison to run.
 }
 \examples{
 set.seed(1)
@@ -90,6 +132,10 @@ Celeux, G., & Soromenho, G. (1996). An entropy criterion for assessing the
 number of clusters in a mixture model. \emph{Journal of Classification},
 \emph{13}(2), 195-212. \doi{10.1007/BF01246098}
 
+Chen et al. (2026). When is hard class assignment defensible? An
+uncertainty-aware framework for psychometric profile analysis.
+\emph{Educational and Psychological Measurement}.
+
 Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
 growth mixture models (GMM). In \emph{International Encyclopedia of
 Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
@@ -97,6 +143,15 @@ Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
 
 Nagin, D. S. (2005). \emph{Group-Based Modeling of Development}. Harvard
 University Press.
+
+Tein, J.-Y., Coxe, S., & Cham, H. (2013). Statistical power to detect the
+correct number of classes in latent profile analysis. \emph{Structural
+Equation Modeling}, \emph{20}(4), 640-657.
+\doi{10.1080/10705511.2013.824781}
+
+Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
+three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450-469.
+\doi{10.1093/pan/mpq025}
 
 Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
 T. D. Little (Ed.), \emph{The Oxford Handbook of Quantitative Methods}

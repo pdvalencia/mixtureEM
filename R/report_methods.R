@@ -7,8 +7,7 @@
 # in the fitting code instead, where print() and summary() can show it too.
 #
 # Items still to come add their facts to .report_facts() and their sentence to
-# the paragraph builders below: the class-separation summary and the step-3
-# class shift (roadmap B1) and predict()/simulate() (B3).
+# the paragraph builders below: predict()/simulate() (roadmap B3).
 
 # The references the paragraphs may cite, keyed so that each paragraph names the
 # ones it uses and the report prints only those, once, at the end.
@@ -24,6 +23,11 @@
   chen2008 = paste0(
     "Chen, J., Tan, X., & Zhang, R. (2008). Inference for normal mixtures in ",
     "mean and variance. Statistica Sinica, 18(2), 443-465."),
+  tein2013 = paste0(
+    "Tein, J.-Y., Coxe, S., & Cham, H. (2013). Statistical power to detect ",
+    "the correct number of classes in latent profile analysis. Structural ",
+    "Equation Modeling, 20(4), 640-657. ",
+    "https://doi.org/10.1080/10705511.2013.824781"),
   masyn2013 = paste0(
     "Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. ",
     "In T. D. Little (Ed.), The Oxford Handbook of Quantitative Methods ",
@@ -122,10 +126,12 @@
 
   shares <- if (lta) unname(x$prevalences[1L, ]) else unname(x$weights)
   n_eff  <- x$n_eff
-  ave_pp <- NULL
+  ave_pp <- separation <- shift <- NULL
   if (!lta && !is.null(x$log_resp) && length(shares) > 1L) {
     utils::capture.output(cd <- classification_diagnostics(x))
-    ave_pp <- diag(cd$ave_pp)
+    ave_pp     <- diag(cd$ave_pp)
+    separation <- attr(cd$separation, "min")
+    shift      <- cd$class_shift
   }
 
   bc     <- x$bayes_constants %||% list()
@@ -178,6 +184,8 @@
     shares      = shares,
     n_class     = shares * n_eff,
     ave_pp      = ave_pp,
+    separation  = separation,
+    shift       = shift,
     growth      = x$growth,
     lta         = if (lta) list(
                     invariance = x$longitudinal$time_invariance,
@@ -191,6 +199,16 @@
     call        = call,
     from_comparison = !is.null(comparison)
   )
+}
+
+# How many cases the ML third step moved, as one sentence appended to the
+# structural paragraph; empty when the fit carries no step-3 posterior.
+.shift_sentence <- function(sh) {
+  if (is.null(sh)) return("")
+  sprintf(paste0(" The modal class of %s %s (%s) changed between the ",
+                 "measurement model and the third step."),
+          .fmt(sh$n_moved, 0), .plural(round(sh$n_moved), "case", "cases"),
+          .pct(sh$prop_moved))
 }
 
 # The model's name in the literature's words.
@@ -343,7 +361,18 @@
   s <- paste0(s, " These describe how cleanly cases are classified; they are ",
               "not criteria for the number of ", paste0(f$unit, "es"),
               " (Masyn, 2013).")
-  list(text = s, refs = "masyn2013")
+  refs <- "masyn2013"
+  if (!is.null(f$separation)) {
+    s <- paste0(s, sprintf(paste0(" The smallest Mahalanobis distance between ",
+                                  "two class means, against the pooled ",
+                                  "within-class variance, was %s; class ",
+                                  "separation, more than sample size, governs ",
+                                  "the power to detect the number of classes ",
+                                  "(Tein, Coxe, & Cham, 2013)."),
+                           .fmt(f$separation, 2)))
+    refs <- c(refs, "tein2013")
+  }
+  list(text = s, refs = refs)
 }
 
 .para_structural <- function(f) {
@@ -372,7 +401,8 @@
       "The model relating %s was estimated by the bias-adjusted three-step ",
       "method with the maximum-likelihood correction (Vermunt, 2010), using ",
       "%s assignment, with standard errors that account for the first ",
-      "step (Bakk, Oberski, & Vermunt, 2014)."), what, f$assignment),
+      "step (Bakk, Oberski, & Vermunt, 2014).%s"), what, f$assignment,
+      .shift_sentence(f$shift)),
       refs = c("vermunt2010", "bakk2014")))
   list(text = sprintf(paste0(
     "The model relating %s was estimated in three steps without a correction ",
