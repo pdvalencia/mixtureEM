@@ -79,3 +79,23 @@ test_that("the bar heights carry their standard errors on the bar scale", {
   expect_invisible(plot(fit, type = "bar", error_bars = TRUE))
   expect_error(plot(fit, type = "line", error_bars = TRUE), "bar")
 })
+
+test_that("the prior's curvature counts at default priors and vanishes without one", {
+  set.seed(5)
+  X <- rbind(matrix(rnorm(120, 0, 1), 40), matrix(rnorm(120, 1.5, 0.6), 40))
+  plain <- function(fit) {
+    v <- .reported_vcov(fit, .measurement_reported, "measurement model",
+                        drop_walls = TRUE, prior = FALSE)
+    sqrt(diag(v$hessian))
+  }
+  on  <- fit_mixture(X, n_classes = 2, measurement = "continuous",
+                     variances_equal = FALSE, n_init = 3, random_state = 1,
+                     n_cores = 1)
+  off <- fit_mixture(X, n_classes = 2, measurement = "continuous",
+                     variances_equal = FALSE, bayes_constants = .me_zero,
+                     n_init = 3, random_state = 1, n_cores = 1)
+  s_on <- measurement_estimates(on, "hessian")$se
+  expect_gt(max(abs(s_on / plain(on) - 1)), 1e-3)
+  expect_equal(measurement_estimates(off, "hessian")$se, plain(off),
+               tolerance = 1e-10)
+})

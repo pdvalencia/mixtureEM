@@ -17,11 +17,19 @@ information matrix singular and every other standard error `NA`.
 class mean's standard error divided by the bar's own denominator. Off by
 default; the chart is unchanged unless asked.
 
-The standard errors are those of the likelihood at the fitted point: with
-well-separated classes a class mean's reproduces the textbook
-`sd / sqrt(n_k)` and a variance's `var * sqrt(2 / n_k)`,
-and on a correctly specified model the sandwich and observed-information
-estimators agree. No existing estimate, standard error or plot changes.
+The estimates maximise the likelihood plus the default prior
+(`bayes_constants`), so the standard errors are that penalised objective's,
+the rule the class regression and `fit_lta()` already follow: the prior's
+curvature enters the information, and the sandwich's middle term as well,
+taken there on each parameter's natural scale (logits, log rates, precision
+for a variance), so that the sandwich reduces to the observed-information
+estimator when the model holds. With `bayes_constants = 0` they are the
+textbook likelihood standard errors: with well-separated classes a class
+mean's reproduces `sd / sqrt(n_k)` and a variance's `var * sqrt(2 / n_k)`.
+At the default prior the difference from the likelihood-only standard
+errors is small, about 0.3% on simulated binary items at n = 200 and up to
+2% on class-specific variances. No existing estimate, standard error or
+plot changes.
 
 ## `print()` says when the best solution rests on a single case
 

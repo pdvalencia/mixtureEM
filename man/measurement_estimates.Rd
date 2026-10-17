@@ -50,10 +50,18 @@ Sample \code{weights} and a \code{cluster} variable are honoured as in
 
 A parameter held equal across classes -- a variance under
 \code{variances_equal = TRUE} -- is repeated once per class, with the same
-standard error, as in \code{\link[=measurement_summary]{measurement_summary()}}. The prior that keeps
-estimates off the edge of the parameter space (\code{bayes_constants} in
-\code{\link[=fit_mixture]{fit_mixture()}}) is not part of the variance: these are the standard
-errors of the likelihood. With covariates on class membership fitted in one
+standard error, as in \code{\link[=measurement_summary]{measurement_summary()}}.
+
+The estimates maximise the log-likelihood plus the prior that keeps them
+off the edge of the parameter space (\code{bayes_constants} in
+\code{\link[=fit_mixture]{fit_mixture()}}), so the information is that sum's: the prior's
+curvature is added to \eqn{H}, and to \eqn{B} as well, so that \code{"robust"}
+reduces to \code{"hessian"} when the model holds. In \eqn{B} the prior's
+curvature is taken on each parameter's natural scale (logits, log rates,
+and for a variance the precision \eqn{1/\sigma^2}, on which the variance
+prior's curvature does not depend on the data). With
+\code{bayes_constants = 0} these are the textbook likelihood estimators. With
+covariates on class membership fitted in one
 step, the class probabilities belong to the covariate model and no
 class-size logits are reported (see \code{\link[=coef]{coef()}}); under \code{n_steps = 3} the
 standard errors are those of the step-1 model, which is where the

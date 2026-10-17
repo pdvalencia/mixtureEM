@@ -187,7 +187,8 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
 # (.qn_fd_scores(), one-sided where the other side has no likelihood), the
 # observed information a central difference of their sum, and the delta method
 # carries all three to the reported scale.
-.reported_vcov <- function(fit, reported, what, drop_walls = FALSE) {
+.reported_vcov <- function(fit, reported, what, drop_walls = FALSE,
+                           prior = FALSE) {
   one_step <- !is.null(fit$sm) && identical(as.integer(fit$n_steps), 1L)
   st <- fit
   st$frozen <- NULL
@@ -218,6 +219,31 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
   Sc   <- rowsum(w * S, cl, reorder = FALSE)
   meat <- crossprod(Sc)
   opg  <- crossprod(sqrt(w) * S)
+
+  # With `prior`, the variances are the penalised objective's, the rule the
+  # class regression and the LTA follow: the estimate maximises likelihood
+  # plus log-prior, so the bread is that sum's observed information, and the
+  # prior's curvature also enters the meat, so that robust reduces to hessian
+  # when the model holds. In the meat the curvature is taken on each
+  # parameter's natural scale -- logits, log rates, and for a variance the
+  # precision 1/v, where the variance prior's curvature does not depend on
+  # the data -- and carried back linearly. On the log-sd packing that is the
+  # observed curvature less twice the prior's gradient on each `scale`
+  # coordinate. Logits and log rates are natural already.
+  if (prior && is.finite(pr$prior(par))) {
+    hp  <- 1e-4 * pmax(1, abs(par))
+    Ipo <- -.step1_fd_hessian(pr$prior, par, step = 1e-4)
+    Ipo <- (Ipo + t(Ipo)) / 2
+    Ipn <- Ipo
+    for (j in which(pr$kind == "scale")) {
+      a <- par; a[j] <- a[j] + hp[j]
+      b <- par; b[j] <- b[j] - hp[j]
+      Ipn[j, j] <- Ipn[j, j] - 2 * (pr$prior(a) - pr$prior(b)) / (2 * hp[j])
+    }
+    info <- info + Ipo
+    meat <- meat + Ipn
+    opg  <- opg + Ipn
+  }
 
   # With `drop_walls`, a coordinate past the finish's wall (a probability run
   # to 0 or 1) is held where it stopped, as a fixed value: the likelihood is
