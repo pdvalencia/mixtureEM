@@ -335,10 +335,48 @@
 
   # Report the average transition matrix implied by the fitted regression, so
   # that transition_matrix() keeps returning something interpretable.
-  lt <- .lta_log_tau(state)
-  state$tau <- lapply(lt, function(per_k)
-    t(vapply(per_k, function(M) colSums(exp(M) * w) / sum(w), numeric(K))))
+  state$tau <- .lta_cov_average_tau(state)
   state
+}
+
+# The transition matrices a covariate model reports, one per interval. Row k
+# averages the cases' own rows weighted by each case's model-implied
+# probability of being in status k at the interval's start, so it describes
+# the cases in status k, and chaining the occasion-1 prevalences through the
+# matrices gives the case-averaged prevalence at every occasion. A plain
+# average of the rows does neither once a covariate moves who starts where:
+# on simulated data with a strong binary covariate it reported a stay
+# probability of .822 for cases whose case-weighted value is .897, and
+# occasion-3 prevalences six points high (RECORDS, "Covariate-LTA reported
+# prevalences and transitions"). With several latent classes the cases'
+# chains are class-specific, and the plain average is kept. So it is for the
+# transition-free model, whose rows are one case-level row repeated: there
+# the plain average is already the next occasion's prevalence in every row,
+# which is how the three-step reads it (.lta_threestep_step12()).
+.lta_cov_average_tau <- function(state, lt = .lta_log_tau(state)) {
+  K <- state$n_statuses
+  w <- state$weights_vec
+  plain <- function(per_k)
+    t(vapply(per_k, function(M) colSums(exp(M) * w) / sum(w), numeric(K)))
+  if ((state$n_classes %||% 1L) > 1L || isTRUE(state$tau_independent))
+    return(lapply(lt, plain))
+
+  # Without an initial-status regression the occasion-1 distribution is the
+  # one shared vector, read where the prior above reads it.
+  P <- if (!is.null(state$delta_beta)) exp(.lta_log_delta(state)) else
+    matrix(as.numeric(state$delta_c[[1L]] %||% state$delta), length(w), K,
+           byrow = TRUE)
+  out <- vector("list", length(lt))
+  for (t in seq_along(lt)) {
+    Tr <- lapply(lt[[t]], exp)
+    out[[t]] <- t(vapply(seq_len(K), function(k) {
+      a <- w * P[, k]
+      if (sum(a) > 0) colSums(Tr[[k]] * a) / sum(a) else
+        colSums(Tr[[k]] * w) / sum(w)
+    }, numeric(K)))
+    P <- Reduce(`+`, lapply(seq_len(K), function(k) P[, k] * Tr[[k]]))
+  }
+  out
 }
 
 .lta_tau_cov_n_params <- function(state) {

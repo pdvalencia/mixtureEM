@@ -1069,10 +1069,7 @@
     state$delta_c[[1L]] <- state$delta
   }
   if (!is.null(state$tau_beta)) {
-    w  <- state$weights_vec
-    lt <- .lta_log_tau(state)
-    state$tau <- lapply(lt, function(per_k)
-      t(vapply(per_k, function(M) colSums(exp(M) * w) / sum(w), numeric(K))))
+    state$tau <- .lta_cov_average_tau(state)
     state$tau_c[[1L]] <- state$tau
   }
   # An RI fit's `pis` is derived from `ri$A`/`ri$L`/`ri$mass`, so writing those

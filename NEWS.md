@@ -1,5 +1,28 @@
 # mixtureEM (development version)
 
+## Transition models with covariates report case-weighted transitions
+
+With `predictors_initial` or `predictors_transition`, `fit_lta()` reported
+each row of its transition matrices as the plain average of the cases' own
+rows, and its prevalences after occasion 1 as the occasion-1 prevalences
+carried through those averages. Neither described the cases in the data:
+row k averaged over every case, including those very unlikely to be in
+status k, and the prevalences multiplied averages instead of averaging each
+case's own path. Row k is now weighted by each case's model-implied
+probability of being in status k at the start of the interval, so it is the
+transition probability among the cases in status k, and the prevalences are
+the cases' own prevalences averaged. On simulated data with a strong binary
+covariate the old rule reported a stay probability of .822 where the
+case-weighted value is .897, and an occasion-3 prevalence of .491 where the
+cases average .434. The new values agree with the case-averaged sizes and
+transition probabilities computed directly from the fitted model.
+
+This changes `transition_matrix()`, `$tau`, `$prevalences` and the printed
+tables of single-class transition models with covariates. Estimates,
+standard errors and log-likelihoods do not change, nor do models without
+covariates. Mover-stayer and other several-class models keep the plain
+average for now.
+
 ## Two- and three-step transition models leave out cases missing a covariate
 
 `fit_lta(n_steps = 2)` and `n_steps = 3` completed a missing
