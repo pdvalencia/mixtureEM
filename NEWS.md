@@ -1,5 +1,18 @@
 # mixtureEM (development version)
 
+## ML step-3 standard errors of a continuous outcome with covariates
+
+`add_outcome(correction = "ML")` with a continuous outcome and `covariates`
+took its standard errors from the step-3 M-step, which treats every case's
+class weights and the class sizes as known. Step 3 estimates the sizes and
+the outcome regression together, so the standard errors now come from the
+sandwich over both, as they already did for an outcome without covariates
+(`se = "hessian"` gives the inverse observed information instead). On the
+ex8 data with GHP4F regressed on FEP1, the class-specific intercept and
+slope standard errors widen by 1% to 9%, from .2595 / .5932 / .7018 to
+.2629 / .6334 / .7679 for the intercepts. Estimates and log-likelihoods do
+not change, and neither do the BCH and one-step fits.
+
 ## Transition models with covariates report case-weighted transitions
 
 With `predictors_initial` or `predictors_transition`, `fit_lta()` reported

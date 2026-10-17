@@ -467,7 +467,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
     W <- e$W; ll_case <- e$ll_case
   }
 
-  if (max_iter > 0 && inherits(model_state$sm, "distal_continuous"))
+  if (max_iter > 0 && cont_out)
     model_state$sm <- .attach_step3_distal_vcov(
       model_state$sm, Y_clean, A1, C_row_norm, w_s, pi_step3, se)
 
@@ -602,12 +602,13 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   return(model_state)
 }
 
-# The ML step-3 covariance of a lone continuous outcome's class means. Step 3
-# estimates the class sizes, the means and the variances together, so the
-# means' variance comes from the curvature of that joint likelihood,
+# The ML step-3 covariance of a lone continuous outcome's parameters: the class
+# means, or with covariates the regression coefficients. Step 3 estimates the
+# class sizes and the outcome model together, so the outcome parameters'
+# variance comes from the curvature of that joint likelihood,
 #   l_i = sum_s a_is log sum_k pi_k f(y_i | k) C[k, s],
-# and not from the M-step's weighted means, which hold every case's class
-# weights fixed and so understate it. `se = "hessian"` gives the inverse
+# and not from the M-step's weighted fit, which holds every case's class
+# weights fixed and so understates it. `se = "hessian"` gives the inverse
 # observed information; otherwise the sandwich H^-1 B H^-1 (White, 1982).
 # Step 1's estimates are treated as known.
 .attach_step3_distal_vcov <- function(sm, Y, A1, Cn, w, pk, se) {
@@ -635,6 +636,25 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   Hi <- tryCatch(solve(-(H + t(H)) / 2), error = function(e) NULL)
   if (is.null(Hi)) return(sm)
   V  <- if (identical(se, "hessian")) Hi else Hi %*% crossprod(w * S) %*% Hi
+  V_method <- if (identical(se, "hessian"))
+    "Observed information (step 3)" else "Sandwich (step 3)"
+  # With covariates the coefficients lead .qn_pack_sm()'s vector, in the
+  # layout the M-step's own `ses` and `cov_theta` use.
+  if (inherits(sm, c("distal_continuous_pooled",
+                     "distal_continuous_regression"))) {
+    pooled <- inherits(sm, "distal_continuous_pooled")
+    nb <- length(if (pooled) sm$parameters$beta_pooled else sm$parameters$betas)
+    b  <- K - 1L + seq_len(nb)
+    se_b <- sqrt(pmax(diag(V)[b], 0))
+    if (pooled) {
+      sm$parameters$cov_theta <- V[b, b, drop = FALSE]
+      sm$parameters$ses       <- matrix(se_b, nrow = 1)
+    } else {
+      sm$parameters$ses[] <- se_b
+    }
+    sm$parameters$V_method <- V_method
+    return(sm)
+  }
   m  <- K - 1L + seq_len(K)
   sm$parameters$Sigma_mu <- V[m, m, drop = FALSE]
   sm$parameters$ses      <- matrix(sqrt(pmax(diag(V)[m], 0)), ncol = 1)
@@ -652,8 +672,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   }, numeric(3L * K))
   sm$parameters$V_pmv    <- J %*% V %*% t(J)
   sm$parameters$pk_step3 <- to_pmv(par)[seq_len(K)]
-  sm$parameters$V_method <- if (identical(se, "hessian"))
-    "Observed information (step 3)" else "Sandwich (step 3)"
+  sm$parameters$V_method <- V_method
   sm
 }
 
