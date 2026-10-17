@@ -713,6 +713,7 @@ compare_longitudinal <- function(indicators, k_range = NULL,
     out$vlmr <- attr(tab, "vlmr_detail")
     attr(out$fit_table, "vlmr_detail") <- NULL
   }
+  out$call <- match.call()
   class(out) <- "mixture_comparison"
   attr(out, "unit") <- if (model == "lta") "statuses" else "classes"
   # The table and its footnotes come from print.mixture_comparison(), as for

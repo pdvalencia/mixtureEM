@@ -1,0 +1,119 @@
+---
+title: "Reporting a Mixture Model"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Reporting a Mixture Model}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(mixtureEM)
+```
+
+## Why a reporting function
+
+Sorgente et al. (2025) read 313 latent class analyses published in psychology
+between 2014 and 2024 and checked them against what the tutorials say a paper
+should report. Most papers left out the basics: 23% named the estimator, 16%
+said how many random starts they used, 17% said how missing data were
+handled, and 1.6% shared their code. Van de Schoot et al. (2017) found the same
+pattern in trajectory studies: of 38 papers, one reported its number of random
+starts.
+
+None of this is hard to report. The fitted model already holds every one of
+those numbers; they are just spread over `print()`, `summary()`,
+`class_sizes()` and the comparison table. `report_methods()` collects them
+into the paragraphs a methods section needs, and `grolts_report()` walks the
+GRoLTS checklist for trajectory models. Neither function computes anything new,
+and neither grades the result: no sentence calls an entropy "good" or a class
+"too small". Those judgements need the substantive context the function does
+not have.
+
+## A latent class analysis, from enumeration to methods section
+
+The `ventura_leon` data hold 16 binary infidelity items for 400 young adults
+(see `vignette("ventura_leon")`). Compare one to four classes:
+
+```{r enumerate}
+items <- as.matrix(ventura_leon[, 7:22])
+cmp <- compare_mixtures(items, k_range = 1:4, measurement = "binary",
+                        n_init = 20, random_state = 1)
+```
+
+Passing the comparison to `report_methods()` writes up the model with the
+lowest BIC, plus a paragraph on the enumeration itself: the range of K, whether
+the one-class model was in it (a common omission), the indices reported and
+which K the BIC picked.
+
+```{r report}
+report_methods(cmp)
+```
+
+Each paragraph is one element of a character vector, so you can paste them
+into a manuscript one at a time, or edit them first. The references are kept
+in `attr(, "references")` and printed once at the end, which works for both
+author-year and numbered citation styles.
+
+Two things the report tells you are worth acting on before you write:
+
+- **Whether the best log-likelihood was replicated.** If the paragraph says it
+  was reached by one start only, refit with more starts (`n_init = 100`) and
+  check that nothing better appears (`vignette("estimation")`).
+- **Whether the sample you analysed is the one you collected.** Cases with no
+  observed indicator are removed before estimation, and the first paragraph
+  says how many.
+
+To describe a different K than the BIC's choice, pass `k`:
+`report_methods(cmp, k = 3)`. The enumeration paragraph then says that the
+reported model is not the lowest-BIC one.
+
+## A trajectory model and the GRoLTS checklist
+
+`grolts_report()` takes a growth model from `fit_gmm()` or `fit_lcga()`, or a
+`compare_longitudinal()` comparison of them, and sorts the 21 GRoLTS items into
+three groups: those the fit answers, those you must supply, and those that do
+not apply to the model. Here is a small simulated example with two trajectory
+classes over four occasions:
+
+```{r grolts}
+set.seed(5)
+y <- matrix(rnorm(800, sd = 1), 200) +
+  outer(rep(c(0, 1.5), each = 100), 0:3, function(a, t) a + (a / 2) * t)
+traj <- compare_longitudinal(y, k_range = 1:3, model = "lcga", times = 4,
+                             family = "gaussian", n_init = 5,
+                             random_state = 1, verbose = FALSE)
+grolts_report(traj)
+```
+
+The "you must supply" group is the useful part. It lists what no fit can know:
+how much measurement times varied within a wave, why the data are missing,
+which other model shapes you tried and why you kept this one, and the plots a
+reader needs to see.
+
+The function prints no score such as "15 of 21". A count treats the items as
+interchangeable, and they are not; which gaps matter depends on what the paper
+claims.
+
+## References
+
+Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In
+T. D. Little (Ed.), *The Oxford Handbook of Quantitative Methods* (Vol. 2,
+pp. 551-611). Oxford University Press.
+
+Sorgente, A., Caliciuri, R., Robba, M., Lanz, M., & Zumbo, B. D. (2025). A
+systematic review of latent class analysis in psychology: Examining the gap
+between guidelines and research practice. *Behavior Research Methods*, *57*,
+301.
+
+van de Schoot, R., Sijbrandij, M., Winter, S. D., Depaoli, S., & Vermunt, J. K.
+(2017). The GRoLTS-checklist: Guidelines for reporting on latent trajectory
+studies. *Structural Equation Modeling*, *24*(3), 451-467.
+<https://doi.org/10.1080/10705511.2016.1247646>

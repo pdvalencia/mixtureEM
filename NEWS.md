@@ -1,5 +1,28 @@
 # mixtureEM (development version)
 
+## The methods paragraph and the GRoLTS checklist, written from the fit
+
+`report_methods()` is new. Given a fitted model, or a comparison from
+`compare_mixtures()` or `compare_longitudinal()`, it returns the paragraphs
+a methods section needs: the sample analysed and any cases removed, the
+indicators, the estimator and its priors, the random starts and whether the
+best log-likelihood was replicated, the missing data, the fit indices,
+classification quality, any structural model by its literature name, and the
+line of R that refits the model. For a comparison it adds the enumeration:
+the range of K, whether the one-class model was included, and which K had the
+lowest BIC. Citations come back as an attribute and print once at the end.
+
+`grolts_report()` is new. For a `fit_gmm()` or `fit_lcga()` model, or a
+comparison of them, it walks the 21 items of the GRoLTS checklist (van de
+Schoot et al., 2017) and sorts each into answered from the fit, you must
+supply, or not applicable. It prints no score.
+
+Neither function computes a new number: every value they quote is the one
+`print()`, `summary()` or the comparison table already shows. Fitted models
+and comparisons now store the call that made them (`$call`) and, for the
+fitting functions, `$random_state`, which the reports quote; no estimate
+changes. `vignette("reporting")` walks one example through both.
+
 ## Standard errors on the measurement parameters, and error bars on the profile bar chart
 
 `measurement_estimates()` is new. It returns the item probabilities, class

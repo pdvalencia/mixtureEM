@@ -1909,6 +1909,9 @@ fit_lta <- function(indicators,
   best$frozen  <- NULL
   best$n_steps <- n_steps
   if (n_steps == 2L) best$step1 <- step1
+  # Quoted by report_methods() as the line that refits the model.
+  best$call         <- match.call()
+  best$random_state <- random_state
 
   best
 }

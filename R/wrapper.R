@@ -3960,6 +3960,11 @@ fit_mixture <- function(indicators = NULL,
   # warnings contradict each other.
   if (!identical(measurement, "structured_normal")) .check_replication(fit)
 
+  # What report_methods() quotes as the line that refits the model. The wrappers
+  # that call this function (fit_gmm(), fit_lcga(), fit_rmlca()) overwrite the
+  # call with their own, which is the one the user typed.
+  fit$call         <- match.call()
+  fit$random_state <- random_state
   fit
 }
 
@@ -4339,6 +4344,7 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
     out$vlmr <- attr(fit_table, "vlmr_detail")
     attr(out$fit_table, "vlmr_detail") <- NULL
   }
+  out$call <- match.call()
   class(out) <- "mixture_comparison"
   print(out)
   # A sweep over K crosses the identification boundary without anyone

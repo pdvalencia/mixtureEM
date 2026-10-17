@@ -439,6 +439,7 @@ fit_gmm <- function(indicator,
   .check_replication(fit)
 
   class(fit) <- c("gmm", class(fit))
+  fit$call <- match.call()
   fit
 }
 

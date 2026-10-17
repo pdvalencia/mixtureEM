@@ -134,6 +134,7 @@ fit_rmlca <- function(indicators,
     measurement     = measurement
   )
   class(fit) <- c("rmlca", class(fit))
+  fit$call <- match.call()
   fit
 }
 

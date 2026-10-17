@@ -501,6 +501,7 @@ fit_lcga <- function(indicator,
   if (family == "gaussian")
     fit$growth$residual_variance <- fit$mm$parameters$dispersion
   class(fit) <- c("lcga", class(fit))
+  fit$call <- match.call()
   fit
 }
 
