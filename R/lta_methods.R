@@ -1101,7 +1101,13 @@ summary.lta_model <- function(object, digits = 3, ...) {
 
   cat("\n=========================================================\n")
   cat("     LATENT TRANSITION MODEL - STRUCTURAL PARAMETERS\n")
-  cat("=========================================================\n\n")
+  cat("=========================================================\n")
+  # The replication count print() shows, read off the same fit: step 1's
+  # search on a three-step model.
+  .print_replication_note(
+    if (.is_threestep_lta(object) && !is.null(object$step1)) object$step1
+    else object)
+  cat("\n")
 
   if (C > 1L) {
     cat("LATENT CLASS SIZES (pi)\n")

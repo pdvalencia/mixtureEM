@@ -199,6 +199,27 @@ test_that("fit_mixture() carries the requested count alongside the converged one
   expect_equal(fit$metrics$n_starts, 3)
 })
 
+test_that("summary() repeats the replication line print() shows", {
+  # Hipp & Bauer's diagnostic belongs wherever a reader might start, so both
+  # summary() methods carry the same sentence, read off the same counts.
+  best_line <- function(out) grep("Best solution", out, value = TRUE)
+
+  set.seed(23)
+  X <- matrix(rbinom(120 * 4, 1, 0.5), ncol = 4)
+  fit <- fit_mixture(X, n_classes = 2, measurement = "binary", n_init = 3)
+  p <- best_line(capture.output(print(fit)))
+  expect_length(p, 1L)
+  expect_identical(best_line(capture.output(summary(fit))), p)
+
+  set.seed(22)
+  X <- matrix(rbinom(150 * 3, 1, 0.5), ncol = 3)
+  lta <- fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+                 n_init = 4, random_state = 2, standard_errors = FALSE)
+  p <- best_line(capture.output(print(lta)))
+  expect_length(p, 1L)
+  expect_identical(best_line(capture.output(summary(lta))), p)
+})
+
 # ------------------------------------------------------------------------------
 # The comparison tables
 # ------------------------------------------------------------------------------

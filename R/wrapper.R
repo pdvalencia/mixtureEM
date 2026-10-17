@@ -1224,6 +1224,10 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
   .print_degenerate_note(object)
 
   if (is.null(object$sm)) {
+    # How many restarts found this solution: print() shows it under the
+    # log-likelihood, and it is repeated here for anyone who goes straight to
+    # summary(), since it bears on whether anything else is worth reading.
+    .print_replication_note(object)
     cat("Notice: No structural model found. Use measurement_summary() for item parameters.\n")
     return(invisible())
   }
@@ -1264,6 +1268,7 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
   cat("=========================================================\n")
   cat("             STRUCTURAL MODEL SUMMARY                    \n")
   cat("=========================================================\n")
+  .print_replication_note(object)
 
   # A. Covariate model
   sm_sub <- NULL

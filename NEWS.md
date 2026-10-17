@@ -1,5 +1,16 @@
 # mixtureEM (development version)
 
+## `summary()` says how many starts found the solution
+
+`print()` has long shown how many random starts reached the reported
+maximum, Hipp & Bauer's (2006) check that a solution found once may not be
+the best one. `summary()` on a `fit_mixture()`-family model or on
+`fit_lta()` now prints the same line, with the same advice when the
+maximum was found only once, so a reader who goes straight to the
+structural parameters sees it too. On a three-step transition model the
+count is step 1's, as in `print()`. Nothing is estimated differently and
+no number changes.
+
 ## Class contrasts on a one-step growth outcome carry the covariance of the means
 
 `outcome_contrasts()` on a continuous outcome fitted inside `fit_gmm()` or
