@@ -462,10 +462,23 @@ complete_covariates <- function(Z) {
 # column of Y is the endogenous outcome and is left untouched (its own
 # likelihood masks missing values via FIML); the remaining columns are
 # covariates/moderators. For a class-prediction (covariate) model every column
-# is a covariate.
+# is a covariate. A nested model is completed block by block, so a distal
+# block's outcome column stays missing there too; completing its columns all
+# at once, as the generic branch would, fills a missing outcome as though it
+# were a covariate.
 complete_structural_covariates <- function(sm, Y) {
   if (is.null(Y) || is.null(sm)) return(Y)
   Y <- as.matrix(Y)
+  if (inherits(sm, "nested")) {
+    start <- 0L
+    for (name in names(sm$models)) {
+      idx   <- start + seq_len(sm$columns_per_model[[name]])
+      start <- start + length(idx)
+      Y[, idx] <- complete_structural_covariates(sm$models[[name]],
+                                                 Y[, idx, drop = FALSE])
+    }
+    return(Y)
+  }
   distal_types <- c("distal_continuous", "distal_continuous_regression",
                     "distal_continuous_pooled", "distal_pooled",
                     "distal_regression", "distal_categorical")

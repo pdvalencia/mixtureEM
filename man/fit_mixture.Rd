@@ -562,14 +562,16 @@ forgotten by the next, and the slowest operations in the package --
 the option.}
 
 \item{missing_predictors}{What to do with a case missing one of
-\code{predictors}. \code{"listwise"} (the default) leaves it out: a
-one-step model (\code{n_steps = 1}) is fitted without that case at all,
-and a stepwise one keeps it in step 1 and leaves it out of the
-class-membership regression only, with a message either way saying how
-many cases that was. \code{"mean"} keeps every case and completes the
-missing values under the class-invariant Gaussian marginal of the
-predictors (Sterba, 2014). Why listwise is the default is in
-\code{\link{add_covariates}}, "Missing predictors".}
+\code{predictors} or \code{outcome_covariates}. \code{"listwise"} (the
+default) leaves it out: a one-step model (\code{n_steps = 1}) is fitted
+without that case at all, and a stepwise one keeps it in step 1 and
+leaves it out of the class-membership or outcome regression only, with a
+message either way saying how many cases that was. \code{"mean"} keeps
+every case and completes the missing values under the class-invariant
+Gaussian marginal of the covariates (Sterba, 2014). A missing
+\code{outcome} is not a reason to delete a case. Why listwise is the
+default is in \code{\link{add_covariates}}, "Missing predictors", and
+\code{\link{add_outcome}}, "Missing covariates".}
 
 \item{X, Y, n_components, structural}{Deprecated legacy arguments retained for
 backward compatibility; prefer \code{indicators}, \code{n_classes},

@@ -400,6 +400,17 @@
 #'   The estimates, with standard errors that carry step 1's uncertainty, are
 #'   returned as `distal`; [outcome_contrasts()] gives the pairwise status
 #'   differences. `NULL` (the default) fits no outcome.
+#' @param missing_predictors What to do with a case missing a value of
+#'   `predictors_initial`, `predictors_transition`, `predictors_items` or
+#'   `predictors_random_intercept`. `"listwise"` (the default) fits the
+#'   one-step model (`n_steps = 1`) without that case, with a message saying
+#'   how many cases that was; `"mean"` keeps it and completes the missing
+#'   value under the Gaussian marginal of the covariates, which for a single
+#'   covariate is its mean. Deleting the case leaves the regressions unbiased
+#'   when whether a covariate is missing depends on the covariate itself or
+#'   on the status, and completing it with the mean does not (Little, 1992).
+#'   The two- and three-step estimators complete missing covariates for now,
+#'   whatever this is set to.
 #' @param ... Ignored.
 #'
 #' @return An object of class `"lta_model"` with components including `delta`,
@@ -586,6 +597,10 @@
 #' Association}, \emph{68}(343), 683-691.
 #' \doi{10.1080/01621459.1973.10481405}
 #'
+#' Little, R. J. A. (1992). Regression with missing X's: A review.
+#' \emph{Journal of the American Statistical Association}, \emph{87}(420),
+#' 1227–1237. \doi{10.1080/01621459.1992.10476282}
+#'
 #' Muthen, B., & Asparouhov, T. (2022). Latent transition analysis with random
 #' intercepts (RI-LTA). \emph{Psychological Methods}, \emph{27}(1), 1-16.
 #' \doi{10.1037/met0000370}
@@ -666,6 +681,7 @@ fit_lta <- function(indicators,
                     correction = c("ML", "BCH", "none"),
                     assignment = c("proportional", "modal"),
                     distal = NULL,
+                    missing_predictors = c("listwise", "mean"),
                     ...) {
 
   # Read before anything can touch `n_init`: `refine_from` refuses to be given
@@ -708,6 +724,7 @@ fit_lta <- function(indicators,
   layout                 <- match.arg(layout)
   transition_effects     <- match.arg(transition_effects)
   group_effects          <- match.arg(group_effects)
+  missing_predictors     <- match.arg(missing_predictors)
   weight_type            <- match.arg(weight_type)
   if (!(isTRUE(standard_errors) || identical(standard_errors, FALSE) ||
         identical(standard_errors, "robust")))
@@ -878,6 +895,46 @@ fit_lta <- function(indicators,
       length(empty_rows), if (length(empty_rows) == 1L) "" else "s",
       if (length(empty_rows) == 1L) "was" else "were", length(keep),
       .abbreviate_indices(empty_rows)), call. = FALSE)
+  }
+
+  # --- Cases missing a covariate ----------------------------------------------
+  # One-step only, and only under `missing_predictors = "listwise"`: a case
+  # missing any covariate the model reads is dropped whole, as it would be from
+  # any regression. The two- and three-step estimators still complete it
+  # (`.lta_design()`), so their step 1 and later steps keep the same cases.
+  if (n_steps == 1L) {
+    n_now    <- nrow(prep$X)
+    cov_args <- list(predictors_initial, predictors_transition,
+                     predictors_items, predictors_random_intercept)
+    miss <- logical(n_now)
+    for (p in cov_args) {
+      if (is.null(p)) next
+      inc <- !stats::complete.cases(as.data.frame(p))
+      if (length(inc) == n_now) miss <- miss | inc
+    }
+    cov_keep <- if (any(miss))
+      .predictor_keep(matrix(ifelse(miss, NA_real_, 0)), missing_predictors,
+                      whole_case = TRUE, noun = "covariate")
+    if (!is.null(cov_keep)) {
+      if (!is.null(weights) && length(weights) != n_now)
+        stop("`weights` must have one entry per case.", call. = FALSE)
+      if (!is.null(strata) && length(strata) != n_now)
+        stop("`strata` must have one entry per case.", call. = FALSE)
+      if (!is.null(cluster) && length(cluster) != n_now)
+        stop("`cluster` must have one entry per case.", call. = FALSE)
+      keep              <- which(cov_keep)
+      prep$X            <- prep$X[keep, , drop = FALSE]
+      prep$wave_missing <- prep$wave_missing[keep, , drop = FALSE]
+      prep$any_missing  <- anyNA(prep$X)
+      weights               <- .subset_cases(weights, keep)
+      strata                <- .subset_cases(strata, keep)
+      cluster               <- .subset_cases(cluster, keep)
+      predictors_initial    <- .subset_cases(predictors_initial, keep)
+      predictors_transition <- .subset_cases(predictors_transition, keep)
+      predictors_items      <- .subset_cases(predictors_items, keep)
+      predictors_random_intercept <- .subset_cases(predictors_random_intercept, keep)
+      group                 <- .subset_cases(group, keep)
+    }
   }
 
   spec   <- .resolve_invariance(time_invariance, invariant_items,
@@ -1243,6 +1300,8 @@ fit_lta <- function(indicators,
     assign(".lta_step1_indicators", indicators, envir = env)
     cl$indicators <- quote(.lta_step1_indicators)
     cl$n_steps <- 1L
+    # Step 2 completes its covariates, so step 1 must keep the same cases.
+    cl$missing_predictors <- "mean"
     cl$predictors_initial <- NULL
     cl$predictors_transition <- NULL
     cl$predictors_random_intercept <- NULL

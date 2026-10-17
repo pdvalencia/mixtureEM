@@ -93,9 +93,9 @@
     # unconstrained packing there yet; confint()/vcov()/summary() fall back to
     # the Q-function Hessian for it and say so.
     #
-    # Cases listwise deleted for a missing class predictor (`struct_keep`)
-    # weigh zero while step 2 runs and keep their step-1 posteriors after it;
-    # step 1's variance still counts them.
+    # Cases listwise deleted for a missing class predictor or outcome covariate
+    # (`struct_keep`) weigh zero while step 2 runs and keep their step-1
+    # posteriors after it; step 1's variance still counts them.
     resp   <- exp(model_state$log_resp)
     s_keep <- model_state$struct_keep
     w_all  <- model_state$sample_weights
@@ -163,23 +163,73 @@
 #
 # `whole_case = TRUE` is the one-step model, where the case is removed from
 # the fit altogether, indicators included, and the message says so.
-.predictor_keep <- function(Y, missing_predictors, whole_case = FALSE) {
-  if (is.null(Y) || identical(missing_predictors, "mean") || !anyNA(Y))
-    return(NULL)
+#
+# The same rule serves an outcome's covariates. `cols` names the columns of Y
+# that are covariates (.structural_covariate_cols()): a distal outcome's own
+# column is not one, because a missing outcome is masked by its likelihood
+# rather than deleted. `what` and `noun` word the message.
+.predictor_keep <- function(Y, missing_predictors, whole_case = FALSE,
+                            cols = NULL,
+                            what = "class-membership regression",
+                            noun = "predictor") {
+  if (is.null(Y) || identical(missing_predictors, "mean")) return(NULL)
+  if (!is.null(cols)) {
+    if (!length(cols)) return(NULL)
+    Y <- Y[, cols, drop = FALSE]
+  }
+  if (!anyNA(Y)) return(NULL)
   keep <- stats::complete.cases(Y)
   if (!any(keep))
-    stop("Every case is missing at least one predictor, so the ",
-         "class-membership regression has no data. Set ",
-         "`missing_predictors = \"mean\"` to complete them instead.",
-         call. = FALSE)
+    stop(sprintf(paste0(
+      "Every case is missing at least one %s, so the %s has no data. Set ",
+      "`missing_predictors = \"mean\"` to complete them instead."),
+      noun, what), call. = FALSE)
   n_drop <- sum(!keep)
   message(sprintf(paste0(
-    "%d case%s missing a predictor %s left out of the %s (n = %d used). ",
+    "%d case%s missing a %s %s left out of the %s (n = %d used). ",
     "Set `missing_predictors = \"mean\"` to complete them instead."),
-    n_drop, if (n_drop == 1L) "" else "s",
+    n_drop, if (n_drop == 1L) "" else "s", noun,
     if (n_drop == 1L) "was" else "were",
-    if (whole_case) "model" else "class-membership regression", sum(keep)))
+    if (whole_case) "model" else what, sum(keep)))
   keep
+}
+
+# The columns of a structural model's data that are covariates, and so fall
+# under `missing_predictors`: all of a class regression's, every column after
+# the first of a distal outcome with covariates (the first is the outcome),
+# none of an outcome without them. A nested model's blocks are walked in the
+# order its data were bound. Returns NULL when there are none.
+.structural_covariate_cols <- function(engine, Y) {
+  if (is.null(Y) || is.null(engine)) return(NULL)
+  Y <- as.matrix(Y)
+  class_reg <- c("covariate", "predict_class")
+  adjusted  <- c("continuous_outcome_adjusted", "continuous_outcome_moderated",
+                 "categorical_outcome_adjusted", "categorical_outcome_moderated",
+                 "distal_continuous_pooled", "distal_continuous_regression",
+                 "distal_pooled", "distal_regression")
+  one <- function(model, idx) {
+    if (model %in% class_reg) idx
+    else if (model %in% adjusted && length(idx) > 1L) idx[-1L]
+    else integer(0)
+  }
+  cols <- if (is.list(engine)) {
+    start <- 0L
+    unlist(lapply(engine, function(b) {
+      idx   <- start + seq_len(b$n_columns)
+      start <<- start + b$n_columns
+      one(b$model, idx)
+    }))
+  } else one(engine, seq_len(ncol(Y)))
+  if (length(cols)) as.integer(cols) else NULL
+}
+
+# How .predictor_keep() words its message for a structural engine.
+.structural_keep_words <- function(engine) {
+  if (is.list(engine))
+    list(what = "step-3 model", noun = "predictor or covariate")
+  else if (engine %in% c("covariate", "predict_class"))
+    list(what = "class-membership regression", noun = "predictor")
+  else list(what = "outcome regression", noun = "covariate")
 }
 
 # Post-fit finishing shared by every estimation path: optional class sorting,

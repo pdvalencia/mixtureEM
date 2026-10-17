@@ -217,9 +217,12 @@
   fit$assignment <- assignment
   # The structural data, as fit_mixture() keeps it on a one-call fit.
   fit$Y          <- Y_use
-  # Cases a class regression leaves out for a missing predictor; NULL keeps all.
-  fit$struct_keep <- if (identical(engine, "predict_class"))
-    .predictor_keep(Y_use, missing_predictors)
+  # Cases the structural model leaves out for a missing predictor or outcome
+  # covariate; NULL keeps all.
+  fit$struct_keep <- do.call(.predictor_keep, c(
+    list(Y_use, missing_predictors,
+         cols = .structural_covariate_cols(engine, Y_use) %||% integer(0)),
+    .structural_keep_words(engine)))
 
   fit <- .apply_structural_steps(fit, X = fit$data, Y = Y_use, n_steps = steps,
                                  correction = correction, max_iter = max_iter,
@@ -525,7 +528,26 @@ add_covariates <- function(fit, predictors,
 #'   `outcome` may be a one-sided formula naming one column (`~ bmi`), and
 #'   `covariates` a one-sided formula (interactions included, e.g. `~ age *
 #'   sex`) or a vector of column names.
+#' @param missing_predictors What to do with a case missing one of
+#'   `covariates` or `predictors`. `"listwise"` (the default) leaves it out of
+#'   the step-3 model, with a message saying how many cases that was; `"mean"`
+#'   keeps it and completes the missing value under the class-invariant
+#'   Gaussian marginal of the covariates, which for a single covariate is its
+#'   mean. A missing *outcome* is never deleted for this reason: that case
+#'   simply contributes no outcome information. See "Missing covariates"
+#'   below.
 #' @param ... Currently unused.
+#'
+#' @section Missing covariates:
+#' Under `"listwise"` a case missing a covariate of the outcome, or a class
+#' predictor, is still part of step 1 and of the classification-error table
+#' the correction inverts, and is left out of step 3 only; its class
+#' probabilities stay those of the measurement model. For a covariate of the
+#' outcome, deletion leaves the regression unbiased when whether the covariate
+#' is missing depends on the covariate itself or on the class, and completing
+#' it with the mean does not; when missingness is unrelated to anything the two
+#' agree (Little, 1992). For class predictors see "Missing predictors" in
+#' [add_covariates()].
 #'
 #' @return A `mixture_model` with the distal-outcome model attached. Use
 #'   [summary()] for class-specific means or probabilities and their tests, and
@@ -549,6 +571,10 @@ add_covariates <- function(fit, predictors,
 #' between latent class membership and external variables using bias-adjusted
 #' three-step approaches. \emph{Sociological Methodology}, \emph{43}(1),
 #' 272–311. \doi{10.1177/0081175012470644}
+#'
+#' Little, R. J. A. (1992). Regression with missing X's: A review.
+#' \emph{Journal of the American Statistical Association}, \emph{87}(420),
+#' 1227–1237. \doi{10.1080/01621459.1992.10476282}
 #'
 #' @seealso [outcome_contrasts()] for class-vs-class differences on the
 #'   outcome; [add_covariates()] for predictors of class membership;
@@ -583,8 +609,10 @@ add_outcome <- function(fit, outcome, covariates = NULL,
                         steps = c(3, 2),
                         se = c("corrected", "robust", "hessian"),
                         assignment = c("proportional", "modal"),
-                        max_iter = 1000, data = NULL, ...) {
+                        max_iter = 1000, data = NULL,
+                        missing_predictors = c("listwise", "mean"), ...) {
   outcome_type <- match.arg(outcome_type)
+  missing_predictors <- match.arg(missing_predictors)
   corr_set     <- !missing(correction)
   correction   <- match.arg(correction)
   steps        <- .check_steps(steps, corr_set)
@@ -627,7 +655,7 @@ add_outcome <- function(fit, outcome, covariates = NULL,
     return(.add_joint_outcome(fit, outcome, covariates, cov_expr, predictors,
                               predictors_expr, data, outcome_type, slopes,
                               variances, correction, corr_set, steps, se,
-                              assignment, max_iter))
+                              assignment, max_iter, missing_predictors))
 
   spec <- .build_outcome_spec(outcome, covariates, outcome_type, slopes,
                               cov_expr)
@@ -645,7 +673,8 @@ add_outcome <- function(fit, outcome, covariates = NULL,
 
   .add_structural(fit, Y_use, spec$engine, correction, se, max_iter,
                   assignment = assignment, moderated = spec$moderated,
-                  steps = steps, variances = spec$variances)
+                  steps = steps, variances = spec$variances,
+                  missing_predictors = missing_predictors)
 }
 
 # `variances` is a choice for a continuous outcome, with or without covariates.
@@ -668,7 +697,8 @@ add_outcome <- function(fit, outcome, covariates = NULL,
 .add_joint_outcome <- function(fit, outcome, covariates, cov_expr, predictors,
                                predictors_expr, data, outcome_type, slopes,
                                variances, correction, corr_set, steps, se,
-                               assignment, max_iter) {
+                               assignment, max_iter,
+                               missing_predictors = "listwise") {
   if (steps == 2L)
     stop("`predictors` with a distal outcome is available for the three-step ",
          "(`steps = 3`) only.", call. = FALSE)
@@ -735,5 +765,6 @@ add_outcome <- function(fit, outcome, covariates = NULL,
   Y_use <- .align_structural_rows(Y_use, fit, "outcome")
 
   .add_structural(fit, Y_use, blocks, correction, se, max_iter,
-                  assignment = assignment, steps = steps)
+                  assignment = assignment, steps = steps,
+                  missing_predictors = missing_predictors)
 }

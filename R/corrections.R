@@ -167,6 +167,14 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional",
 
   bch_resp <- .bch_weights(resp, A, weights)
 
+  # A structural model whose missing predictors or outcome covariates are
+  # listwise deleted keeps those cases in the BCH weights' classification
+  # table and drops them from the weighted step 3 (`struct_keep`, set in
+  # .add_structural()).
+  s_keep <- model_state$struct_keep
+  w_s    <- if (is.null(s_keep)) weights else weights * s_keep
+  if (!is.null(s_keep)) bch_resp[!s_keep, ] <- 0
+
   # A nested structural model (class predictors with distal outcomes) is not
   # always solved by one M-step -- a block with class-specific variances takes
   # one conditional-maximisation cycle per call -- so the M-step is repeated on
@@ -178,24 +186,17 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional",
     model_state$sm <- init_params(model_state$sm, Y, bch_resp)
     prev <- -Inf
     for (iter in seq_len(max_iter)) {
-      model_state$sm <- m_step(model_state$sm, Y, bch_resp, weights = weights)
-      cur <- sum(weights * wll(model_state$sm))
+      model_state$sm <- m_step(model_state$sm, Y, bch_resp, weights = w_s)
+      cur <- sum(w_s * wll(model_state$sm))
       if (abs(cur - prev) < 1e-10 * max(1, abs(prev))) break
       prev <- cur
     }
     model_state$lower_bound <- wll(model_state$sm)
     return(.attach_nested_step3_vcov(
-      model_state, Y, bch_resp, NULL, weights, se = se,
+      model_state, Y, bch_resp, NULL, w_s, se = se,
       strata = model_state$strata, cluster = model_state$cluster,
-      X = X, assignment = assignment, bch_assign = A))
+      X = X, assignment = assignment, bch_assign = A, w1 = weights))
   }
-
-  # A class regression whose missing predictors are listwise deleted keeps
-  # those cases in the BCH weights' classification table and drops them from
-  # the weighted regression (`struct_keep`, set in .add_structural()).
-  s_keep <- model_state$struct_keep
-  w_s    <- if (is.null(s_keep)) weights else weights * s_keep
-  if (!is.null(s_keep)) bch_resp[!s_keep, ] <- 0
 
   model_state$sm <- init_params(model_state$sm, Y, bch_resp)
   model_state$sm <- m_step(model_state$sm, Y, bch_resp)
@@ -516,9 +517,9 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   # labelled as such rather than reported as though it were corrected.
   if (inherits(model_state$sm, "nested")) {
     model_state <- .attach_nested_step3_vcov(
-      model_state, Y_clean, A1, C_row_norm, w_clean, se,
+      model_state, Y_clean, A1, C_row_norm, w_s, se,
       strata = model_state$strata[keep], cluster = model_state$cluster[keep],
-      X = X_clean, assignment = assignment)
+      X = X_clean, assignment = assignment, w1 = w_clean)
     if (is.null(model_state$sm$parameters$vcov_joint) &&
         !is.null(model_state$sm$models[["predictor"]]) &&
         inherits(model_state$sm$models$predictor, "covariate"))
@@ -534,14 +535,18 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   # as one shared $hessian; distal_regression stores each class's own block in
   # $hessians[[k]], which is where downstream inference reads from.
 
+  # A case listwise deleted for a missing outcome covariate is not in step 3:
+  # it weighs zero in the curvature (`w_s`) and its score row is zeroed in
+  # the meat, which takes the scores unweighted.
   if (cat_out) {
-    meat_fn <- function(S) .score_meat(S, model_state$strata[keep],
+    s_in    <- if (is.null(s_keep)) 1 else as.numeric(s_keep)
+    meat_fn <- function(S) .score_meat(S * s_in, model_state$strata[keep],
                                        model_state$cluster[keep],
                                        isTRUE(model_state$has_survey_design))
     if (inherits(model_state$sm, "distal_pooled")) {
       bp_dim <- dim(model_state$sm$parameters$beta_pooled)
       V <- .step3_cat_vcov(
-        model_state$sm, Y_clean, A1, C_row_norm, w_clean, pi_k_clean,
+        model_state$sm, Y_clean, A1, C_row_norm, w_s, pi_k_clean,
         as.vector(model_state$sm$parameters$beta_pooled),
         function(sm, th) {
           sm$parameters$beta_pooled <- matrix(th, bp_dim[1], bp_dim[2]); sm },
@@ -550,7 +555,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
     } else {
       b_dim <- dim(model_state$sm$parameters$betas)          # c(K, M-1, D)
       V <- .step3_cat_vcov(
-        model_state$sm, Y_clean, A1, C_row_norm, w_clean, pi_k_clean,
+        model_state$sm, Y_clean, A1, C_row_norm, w_s, pi_k_clean,
         as.vector(model_state$sm$parameters$betas),
         function(sm, th) { sm$parameters$betas <- array(th, b_dim); sm },
         meat_fn)

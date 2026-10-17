@@ -89,6 +89,8 @@
   cl1$indicators <- quote(.lta_step1_indicators)
 
   cl1$n_steps                     <- 1L
+  # Step 3 completes its covariates, so step 1 must keep the same cases.
+  cl1$missing_predictors          <- "mean"
   cl1$predictors_initial          <- NULL
   cl1$predictors_transition       <- NULL
   cl1$predictors_random_intercept <- NULL

@@ -52,6 +52,7 @@ fit_lta(
   correction = c("ML", "BCH", "none"),
   assignment = c("proportional", "modal"),
   distal = NULL,
+  missing_predictors = c("listwise", "mean"),
   ...
 )
 }
@@ -460,6 +461,18 @@ The estimates, with standard errors that carry step 1's uncertainty, are
 returned as \code{distal}; \code{\link[=outcome_contrasts]{outcome_contrasts()}} gives the pairwise status
 differences. \code{NULL} (the default) fits no outcome.}
 
+\item{missing_predictors}{What to do with a case missing a value of
+\code{predictors_initial}, \code{predictors_transition}, \code{predictors_items} or
+\code{predictors_random_intercept}. \code{"listwise"} (the default) fits the
+one-step model (\code{n_steps = 1}) without that case, with a message saying
+how many cases that was; \code{"mean"} keeps it and completes the missing
+value under the Gaussian marginal of the covariates, which for a single
+covariate is its mean. Deleting the case leaves the regressions unbiased
+when whether a covariate is missing depends on the covariate itself or
+on the status, and completing it with the mean does not (Little, 1992).
+The two- and three-step estimators complete missing covariates for now,
+whatever this is set to.}
+
 \item{...}{Ignored.}
 }
 \value{
@@ -680,6 +693,10 @@ Fienberg, S. E., & Holland, P. W. (1973). Simultaneous estimation of
 multinomial cell probabilities. \emph{Journal of the American Statistical
 Association}, \emph{68}(343), 683-691.
 \doi{10.1080/01621459.1973.10481405}
+
+Little, R. J. A. (1992). Regression with missing X's: A review.
+\emph{Journal of the American Statistical Association}, \emph{87}(420),
+1227–1237. \doi{10.1080/01621459.1992.10476282}
 
 Muthen, B., & Asparouhov, T. (2022). Latent transition analysis with random
 intercepts (RI-LTA). \emph{Psychological Methods}, \emph{27}(1), 1-16.

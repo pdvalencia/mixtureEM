@@ -2155,14 +2155,21 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
       .abbreviate_indices(empty_rows)), call. = FALSE)
   }
 
-  # --- Cases missing a class predictor ----------------------------------------
-  # Under listwise deletion a one-step model drops the whole case; a stepwise
-  # one keeps it in step 1 and leaves it out of the class regression only
-  # (`struct_keep`, read by the step-2 and step-3 estimators).
+  # --- Cases missing a class predictor or an outcome covariate ----------------
+  # Under listwise deletion a one-step model drops the whole case, even one
+  # kept above for its observed distal outcome; a stepwise one keeps it in
+  # step 1 and leaves it out of the structural model only (`struct_keep`,
+  # read by the step-2 and step-3 estimators). A missing distal outcome is
+  # not a missing covariate: its likelihood masks it.
   class_reg   <- !is.null(structural) &&
     structural %in% c("covariate", "predict_class")
-  struct_keep <- if (class_reg)
-    .predictor_keep(Y, missing_predictors, whole_case = n_steps == 1)
+  cov_cols    <- if (is.character(structural))
+    .structural_covariate_cols(structural, Y)
+  struct_keep <- if (!is.null(cov_cols))
+    do.call(.predictor_keep, c(
+      list(Y, missing_predictors, whole_case = n_steps == 1, cols = cov_cols),
+      .structural_keep_words(structural)))
+  listwise_cov <- !is.null(struct_keep)
   if (!is.null(struct_keep) && n_steps == 1) {
     if (!is.null(weights) && length(weights) != nrow(X))
       stop(sprintf("`weights` must have one entry per case (expected %d, got %d).",
@@ -2214,15 +2221,19 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   item_missing <- colSums(is.na(X))
 
   # Structural-side missingness (covariates / distal outcomes in Y). Covariates
-  # are completed under the class-invariant Gaussian marginal
+  # are listwise deleted (above) or, under `missing_predictors = "mean"`,
+  # completed under the class-invariant Gaussian marginal
   # (endogenous-constrained-x; Sterba, 2014); a missing distal outcome is
   # handled by FIML inside the structural likelihood.
   y_any_missing <- !is.null(Y) && anyNA(Y)
   y_n_missing   <- if (!is.null(Y)) sum(is.na(Y)) else 0L
-  struct_handled <- if (y_any_missing) {
-    if (!is.null(struct_keep))
-      "listwise deletion from the class regression"
-    else if (class_reg)
+  struct_handled <- if (listwise_cov && !class_reg) {
+    if (y_any_missing) "listwise deletion on covariates; FIML outcome"
+    else "listwise deletion on covariates"
+  } else if (listwise_cov) {
+    "listwise deletion from the class regression"
+  } else if (y_any_missing) {
+    if (class_reg)
       "endogenous-constrained-x (Sterba, 2014)"
     else
       "endogenous-constrained-x covariates; FIML outcome"
@@ -3331,14 +3342,16 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   -- are the ones it is easiest to forget. An argument given here overrides
 #'   the option.
 #' @param missing_predictors What to do with a case missing one of
-#'   \code{predictors}. \code{"listwise"} (the default) leaves it out: a
-#'   one-step model (\code{n_steps = 1}) is fitted without that case at all,
-#'   and a stepwise one keeps it in step 1 and leaves it out of the
-#'   class-membership regression only, with a message either way saying how
-#'   many cases that was. \code{"mean"} keeps every case and completes the
-#'   missing values under the class-invariant Gaussian marginal of the
-#'   predictors (Sterba, 2014). Why listwise is the default is in
-#'   \code{\link{add_covariates}}, "Missing predictors".
+#'   \code{predictors} or \code{outcome_covariates}. \code{"listwise"} (the
+#'   default) leaves it out: a one-step model (\code{n_steps = 1}) is fitted
+#'   without that case at all, and a stepwise one keeps it in step 1 and
+#'   leaves it out of the class-membership or outcome regression only, with a
+#'   message either way saying how many cases that was. \code{"mean"} keeps
+#'   every case and completes the missing values under the class-invariant
+#'   Gaussian marginal of the covariates (Sterba, 2014). A missing
+#'   \code{outcome} is not a reason to delete a case. Why listwise is the
+#'   default is in \code{\link{add_covariates}}, "Missing predictors", and
+#'   \code{\link{add_outcome}}, "Missing covariates".
 #' @param X,Y,n_components,structural Deprecated legacy arguments retained for
 #'   backward compatibility; prefer \code{indicators}, \code{n_classes},
 #'   \code{predictors}, and \code{outcome}.

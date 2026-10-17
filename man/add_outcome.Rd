@@ -18,6 +18,7 @@ add_outcome(
   assignment = c("proportional", "modal"),
   max_iter = 1000,
   data = NULL,
+  missing_predictors = c("listwise", "mean"),
   ...
 )
 }
@@ -126,6 +127,15 @@ whose classes were assigned that way.}
 \code{outcome} may be a one-sided formula naming one column (\code{~ bmi}), and
 \code{covariates} a one-sided formula (interactions included, e.g. \code{~ age * sex}) or a vector of column names.}
 
+\item{missing_predictors}{What to do with a case missing one of
+\code{covariates} or \code{predictors}. \code{"listwise"} (the default) leaves it out of
+the step-3 model, with a message saying how many cases that was; \code{"mean"}
+keeps it and completes the missing value under the class-invariant
+Gaussian marginal of the covariates, which for a single covariate is its
+mean. A missing \emph{outcome} is never deleted for this reason: that case
+simply contributes no outcome information. See "Missing covariates"
+below.}
+
 \item{...}{Currently unused.}
 }
 \value{
@@ -140,6 +150,19 @@ to a distal outcome with the bias-adjusted three-step approach. The
 measurement model is reused exactly as fitted — no re-estimation, and no
 risk of landing on a different solution.
 }
+\section{Missing covariates}{
+
+Under \code{"listwise"} a case missing a covariate of the outcome, or a class
+predictor, is still part of step 1 and of the classification-error table
+the correction inverts, and is left out of step 3 only; its class
+probabilities stay those of the measurement model. For a covariate of the
+outcome, deletion leaves the regression unbiased when whether the covariate
+is missing depends on the covariate itself or on the class, and completing
+it with the mean does not; when missingness is unrelated to anything the two
+agree (Little, 1992). For class predictors see "Missing predictors" in
+\code{\link[=add_covariates]{add_covariates()}}.
+}
+
 \examples{
 set.seed(1)
 items <- matrix(rbinom(300, 1, 0.5), nrow = 100)
@@ -178,6 +201,10 @@ Bakk, Z., Tekle, F. B., & Vermunt, J. K. (2013). Estimating the association
 between latent class membership and external variables using bias-adjusted
 three-step approaches. \emph{Sociological Methodology}, \emph{43}(1),
 272–311. \doi{10.1177/0081175012470644}
+
+Little, R. J. A. (1992). Regression with missing X's: A review.
+\emph{Journal of the American Statistical Association}, \emph{87}(420),
+1227–1237. \doi{10.1080/01621459.1992.10476282}
 }
 \seealso{
 \code{\link[=outcome_contrasts]{outcome_contrasts()}} for class-vs-class differences on the

@@ -1,5 +1,42 @@
 # mixtureEM (development version)
 
+## Cases missing an outcome covariate are left out too
+
+The listwise rule for class predictors (below) now covers the covariates of
+a distal outcome and of a latent transition model. `add_outcome()` and
+`fit_lta()` gain `missing_predictors = c("listwise", "mean")`, which in
+`fit_lta()` covers all four covariate arguments, and `fit_mixture()`'s
+argument of that name now covers `outcome_covariates` as well. A
+stepwise fit keeps a case missing a covariate in step 1 and in the
+classification-error table and leaves it out of step 3; a one-step fit
+drops it whole, including one kept only for its observed outcome. A missing
+outcome is still not a reason to delete a case. `fit_lta(n_steps = 2)` and
+`n_steps = 3` still complete missing covariates, whatever the argument says,
+and the help page says so.
+
+The evidence is a simulation of an outcome regressed on the class and a
+covariate, and of a transition regressed on a covariate, with the covariate
+missing completely at random, more often in one class, or more often at high
+values. Listwise deletion was unbiased in every condition; the mean fill was
+biased whenever missingness depended on the covariate or the class, by up to
+0.41 in an outcome intercept and by about 45% in a transition slope. Its one
+cost is fewer cases, which in a sparse transition cell occasionally gives a
+runaway estimate. Every outcome or transition model fitted to data with a
+missing covariate moves: its sample size, estimates, standard errors and
+log-likelihood. `missing_predictors = "mean"` restores the previous numbers.
+
+## The joint step-3 model no longer fills in a missing outcome
+
+`add_outcome(predictors = )` completed its data before fitting as though
+every column were a covariate, so a case missing the distal outcome was
+given a value predicted from the class predictors and fitted as if it had
+been observed. It now contributes only its class-regression term, as the
+same outcome does without `predictors`. Joint fits with a missing outcome
+move. In one example with 20 such cases among 419, the two smaller classes'
+outcome means moved from 2.720 and 3.109 to 2.759 and 3.286, the shared
+variance from 1.57 to 1.64, and the step-3 log-likelihood by 24, almost all
+of it the terms the filled-in values had added.
+
 ## `outcome_contrasts()` reports effect sizes
 
 `effect_size = TRUE` adds Cohen's d for each contrast of a continuous
@@ -42,8 +79,8 @@ across all twelve conditions. When missingness is unrelated to anything the
 two agree. Every class-membership regression fitted to data with a missing
 predictor moves: its coefficients, its standard errors and its step-3
 log-likelihood, which now sums over the cases the regression used. Fits
-with complete predictors do not change. Distal-outcome covariates and
-`fit_lta()` covariates still use the mean fill.
+with complete predictors do not change. Distal-outcome and `fit_lta()`
+covariates follow the same rule since a later change (above).
 
 ## A one-step distal outcome keeps the cases that observe only the outcome
 
