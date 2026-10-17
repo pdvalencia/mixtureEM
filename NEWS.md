@@ -1,5 +1,13 @@
 # mixtureEM (development version)
 
+## `outcome_contrasts()` offers the Benjamini-Hochberg adjustment
+
+`adjust = "BH"` controls the false discovery rate across the reported
+contrasts, beside the family-wise `"holm"` and `"bonferroni"`. The default
+stays `"none"`. A new help section, "Choosing an adjustment", says which
+guarantee each one gives and when each fits. No estimate or unadjusted
+p-value changes.
+
 ## Cases missing a class predictor are left out of the class regression
 
 `add_covariates()` and `fit_mixture(predictors = )` gain

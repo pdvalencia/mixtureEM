@@ -7,7 +7,7 @@
 outcome_contrasts(
   fit,
   ref = NULL,
-  adjust = c("none", "holm", "bonferroni"),
+  adjust = c("none", "BH", "holm", "bonferroni"),
   level = 0.95,
   outcome = NULL,
   term = NULL,
@@ -23,10 +23,11 @@ classes are the statuses at the last occasion.}
 of classes. \code{NULL} (the default) reports all pairs.}
 
 \item{adjust}{Multiplicity adjustment across the reported contrasts, passed
-to \code{\link[stats:p.adjust]{stats::p.adjust()}}: \code{"none"} (the default), \code{"holm"} or
+to \code{\link[stats:p.adjust]{stats::p.adjust()}}: \code{"none"} (the default), \code{"BH"}, \code{"holm"} or
 \code{"bonferroni"}. With \code{"none"} the p-values are the per-contrast ones, which
 is what to report when the contrasts were named in advance; an adjustment
-belongs on the all-pairs table read as a family.}
+belongs on the all-pairs table read as a family. See "Choosing an
+adjustment" below.}
 
 \item{level}{Confidence level for the intervals. Default \code{0.95}.}
 
@@ -72,6 +73,29 @@ and the naive version is conservative exactly when the correlation is
 positive. The full sandwich covariance the fit already carries is used
 wherever it is available.
 }
+\section{Choosing an adjustment}{
+
+The adjustments answer different questions. \code{"holm"} and \code{"bonferroni"}
+control the family-wise error rate, the chance of even one false positive
+among the contrasts; that is the right guarantee for a narrowly
+confirmatory comparison, where a single wrong claim is costly. \code{"BH"}
+(Benjamini and Hochberg, 1995) controls the false discovery rate, the
+expected share of false positives among the contrasts declared
+significant; that is the right guarantee when the aim is to describe the
+pattern of differences between the classes, which is the usual aim of a
+distal-outcome analysis.
+
+The pairwise contrasts are positively dependent by construction: each class
+mean enters several of them (in a three-class model, class 1's mean is in
+both the 1-vs-2 and the 1-vs-3 contrast). Family-wise procedures do not
+use that dependence and are conservative here, so they suppress more of a
+real pattern than the number of contrasts alone suggests. Benjamini and
+Yekutieli (2001) prove that the BH procedure keeps its false discovery rate
+under positive regression dependence, which covers positively correlated
+one-sided tests; the p-values here are two-sided, for which that proof does
+not apply as it stands.
+}
+
 \section{Slope contrasts}{
 
 When the class moderates a covariate's effect on the outcome -- each class
@@ -114,6 +138,15 @@ outcome_contrasts(fit_m, term = "x")
 \references{
 Arch, D. A. N., Nylund-Gibson, K., & Ing, M. (2026). Moderation with a
 latent class variable. \emph{Behavior Research Methods}, 58, 108.
+
+Benjamini, Y., & Hochberg, Y. (1995). Controlling the false discovery rate:
+A practical and powerful approach to multiple testing. \emph{Journal of the
+Royal Statistical Society: Series B}, \emph{57}(1), 289–300.
+\doi{10.1111/j.2517-6161.1995.tb02031.x}
+
+Benjamini, Y., & Yekutieli, D. (2001). The control of the false discovery
+rate in multiple testing under dependency. \emph{The Annals of Statistics},
+\emph{29}(4), 1165–1188. \doi{10.1214/aos/1013699998}
 }
 \seealso{
 \code{\link[=add_outcome]{add_outcome()}} for fitting the outcome model and \code{\link[=summary]{summary()}} for

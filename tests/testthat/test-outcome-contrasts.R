@@ -145,6 +145,10 @@ test_that("the multiplicity adjustment is applied across the reported set", {
   expect_equal(oc$p_adj, stats::p.adjust(oc$p, "holm"), tolerance = 1e-12)
   expect_true(all(oc$p_adj >= oc$p - 1e-12))
   expect_false("p_adj" %in% names(outcome_contrasts(fo)))
+
+  bh <- outcome_contrasts(fo, adjust = "BH")
+  expect_equal(bh$p_adj, stats::p.adjust(bh$p, "BH"), tolerance = 1e-12)
+  expect_output(print(bh), "adjusted across 3 contrasts \\(BH\\)")
 })
 
 test_that("the confidence level widens the interval", {
