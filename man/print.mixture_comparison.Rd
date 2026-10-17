@@ -36,9 +36,9 @@ found \code{BIC} and \code{CAIC} the most reliable indices, with no significant
 difference between the two; \code{AWE} performed worst overall, most of all at
 small samples; and \code{cmP}, being a rescaling of the \code{BIC} differences in the
 table, tracked \code{BIC} so closely that printing it adds no independent
-evidence and can make one index's choice look like two. Every population
-model in that study had well-separated classes, so the ranking is firmest
-there.
+evidence and can make one index's choice look like two. The classes in
+every simulated population were well separated (entropy about .84 to .88),
+so the ranking is firmest there.
 
 A log-likelihood marked \code{*} is a maximum that only one start reached.
 \code{BF} spans many orders of magnitude, and its reading bands stop at 100 and
@@ -48,7 +48,7 @@ beyond them; \code{cmP} below 0.001 is printed as \verb{< 0.001}.
 \references{
 Arch, D. A. N., & Nylund-Gibson, K. (2026). Unmodeled DIF in latent class
 analysis: Consequences for class enumeration. \emph{Methods in Psychology},
-\emph{14}, 100243.
+\emph{14}, 100243. \doi{10.1016/j.metip.2026.100243}
 
 Dias, J. G. (2006). Latent class analysis and model selection. In M. Spiliopoulou
 et al. (Eds.), \emph{From Data and Information Analysis to Knowledge

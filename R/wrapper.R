@@ -4192,7 +4192,7 @@ print.mixture_model <- function(x, ...) {
 #' @references
 #' Arch, D. A. N., & Nylund-Gibson, K. (2026). Unmodeled DIF in latent class
 #' analysis: Consequences for class enumeration. \emph{Methods in Psychology},
-#' \emph{14}, 100243.
+#' \emph{14}, 100243. \doi{10.1016/j.metip.2026.100243}
 #'
 #' Nylund, K. L., Asparouhov, T., & Muthen, B. O. (2007). Deciding on the number
 #' of classes in latent class analysis and growth mixture modeling: A Monte
@@ -4388,9 +4388,9 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
 #' difference between the two; `AWE` performed worst overall, most of all at
 #' small samples; and `cmP`, being a rescaling of the `BIC` differences in the
 #' table, tracked `BIC` so closely that printing it adds no independent
-#' evidence and can make one index's choice look like two. Every population
-#' model in that study had well-separated classes, so the ranking is firmest
-#' there.
+#' evidence and can make one index's choice look like two. The classes in
+#' every simulated population were well separated (entropy about .84 to .88),
+#' so the ranking is firmest there.
 #'
 #' A log-likelihood marked `*` is a maximum that only one start reached.
 #' `BF` spans many orders of magnitude, and its reading bands stop at 100 and
@@ -4404,7 +4404,7 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
 #' @references
 #' Arch, D. A. N., & Nylund-Gibson, K. (2026). Unmodeled DIF in latent class
 #' analysis: Consequences for class enumeration. \emph{Methods in Psychology},
-#' \emph{14}, 100243.
+#' \emph{14}, 100243. \doi{10.1016/j.metip.2026.100243}
 #'
 #' Dias, J. G. (2006). Latent class analysis and model selection. In M. Spiliopoulou
 #' et al. (Eds.), \emph{From Data and Information Analysis to Knowledge

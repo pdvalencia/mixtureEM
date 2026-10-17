@@ -332,11 +332,12 @@
 #' covariate values (differential item functioning) that the model does not
 #' include, and largely did not find them. It was enumeration *with* the
 #' covariates in the model, but without their direct effects on the items,
-#' that over-extracted classes. That is the order this function assumes: the
-#' number of classes is settled on the unconditional fit you pass in. One
-#' caveat travels with the result: every population model in the study had
-#' well-separated classes, and the authors report that pilot work on real data
-#' with weaker separation did show the instability the main study did not.
+#' that over-extracted classes, most of all when those effects were strong and
+#' the sample was large. That is the order this function assumes: the number
+#' of classes is settled on the unconditional fit you pass in. One caveat
+#' travels with the result: even the study's "realistic" separation condition
+#' had an entropy of about .84, so how well the advice holds for poorly
+#' separated classes is untested there.
 #'
 
 #' @return A `mixture_model` with the class-membership regression attached.
@@ -346,7 +347,7 @@
 #' @references
 #' Arch, D. A. N., & Nylund-Gibson, K. (2026). Unmodeled DIF in latent class
 #' analysis: Consequences for class enumeration. \emph{Methods in Psychology},
-#' \emph{14}, 100243.
+#' \emph{14}, 100243. \doi{10.1016/j.metip.2026.100243}
 #'
 #' Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
 #' three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450–469.

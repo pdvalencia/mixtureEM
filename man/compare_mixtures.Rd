@@ -166,7 +166,7 @@ result$best_k
 \references{
 Arch, D. A. N., & Nylund-Gibson, K. (2026). Unmodeled DIF in latent class
 analysis: Consequences for class enumeration. \emph{Methods in Psychology},
-\emph{14}, 100243.
+\emph{14}, 100243. \doi{10.1016/j.metip.2026.100243}
 
 Nylund, K. L., Asparouhov, T., & Muthen, B. O. (2007). Deciding on the number
 of classes in latent class analysis and growth mixture modeling: A Monte

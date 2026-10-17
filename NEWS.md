@@ -7,9 +7,9 @@
 view: in Arch and Nylund-Gibson's (2026) simulation BIC and CAIC were the
 reliable indices, AWE the weakest, VLMR unreliable on its own, and the
 correct-model probability a restatement of BIC. `?add_covariates` gives the
-same study's case for counting classes before adding covariates, with its
-caveat about weakly separated classes. Documentation only; no number
-changes.
+same study's case for counting classes before adding covariates, with the
+caveat that every simulated population had well-separated classes.
+Documentation only; no number changes.
 
 ## `summary()` says how many starts found the solution
 
