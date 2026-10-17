@@ -1,5 +1,16 @@
 # mixtureEM (development version)
 
+## Class contrasts on a one-step growth outcome carry the covariance of the means
+
+`outcome_contrasts()` on a continuous outcome fitted inside `fit_gmm()` or
+`fit_lcga()` with `n_steps = 1` treated the class means as independent,
+because only the step-3 corrections store their covariance. The one-step
+model's joint sandwich (`growth_estimates(se = "robust")`) covers the means
+already, and the effect sizes used it; the raw differences now use it too,
+and the printed method says so. On the ex8 data with GHP4F as the outcome
+the smallest pair's standard error moves from .342 to .370. Estimates do
+not change, nor do BCH, ML step-3 or effect-size results.
+
 ## ML step-3 standard errors of a continuous outcome with covariates
 
 `add_outcome(correction = "ML")` with a continuous outcome and `covariates`

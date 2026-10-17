@@ -400,11 +400,16 @@ outcome_contrasts <- function(fit, ref = NULL,
     means <- as.vector(cont$parameters$means)
     Sigma <- cont$parameters$Sigma_mu
 
-    # Sigma_mu is stored only by the BCH correction. Without it the class means
-    # are treated as independent, which is what the omnibus test falls back to
-    # as well; the attribute says so, because a user comparing the two needs to
-    # know which one they got.
-    if (is.null(Sigma) || !all(is.finite(Sigma))) {
+    # Sigma_mu is stored by the BCH and ML step-3 corrections. A one-step growth
+    # model stores none, but its joint sandwich covers the class means, so the
+    # contrasts take that block. Anything else treats the class means as
+    # independent; the attribute says which one a user got.
+    og <- if (is.null(Sigma)) .onestep_growth_vcov(fit) else NULL
+    if (!is.null(og) && length(og$im) == K) {
+      means  <- og$ge$estimate[og$im]
+      Sigma  <- og$V[og$im, og$im, drop = FALSE]
+      method <- "robust sandwich covariance of the one-step model"
+    } else if (is.null(Sigma) || !all(is.finite(Sigma))) {
       ses    <- as.vector(cont$parameters$ses)
       Sigma  <- diag(ses^2, nrow = K)
       method <- "independent class means (no cross-class covariance stored)"
@@ -564,15 +569,12 @@ outcome_contrasts <- function(fit, ref = NULL,
 # size logits to the sizes, or the ML step-3 matrix stored as V_pmv. Anything
 # else stops, saying which fits have it.
 .effect_size_inputs <- function(fit, K) {
-  if (inherits(fit, c("gmm", "lcga")) &&
-      identical(as.integer(fit$n_steps), 1L)) {
-    ge <- growth_estimates(fit, se = "robust")
-    Vg <- attr(ge, "vcov")
+  og <- .onestep_growth_vcov(fit)
+  if (!is.null(og)) {
+    ge <- og$ge; Vg <- og$V; im <- og$im
     il <- which(ge$parameter == "class_logit")
-    im <- which(ge$parameter == "outcome_mean")
     iv <- which(ge$parameter == "outcome_variance")
-    if (!is.null(Vg) && length(il) == K - 1L && length(im) == K &&
-        length(iv) == K) {
+    if (length(il) == K - 1L && length(im) == K && length(iv) == K) {
       a  <- c(ge$estimate[il], 0)
       p  <- exp(a - max(a)); p <- p / sum(p)
       # d pi / d logit_j = pi * (1[k = j] - pi_j); the class-K logit is fixed.
@@ -596,6 +598,18 @@ outcome_contrasts <- function(fit, ref = NULL,
        "variances of a continuous outcome, which only a one-step fit_gmm() or ",
        "fit_lcga() outcome and an add_outcome(correction = \"ML\") outcome ",
        "carry. They are not available for this outcome model.", call. = FALSE)
+}
+
+# A one-step fit_gmm() / fit_lcga() model's growth_estimates(se = "robust")
+# table and its joint sandwich, with the rows of the outcome's class means;
+# NULL for any other fit, or when no covariance could be formed.
+.onestep_growth_vcov <- function(fit) {
+  if (!inherits(fit, c("gmm", "lcga")) ||
+      !identical(as.integer(fit$n_steps), 1L)) return(NULL)
+  ge <- growth_estimates(fit, se = "robust")
+  V  <- attr(ge, "vcov")
+  if (is.null(V)) return(NULL)
+  list(ge = ge, V = V, im = which(ge$parameter == "outcome_mean"))
 }
 
 #' @export

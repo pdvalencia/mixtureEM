@@ -269,3 +269,22 @@ test_that("an ML step-3 outcome reports d and omega; BCH says it cannot", {
   fb <- suppressMessages(add_outcome(fit, y))
   expect_error(outcome_contrasts(fb, effect_size = TRUE), "not available")
 })
+
+test_that("a one-step growth outcome contrasts from the joint sandwich", {
+  set.seed(2)
+  n   <- 300
+  cls <- rbinom(n, 1, 0.5)
+  y   <- outer(ifelse(cls == 1, 3, 1) + rnorm(n, 0, 0.8), rep(1, 4)) +
+    outer(ifelse(cls == 1, 1, 0.2), 0:3) + matrix(rnorm(n * 4, 0, 0.6), n, 4)
+  dist <- rnorm(n, ifelse(cls == 1, 2, 0), 1)
+  fit <- suppressWarnings(fit_gmm(y, times = 4, n_classes = 2, n_init = 3,
+                                  random_state = 1, outcome = dist,
+                                  outcome_type = "continuous", n_steps = 1))
+  ge <- growth_estimates(fit, se = "robust")
+  im <- which(ge$parameter == "outcome_mean")
+  V  <- attr(ge, "vcov")[im, im]
+  oc <- outcome_contrasts(fit)
+  expect_match(attr(oc, "method"), "one-step model")
+  expect_equal(oc$estimate, ge$estimate[im[2]] - ge$estimate[im[1]])
+  expect_equal(oc$se, sqrt(V[1, 1] + V[2, 2] - 2 * V[1, 2]))
+})
