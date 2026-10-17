@@ -1,5 +1,18 @@
 # mixtureEM (development version)
 
+## `print()` says when the best solution rests on a single case
+
+The search reported which maximum it found and how many starts reached it,
+but not whether that maximum was held up by one observation. Every converged
+start is now also scored with its single best-fitted case removed (Seo &
+Lindsay's 2010 1-deleted log-likelihood, on the penalised scale the search
+ranks on), and when another start beats the reported one on that score
+`print()` adds a `Spike check` line. The three values are in `$metrics` as
+`kdel_ll`, `kdel_best` and `kdel_disagrees`, for `fit_mixture()`,
+`fit_gmm()`, `fit_lcga()`, `fit_rmlca()` and `fit_lta()`. No estimate,
+log-likelihood, standard error or fit index changes on any fit: the check is
+reported alongside the results and is never used to select them.
+
 ## Why the default comparison table looks the way it does
 
 `?print.mixture_comparison`, `?compare_mixtures` and

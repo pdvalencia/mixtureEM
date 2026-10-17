@@ -265,3 +265,69 @@ test_that("compare_mixtures() gains the same column and still prints", {
   expect_true(any(grepl("^ +2 +-[0-9.]+\\*", out)))
   expect_true(any(grepl("Unreplicated maximum at K = 2", out, fixed = TRUE)))
 })
+
+# ------------------------------------------------------------------------------
+# The spike check: the score with the single best-fitted case removed
+# ------------------------------------------------------------------------------
+
+test_that(".k_deleted_ll() removes the best-fitted case, in part when weighted", {
+  d <- c(-1.2, -0.3, -2.5, -0.9)
+  expect_equal(.k_deleted_ll(d, rep(1, 4)), sum(d) - max(d))
+  # A pattern of frequency f is f identical cases: deleting one removes one
+  # unit of its weight, which is the fractional boundary term.
+  w <- c(2, 3, 1, 4)
+  expect_equal(.k_deleted_ll(d, w), .k_deleted_ll(rep(d, w), rep(1, sum(w))))
+  expect_equal(.k_deleted_ll(d, c(0.4, 0.5, 1, 1)),
+               sum(c(0.4, 0.5, 1, 1) * d) - (0.5 * -0.3 + 0.5 * -0.9))
+  # Any score built on the log-likelihood can be passed as the total.
+  expect_equal(.k_deleted_ll(d, rep(1, 4), total = -10), -10 - max(d))
+  expect_true(is.na(.k_deleted_ll(d[1], 1)))
+  expect_equal(.k_deleted_ll(c(d, NaN, -Inf), c(rep(1, 4), 1, 1)),
+               sum(d) - max(d))
+})
+
+test_that("every fit carries the spike check, and a clean fit stays silent", {
+  set.seed(31)
+  X <- matrix(rnorm(300 * 3, rep(c(-2, 0, 2), each = 100)), ncol = 3)
+  fit <- fit_mixture(X, n_classes = 3, measurement = "continuous", n_init = 5,
+                     random_state = 1)
+  expect_true(is.finite(fit$metrics$kdel_ll))
+  expect_false(fit$metrics$kdel_disagrees)
+  expect_false(any(grepl("Spike check", capture.output(print(fit)))))
+
+  # The growth models reach it through fit_em() as fit_mixture() does.
+  set.seed(32)
+  cls <- rbinom(200, 1, 0.5)
+  Y   <- outer(ifelse(cls == 1, 1, -1), rep(1, 4)) +
+         outer(ifelse(cls == 1, 0.8, -0.2), 0:3) + matrix(rnorm(800, sd = 0.5), 200)
+  g <- suppressWarnings(fit_gmm(Y, n_classes = 2, times = 4, n_init = 3,
+                                random_state = 1))
+  expect_true(is.finite(g$metrics$kdel_ll))
+  l <- fit_lcga(Y, times = 4, n_classes = 2, family = "gaussian", n_init = 3,
+                random_state = 1)
+  expect_true(is.finite(l$metrics$kdel_ll))
+
+  set.seed(22)
+  B <- matrix(rbinom(150 * 3, 1, 0.5), ncol = 3)
+  lta <- fit_lta(B, n_statuses = 2, times = 3, measurement = "binary",
+                 n_init = 4, random_state = 2, standard_errors = FALSE)
+  expect_true(is.finite(lta$metrics$kdel_ll))
+  expect_true(lta$metrics$kdel_best >= lta$metrics$kdel_ll)
+})
+
+test_that("the spike check fires when one case decides the ranking", {
+  # One class too many on 40 cases, fitted without the variance prior: the
+  # winner has a class shrunk onto a point inside the data, and another start
+  # is better once each loses its best-fitted case.
+  set.seed(303)
+  z <- rbinom(40, 1, 0.4)
+  d <- data.frame(y = ifelse(z == 1, rnorm(40, 6.25, sqrt(0.27)),
+                             rnorm(40, 4.33, sqrt(0.14))))
+  fit <- suppressWarnings(fit_mixture(d, 3, measurement = "continuous",
+           variances_equal = FALSE, bayes_constants = list(variances = 0, latent = 0),
+           n_init = 100, random_state = 3))
+  # The search first, so a failure below is the flag's and not a moved maximum.
+  expect_equal(fit$metrics$ll, -42.9960, tolerance = 1e-4)
+  expect_true(fit$metrics$kdel_disagrees)
+  expect_output(print(fit), "Spike check")
+})

@@ -3293,6 +3293,19 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   report a better log-likelihood for a worse solution. For the same reason a
 #'   flagged fit's BIC is not comparable with a clean fit's.
 #'
+#'   \strong{Spike check:} a related line in \code{print()} looks at the
+#'   restarts rather than at the variances. Each converged start is scored
+#'   again with its single best-fitted case removed (the 1-deleted
+#'   log-likelihood of Seo & Lindsay, 2010, sec. 4, on the same penalised
+#'   scale the search ranks on). When another start comes out ahead of the
+#'   reported one on that score, the reported maximum owes its lead to one
+#'   observation, and \code{print()} says so. Nothing is re-selected: the
+#'   values are in \code{$metrics} (\code{kdel_ll}, \code{kdel_best},
+#'   \code{kdel_disagrees}) for information only. A class sitting on one isolated
+#'   outlier usually does \emph{not} trigger it, because the rest of that
+#'   solution still fits the other cases best; the collapsed-variance warning
+#'   above is the check for that case.
+#'
 #'   The theory behind the prior settles its form and not its size: within the
 #'   conditions Chen, Tan, & Zhang (2008) impose — which any fixed positive
 #'   constant meets — a penalty that diverges as a variance approaches zero and

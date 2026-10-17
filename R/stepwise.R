@@ -346,7 +346,13 @@
     # convergence. Both numbers are needed: the first is what the user set and
     # what a reporting checklist asks for, the second is what the count of
     # replications is out of.
-    n_requested  = model_state$n_requested
+    n_requested  = model_state$n_requested,
+    # The spike check (fit_em()): the reported fit's score with its single
+    # best-fitted case removed, the best such score among the restarts, and
+    # whether the two name different solutions. Reported, never used to select.
+    kdel_ll        = model_state$kdel_ll,
+    kdel_best      = model_state$kdel_best,
+    kdel_disagrees = model_state$kdel_disagrees
   )
   # Restarts that ended on a degenerate spike and were counted as failures to
   # converge (fit_em()); `all_degenerate` when every one did and the reported
@@ -421,11 +427,20 @@
     cat(sprintf(paste0("  Best solution  : found by the start built from each ",
                        "covariate pattern's own fit; %d of %d random starts ",
                        "reached it\n"), nr - 1L, n - 1L))
-    return(invisible(NULL))
+  } else {
+    cat(sprintf("  Best solution  : found by %s%s\n", detail,
+                if (nr == 1L)
+                  paste0(" - ", .replication_advice(req %||% n, n)) else ""))
   }
-  cat(sprintf("  Best solution  : found by %s%s\n", detail,
-              if (nr == 1L)
-                paste0(" - ", .replication_advice(req %||% n, n)) else ""))
+  # Silent unless another start beats the reported one once each loses its
+  # single best-fitted case: a maximum held up by a few observations rather
+  # than by a subgroup (Seo & Lindsay, 2010, sec. 4).
+  if (isTRUE(x$metrics$kdel_disagrees))
+    cat(paste0(
+      "  Spike check    : another start fits the data better once its single\n",
+      "                   best-fitted case is removed. The reported maximum may rest\n",
+      "                   on a few observations rather than on a subgroup; see\n",
+      "                   ?fit_mixture.\n"))
   invisible(NULL)
 }
 

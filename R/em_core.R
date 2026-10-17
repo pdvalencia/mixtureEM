@@ -1476,7 +1476,22 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
   # are computed anyway.
   # Attached to the winning state at the end.
   final_lls <- numeric(0)
-  record <- function(ll) { final_lls <<- c(final_lls, ll); invisible(NULL) }
+  record <- function(ll, kdel = NA_real_) {
+    final_lls   <<- c(final_lls, ll)
+    final_kdels <<- c(final_kdels, kdel)
+    invisible(NULL)
+  }
+
+  # The same score with the single best-fitted case removed (.k_deleted_ll()),
+  # kept per restart so the reported maximum can be checked against the others
+  # once that case is gone. Taken on the ranking scale, `ll_of()`, so that with
+  # the default constants a disagreement means one case decided the ranking and
+  # not that the prior did; with the constants at zero it is the plain
+  # 1-deleted log-likelihood. Reported only: nothing here is consulted by the
+  # search.
+  final_kdels <- numeric(0)
+  kdel_of <- function(s)
+    .k_deleted_ll(s$lower_bound, s$sample_weights, 1, total = ll_of(s))
 
   # The Newton-type finish (R/qn_finish.R) takes the leading end points on to
   # the maximum and the best of those is reported. It is part of the
@@ -1507,6 +1522,16 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     # many restarts were requested, and a report built on it alone would say a
     # 50-start search had been a 10-start one.
     best$n_requested  <- n_init
+    # The spike check: does another converged restart beat the reported one
+    # once each loses its single best-fitted case? Compared only over the
+    # restarts that competed (`kept`), and with the replication tolerance
+    # above, so restarts that found the same maximum never disagree.
+    best$kdel_ll   <- kdel_of(best)
+    others         <- c(final_kdels[kept], best$kdel_ll)
+    best$kdel_best <- if (any(is.finite(others))) max(others, na.rm = TRUE)
+                      else NA_real_
+    best$kdel_disagrees <- is.finite(best$kdel_ll) && is.finite(best$kdel_best) &&
+      best$kdel_best - best$kdel_ll > 1e-2
     best
   }
 
@@ -1527,7 +1552,7 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     best_total_ll <- -Inf
     for (i in seq_along(fitted)) {
       current_ll <- ll_of(fitted[[i]])
-      record(current_ll)
+      record(current_ll, kdel_of(fitted[[i]]))
       if (kept[i] && (is.null(best_model) || current_ll > best_total_ll)) {
         best_total_ll <- current_ll
         best_model    <- fitted[[i]]
@@ -1592,6 +1617,26 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
 
   if (!is.null(warm)) fitted <- c(fitted, list(run_warm(warm)))
   select(fitted)
+}
+
+# The k-deleted log-likelihood (Seo & Lindsay, 2010, sec. 4): the fit's total
+# with the k cases it fits best removed. `d` are the per-case log densities and
+# `w` their weights; a case of weight f stands for f identical cases, so the
+# last one removed may be removed in part. `total` defaults to the
+# log-likelihood itself and may be any score built on it, the penalised one
+# included, since only the removed part is computed here. Non-finite densities
+# take no part; NA when the cases left weigh no more than k.
+.k_deleted_ll <- function(d, w, k = 1, total = sum(w * d)) {
+  ok <- is.finite(d) & is.finite(w) & w > 0
+  d <- d[ok]; w <- w[ok]
+  if (!is.finite(total) || sum(w) <= k) return(NA_real_)
+  o  <- order(d, decreasing = TRUE)
+  d  <- d[o]; w <- w[o]
+  cw <- cumsum(w)
+  M  <- which(cw >= k)[1L]
+  before <- if (M > 1L) cw[M - 1L] else 0
+  drop <- sum(w[seq_len(M - 1L)] * d[seq_len(M - 1L)]) + (k - before) * d[M]
+  total - drop
 }
 
 # Whether a fitted restart ended on a degenerate point of an unbounded

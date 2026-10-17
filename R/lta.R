@@ -1544,6 +1544,14 @@ fit_lta <- function(indicators,
     lp <- .lta_log_prior(cand, X_fit, alpha, rank_marg)
     if (is.na(lp)) cand$loglik else cand$loglik + lp
   }
+  # The spike check, as fit_em() keeps it (R/em_core.R): each converged
+  # restart's score with its single best-fitted case removed, on the ranking
+  # scale, with its boundary status so the reported fit is compared only with
+  # restarts of its own kind. Reported, never used to select.
+  final_kdels <- numeric(0)
+  final_degs  <- logical(0)
+  kdel_of <- function(cand, s = score_of(cand))
+    .k_deleted_ll(cand$ll_case, cand$weights_vec, 1, total = s)
   # The random starts are drawn here, in restart order, and fitted afterwards.
   # .lta_random_start() is the only RNG consumer on this path -- .lta_em() draws
   # nothing -- so this takes the same numbers the sequential loop took and makes
@@ -1634,6 +1642,8 @@ fit_lta <- function(indicators,
       s <- score_of(cand)
       final_lls <- c(final_lls, s)
       deg <- !is.null(.categorical_boundary(cand, X_fit))
+      final_kdels <- c(final_kdels, kdel_of(cand, s))
+      final_degs  <- c(final_degs, deg)
       if (beats_current(deg, s)) {
         best <- cand; best_score <- s; best_degenerate <- deg
       }
@@ -1660,6 +1670,8 @@ fit_lta <- function(indicators,
       s <- score_of(cand)
       final_lls <- c(final_lls, s)
       deg <- !is.null(.categorical_boundary(cand, X_fit))
+      final_kdels <- c(final_kdels, kdel_of(cand, s))
+      final_degs  <- c(final_degs, deg)
       if (beats_current(deg, s)) {
         best <- cand; best_score <- s; best_degenerate <- deg
       }
@@ -1730,6 +1742,9 @@ fit_lta <- function(indicators,
   # beyond every restart's own end point (.qn_n_replicated()).
   n_replicated <- .qn_n_replicated(lapply(converged_pool, `[[`, "ll_case"),
                                    best$ll_case, best$weights_vec)
+  kdel_ll   <- kdel_of(best, best_score)
+  others    <- c(final_kdels[final_degs == best_degenerate], kdel_ll)
+  kdel_best <- if (any(is.finite(others))) max(others, na.rm = TRUE) else NA_real_
   best <- .lta_expand(best, coll, X, alpha)
   # A two-step case left out of step 2 keeps the posterior step 1 gave it:
   # step 2 never read it, and its completed covariate row describes no one.
@@ -1815,6 +1830,10 @@ fit_lta <- function(indicators,
     best$metrics$n_starts     <- length(final_lls)
     best$metrics$n_replicated <- n_replicated %||%
       sum(abs(final_lls - max(final_lls)) <= 1e-2)
+    best$metrics$kdel_ll        <- kdel_ll
+    best$metrics$kdel_best      <- kdel_best
+    best$metrics$kdel_disagrees <- is.finite(kdel_ll) && is.finite(kdel_best) &&
+      kdel_best - kdel_ll > 1e-2
   }
   # One start, and it was not a random one. Recorded rather than left at
   # `n_init` so .check_replication() cannot advise raising a restart budget on
