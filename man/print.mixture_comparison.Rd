@@ -30,12 +30,26 @@ p-values when they were requested. \code{columns = "all"} adds \code{AIC}, \code
 dropped from \code{x$fit_table}, which keeps every column at full precision.
 }
 \details{
+\code{AWE} and \code{cmP} are left out of the default view on purpose. In a large
+simulation that included misspecified models, Arch and Nylund-Gibson (2026)
+found \code{BIC} and \code{CAIC} the most reliable indices, with no significant
+difference between the two; \code{AWE} performed worst overall, most of all at
+small samples; and \code{cmP}, being a rescaling of the \code{BIC} differences in the
+table, tracked \code{BIC} so closely that printing it adds no independent
+evidence and can make one index's choice look like two. Every population
+model in that study had well-separated classes, so the ranking is firmest
+there.
+
 A log-likelihood marked \code{*} is a maximum that only one start reached.
 \code{BF} spans many orders of magnitude, and its reading bands stop at 100 and
 start at 0.1 (Wagenmakers, 2007), so it is printed as \verb{> 100} and \verb{< 0.1}
 beyond them; \code{cmP} below 0.001 is printed as \verb{< 0.001}.
 }
 \references{
+Arch, D. A. N., & Nylund-Gibson, K. (2026). Unmodeled DIF in latent class
+analysis: Consequences for class enumeration. \emph{Methods in Psychology},
+\emph{14}, 100243.
+
 Dias, J. G. (2006). Latent class analysis and model selection. In M. Spiliopoulou
 et al. (Eds.), \emph{From Data and Information Analysis to Knowledge
 Engineering} (pp. 95-102). Springer.

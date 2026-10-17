@@ -4087,7 +4087,11 @@ print.mixture_model <- function(x, ...) {
 #' the test does not deserve to be printed as a matter of course. Vermunt (2024)
 #' concludes that "neither of the two implementations yield uniformly
 #' distributed p-values under the correct null hypothesis, indicating this test
-#' is not the best model selection tool in mixture modeling".
+#' is not the best model selection tool in mixture modeling". Arch and
+#' Nylund-Gibson (2026) likewise found VLMR unreliable across their simulation
+#' conditions and advise against it as a standalone index. The same study is
+#' why the `-> Best model` line and `best_k` use `BIC` alone: it and `CAIC`
+#' were the most reliable indices there; see [print.mixture_comparison()].
 #'
 #' The two versions of the test differ only in which covariance matrix of the
 #' parameters enters the reference distribution: the ordinary one
@@ -4186,6 +4190,10 @@ print.mixture_model <- function(x, ...) {
 #' result$best_k
 #'
 #' @references
+#' Arch, D. A. N., & Nylund-Gibson, K. (2026). Unmodeled DIF in latent class
+#' analysis: Consequences for class enumeration. \emph{Methods in Psychology},
+#' \emph{14}, 100243.
+#'
 #' Nylund, K. L., Asparouhov, T., & Muthen, B. O. (2007). Deciding on the number
 #' of classes in latent class analysis and growth mixture modeling: A Monte
 #' Carlo simulation study. \emph{Structural Equation Modeling}, \emph{14}(4),
@@ -4374,6 +4382,16 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
 #' `AWE`, `ICL`, `BF` and `cmP`, the full table of Masyn (2013). Nothing is
 #' dropped from `x$fit_table`, which keeps every column at full precision.
 #'
+#' `AWE` and `cmP` are left out of the default view on purpose. In a large
+#' simulation that included misspecified models, Arch and Nylund-Gibson (2026)
+#' found `BIC` and `CAIC` the most reliable indices, with no significant
+#' difference between the two; `AWE` performed worst overall, most of all at
+#' small samples; and `cmP`, being a rescaling of the `BIC` differences in the
+#' table, tracked `BIC` so closely that printing it adds no independent
+#' evidence and can make one index's choice look like two. Every population
+#' model in that study had well-separated classes, so the ranking is firmest
+#' there.
+#'
 #' A log-likelihood marked `*` is a maximum that only one start reached.
 #' `BF` spans many orders of magnitude, and its reading bands stop at 100 and
 #' start at 0.1 (Wagenmakers, 2007), so it is printed as `> 100` and `< 0.1`
@@ -4384,6 +4402,10 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
 #' @param ... Ignored.
 #' @return `x`, invisibly.
 #' @references
+#' Arch, D. A. N., & Nylund-Gibson, K. (2026). Unmodeled DIF in latent class
+#' analysis: Consequences for class enumeration. \emph{Methods in Psychology},
+#' \emph{14}, 100243.
+#'
 #' Dias, J. G. (2006). Latent class analysis and model selection. In M. Spiliopoulou
 #' et al. (Eds.), \emph{From Data and Information Analysis to Knowledge
 #' Engineering} (pp. 95-102). Springer.

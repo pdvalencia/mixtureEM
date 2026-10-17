@@ -1,5 +1,16 @@
 # mixtureEM (development version)
 
+## Why the default comparison table looks the way it does
+
+`?print.mixture_comparison`, `?compare_mixtures` and
+`vignette("class_enumeration")` now give the evidence for the short default
+view: in Arch and Nylund-Gibson's (2026) simulation BIC and CAIC were the
+reliable indices, AWE the weakest, VLMR unreliable on its own, and the
+correct-model probability a restatement of BIC. `?add_covariates` gives the
+same study's case for counting classes before adding covariates, with its
+caveat about weakly separated classes. Documentation only; no number
+changes.
+
 ## `summary()` says how many starts found the solution
 
 `print()` has long shown how many random starts reached the reported

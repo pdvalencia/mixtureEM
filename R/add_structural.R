@@ -326,12 +326,28 @@
 #' that choice from being made by a covariate that happens to correlate with
 #' the outcome.
 #'
+#' **Why the classes are counted before any covariate is added.** Arch and
+#' Nylund-Gibson (2026) went looking for conditions under which counting
+#' classes without covariates goes wrong when items behave differently across
+#' covariate values (differential item functioning) that the model does not
+#' include, and largely did not find them. It was enumeration *with* the
+#' covariates in the model, but without their direct effects on the items,
+#' that over-extracted classes. That is the order this function assumes: the
+#' number of classes is settled on the unconditional fit you pass in. One
+#' caveat travels with the result: every population model in the study had
+#' well-separated classes, and the authors report that pilot work on real data
+#' with weaker separation did show the instability the main study did not.
+#'
 
 #' @return A `mixture_model` with the class-membership regression attached.
 #'   Use [summary()] for odds ratios and omnibus tests; [coef()],
 #'   [confint()], and [wald_omnibus_test()] also apply.
 #'
 #' @references
+#' Arch, D. A. N., & Nylund-Gibson, K. (2026). Unmodeled DIF in latent class
+#' analysis: Consequences for class enumeration. \emph{Methods in Psychology},
+#' \emph{14}, 100243.
+#'
 #' Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
 #' three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450–469.
 #' \doi{10.1093/pan/mpq025}

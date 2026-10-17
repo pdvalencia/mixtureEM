@@ -124,6 +124,18 @@ fit. \code{add_covariates()}'s two-stage design -- fit the measurement model
 first, decide on classes, only then look at what predicts them -- keeps
 that choice from being made by a covariate that happens to correlate with
 the outcome.
+
+\strong{Why the classes are counted before any covariate is added.} Arch and
+Nylund-Gibson (2026) went looking for conditions under which counting
+classes without covariates goes wrong when items behave differently across
+covariate values (differential item functioning) that the model does not
+include, and largely did not find them. It was enumeration \emph{with} the
+covariates in the model, but without their direct effects on the items,
+that over-extracted classes. That is the order this function assumes: the
+number of classes is settled on the unconditional fit you pass in. One
+caveat travels with the result: every population model in the study had
+well-separated classes, and the authors report that pilot work on real data
+with weaker separation did show the instability the main study did not.
 }
 
 \examples{
@@ -140,6 +152,10 @@ fit_cov2 <- add_covariates(fit, ~ age + sex, data = df)
 
 }
 \references{
+Arch, D. A. N., & Nylund-Gibson, K. (2026). Unmodeled DIF in latent class
+analysis: Consequences for class enumeration. \emph{Methods in Psychology},
+\emph{14}, 100243.
+
 Vermunt, J. K. (2010). Latent class modeling with covariates: Two improved
 three-step approaches. \emph{Political Analysis}, \emph{18}(4), 450–469.
 \doi{10.1093/pan/mpq025}
