@@ -69,3 +69,35 @@ test_that("with every prior off they are the plain observed information", {
   expect_lt(max(abs(sqrt(diag(fit$se$vcov)) /
                       sqrt(diag(solve(-pc$Hd))) - 1)), 1e-3)
 })
+
+test_that("robust takes a variance prior's curvature on the precision scale", {
+  # Gaussian items with status-specific variances, one status small, so the
+  # variance prior is felt. In the meat the prior's curvature is taken on the
+  # precision 1/v: on the log-sd packing, Hp plus twice the prior's gradient.
+  set.seed(11)
+  n <- 250
+  S <- matrix(0L, n, 2)
+  S[, 1] <- sample.int(2, n, TRUE, prob = c(.8, .2))
+  S[, 2] <- ifelse(runif(n) < .85, S[, 1], 3L - S[, 1])
+  X <- matrix(0, n, 4)
+  for (t in 1:2) for (j in 1:2)
+    X[, (t - 1) * 2 + j] <- rnorm(n, c(0, 2)[S[, t]], sqrt(c(1, .3))[S[, t]])
+  fit <- fit_lta(X, n_statuses = 2, times = 2, measurement = "continuous",
+                 n_init = 5, random_state = 1, n_cores = 1,
+                 standard_errors = "robust")
+  pc  <- .pse_pieces(fit, 1)
+  lay <- .lta_par_layout(fit)
+  par <- .lta_par_pack(fit, lay)
+  lp  <- function(p) .lta_log_prior(.lta_par_unpack(p, fit, lay), X, 1)
+  end <- cumsum(vapply(lay, function(b) as.numeric(b$len), numeric(1)))
+  ls  <- unlist(lapply(which(vapply(lay, `[[`, "", "kind") == "log_sd"),
+                       function(i) end[i] - lay[[i]]$len + seq_len(lay[[i]]$len)))
+  g   <- vapply(ls, function(j) { e <- numeric(length(par)); e[j] <- 1e-5
+    (lp(par + e) - lp(par - e)) / 2e-5 }, numeric(1))
+  Hn  <- pc$Hp; diag(Hn)[ls] <- diag(Hn)[ls] + 2 * g
+  Ai  <- solve(-(pc$Hd + pc$Hp))
+  se  <- sqrt(diag(fit$se$vcov))
+  expect_lt(max(abs(se / sqrt(diag(Ai %*% (pc$B - Hn) %*% Ai)) - 1)), 1e-3)
+  # The observed Hp in the meat is measurably different on the variances.
+  expect_gt(max(abs(se / sqrt(diag(Ai %*% (pc$B - pc$Hp) %*% Ai)) - 1)), 2e-3)
+})

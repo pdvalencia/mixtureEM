@@ -339,7 +339,11 @@ rare statuses, transitions near zero and small samples. \code{FALSE} skips
 them. \code{"robust"} returns the sandwich estimator around the same
 curvature, \eqn{H^{-1} (B - H_p) H^{-1}}, with \eqn{B} the outer product of
 the case scores and \eqn{H_p} the prior's curvature, so that it reduces to
-the default when the model is correctly specified; under \code{strata} or
+the default when the model is correctly specified. In \eqn{B - H_p} the
+prior's curvature is taken on each parameter's natural scale: logits as
+fitted, and for a continuous item's variance the precision
+\eqn{1/\sigma^2}, on which the variance prior's curvature does not
+depend on the data. Under \code{strata} or
 \code{cluster} the default is that sandwich with the design-based \eqn{B}. The
 observed information costs \eqn{2p} passes over the data, \eqn{p} the
 number of free parameters, so it takes seconds on most models and longer

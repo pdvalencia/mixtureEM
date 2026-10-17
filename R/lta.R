@@ -296,7 +296,11 @@
 #'   them. `"robust"` returns the sandwich estimator around the same
 #'   curvature, \eqn{H^{-1} (B - H_p) H^{-1}}, with \eqn{B} the outer product of
 #'   the case scores and \eqn{H_p} the prior's curvature, so that it reduces to
-#'   the default when the model is correctly specified; under `strata` or
+#'   the default when the model is correctly specified. In \eqn{B - H_p} the
+#'   prior's curvature is taken on each parameter's natural scale: logits as
+#'   fitted, and for a continuous item's variance the precision
+#'   \eqn{1/\sigma^2}, on which the variance prior's curvature does not
+#'   depend on the data. Under `strata` or
 #'   `cluster` the default is that sandwich with the design-based \eqn{B}. The
 #'   observed information costs \eqn{2p} passes over the data, \eqn{p} the
 #'   number of free parameters, so it takes seconds on most models and longer
@@ -2506,9 +2510,11 @@ fit_lta <- function(indicators,
   # structural blocks, `bayes_constants` on the items), so the curvature that
   # describes its sampling spread is that objective's: Ht = Hd + Hp. The
   # default is its inverse, the observed information of the objective the
-  # estimate maximises; `robust` is the sandwich Ht^-1 (B - Hp) Ht^-1, whose
+  # estimate maximises; `robust` is the sandwich Ht^-1 (B - Hn) Ht^-1, whose
   # meat takes the prior's curvature out once more so that it reduces to the
-  # default when the data's meat B equals the data's information -Hd; and a
+  # default when the data's meat B equals the data's information -Hd. Hn is
+  # Hp taken on each parameter's natural scale, which differs from Hp only on
+  # a Gaussian item's variances (.lta_penalised_hessian() below); and a
   # survey design gets the same sandwich with the linearized meat. With every
   # prior off, Hp = 0 and these are the plain observed information and the
   # textbook sandwich.
@@ -2525,7 +2531,7 @@ fit_lta <- function(indicators,
     Ai <- .psd_pinv(-H$Ht)
     Ai <- (Ai + t(Ai)) / 2
     V  <- if (isTRUE(robust) || design_based)
-      Ai %*% (meat - H$Hp) %*% Ai else Ai
+      Ai %*% (meat - H$Hn) %*% Ai else Ai
     V  <- (V + t(V)) / 2
     if (!all(is.finite(V))) H <- NULL
   } else H <- NULL
@@ -2625,7 +2631,26 @@ fit_lta <- function(indicators,
                                    marg)
   Hp <- if (is.na(lp(par))) matrix(0, length(par), length(par)) else
     .step1_fd_hessian(lp, par, .lta_fd_step)
-  list(Hd = Hd, Hp = Hp, Ht = Hd + Hp)
+
+  # Hn, the prior's curvature as the sandwich's meat takes it: on each
+  # parameter's natural scale, as in .reported_vcov() (R/gmm_se.R). Logits
+  # are natural already; for a Gaussian item's variance it is the precision
+  # 1/v, on which the variance prior's curvature does not depend on the data,
+  # carried back linearly. On the log-sd packing that is Hp plus twice the
+  # prior's gradient on each log-sd coordinate.
+  Hn  <- Hp
+  if (!is.na(lp(par))) {
+    end <- cumsum(vapply(layout, function(b) as.numeric(b$len), numeric(1)))
+    for (i in which(vapply(layout, `[[`, "", "kind") == "log_sd")) {
+      for (j in end[i] - layout[[i]]$len + seq_len(layout[[i]]$len)) {
+        h <- 1e-5 * max(1, abs(par[j]))
+        a <- par; a[j] <- a[j] + h
+        b <- par; b[j] <- b[j] - h
+        Hn[j, j] <- Hn[j, j] + 2 * (lp(a) - lp(b)) / (2 * h)
+      }
+    }
+  }
+  list(Hd = Hd, Hp = Hp, Ht = Hd + Hp, Hn = Hn)
 }
 
 # Delta method onto the probability scale. For a multinomial logit with the

@@ -31,6 +31,18 @@ errors is small, about 0.3% on simulated binary items at n = 200 and up to
 2% on class-specific variances. No existing estimate, standard error or
 plot changes.
 
+## `fit_lta()`'s robust standard errors with continuous items
+
+`fit_lta(standard_errors = "robust")` now takes the same natural scale in
+its sandwich's middle term: with continuous items, the variance prior's
+curvature is taken on the precision rather than on the log standard
+deviation the fit is packed on. At the default prior this moves the robust
+standard errors of the item variances, and through them the rest slightly,
+by up to 0.4% on a three-status, three-occasion model at N = 800 and up to
+about 2% on a small status. Binary, ordinal and count items, the default
+standard errors, and every fit with `bayes_constants$variances = 0` are
+unchanged.
+
 ## `print()` says when the best solution rests on a single case
 
 The search reported which maximum it found and how many starts reached it,
