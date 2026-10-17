@@ -104,8 +104,13 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   }
   if (!agg) { Z_d <- Z; resp_d <- resp; w_d <- w_vec }
 
+  # A row of weight zero (a case listwise deleted for a missing predictor) is
+  # not part of the data, so its placeholder covariate values place no prior
+  # row and do not move the ghost.
+  Z_pos <- if (all(w_vec > 0)) Z else Z[w_vec > 0, , drop = FALSE]
+
   if (prior_rows) {
-    Zu      <- if (agg) Z_d else unique(Z)
+    Zu      <- if (agg) Z_d else unique(Z_pos)
     U0      <- nrow(Zu)
     w_prior <- alpha / (K * U0)
     Z_pri    <- Zu[rep(seq_len(U0), times = K), , drop = FALSE]
@@ -114,7 +119,7 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
     resp_aug <- rbind(resp_d, resp_pri)
     w_aug    <- c(w_d, rep(w_prior, K * U0))
   } else if (isTRUE(augment)) {
-    Z_aug    <- rbind(Z_d, matrix(colMeans(Z), nrow = K, ncol = D, byrow = TRUE))
+    Z_aug    <- rbind(Z_d, matrix(colMeans(Z_pos), nrow = K, ncol = D, byrow = TRUE))
     resp_aug <- rbind(resp_d, diag(K))
     w_aug    <- c(w_d, rep(0.01, K))
   } else {

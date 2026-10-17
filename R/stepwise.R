@@ -92,9 +92,21 @@
     # three-step's formula. A distal-outcome structural model has no
     # unconstrained packing there yet; confint()/vcov()/summary() fall back to
     # the Q-function Hessian for it and say so.
-    resp <- exp(model_state$log_resp)
+    #
+    # Cases listwise deleted for a missing class predictor (`struct_keep`)
+    # weigh zero while step 2 runs and keep their step-1 posteriors after it;
+    # step 1's variance still counts them.
+    resp   <- exp(model_state$log_resp)
+    s_keep <- model_state$struct_keep
+    w_all  <- model_state$sample_weights
     model_state$sm <- init_params(model_state$sm, Y, resp)
-    model_state$sm <- m_step(model_state$sm, Y, resp)
+    if (is.null(s_keep)) {
+      model_state$sm <- m_step(model_state$sm, Y, resp)
+    } else {
+      model_state$sample_weights <- w_all * s_keep
+      model_state$sm <- m_step(model_state$sm, Y, resp,
+                               weights = model_state$sample_weights)
+    }
     model_state$frozen <- c("mm", "weights")
     model_state <- fit_single_init(model_state, X, Y, max_iter = max_iter,
                                    refine = FALSE, init_state = model_state)
@@ -107,7 +119,13 @@
     }
     model_state$frozen <- NULL
     model_state <- .attach_twostep_covariate_vcov(
-      model_state, X, Y, model_state$sample_weights, se = se)
+      model_state, X, Y, model_state$sample_weights, se = se, w1 = w_all)
+    if (!is.null(s_keep)) {
+      model_state$sample_weights <- w_all
+      model_state$log_resp[!s_keep, ] <- log(pmax(resp[!s_keep, , drop = FALSE],
+                                                   1e-300))
+      model_state$lower_bound[!s_keep] <- 0
+    }
 
   } else if (n_steps == 3) {
     if (correction == "ML") {
@@ -120,15 +138,48 @@
       # correction = "none": plain 2-step update on the structural model.
       # The measurement model is already frozen at this point; the SM is fit on
       # the posterior responsibilities from step 1 without any bias correction.
-      resp <- exp(model_state$log_resp)
+      resp   <- exp(model_state$log_resp)
+      w_all  <- model_state$sample_weights
+      s_keep <- model_state$struct_keep
       model_state$sm <- init_params(model_state$sm, Y, resp)
-      model_state$sm <- m_step(model_state$sm, Y, resp)
+      model_state$sm <- if (is.null(s_keep)) m_step(model_state$sm, Y, resp)
+                        else m_step(model_state$sm, Y, resp,
+                                    weights = w_all * s_keep)
       model_state <- .attach_step3_covariate_vcov(
-        model_state, X, Y, resp, NULL, model_state$sample_weights, se = se)
+        model_state, X, Y, resp, NULL,
+        if (is.null(s_keep)) w_all else w_all * s_keep, se = se, w1 = w_all)
     }
   }
 
   model_state
+}
+
+# Which cases a class-membership regression is fitted to, under
+# `missing_predictors`. "listwise" drops a case missing any predictor; "mean"
+# keeps every case and completes its predictors with complete_covariates().
+# Returns NULL when every case is kept, so a fit with complete predictors runs
+# exactly the code it always has, and a logical vector otherwise, with a
+# message naming how many cases were dropped.
+#
+# `whole_case = TRUE` is the one-step model, where the case is removed from
+# the fit altogether, indicators included, and the message says so.
+.predictor_keep <- function(Y, missing_predictors, whole_case = FALSE) {
+  if (is.null(Y) || identical(missing_predictors, "mean") || !anyNA(Y))
+    return(NULL)
+  keep <- stats::complete.cases(Y)
+  if (!any(keep))
+    stop("Every case is missing at least one predictor, so the ",
+         "class-membership regression has no data. Set ",
+         "`missing_predictors = \"mean\"` to complete them instead.",
+         call. = FALSE)
+  n_drop <- sum(!keep)
+  message(sprintf(paste0(
+    "%d case%s missing a predictor %s left out of the %s (n = %d used). ",
+    "Set `missing_predictors = \"mean\"` to complete them instead."),
+    n_drop, if (n_drop == 1L) "" else "s",
+    if (n_drop == 1L) "was" else "were",
+    if (whole_case) "model" else "class-membership regression", sum(keep)))
+  keep
 }
 
 # Post-fit finishing shared by every estimation path: optional class sorting,

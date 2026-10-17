@@ -124,11 +124,13 @@
 # classification table (`.nested_step1_term()`). With `Cn = NULL` (BCH) the
 # base is the sandwich whatever `se` says, and "corrected" adds the same term
 # through the BCH weights; `bch_assign` is then the assigned-class variable
-# the weights were built from.
+# the weights were built from. `w1` weighs step 1 and the table or BCH weights
+# built from it, and is `w` except where cases missing a class predictor are
+# listwise deleted, which weigh zero in `w` only.
 .attach_nested_step3_vcov <- function(model_state, Y, A1, Cn, w, se,
                                       strata = NULL, cluster = NULL,
                                       X = NULL, assignment = "proportional",
-                                      bch_assign = NULL) {
+                                      bch_assign = NULL, w1 = w) {
   sm   <- model_state$sm
   lone <- !inherits(sm, "nested")
   if (lone) sm <- list(models = stats::setNames(list(sm), class(sm)[1L]))
@@ -184,7 +186,8 @@
       Zm   <- .covariate_design(m, Y[, first:(first + nc - 1L), drop = FALSE])
       idx  <- (ends[j] - lens[j] + 1L):ends[j]
       Hp[idx, idx] <- .covariate_prior_derivs(Bord, Zm,
-                                              .bayes_alpha(m, "latent"))$hessian
+                                              .bayes_alpha(m, "latent"),
+                                              w)$hessian
     }
     first <- first + nc
   }
@@ -207,7 +210,7 @@
                "not propagated")
     if (identical(se, "corrected") && !is.null(X) &&
         (!is.null(Cn) || !is.null(bch_assign))) {
-      corr <- .nested_step1_term(model_state, X, A1, w, assignment, B_inv,
+      corr <- .nested_step1_term(model_state, X, A1, w1, assignment, B_inv,
                                  function(A, Cv) colSums(w * score_at(theta, A, Cv)),
                                  bch_assign = bch_assign)
       if (is.null(corr)) {

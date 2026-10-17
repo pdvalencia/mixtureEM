@@ -327,7 +327,10 @@ NULL
 # class j is (alpha / (K U0)) sum_u (1 - K p_uj) z_u and the Hessian block
 # (j, l) is -(alpha / U0) sum_u (1{j = l} p_uj - p_uj p_ul) z_u z_u'. Both are
 # zero at alpha = 0, the unpenalised fit.
-.covariate_prior_derivs <- function(beta, Zmat, alpha) {
+.covariate_prior_derivs <- function(beta, Zmat, alpha, w = NULL) {
+  # Rows of weight zero (cases listwise deleted for a missing predictor) are
+  # not data and place no prior row, as in .fit_mnl().
+  if (!is.null(w) && any(w <= 0)) Zmat <- Zmat[w > 0, , drop = FALSE]
   K <- nrow(beta)
   D <- ncol(Zmat)
   p <- (K - 1L) * D
@@ -368,7 +371,7 @@ NULL
   K <- nrow(beta)
   D <- ncol(Zmat)
   if (K < 2L || D < 1L || is.null(Cn)) return(beta)
-  U  <- unique(Zmat)
+  U  <- unique(if (any(w <= 0)) Zmat[w > 0, , drop = FALSE] else Zmat)
   U0 <- nrow(U)
   as_beta <- function(p) rbind(matrix(p, K - 1L, D, byrow = TRUE), 0)
   obj <- function(b) {
@@ -383,7 +386,7 @@ NULL
   for (it in seq_len(max_iter)) {
     b      <- as_beta(par)
     pieces <- .step3_pieces(b, Zmat, A1, Cn)
-    pr     <- .covariate_prior_derivs(b, Zmat, alpha)
+    pr     <- .covariate_prior_derivs(b, Zmat, alpha, w)
     g      <- colSums(.step3_scores(pieces, Zmat, w, K)) + pr$gradient
     H      <- .step3_hessian(pieces, Zmat, w, A1, K) + pr$hessian
     step   <- tryCatch(solve(-H, g), error = function(e) NULL)
@@ -809,14 +812,17 @@ NULL
 # @param resp1 n x K step-one posterior probabilities.
 # @param Cn Row-normalised classification table, or NULL for an unadjusted
 #   (`correction = "none"`) third step.
-# @param w Case weights.
+# @param w Case weights of the step-3 regression.
 # @param se One of "corrected", "robust", "hessian".
+# @param w1 Case weights of step 1 and of the classification table. It differs
+#   from `w` only when cases missing a predictor are listwise deleted: they
+#   still count in step 1 and in the table, and weigh zero in step 3.
 #
 # @return A list with `V` (the K*D square covariance matrix, the anchored class
 #   padded with zeros) and `method`, a label naming the estimator used.
 .step3_covariate_vcov <- function(model_state, X, Zmat, resp1, Cn, w,
                                   se = "corrected",
-                                  assignment = "proportional") {
+                                  assignment = "proportional", w1 = w) {
   K <- model_state$n_components
   D <- ncol(Zmat)
   sm <- model_state$sm
@@ -839,7 +845,8 @@ NULL
   # note above .step3_scores()). Every estimator below inverts this, including
   # the sensitivity J of the corrected one, since the step-1 parameters move
   # the estimate through the same penalised score equations.
-  Hp     <- .covariate_prior_derivs(beta, Zmat, .bayes_alpha(sm, "latent"))$hessian
+  Hp     <- .covariate_prior_derivs(beta, Zmat, .bayes_alpha(sm, "latent"),
+                                    w)$hessian
   H3     <- .step3_hessian(pieces, Zmat, w, resp1, K) + Hp
   H3_inv <- pinv(-H3)
 
@@ -886,7 +893,7 @@ NULL
     r  <- exp(e_step(ms, X, NULL)$log_resp)
     A  <- if (modal) resp1 else r
     Cv <- if (is.null(Cn)) NULL
-          else sweep(t(r * w) %*% A, 1, colSums(r * w), "/")
+          else sweep(t(r * w1) %*% A, 1, colSums(r * w1), "/")
     colSums(.step3_scores(.step3_pieces(beta, Zmat, A, Cv), Zmat, w, K))
   }
 
@@ -897,7 +904,7 @@ NULL
   }, numeric((K - 1L) * D))
   dim(Cmat) <- c((K - 1L) * D, p1)
 
-  S1 <- .step1_case_scores(model_state, X, th1, w)
+  S1 <- .step1_case_scores(model_state, X, th1, w1)
 
   d1_method <- if (p1 <= .step1_hessian_max) "hessian" else "outer"
   if (d1_method == "outer")
@@ -905,7 +912,7 @@ NULL
                           "uses the outer-product estimator: the measurement",
                           "model has %d parameters (limit %d for the numerical",
                           "Hessian)."), p1, .step1_hessian_max))
-  d1 <- .step1_variance(model_state, X, th1, S1, w, d1_method)
+  d1 <- .step1_variance(model_state, X, th1, S1, w1, d1_method)
   D1 <- d1$V
 
   J  <- H3_inv %*% Cmat
@@ -948,14 +955,15 @@ NULL
 # `fit_mixture_internal()`; `Cn = NULL` selects the latter.
 .attach_step3_covariate_vcov <- function(model_state, X, Y, resp1, Cn, w,
                                          se = "corrected",
-                                         assignment = "proportional") {
+                                         assignment = "proportional",
+                                         w1 = w) {
   if (!inherits(model_state$sm, "covariate")) return(model_state)
   if (identical(se, "none")) return(model_state)
 
   Zmat <- .covariate_design(model_state$sm, Y)
   res  <- tryCatch(
     .step3_covariate_vcov(model_state, X, Zmat, resp1, Cn, w, se = se,
-                          assignment = assignment),
+                          assignment = assignment, w1 = w1),
     error = function(e) {
       warning(sprintf(
         "Step-3 covariate standard errors fell back to the Q-function Hessian: %s",

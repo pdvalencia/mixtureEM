@@ -578,6 +578,9 @@
     a <- .bayes_alpha(sm, "latent")
     if (!(a > 0)) return(zeros)
     Z  <- complete_covariates(as.matrix(Y))
+    # Cases listwise deleted for a missing predictor (weight zero) place no
+    # prior row, as in .fit_mnl().
+    if (!is.null(w) && any(w <= 0)) Z <- Z[w > 0, , drop = FALSE]
     Zm <- unique(if (isTRUE(sm$intercept)) cbind(1, Z) else Z)
     wt <- a / (K * nrow(Zm))
     return(function(sm) {

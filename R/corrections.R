@@ -190,6 +190,13 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional",
       X = X, assignment = assignment, bch_assign = A))
   }
 
+  # A class regression whose missing predictors are listwise deleted keeps
+  # those cases in the BCH weights' classification table and drops them from
+  # the weighted regression (`struct_keep`, set in .add_structural()).
+  s_keep <- model_state$struct_keep
+  w_s    <- if (is.null(s_keep)) weights else weights * s_keep
+  if (!is.null(s_keep)) bch_resp[!s_keep, ] <- 0
+
   model_state$sm <- init_params(model_state$sm, Y, bch_resp)
   model_state$sm <- m_step(model_state$sm, Y, bch_resp)
 
@@ -250,9 +257,9 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional",
       (identical(se, "corrected") ||
        inherits(model_state$sm, c("covariate", "distal_pooled"))))
     model_state <- .attach_nested_step3_vcov(
-      model_state, Y, bch_resp, NULL, weights, se = se,
+      model_state, Y, bch_resp, NULL, w_s, se = se,
       strata = model_state$strata, cluster = model_state$cluster,
-      X = X, assignment = assignment, bch_assign = A)
+      X = X, assignment = assignment, bch_assign = A, w1 = weights)
 
   return(model_state)
 }
@@ -294,15 +301,19 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   }
 
   # Retain every case. Missing covariates are completed under the class-invariant
-  # Gaussian marginal (endogenous-constrained-x; Sterba, 2014) instead of being
-  # listwise deleted, which sacrifices efficiency and biases estimates under MAR
-  # (Little, 1992; Little & Zhang, 2011). A missing distal outcome is left as NA
-  # and masked by the structural model's own FIML likelihood.
+  # Gaussian marginal (endogenous-constrained-x; Sterba, 2014), and a missing
+  # distal outcome is left as NA and masked by the structural model's own FIML
+  # likelihood. A class regression whose missing predictors are listwise
+  # deleted (`struct_keep`, set in .add_structural()) keeps those cases in the
+  # classification table and gives them weight zero in step 3 through `w_s`;
+  # their completed values are then never used.
   Y       <- complete_structural_covariates(model_state$sm, Y)
   keep    <- rep(TRUE, nrow(Y))
   X_clean <- X[keep, , drop = FALSE]
   Y_clean <- Y[keep, , drop = FALSE]
   w_clean <- model_state$sample_weights[keep]
+  s_keep  <- model_state$struct_keep
+  w_s     <- if (is.null(s_keep)) w_clean else w_clean * s_keep
 
   # Keep the sub-model's survey design row-aligned with the retained cases so
   # that variance code running inside m_step (e.g. the covariate M-step) sees
@@ -345,21 +356,21 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
 
   # Initialise structural model.
   model_state$sm <- init_params(model_state$sm, Y_clean, A1)
-  model_state$sm <- m_step(model_state$sm, Y_clean, A1, weights = w_clean)
+  model_state$sm <- m_step(model_state$sm, Y_clean, A1, weights = w_s)
 
   # A categorical outcome is likewise a model of P(o | k), not of P(k), so its
   # class proportions are step 3's own parameters too: they start at the
   # assigned shares and are re-estimated at every M-step (Vermunt, 2010,
   # eq. 14), and the variance block below treats them as estimated.
   cat_out <- inherits(model_state$sm, c("distal_pooled", "distal_regression"))
-  if (cat_out) pi_k_clean <- colSums(A1 * w_clean) / sum(w_clean)
+  if (cat_out) pi_k_clean <- colSums(A1 * w_s) / sum(w_s)
   # A lone continuous outcome is a density f(y | k), not a model of P(k), so
   # step 3 has to carry the class proportions itself; they are re-estimated
   # with the outcome parameters at every M-step (Vermunt, 2010, eq. 14).
   cont_out <- inherits(model_state$sm, c("distal_continuous",
                                           "distal_continuous_pooled",
                                           "distal_continuous_regression"))
-  if (cont_out) pi_step3 <- colSums(A1 * w_clean) / sum(w_clean)
+  if (cont_out) pi_step3 <- colSums(A1 * w_s) / sum(w_s)
 
   prev_ll <- -Inf
 
@@ -386,13 +397,13 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
       joint <- sweep(exp(log_sm - lsh), 2, pi_step3, "*")
       Z_mat <- joint %*% C_row_norm
       ll_case    <- rowSums(A1 * log(pmax(Z_mat, 1e-300))) + as.vector(lsh)
-      current_ll <- sum(w_clean * ll_case)
+      current_ll <- sum(w_s * ll_case)
       W <- joint * ((A1 / pmax(Z_mat, 1e-300)) %*% t(C_row_norm))
     } else if (inherits(sm, c("distal_pooled", "distal_regression"))) {
       po_given_x <- exp(log_sm)                      # n_clean x K
       Z_mat      <- sweep(po_given_x, 2, pi_k_clean, "*") %*% C_row_norm
       ll_case    <- rowSums(A1 * log(pmax(Z_mat, 1e-300)))
-      current_ll <- sum(w_clean * ll_case)
+      current_ll <- sum(w_s * ll_case)
       RC <- A1 / pmax(Z_mat, 1e-300)
       W  <- sweep(po_given_x, 2, pi_k_clean, "*") *
         (RC %*% t(C_row_norm))
@@ -411,7 +422,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
       if (inherits(sm, "nested"))
         ll_case <- ll_case + as.vector(lsh) +
           log(rowSums(exp(log_sm - as.vector(lsh))))
-      current_ll <- sum(w_clean * ll_case)
+      current_ll <- sum(w_s * ll_case)
       R <- A1 / pmax(Z_mat, 1e-300)
       W <- sm_prob * (R %*% t(C_row_norm))
     }
@@ -430,9 +441,9 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
     }
     prev_ll <- current_ll
 
-    model_state$sm <- m_step(model_state$sm, Y_clean, W, weights = w_clean)
-    if (cont_out) pi_step3 <- colSums(W * w_clean) / sum(w_clean)
-    if (cat_out)  pi_k_clean <- colSums(W * w_clean) / sum(w_clean)
+    model_state$sm <- m_step(model_state$sm, Y_clean, W, weights = w_s)
+    if (cont_out) pi_step3 <- colSums(W * w_s) / sum(w_s)
+    if (cat_out)  pi_k_clean <- colSums(W * w_s) / sum(w_s)
   }
 
   # EM stops a lone class regression short of the maximum (gradient ~1e-2); a
@@ -442,7 +453,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   if (max_iter > 0 && inherits(model_state$sm, "covariate")) {
     model_state$sm$parameters$beta <- .step3_newton_polish(
       model_state$sm$parameters$beta,
-      .covariate_design(model_state$sm, Y_clean), A1, C_row_norm, w_clean,
+      .covariate_design(model_state$sm, Y_clean), A1, C_row_norm, w_s,
       .bayes_alpha(model_state$sm, "latent"))
     e <- step3_e(model_state$sm)
     W <- e$W; ll_case <- e$ll_case; current_ll <- e$current_ll
@@ -457,7 +468,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
 
   if (max_iter > 0 && inherits(model_state$sm, "distal_continuous"))
     model_state$sm <- .attach_step3_distal_vcov(
-      model_state$sm, Y_clean, A1, C_row_norm, w_clean, pi_step3, se)
+      model_state$sm, Y_clean, A1, C_row_norm, w_s, pi_step3, se)
 
   # ============================================================================
   # Variance estimation for structural models under ML step-3.
@@ -494,8 +505,8 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   # it here is enough.
   if (inherits(model_state$sm, "covariate")) {
     model_state <- .attach_step3_covariate_vcov(
-      model_state, X_clean, Y_clean, A1, C_row_norm, w_clean, se = se,
-      assignment = assignment)
+      model_state, X_clean, Y_clean, A1, C_row_norm, w_s, se = se,
+      assignment = assignment, w1 = w_clean)
   }
 
   # A covariate block inside a nested structural model shares its step-three
@@ -573,6 +584,13 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   # defines. `internal/validation-tests/test-step3-prior-validation.R`
   # pins colMeans(W) on its benchmark (0.4419 / 0.2954 / 0.2627, to four
   # decimals); the old recombination did not reach those figures.
+  #
+  # A case deleted for a missing predictor was not in step 3, so it keeps its
+  # step-1 posterior and contributes nothing to the step-3 log-likelihood.
+  if (!is.null(s_keep)) {
+    W[!s_keep, ]      <- resp_step1[!s_keep, , drop = FALSE]
+    ll_case[!s_keep]  <- 0
+  }
   model_state$log_resp    <- log(pmax(W, 1e-300))
   model_state$lower_bound <- ll_case
 

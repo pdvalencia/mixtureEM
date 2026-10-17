@@ -115,12 +115,15 @@
 #   values, `sm` the covariate model at the joint maximum.
 # @param X Indicator matrix the measurement model was fitted to.
 # @param Y Covariate data the structural model was fitted to.
-# @param w Case weights.
+# @param w Case weights of step 2.
 # @param se One of "corrected", "robust", "hessian".
+# @param w1 Case weights of step 1: `w` except where cases missing a class
+#   predictor are listwise deleted, which weigh zero in `w` only.
 #
 # @return A list with `V` (the K*D square covariance matrix, the anchored class
 #   padded with zeros) and `method`, a label naming the estimator used.
-.twostep_covariate_vcov <- function(model_state, X, Y, w, se = "corrected") {
+.twostep_covariate_vcov <- function(model_state, X, Y, w, se = "corrected",
+                                    w1 = w) {
   K  <- model_state$n_components
   sm <- model_state$sm
   D  <- ncol(sm$parameters$beta)
@@ -143,7 +146,7 @@
   # order, beta recentred on row K, which is the helper's.
   beta0 <- sweep(sm$parameters$beta, 2, sm$parameters$beta[K, ], "-")
   Hp   <- .covariate_prior_derivs(beta0, .covariate_design(sm, Y),
-                                  .bayes_alpha(sm, "latent"))$hessian
+                                  .bayes_alpha(sm, "latent"), w)$hessian
   V2   <- pinv(-(info$H22 + Hp))
   V2   <- (V2 + t(V2)) / 2
 
@@ -176,8 +179,8 @@
                           "uses the outer-product estimator: the measurement",
                           "model has %d parameters (limit %d for the numerical",
                           "Hessian)."), p1, .step1_hessian_max))
-  S1  <- .step1_case_scores(model_state, X, th1, w)
-  d1  <- .step1_variance(model_state, X, th1, S1, w, d1_method)
+  S1  <- .step1_case_scores(model_state, X, th1, w1)
+  d1  <- .step1_variance(model_state, X, th1, S1, w1, d1_method)
   nm  <- nrow(info$H12)
   S11 <- d1$V[seq_len(nm), seq_len(nm), drop = FALSE]
 
@@ -196,12 +199,13 @@
 # .attach_step3_covariate_vcov() does for the third step. A structural model
 # that is not a class-prediction one (a distal outcome) has no unconstrained
 # packing here and keeps the Q-function Hessian its readers already label.
-.attach_twostep_covariate_vcov <- function(model_state, X, Y, w, se = "corrected") {
+.attach_twostep_covariate_vcov <- function(model_state, X, Y, w, se = "corrected",
+                                           w1 = w) {
   if (!inherits(model_state$sm, "covariate")) return(model_state)
   if (identical(se, "none")) return(model_state)
 
   res <- tryCatch(
-    .twostep_covariate_vcov(model_state, X, Y, w, se = se),
+    .twostep_covariate_vcov(model_state, X, Y, w, se = se, w1 = w1),
     error = function(e) {
       warning(sprintf(
         "Two-step covariate standard errors fell back to the Q-function Hessian: %s",

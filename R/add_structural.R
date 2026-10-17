@@ -199,7 +199,8 @@
 .add_structural <- function(fit, Y_use, engine, correction, se, max_iter,
                             assignment = "proportional",
                             moderated = integer(0), steps = 3L,
-                            variances = "equal") {
+                            variances = "equal",
+                            missing_predictors = "mean") {
   fit$sm         <- build_emission(engine, n_components = fit$n_components,
                                    moderated = moderated, variances = variances)
   # The structural model is built here rather than in fit_mixture_internal(), so
@@ -216,6 +217,9 @@
   fit$assignment <- assignment
   # The structural data, as fit_mixture() keeps it on a one-call fit.
   fit$Y          <- Y_use
+  # Cases a class regression leaves out for a missing predictor; NULL keeps all.
+  fit$struct_keep <- if (identical(engine, "predict_class"))
+    .predictor_keep(Y_use, missing_predictors)
 
   fit <- .apply_structural_steps(fit, X = fit$data, Y = Y_use, n_steps = steps,
                                  correction = correction, max_iter = max_iter,
@@ -271,14 +275,33 @@
 #'   themselves. A formula's terms -- a factor's dummies, an interaction's
 #'   several columns -- are recognised as one term by the omnibus Wald test in
 #'   [analytical_wald_test()].
+#' @param missing_predictors What to do with a case missing a predictor.
+#'   `"listwise"` (the default) leaves it out of the class-membership
+#'   regression, with a message saying how many cases that was; `"mean"`
+#'   keeps it and completes the missing value under the class-invariant
+#'   Gaussian marginal of the predictors (Sterba, 2014), which for a single
+#'   predictor is its mean. See "Missing predictors" below.
 #' @param ... Currently unused.
 #'
-#' @details
-#' A case missing a predictor is retained, not deleted: the missing value is
-#' completed under the class-invariant Gaussian marginal of the predictors
-#' (Sterba, 2014), so the analysis keeps its full N. An analysis that listwise
-#' deletes them is fitted to fewer cases; check the reported N before comparing
-#' coefficients with a published set.
+#' @section Missing predictors:
+#' Under `"listwise"` a case missing a predictor is still part of step 1 and
+#' of the classification-error table the correction inverts, because its
+#' indicators are observed and tell us as much about that table as anyone
+#' else's do; it is only left out of the regression of class on the
+#' predictors, the one step that needs its predictor values. Its class
+#' probabilities stay those of the measurement model.
+#'
+#' Listwise deletion is the default because it does not bias the regression
+#' when whether a predictor is missing depends on the predictor itself, a
+#' common pattern (income left blank more often by high earners), whereas
+#' completing the value with the mean does: it shrinks the slopes toward
+#' zero, and the shrinkage does not go away as the sample grows. When
+#' missingness is unrelated to anything (missing completely at random) both
+#' rules are unbiased and the mean fill, which keeps every case, can be
+#' somewhat more precise. When missingness depends on the class itself
+#' neither rule is unbiased. Little (1992) sets out why deleting incomplete
+#' cases is unbiased in a regression whose missingness depends only on the
+#' predictors.
 #'
 #' `se = "corrected"` (the default) is the Bakk, Oberski and Vermunt (2014)
 #' estimator, which propagates the uncertainty in the step-1 estimates as well as
@@ -331,6 +354,14 @@
 #' of cross-sectional health outcomes and longitudinal predictors via mixtures
 #' of latent classes. \emph{Statistics and Its Interface}, \emph{9}, 183–201.
 #'
+#' Little, R. J. A. (1992). Regression with missing X's: A review.
+#' \emph{Journal of the American Statistical Association}, \emph{87}(420),
+#' 1227–1237. \doi{10.1080/01621459.1992.10476282}
+#'
+#' Sterba, S. K. (2014). Handling missing covariates in conditional mixture
+#' models under missing at random assumptions. \emph{Multivariate Behavioral
+#' Research}, \emph{49}(6), 614–632. \doi{10.1080/00273171.2014.950719}
+#'
 #' @seealso [add_outcome()] for distal outcomes; [fit_mixture()] to fit the
 #'   unconditional model.
 #'
@@ -352,12 +383,14 @@ add_covariates <- function(fit, predictors,
                            steps = c(3, 2),
                            se = c("corrected", "robust", "hessian"),
                            assignment = c("proportional", "modal"),
-                           max_iter = 1000, data = NULL, ...) {
+                           max_iter = 1000, data = NULL,
+                           missing_predictors = c("listwise", "mean"), ...) {
   corr_set        <- !missing(correction)
   correction      <- match.arg(correction)
   steps           <- .check_steps(steps, corr_set)
   se              <- match.arg(se)
   assignment      <- match.arg(assignment)
+  missing_predictors <- match.arg(missing_predictors)
   predictors_expr <- substitute(predictors)
 
   if (missing(predictors) || is.null(predictors))
@@ -387,7 +420,8 @@ add_covariates <- function(fit, predictors,
   Y_use <- .align_structural_rows(Y_use, fit, "predictors")
 
   .add_structural(fit, Y_use, "predict_class", correction, se, max_iter,
-                  assignment = assignment, steps = steps)
+                  assignment = assignment, steps = steps,
+                  missing_predictors = missing_predictors)
 }
 
 #' Examine a Distal Outcome on a Fitted Model

@@ -2085,8 +2085,11 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
                                  warm_start = NULL,
                                  dif = NULL,
                                  se = c("corrected", "robust", "hessian"),
-                                 n_cores = .default_n_cores(), ...) {
+                                 n_cores = .default_n_cores(),
+                                 missing_predictors = c("listwise", "mean"),
+                                 ...) {
 
+  missing_predictors <- match.arg(missing_predictors)
   weight_type <- match.arg(weight_type)
   se          <- match.arg(se)
   assignment  <- match.arg(assignment)
@@ -2146,6 +2149,27 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
       .abbreviate_indices(empty_rows)), call. = FALSE)
   }
 
+  # --- Cases missing a class predictor ----------------------------------------
+  # Under listwise deletion a one-step model drops the whole case; a stepwise
+  # one keeps it in step 1 and leaves it out of the class regression only
+  # (`struct_keep`, read by the step-2 and step-3 estimators).
+  class_reg   <- !is.null(structural) &&
+    structural %in% c("covariate", "predict_class")
+  struct_keep <- if (class_reg)
+    .predictor_keep(Y, missing_predictors, whole_case = n_steps == 1)
+  if (!is.null(struct_keep) && n_steps == 1) {
+    if (!is.null(weights) && length(weights) != nrow(X))
+      stop(sprintf("`weights` must have one entry per case (expected %d, got %d).",
+                   nrow(X), length(weights)), call. = FALSE)
+    X <- X[struct_keep, , drop = FALSE]
+    Y <- Y[struct_keep, , drop = FALSE]
+    if (!is.null(dif))     dif$Z   <- dif$Z[struct_keep, , drop = FALSE]
+    if (!is.null(weights)) weights <- weights[struct_keep]
+    if (!is.null(strata))  strata  <- strata[struct_keep]
+    if (!is.null(cluster)) cluster <- cluster[struct_keep]
+    struct_keep <- NULL
+  }
+
   n_samples <- nrow(X)
 
   # --- Input Validation ---
@@ -2190,8 +2214,9 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   y_any_missing <- !is.null(Y) && anyNA(Y)
   y_n_missing   <- if (!is.null(Y)) sum(is.na(Y)) else 0L
   struct_handled <- if (y_any_missing) {
-    if (!is.null(structural) && structural %in%
-        c("covariate", "predict_class"))
+    if (!is.null(struct_keep))
+      "listwise deletion from the class regression"
+    else if (class_reg)
       "endogenous-constrained-x (Sterba, 2014)"
     else
       "endogenous-constrained-x covariates; FIML outcome"
@@ -2376,6 +2401,7 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
     # Step 1 metrics (measurement model only)
     if (n_steps %in% c(2L, 3L))
       model_state$step1_metrics <- .step1_metrics(model_state)
+    model_state$struct_keep <- struct_keep
 
     model_state <- .apply_structural_steps(model_state, X, Y, n_steps,
                                            correction, max_iter, se,
@@ -3298,6 +3324,15 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   \code{blrt()}, \code{compare_mixtures()}, \code{bivariate_residuals()}
 #'   -- are the ones it is easiest to forget. An argument given here overrides
 #'   the option.
+#' @param missing_predictors What to do with a case missing one of
+#'   \code{predictors}. \code{"listwise"} (the default) leaves it out: a
+#'   one-step model (\code{n_steps = 1}) is fitted without that case at all,
+#'   and a stepwise one keeps it in step 1 and leaves it out of the
+#'   class-membership regression only, with a message either way saying how
+#'   many cases that was. \code{"mean"} keeps every case and completes the
+#'   missing values under the class-invariant Gaussian marginal of the
+#'   predictors (Sterba, 2014). Why listwise is the default is in
+#'   \code{\link{add_covariates}}, "Missing predictors".
 #' @param X,Y,n_components,structural Deprecated legacy arguments retained for
 #'   backward compatibility; prefer \code{indicators}, \code{n_classes},
 #'   \code{predictors}, and \code{outcome}.
@@ -3433,10 +3468,12 @@ fit_mixture <- function(indicators = NULL,
                         bayes_constants = NULL,
                         se = c("corrected", "robust", "hessian"),
                         n_cores = .default_n_cores(),
+                        missing_predictors = c("listwise", "mean"),
                         X = NULL, Y = NULL, n_components = NULL, structural = NULL,
                         ...) {
 
   se            <- match.arg(se)
+  missing_predictors <- match.arg(missing_predictors)
   assignment    <- match.arg(assignment)
   outcome_type  <- match.arg(outcome_type)
   outcome_variances <- match.arg(outcome_variances)
@@ -3511,6 +3548,7 @@ fit_mixture <- function(indicators = NULL,
       weight_type = weight_type,
       strata = strata, cluster = cluster, refine = refine,
       bayes_constants = bayes_constants, se = se, n_cores = n_cores,
+      missing_predictors = missing_predictors,
       variances_equal = isTRUE(variances_equal), ...))
   }
 
@@ -3841,7 +3879,7 @@ fit_mixture <- function(indicators = NULL,
     strata = strata, cluster = cluster, refine = refine,
     bayes_constants = bayes_constants, warm_start = group_warm_start,
     dif = dif_spec, n_cores = n_cores,
-    se = se), dots))
+    se = se, missing_predictors = missing_predictors), dots))
 
   # One start, and it was not a random one: `n_init` was set to zero above, and
   # a fit reporting "0 requested" would read as a fit that was never asked for

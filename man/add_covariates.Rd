@@ -13,6 +13,7 @@ add_covariates(
   assignment = c("proportional", "modal"),
   max_iter = 1000,
   data = NULL,
+  missing_predictors = c("listwise", "mean"),
   ...
 )
 }
@@ -62,6 +63,13 @@ themselves. A formula's terms -- a factor's dummies, an interaction's
 several columns -- are recognised as one term by the omnibus Wald test in
 \code{\link[=analytical_wald_test]{analytical_wald_test()}}.}
 
+\item{missing_predictors}{What to do with a case missing a predictor.
+\code{"listwise"} (the default) leaves it out of the class-membership
+regression, with a message saying how many cases that was; \code{"mean"}
+keeps it and completes the missing value under the class-invariant
+Gaussian marginal of the predictors (Sterba, 2014), which for a single
+predictor is its mean. See "Missing predictors" below.}
+
 \item{...}{Currently unused.}
 }
 \value{
@@ -76,12 +84,26 @@ to class membership with the bias-adjusted three-step approach (Vermunt,
 and no risk of landing on a different solution — so this is both faster and
 conceptually cleaner than re-specifying the model with \code{predictors}.
 }
-\details{
-A case missing a predictor is retained, not deleted: the missing value is
-completed under the class-invariant Gaussian marginal of the predictors
-(Sterba, 2014), so the analysis keeps its full N. An analysis that listwise
-deletes them is fitted to fewer cases; check the reported N before comparing
-coefficients with a published set.
+\section{Missing predictors}{
+
+Under \code{"listwise"} a case missing a predictor is still part of step 1 and
+of the classification-error table the correction inverts, because its
+indicators are observed and tell us as much about that table as anyone
+else's do; it is only left out of the regression of class on the
+predictors, the one step that needs its predictor values. Its class
+probabilities stay those of the measurement model.
+
+Listwise deletion is the default because it does not bias the regression
+when whether a predictor is missing depends on the predictor itself, a
+common pattern (income left blank more often by high earners), whereas
+completing the value with the mean does: it shrinks the slopes toward
+zero, and the shrinkage does not go away as the sample grows. When
+missingness is unrelated to anything (missing completely at random) both
+rules are unbiased and the mean fill, which keeps every case, can be
+somewhat more precise. When missingness depends on the class itself
+neither rule is unbiased. Little (1992) sets out why deleting incomplete
+cases is unbiased in a regression whose missingness depends only on the
+predictors.
 
 \code{se = "corrected"} (the default) is the Bakk, Oberski and Vermunt (2014)
 estimator, which propagates the uncertainty in the step-1 estimates as well as
@@ -103,6 +125,7 @@ first, decide on classes, only then look at what predicts them -- keeps
 that choice from being made by a covariate that happens to correlate with
 the outcome.
 }
+
 \examples{
 set.seed(1)
 items <- matrix(rbinom(300, 1, 0.5), nrow = 100)
@@ -141,6 +164,14 @@ classes and external variables. \emph{Psychometrika}, \emph{83}(4),
 Jiang, Y., Elliott, M. R., Sammel, M. D., & Wang, N. (2016). Joint modeling
 of cross-sectional health outcomes and longitudinal predictors via mixtures
 of latent classes. \emph{Statistics and Its Interface}, \emph{9}, 183–201.
+
+Little, R. J. A. (1992). Regression with missing X's: A review.
+\emph{Journal of the American Statistical Association}, \emph{87}(420),
+1227–1237. \doi{10.1080/01621459.1992.10476282}
+
+Sterba, S. K. (2014). Handling missing covariates in conditional mixture
+models under missing at random assumptions. \emph{Multivariate Behavioral
+Research}, \emph{49}(6), 614–632. \doi{10.1080/00273171.2014.950719}
 }
 \seealso{
 \code{\link[=add_outcome]{add_outcome()}} for distal outcomes; \code{\link[=fit_mixture]{fit_mixture()}} to fit the

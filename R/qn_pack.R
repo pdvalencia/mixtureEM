@@ -569,7 +569,7 @@
 # The other outcome models carry no prior.
 .qn_sm_prior <- function(sm, Y, w = NULL) {
   K <- sm$n_components
-  if (inherits(sm, "covariate")) return(.qn_covariate_prior(sm, Y))
+  if (inherits(sm, "covariate")) return(.qn_covariate_prior(sm, Y, w))
   if (inherits(sm, "group_prevalence")) {
     a <- .bayes_alpha(sm, "latent")
     if (!(a > 0)) return(function(sm) 0)

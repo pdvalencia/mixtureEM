@@ -1,5 +1,29 @@
 # mixtureEM (development version)
 
+## Cases missing a class predictor are left out of the class regression
+
+`add_covariates()` and `fit_mixture(predictors = )` gain
+`missing_predictors = c("listwise", "mean")`, and the default is now
+listwise deletion, with a message saying how many cases were dropped. A
+stepwise fit keeps such a case in step 1 and in the classification-error
+table, where its indicators are as informative as anyone's, and leaves it
+out of the regression of class on the predictors only; it keeps its
+measurement-model class probabilities. A one-step fit drops the case whole.
+`missing_predictors = "mean"` restores the previous rule, which completed
+the missing values under the class-invariant Gaussian marginal of the
+predictors (for one predictor, its mean).
+
+The reason is bias. In a simulation where a predictor was more often
+missing when its value was high, the mean fill shrank the small class's
+slope by 20-28%, and the shrinkage did not fall with the sample size;
+listwise deletion was unbiased there and tied with the best rule on bias
+across all twelve conditions. When missingness is unrelated to anything the
+two agree. Every class-membership regression fitted to data with a missing
+predictor moves: its coefficients, its standard errors and its step-3
+log-likelihood, which now sums over the cases the regression used. Fits
+with complete predictors do not change. Distal-outcome covariates and
+`fit_lta()` covariates still use the mean fill.
+
 ## A one-step distal outcome keeps the cases that observe only the outcome
 
 In a one-step fit with an `outcome` (`fit_mixture(outcome = , n_steps = 1)`,

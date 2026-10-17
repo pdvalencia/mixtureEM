@@ -539,10 +539,11 @@
 # R/covariate.R): alpha / (K * U0) of a case in every class at every distinct
 # covariate pattern. .em_log_prior() leaves the class probabilities to the
 # structural model when it supplies them, so the term is priced here.
-.qn_covariate_prior <- function(sm, Y) {
+.qn_covariate_prior <- function(sm, Y, w = NULL) {
   alpha <- .bayes_alpha(sm, "latent")
   if (!(alpha > 0)) return(function(sm) 0)
   Z  <- complete_covariates(as.matrix(Y))
+  if (!is.null(w) && any(w <= 0)) Z <- Z[w > 0, , drop = FALSE]
   Zm <- unique(if (isTRUE(sm$intercept)) cbind(1, Z) else Z)
   K  <- sm$n_components
   wt <- alpha / (K * nrow(Zm))

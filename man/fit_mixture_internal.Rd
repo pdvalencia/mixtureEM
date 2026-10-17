@@ -27,6 +27,7 @@ fit_mixture_internal(
   dif = NULL,
   se = c("corrected", "robust", "hessian"),
   n_cores = .default_n_cores(),
+  missing_predictors = c("listwise", "mean"),
   ...
 )
 }
