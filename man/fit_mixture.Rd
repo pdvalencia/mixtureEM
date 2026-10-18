@@ -479,9 +479,14 @@ local maximum.
 \strong{Rescuing a collapsed fit:} this situation is now rare, because a
 continuous measurement model holds the variances equal across classes by
 default and that bounds the likelihood; it arises when you have explicitly
-passed \code{variances_equal = FALSE}. If a fit warns that a class variance
-has collapsed, the prior is one of three remedies, and not the first to
-reach for. Constraining the variances to be equal across classes
+passed \code{variances_equal = FALSE}. Even then the search sets aside any
+start that ends with a class sitting on one value of an item -- more than
+90\\% of the class on a single score of an item whose variance is the
+class's own -- and reports the best of the others; \code{print()} says how
+many were set aside. This is the same rule in every model the package
+fits, growth and transition models included. A fit warns that a class
+variance has collapsed only when every start ended that way. Then the
+prior is one of three remedies, and not the first to reach for. Constraining the variances to be equal across classes
 (\code{variances_equal = TRUE}) bounds the likelihood so the problem cannot
 arise at all; fitting fewer classes often removes the class that was
 describing a spike. Where neither is acceptable substantively, raise
@@ -499,11 +504,12 @@ come off the floor or ceiling of the response scale. It is worth looking at
 the distribution of the named item as well, for the floor, ceiling or spike
 the class latched onto.
 
-Raising \code{n_init} is \emph{not} a remedy here. A collapsed variance is
-not a convergence failure but a property of the likelihood, which really is
-unbounded in that direction, so a longer search can find a taller spike and
-report a better log-likelihood for a worse solution. For the same reason a
-flagged fit's BIC is not comparable with a clean fit's.
+Raising \code{n_init} can help only in that last situation, where no start
+escaped the spike, and is not the remedy to reach for. A collapsed variance
+is not a convergence failure but a property of the likelihood, which really
+is unbounded in that direction, and a model whose every start collapses is
+usually asking for one of the remedies above. A flagged fit's BIC is not
+comparable with a clean fit's.
 
 \strong{Spike check:} a related line in \code{print()} looks at the
 restarts rather than at the variances. Each converged start is scored
@@ -515,8 +521,8 @@ observation, and \code{print()} says so. Nothing is re-selected: the
 values are in \code{$metrics} (\code{kdel_ll}, \code{kdel_best},
 \code{kdel_disagrees}) for information only. A class sitting on one isolated
 outlier usually does \emph{not} trigger it, because the rest of that
-solution still fits the other cases best; the collapsed-variance warning
-above is the check for that case.
+solution still fits the other cases best; a class on a single case is a
+class on one value, which the search sets aside as above.
 
 The theory behind the prior settles its form and not its size: within the
 conditions Chen, Tan, & Zhang (2008) impose — which any fixed positive

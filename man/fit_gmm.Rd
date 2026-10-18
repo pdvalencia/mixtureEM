@@ -199,8 +199,13 @@ with no spread left, and a start that ends there outscores every meaningful
 solution while describing the ties rather than a subgroup. The search
 therefore counts such a start as one that did not converge and reports the
 best of the others (McLachlan & Peel, 2000, ch. 3); the print method says
-how many were set aside. Only when every start ends that way is such a
-point reported, with a warning.
+how many were set aside. A start is set aside when a class whose variances
+are its own -- \code{psi} or the residual variances free by class -- has more
+than 90\% of itself on one value of an occasion. That is the rule every model
+in the package applies to its own variances, so a latent profile model, a
+latent transition model and a growth model call the same solution
+degenerate. Only when every start ends that way is such a point reported,
+with a warning.
 
 Contrast \code{\link[=fit_lcga]{fit_lcga()}}, which fixes the growth-factor variances at zero, so
 every case in a class sits on that class's curve up to occasion-level noise.

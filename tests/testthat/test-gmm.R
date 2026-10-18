@@ -130,16 +130,14 @@ test_that("a solution on the boundary is reported rather than passed off", {
   expect_match(.gmm_boundary(degenerate, X), "fit_lcga", all = FALSE)
 })
 
-test_that("a collapse is caught relative to the data, not only at the floor", {
-  # The failure this check exists for does not reach the M-step's floor. A
-  # residual variance three orders of magnitude below the occasion's observed
-  # variance, or a class with no random-effect variation left, is already a
-  # spurious optimum -- and it wins on BIC -- while every parameter is still
-  # comfortably above 1e-6 and every eigenvalue above 1e-8.
+test_that("a spike is a class on one value, judged on the data, not on the variance", {
+  # The package's one definition of a collapsed fit (R/one_score.R): a class
+  # whose own dispersion governs an occasion on which more than 90% of it sits
+  # on one value. A small residual variance on its own is not one -- the
+  # likelihood is bounded there and the solution is admissible -- while a class
+  # parked on tied scores is, whatever its variance has reached so far.
   set.seed(12)
   X  <- .sim_boundary_data()
-  s2 <- apply(X, 2, stats::var)
-
   L  <- .lcga_design(0:3, 1)
   mm <- structured_normal_model(2, L, psi = "free", residual = "occasion",
                                 residual_equal = FALSE)
@@ -147,14 +145,29 @@ test_that("a collapse is caught relative to the data, not only at the floor", {
   mm$parameters$psi   <- list(matrix(c(1, 0.1, 0.1, 0.3), 2, 2),
                               matrix(c(1, 0.1, 0.1, 0.3), 2, 2))
   mm$parameters$theta <- rbind(rep(0.5, 4), rep(0.5, 4))
+  post <- cbind(rep(0.5, nrow(X)), rep(0.5, nrow(X)))
 
-  collapsed <- mm
-  collapsed$parameters$theta[1, 4] <- s2[4] * 8e-4
-  expect_gt(collapsed$parameters$theta[1, 4], .sn_theta_floor * 10)
-  flag <- .gmm_boundary(collapsed, X)
+  small <- mm
+  small$parameters$theta[1, 4] <- stats::var(X[, 4]) * 8e-4
+  expect_gt(small$parameters$theta[1, 4], .sn_theta_floor * 10)
+  expect_length(.gmm_boundary(small, X, post = post), 0L)
+
+  # Thirty cases tied at occasion 4, and class 1 holding nothing else.
+  Xt <- X; Xt[1:30, 4] <- 1
+  spike <- cbind(c(rep(1, 30), rep(0, nrow(X) - 30)), c(rep(0, 30), rep(1, nrow(X) - 30)))
+  flag <- .gmm_boundary(mm, Xt, post = spike)
   expect_length(flag, 1L)
-  expect_match(flag, "class 1 at occasion 4")
-  expect_match(flag, "0.08%")
+  expect_match(flag, "class 1 sits on a single value at occasion 4")
+  expect_match(flag, "100% of the class at 1")
+
+  # A class whose dispersion is held equal across the classes owns nothing to
+  # collapse, so the same posteriors flag nothing.
+  shared <- structured_normal_model(2, L, psi = "equal", residual = "occasion",
+                                    residual_equal = TRUE)
+  shared$parameters <- mm$parameters
+  shared$parameters$psi <- mm$parameters$psi[1]
+  shared$parameters$theta <- mm$parameters$theta[1, , drop = FALSE]
+  expect_length(.gmm_boundary(shared, Xt, post = spike), 0L)
 
   # The whole of Psi, not one entry of it. A slope variance at zero under a
   # healthy intercept variance is the random_effects = "intercept" model and
@@ -168,11 +181,11 @@ test_that("a collapse is caught relative to the data, not only at the floor", {
   expect_gt(min(eigen(tiny$parameters$psi[[2]])$values), 1e-7)
   expect_match(.gmm_boundary(tiny, X), "growth factors in class 2")
 
-  # Without the data the floor tests still run, and only those.
-  expect_length(.gmm_boundary(collapsed, NULL), 0L)
+  # Without posteriors there is no spike test, and the floor tests still run.
+  expect_length(.gmm_boundary(mm, Xt), 0L)
 })
 
-test_that("a start that ends on a singular class covariance is set aside", {
+test_that("a start whose class sits on tied scores is set aside", {
   # Thirty cases tied on every occasion let a class sit on them with no spread
   # left: Sigma_k goes singular and the likelihood grows without bound. Such a
   # start outscores every meaningful one, so the search counts it as a failure
@@ -190,17 +203,19 @@ test_that("a start that ends on a singular class covariance is set aside", {
   mm$parameters$alpha <- rbind(c(1, 0), c(2, 0.2))
   mm$parameters$psi   <- list(matrix(c(.1, 0, 0, .01), 2), matrix(c(.1, 0, 0, .01), 2))
   mm$parameters$theta <- rbind(rep(.06, 4), rep(.06, 4))
-  expect_false(.sn_degenerate(mm, Y))
-  mm$parameters$psi[[1]]      <- matrix(0, 2, 2)
-  mm$parameters$theta[1, ]    <- .sn_theta_floor
-  expect_true(.sn_degenerate(mm, Y))
-  expect_true(.sn_degenerate(mm, NULL))        # the floor test without data
+  state <- function(p1) list(mm = mm, sample_weights = rep(1, n),
+                             log_resp = log(cbind(p1, 1 - p1)))
+  mixed <- rep(0.5, n)
+  on_ties <- c(rep(1, 30), rep(0, n - 30))
+  expect_false(.em_state_degenerate(state(mixed), Y))
+  expect_true(.em_state_degenerate(state(on_ties), Y))
+  expect_true(.em_state_degenerate(c(state(mixed), spike_stopped = TRUE), Y))
 
   skip_on_cran()
   off <- list(categorical = 0, latent = 0, variances = 0, poisson = 0)
   fit <- suppressWarnings(fit_gmm(Y, n_classes = 2, times = 4, residual_equal = FALSE,
                  n_init = 4, random_state = 1, bayes_constants = off))
-  expect_false(.sn_degenerate(fit$mm, fit$data))
+  expect_null(.one_score_cells(fit$mm, fit$data, exp(fit$log_resp)))
   expect_gt(fit$metrics$n_set_aside, 0L)
   expect_lt(fit$metrics$ll, max(fit$start_lls) - 100)
   expect_equal(fit$metrics$n_starts, 4L - fit$metrics$n_set_aside)

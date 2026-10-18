@@ -1,5 +1,50 @@
 # mixtureEM (development version)
 
+## One definition of a collapsed class, in every model
+
+A mixture of normals whose classes have variances of their own has an
+unbounded likelihood: a class can sit on a set of cases that share one exact
+score -- a scale's floor or ceiling, a rounded mean, a column of zeros -- and
+drive its variance towards zero. A start that walks into such a point
+outscores every meaningful solution. `fit_gmm()` already set those starts
+aside; the latent profile, multiple-group, repeated-measures and mixed models
+reported them (with a warning), and the latent transition and LCGA models
+neither set them aside nor warned.
+
+Every model now uses one definition: a start is degenerate when a class has
+more than 90% of itself on one value of the data that one of its own
+variances governs. A variance held equal across classes is never tested,
+since the likelihood is bounded there; a variance shared across occasions or
+groups is judged on all the data it governs. Such a start is set aside (in a
+latent transition model, ranked behind every start that is not), the best of
+the others is reported, and `print()` says how many were set aside. The
+collapsed-variance warnings and `fit$degenerate` use the same test, so they
+fire only when every start collapsed. The rule does not depend on the
+variance prior, which keeps its default of `variances = 1`.
+
+Fits with class-varying variances whose best start was such a class now
+report the best admissible solution instead. On the three-country data of
+Janousch et al. (2022), at the default prior, the four-class model with
+country-specific class sizes moves from a collapsed log-likelihood of
+-5062.31 to the admissible -5336.5. In a simulation with a
+strong ceiling (three true profiles, n = 1000), BIC chose the true number of
+profiles in 65% of data sets at the default prior instead of 0%, and in 80%
+with the priors off instead of 0%. A latent transition model with continuous
+items, which used to report such a point (in one simulated example a
+log-likelihood of +2.7e9), now reports the admissible solution.
+
+For growth models the new definition sets aside the same starts as the old
+covariance rule on every spike measured on tied scores, so those fits do not
+move. What changes is a start that ends in a very small class whose
+covariance is nearly singular without any tied scores. The old rule set it
+aside; it is now kept, because it is a genuine maximum of the likelihood with
+a variance held at the estimation floor, and the floor is reported. On one
+free-covariance example this raised the reported log-likelihood from
+-3223.38 to -3213.33. A residual variance below 1% of its occasion's
+variance, without a class sitting on one value, is no longer reported as a
+collapse; one at the estimation floor still is. Models with equal variances
+across classes, and categorical, count and ordinal models, are unchanged.
+
 ## `blrt()` accepts sampling weights and a survey design
 
 `blrt()` used to refuse a comparison fitted with sampling weights, `strata` or

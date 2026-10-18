@@ -44,7 +44,12 @@
 #'   block. `"ordinal"` fits one cumulative-logit block per item, with its own
 #'   number of ordered categories inferred per item (so a 3/3/2-category block
 #'   needs no mixed specification); without a random intercept it is
-#'   numerically identical to `"categorical"`.
+#'   numerically identical to `"categorical"`. A continuous item's variances are
+#'   free by status, so a status can sit on one tied value of it (a scale floor
+#'   or ceiling) and run its variance to the boundary; a start that ends with
+#'   more than 90% of a status on one value of such an item is ranked behind
+#'   every start that does not, the rule every model in the package applies
+#'   (see `bayes_constants` in [`fit_mixture()`]).
 #' @param measurement_invariance Whether the item parameters are held equal
 #'   across occasions: `"full"` (the default), `"none"`, or `"partial"` for only
 #'   the items named in `invariant_items`. See the note above on why `"full"` is
@@ -1524,6 +1529,17 @@ fit_lta <- function(indicators,
   # discards a candidate outright -- if every candidate is degenerate the
   # best-scoring one still wins, and the print() note on fit$ri_boundary
   # names its cells.
+  # A candidate's status for that ranking: either kind of degenerate point --
+  # the random intercept's boundary above, or a status sitting on one value of
+  # a continuous item whose variance it owns (.one_score_cells(), the
+  # definition every family's search uses; R/one_score.R). The per-occasion
+  # status posteriors are what each occasion's block of the emission is
+  # estimated on.
+  degenerate_of <- function(cand)
+    !is.null(.categorical_boundary(cand, X_fit)) ||
+      !is.null(tryCatch(.one_score_cells(cand$mm, X_fit, cand$gamma,
+                                         cand$weights_vec),
+                        error = function(e) NULL))
   beats_current <- function(deg, s) {
     if (is.null(best)) return(TRUE)
     if (deg != best_degenerate) return(best_degenerate)
@@ -1645,7 +1661,7 @@ fit_lta <- function(indicators,
     else {
       s <- score_of(cand)
       final_lls <- c(final_lls, s)
-      deg <- !is.null(.categorical_boundary(cand, X_fit))
+      deg <- degenerate_of(cand)
       final_kdels <- c(final_kdels, kdel_of(cand, s))
       final_degs  <- c(final_degs, deg)
       if (beats_current(deg, s)) {
@@ -1673,7 +1689,7 @@ fit_lta <- function(indicators,
     for (cand in survivors) {
       s <- score_of(cand)
       final_lls <- c(final_lls, s)
-      deg <- !is.null(.categorical_boundary(cand, X_fit))
+      deg <- degenerate_of(cand)
       final_kdels <- c(final_kdels, kdel_of(cand, s))
       final_degs  <- c(final_degs, deg)
       if (beats_current(deg, s)) {

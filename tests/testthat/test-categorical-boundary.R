@@ -60,14 +60,29 @@ test_that("a boundary cell is noted on print(), without a warning or a degenerat
   expect_no_match(ms, "stronger prior than the default", fixed = TRUE)
 })
 
-test_that("a collapsed class variance still warns", {
+test_that("a class sitting on one value of its own variance's item still warns", {
+  # The package's one definition of a collapsed fit (R/one_score.R). Forty
+  # cases tied at the ceiling of the first item, and class 1 holding nothing
+  # else: with class-varying variances that is the unbounded-likelihood spike.
   set.seed(3)
   X <- cbind(c(rnorm(150, 0), rnorm(150, 4)), c(rnorm(150, 0), rnorm(150, 4)))
+  X[1:40, 1] <- max(X[, 1])
   fit <- suppressWarnings(fit_mixture(X, n_classes = 2,
-    measurement = "continuous", n_init = 2, random_state = 1))
-  fit$mm$parameters$covariances[1, 1] <- 1e-8
-  expect_warning(out <- .check_gaussian_degeneracy(fit, X), "variance")
+    measurement = "continuous", variances_equal = FALSE, n_init = 2,
+    random_state = 1))
+  on_ties <- c(rep(1, 40), rep(1e-12, 260))
+  fit$log_resp <- log(cbind(on_ties, 1 - on_ties))
+  expect_warning(out <- .check_gaussian_degeneracy(fit, X),
+                 "collapsed towards the boundary")
   expect_equal(out$degenerate$kind, "variance")
+  expect_equal(out$degenerate$class, 1L)
+  expect_true(out$degenerate$pinned)
+  expect_gt(out$degenerate$share, 0.9)
+
+  # Held equal across the classes, the same variance owns nothing to collapse.
+  fit$mm$variances_equal <- TRUE
+  expect_no_warning(out <- .check_gaussian_degeneracy(fit, X))
+  expect_null(out$degenerate)
 })
 
 test_that("no random intercept means no categorical boundary check", {

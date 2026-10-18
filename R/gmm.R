@@ -164,8 +164,13 @@
 #' solution while describing the ties rather than a subgroup. The search
 #' therefore counts such a start as one that did not converge and reports the
 #' best of the others (McLachlan & Peel, 2000, ch. 3); the print method says
-#' how many were set aside. Only when every start ends that way is such a
-#' point reported, with a warning.
+#' how many were set aside. A start is set aside when a class whose variances
+#' are its own -- `psi` or the residual variances free by class -- has more
+#' than 90% of itself on one value of an occasion. That is the rule every model
+#' in the package applies to its own variances, so a latent profile model, a
+#' latent transition model and a growth model call the same solution
+#' degenerate. Only when every start ends that way is such a point reported,
+#' with a warning.
 #'
 #' Contrast [`fit_lcga()`], which fixes the growth-factor variances at zero, so
 #' every case in a class sits on that class's curve up to occasion-level noise.
@@ -423,7 +428,8 @@ fit_gmm <- function(indicator,
     random_names      = colnames(design)[mm$r_cols],
     wave_missing      = prep$wave_missing
   )
-  fit$growth$boundary <- .gmm_boundary(mm, fit$data, fit$sample_weights)
+  fit$growth$boundary <- .gmm_boundary(mm, fit$data, fit$sample_weights,
+                                      post = exp(fit$log_resp))
   if (length(fit$growth$boundary))
     warning(.gmm_boundary_message(fit$growth$boundary, mm,
                                   isTRUE(fit$metrics$all_degenerate)),
@@ -452,66 +458,56 @@ fit_gmm <- function(indicator,
 # likelihood a likelihood, but a floored estimate is the same diagnosis and
 # would otherwise be reported as though it were an ordinary small variance.
 #
-# The floor tests this function used to run on their own only fire once the
-# M-step has pinned a parameter at 1e-6 or an eigenvalue at the 1e-8 clip. That
-# is the last stage of a collapse, not the diagnostic one: on a reference
-# class-varying fit the shared residual variance at the final occasion reached
-# 1.19e-4 -- 0.08% of that occasion's observed variance, three orders of
-# magnitude below every other occasion -- and neither test fired, while the fit
-# carried the lowest BIC of the whole model set. The ratio to the observed
-# marginal is the statistic `.gaussian_boundary()` already uses for the same
-# failure in a latent profile model, at the same 1% threshold and for the same
-# reason (R/gaussian_boundary.R:72): it means the same thing whatever the
-# outcome is measured in. The floor tests are kept as an unconditional second
-# trigger, since a parameter genuinely pinned at the floor must still be
-# reported even if the marginal is unavailable.
+# Two kinds of line. A class sitting on one value of an occasion its own
+# dispersion governs is the unbounded-likelihood spike, judged by the package's
+# one definition of a collapsed fit (.one_score_cells(), R/one_score.R) -- the
+# same test the search uses to set such a start aside, so a fit carries one only
+# when every start ended on one. A residual variance pinned at the estimation
+# floor is a constraint binding, not a spike: the optimum wants it negative
+# (an estimator without the floor lets it go there), and the fit is reported
+# at the floor. Both make this fit's BIC incomparable, and both are named.
 #
-# For Psi the ratio is taken on the random effects' *contribution to the implied
-# variance of the outcome*, max_t diag(Lambda_r Psi_k Lambda_r')_t / s2_t, not on
-# Psi's own entries. Psi's entries are on the growth factors' scale, which for a
-# slope is the outcome's scale divided by time squared, so a bare comparison
-# would flag every slope variance ever estimated. The eigenvalue *ratio* is not
-# usable either: it is 0.004 on a collapsed Psi and 0.004 on a healthy one.
+# For Psi the share is taken on the random effects' *contribution to the
+# implied variance of the outcome*, max_t diag(Lambda_r Psi_k Lambda_r')_t /
+# s2_t, not on Psi's own entries. Psi's entries are on the growth factors'
+# scale, which for a slope is the outcome's scale divided by time squared, so a
+# bare comparison would flag every slope variance ever estimated. The
+# eigenvalue *ratio* is not usable either: it is 0.004 on a collapsed Psi and
+# 0.004 on a healthy one.
 #
 # The share is taken over the whole of Psi_k, per class, rather than per growth
 # factor. A slope variance going to zero under a healthy intercept variance is
 # not a degeneracy: it is the random_effects = "intercept" model, which this
-# package offers and which is a reportable finding. What is a degeneracy is the
-# whole of Psi_k going to zero -- that class is an LCGA class -- and a residual
-# variance going to zero, which is the unbounded-likelihood spike.
-.gmm_boundary <- function(mm, X = NULL, weights = NULL, threshold = 0.01) {
+# package offers and which is a reportable finding. What is reported is the
+# whole of Psi_k going to zero -- that class is an LCGA class.
+.gmm_boundary <- function(mm, X = NULL, weights = NULL, threshold = 0.01,
+                          post = NULL) {
   msg <- character(0)
 
   s2 <- .gmm_marginal(mm, X, weights)
   Tn <- nrow(mm$design)
 
+  hits <- if (is.null(s2) || is.null(post)) NULL else
+    tryCatch(.one_score_cells(mm, X, post, weights), error = function(e) NULL)
+  if (!is.null(hits)) for (i in seq_len(nrow(hits))) {
+    msg <- c(msg, sprintf(
+      "class %d sits on a single value at occasion %d (%.0f%% of the class at %s)",
+      hits$class[i], hits$col[i], 100 * hits$share[i], format(hits$value[i])))
+  }
+
   theta      <- mm$parameters$theta
   theta_rows <- if (isTRUE(mm$theta_equal)) 1L else nrow(theta)
-  # With residual = "constant" the columns of theta are one parameter, not T of
-  # them, so it is judged once. The marginal it is compared with is the smallest
-  # of the occasions', which is the conservative choice: a single variance
-  # shared over occasions of different spread is only a collapse if it is small
-  # relative to even the least variable of them.
   shared_t <- isTRUE(mm$theta_shared_occasions)
   occasions <- if (shared_t) 1L else seq_len(Tn)
   for (k in seq_len(theta_rows)) {
     for (t in occasions) {
-      v  <- theta[k, t]
-      s2t <- if (is.null(s2)) NA_real_ else if (shared_t) min(s2) else s2[t]
-      at_floor <- v <= .sn_theta_floor * 10
-      ratio    <- v / s2t
-      if (!at_floor && !(is.finite(ratio) && ratio < threshold)) next
+      v <- theta[k, t]
+      if (v > .sn_theta_floor * 10) next
       where <- paste0(
         if (theta_rows == 1L) "" else sprintf("in class %d ", k),
         if (shared_t) "(constant over occasions)" else sprintf("at occasion %d", t))
-      msg <- c(msg, if (is.finite(ratio))
-        sprintf("residual variance %s (%.3g vs %.3g for %s, %s)",
-                where, v, s2t,
-                if (shared_t) "the least variable occasion"
-                else "that occasion overall",
-                .gmm_pct(ratio))
-      else sprintf("residual variance %s at the estimation floor (%.3g)",
-                   where, v))
+      msg <- c(msg, sprintf("residual variance %s at the estimation floor (%.3g)",
+                            where, v))
     }
   }
 

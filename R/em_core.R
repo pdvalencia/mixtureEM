@@ -1287,7 +1287,7 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
     # towards the floor, for thousands of iterations. Checked on the
     # parameters the E-step just used, so the state returned is consistent.
     if (!is.null(spike_at) && iter %% .em_spike_every == 0L &&
-        spike_at(model_state$mm)) {
+        spike_at(model_state, e_res$log_resp)) {
       log_prob_vector <- e_res$log_prob_norm
       n_iter <- iter
       model_state$spike_stopped <- TRUE
@@ -1537,7 +1537,7 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
 
   # Ranks the converged restarts and finishes the leaders. A restart that ended
   # on a degenerate point of an unbounded likelihood (.em_state_degenerate():
-  # today, a growth model's class covariance gone singular on tied scores) is
+  # a class sitting on one value of data its own variance governs) is
   # counted as one that did not converge, and the rest compete as usual. Its
   # score is the largest of all by construction, so ranking it would hand the
   # fit, and the finish's band, to the spike: the meaningful maximum sits below
@@ -1640,28 +1640,31 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
 }
 
 # Whether a fitted restart ended on a degenerate point of an unbounded
-# likelihood, which fit_em() counts as a failure to converge. Only the
-# growth-model emission can say so today (.sn_degenerate()); every other family
-# answers FALSE and is ranked exactly as before.
+# likelihood, which fit_em() counts as a failure to converge: a class sitting
+# on one value of data its own variance governs (.one_score_cells(),
+# R/one_score.R). Families with no class-specific variance answer FALSE and are
+# ranked exactly as before.
 .em_state_degenerate <- function(state, X) {
   if (isTRUE(state$spike_stopped)) return(TRUE)
-  mm <- state$mm
-  if (!inherits(mm, "structured_normal")) return(FALSE)
-  isTRUE(tryCatch(.sn_degenerate(mm, X, state$sample_weights),
-                  error = function(e) FALSE))
+  if (is.null(state$log_resp)) return(FALSE)
+  # A start whose class covariance went non-finite has no posteriors left to
+  # judge, and has failed to converge whatever they would have said.
+  if (anyNA(state$log_resp)) return(TRUE)
+  isTRUE(tryCatch(
+    !is.null(.one_score_cells(state$mm, X, exp(state$log_resp),
+                              state$sample_weights)),
+    error = function(e) FALSE))
 }
 
-# The same test, built once per restart for fit_single_init()'s loop, with the
-# observed variances computed up front; NULL for every family it does not
+# The same test, built once per restart for fit_single_init()'s loop and taken
+# on the posteriors of the E-step just run; NULL for every family it does not
 # apply to, so their loops do no extra work. Checked every `.em_spike_every`
-# iterations: a few small eigenvalue problems, against an E-step over all
-# cases.
+# iterations: one weighted sum per class-specific variance, against an E-step
+# over all cases.
 .em_spike_every <- 10L
 .em_spike_check <- function(state, X) {
-  mm <- state$mm
-  if (!inherits(mm, "structured_normal")) return(NULL)
-  s2 <- tryCatch(.gmm_marginal(mm, X, state$sample_weights),
-                 error = function(e) NULL)
-  function(m) isTRUE(tryCatch(.sn_degenerate(m, s2 = s2),
-                              error = function(e) FALSE))
+  if (!length(.dispersion_groups(state$mm))) return(NULL)
+  function(st, log_resp) isTRUE(tryCatch(
+    !is.null(.one_score_cells(st$mm, X, exp(log_resp), st$sample_weights)),
+    error = function(e) FALSE))
 }

@@ -60,52 +60,47 @@
              mean     = as.vector(M))
 }
 
-# Flag class/item cells whose variance has collapsed.
+# Flag the classes that sit on one value of an item whose variance they own --
+# the package's one definition of a collapsed fit (.one_score_cells(),
+# R/one_score.R), the same one every search uses to set such a start aside. A
+# fit reaches this check flagged only when no start ended anywhere else, or
+# when it continued a single start (`refine_from`).
 #
-# The threshold is a *ratio* to the item's observed marginal variance, not an
-# absolute value, so that it means the same thing on a five-point scale and on an
-# income variable. At 1% it has an order of magnitude of slack on both sides of
-# everything measured while this was being diagnosed: genuinely small but healthy
-# class variances ran 2-7% of the marginal, and collapsed ones 0.03-0.08%.
+# Each flagged class is reported with the variance it has been left with, set
+# against the item's observed marginal, and with whether its mean sits on the
+# smallest or largest observed value: a collapsed class is usually a clump of
+# cases at a scale endpoint, which is the case a reader recognises.
 #
-# Returns NULL when nothing is flagged, so callers can test with length().
-.gaussian_boundary <- function(mm, X, threshold = 0.01, weights = NULL) {
-  cells <- .gaussian_variance_cells(mm)
-  if (is.null(cells) || !nrow(cells)) return(NULL)
-
-  cells <- cells[cells$col >= 1L & cells$col <= ncol(X), , drop = FALSE]
-  if (!nrow(cells)) return(NULL)
-
-  # The same weighted marginal the prior is centred on. Under a survey design an
-  # unweighted marginal would put the threshold on a different scale from the
-  # quantity being compared to it.
+# `post` is the posterior matrix, or a list of them per block (a transition
+# model's per-occasion status posteriors). Returns NULL when nothing is flagged,
+# so callers can test with length().
+.gaussian_boundary <- function(mm, X, post, weights = NULL) {
   if (!is.null(weights) && length(weights) != nrow(X)) weights <- NULL
+  hits <- .one_score_cells(mm, X, post, weights)
+  if (is.null(hits)) return(NULL)
+
+  # The same weighted marginal the prior is centred on.
   s2 <- .marginal_var(X, weights)
-  cells$marginal <- s2[cells$col]
-  cells$ratio    <- cells$variance / cells$marginal
+  cells <- .gaussian_variance_cells(mm)
+  m <- if (is.null(cells)) rep(NA_integer_, nrow(hits))
+       else match(paste(hits$class, hits$col), paste(cells$class, cells$col))
+  hits$variance <- if (inherits(mm, "lcga")) mm$parameters$dispersion[hits$class]
+                   else if (is.null(cells)) NA_real_ else cells$variance[m]
+  hits$mean     <- if (is.null(cells)) NA_real_ else cells$mean[m]
+  hits$marginal <- s2[hits$col]
+  hits$ratio    <- hits$variance / hits$marginal
 
-  flagged <- cells[is.finite(cells$ratio) & cells$ratio < threshold, ,
-                   drop = FALSE]
-  if (!nrow(flagged)) return(NULL)
-
-  # Corroborating signal: the class mean sitting on the smallest or largest
-  # observed value of the item. A collapsed class is usually a clump of cases at
-  # a scale endpoint, so this is what distinguishes "the model found a floor
-  # effect and called it a class" from an ordinary tight class. Reported when it
-  # holds rather than required, since a collapse in the middle of a scale is
-  # equally spurious.
   rng <- apply(X, 2, range, na.rm = TRUE)
   tol <- pmax((rng[2, ] - rng[1, ]) * 1e-4, 1e-8)
-  flagged$pinned <-
-    abs(flagged$mean - rng[1, flagged$col]) <= tol[flagged$col] |
-    abs(flagged$mean - rng[2, flagged$col]) <= tol[flagged$col]
+  hits$pinned <-
+    abs(hits$value - rng[1, hits$col]) <= tol[hits$col] |
+    abs(hits$value - rng[2, hits$col]) <= tol[hits$col]
 
   nms <- colnames(X) %||% paste0("column ", seq_len(ncol(X)))
-  flagged$item <- nms[flagged$col]
-  flagged$kind <- "variance"
-
-  flagged[order(flagged$ratio), c("class", "col", "item", "variance",
-                                  "marginal", "ratio", "mean", "pinned", "kind")]
+  hits$item <- if (inherits(mm, "lcga")) "the outcome" else nms[hits$col]
+  hits$kind <- "variance"
+  hits[, c("class", "col", "item", "value", "share", "variance",
+           "marginal", "ratio", "mean", "pinned", "kind")]
 }
 
 # Dispatches each flagged row to its own formatter by `kind`. Only collapsed
@@ -123,9 +118,16 @@
 .gaussian_boundary_lines <- function(flagged, max_show = 5L) {
   n <- nrow(flagged)
   show <- flagged[seq_len(min(n, max_show)), , drop = FALSE]
-  lines <- sprintf("%s in class %d (variance %.3g vs %.3g for the item overall%s)",
-                   show$item, show$class, show$variance, show$marginal,
-                   ifelse(show$pinned, "; class mean at a data boundary", ""))
+  # A fit saved before the one-score definition has no `share` column.
+  lines <- if (is.null(show$share))
+    sprintf("%s in class %d (variance %.3g vs %.3g for the item overall%s)",
+            show$item, show$class, show$variance, show$marginal,
+            ifelse(show$pinned, "; class mean at a data boundary", ""))
+  else
+    sprintf("%s in class %d (%.0f%% at %s%s; variance %.3g vs %.3g overall)",
+            show$item, show$class, 100 * show$share, format(show$value),
+            ifelse(show$pinned, ", a data boundary", ""),
+            show$variance, show$marginal)
   if (n > max_show)
     lines <- c(lines, sprintf("and %d more", n - max_show))
   lines
@@ -174,10 +176,17 @@
 # do. That is a note on print(), .print_ri_boundary_note(), not a warning, and
 # it does not mark the fit degenerate for lr_test() or the BIC line.
 .check_gaussian_degeneracy <- function(fit, X, quiet = FALSE) {
-  # `sample_weights` on a mixture_model, `weights_vec` on an lta_model.
+  # `sample_weights` on a mixture_model, `weights_vec` on an lta_model; the
+  # posteriors are the transition model's per-occasion status posteriors there,
+  # the class posteriors everywhere else. A growth mixture model reports the
+  # same test through its own boundary warning (.gmm_boundary()), worded for
+  # its parameters, so it is not checked twice.
   w <- fit$sample_weights %||% fit$weights_vec
-  flagged <- tryCatch(.gaussian_boundary(fit$mm, X, weights = w),
-                      error = function(e) NULL)
+  post <- if (inherits(fit, "lta_model") || is.list(fit$gamma)) fit$gamma
+          else if (!is.null(fit$log_resp)) exp(fit$log_resp)
+  flagged <- if (inherits(fit$mm, "structured_normal")) NULL
+             else tryCatch(.gaussian_boundary(fit$mm, X, post, weights = w),
+                           error = function(e) NULL)
   fit$ri_boundary <- tryCatch(.categorical_boundary(fit, X),
                               error = function(e) NULL)
   fit$degenerate <- flagged
@@ -186,20 +195,17 @@
   # The prior remedy is stated as one artificial observation per class, and
   # printed as the number that means for *this* model. A bare constant does not
   # transfer: the constant is spread over the classes, so the same value is a
-  # different amount of prior at every K. On five-point scales, one observation
-  # per class was the weakest setting that both lifted the flagged variance
-  # into the range of the model's genuinely small variances and moved its
-  # class mean off the scale ceiling. See the `bayes_constants` section of
+  # different amount of prior at every K. See the `bayes_constants` section of
   # ?fit_mixture.
   K <- .degeneracy_n_classes(fit)
   var_hint <- if (is.na(K)) "bayes_constants = list(variances = <n_classes>)"
               else sprintf("bayes_constants = list(variances = %d)", K)
-  remedies <- c("variances_equal = TRUE", "fewer classes",
+  remedies <- c(if (!inherits(fit$mm, "lcga")) "variances_equal = TRUE",
+                "fewer classes",
                 sprintf("a stronger variance prior, %s", var_hint))
   remedies <- sprintf("(%d) %s", seq_along(remedies), remedies)
   remedies[length(remedies)] <- paste("or", remedies[length(remedies)])
   remedies <- paste(remedies, collapse = "; ")
-  what <- "A class variance has"
 
   # R truncates a condition message at getOption("warning.length"), which
   # defaults to 1000 bytes and which RStudio does not raise -- so a warning
@@ -212,12 +218,13 @@
   # one. The flagged cells come first because they are the only content the user
   # cannot get anywhere else, and so must never be what gets cut.
   warning(sprintf(
-    paste0("%s collapsed towards the boundary: %s. ",
-           "These estimates are not interpretable, and this fit's BIC cannot ",
-           "be compared with a clean fit's. Ways out, to choose between on ",
-           "substantive grounds: %s. ",
+    paste0("A class variance has collapsed towards the boundary: %s. ",
+           "Every start ended on a class sitting on one value, so there was ",
+           "no other solution to report. These estimates are not ",
+           "interpretable, and this fit's BIC cannot be compared with a clean ",
+           "fit's. Ways out, to choose between on substantive grounds: %s. ",
            "See ?fit_mixture for why, and what to check afterwards."),
-    what, paste(.degeneracy_lines(flagged), collapse = "; "), remedies),
+    paste(.degeneracy_lines(flagged, max_show = 3L), collapse = "; "), remedies),
     call. = FALSE)
   fit
 }

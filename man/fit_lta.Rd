@@ -70,7 +70,12 @@ frame with \code{id} and \code{time}.}
 block. \code{"ordinal"} fits one cumulative-logit block per item, with its own
 number of ordered categories inferred per item (so a 3/3/2-category block
 needs no mixed specification); without a random intercept it is
-numerically identical to \code{"categorical"}.}
+numerically identical to \code{"categorical"}. A continuous item's variances are
+free by status, so a status can sit on one tied value of it (a scale floor
+or ceiling) and run its variance to the boundary; a start that ends with
+more than 90\% of a status on one value of such an item is ranked behind
+every start that does not, the rule every model in the package applies
+(see \code{bayes_constants} in \code{\link[=fit_mixture]{fit_mixture()}}).}
 
 \item{measurement_invariance}{Whether the item parameters are held equal
 across occasions: \code{"full"} (the default), \code{"none"}, or \code{"partial"} for only

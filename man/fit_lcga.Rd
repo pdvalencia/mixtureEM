@@ -49,7 +49,11 @@ is a curve in the probability of the event.
 curve in the mean, and each class also carries a residual variance,
 constant across occasions. This is LCGA in the sense of Nagin's
 censored-normal model without the censoring, and the no-random-effects
-special case of a growth mixture model.
+special case of a growth mixture model. A class with more than 90\% of
+its scores, over all occasions, on one value (a floor of zeros, say) has
+no residual spread left; a start that ends there is set aside, as in
+every model the package fits, and a warning is given only if every start
+did.
 \item \code{"poisson"} — a count outcome, log link. The trajectory is a curve in the
 event rate. Counts must be whole and non-negative; over-dispersed or
 zero-inflated counts are not yet modelled as such.
