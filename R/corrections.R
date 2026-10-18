@@ -535,12 +535,13 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   # as one shared $hessian; distal_regression stores each class's own block in
   # $hessians[[k]], which is where downstream inference reads from.
 
-  # A case listwise deleted for a missing outcome covariate is not in step 3:
-  # it weighs zero in the curvature (`w_s`) and its score row is zeroed in
-  # the meat, which takes the scores unweighted.
+  # The meat takes each case's score times its weight, w_i s_i, so that
+  # without a design it is sum_i w_i^2 s_i s_i', the sampling-weight sandwich
+  # the continuous and joint branches build. A case listwise deleted for a
+  # missing outcome covariate is not in step 3: its `w_s` is zero, which
+  # removes it from the curvature and the meat alike.
   if (cat_out) {
-    s_in    <- if (is.null(s_keep)) 1 else as.numeric(s_keep)
-    meat_fn <- function(S) .score_meat(S * s_in, model_state$strata[keep],
+    meat_fn <- function(S) .score_meat(S * w_s, model_state$strata[keep],
                                        model_state$cluster[keep],
                                        isTRUE(model_state$has_survey_design))
     if (inherits(model_state$sm, "distal_pooled")) {

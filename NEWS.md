@@ -1,5 +1,16 @@
 # mixtureEM (development version)
 
+## Fixed: a weighted categorical distal's robust standard errors ignored the weights
+
+The ML-corrected step 3 of a lone categorical distal outcome, fitted with
+unequal sampling weights, built its sandwich with weighted curvature but
+unweighted case scores. The meat is now the sampling-weight form
+Σ wᵢ² sᵢ sᵢ′, the one the continuous and joint step 3 already used, and a
+case deleted for a missing outcome covariate still contributes nothing. On
+five simulated data sets with lognormal weights the old standard errors were
+5-65% too small, the largest gap where the weights depended on the class.
+Unweighted fits and point estimates do not change.
+
 ## Fixed: `lta_covariate_summary()` printed too-small standard errors on a one-step fit
 
 On a one-step latent transition model with predictors, the coefficient
