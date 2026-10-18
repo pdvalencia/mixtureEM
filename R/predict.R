@@ -21,7 +21,9 @@
 #' levels it had when the model was fitted, never against the levels in
 #' `newdata`, and a value the fitted model never saw is an error rather than a
 #' silent mis-coding. A binary indicator that was recoded to 0/1 at fit time is
-#' recoded the same way.
+#' recoded the same way. The same holds for a factor or character predictor:
+#' a level the model was not fitted with is an error, where scoring it would
+#' silently treat the case as belonging to the reference level.
 #'
 #' **Missing values.** A missing answer simply drops out of that case's
 #' likelihood (full-information scoring), whether or not the estimation sample
@@ -245,6 +247,16 @@ predict.lta_model <- function(object, ...)
              call. = FALSE)
       Y[, i] <- v
     } else {
+      # All dummies 0 is the reference level, so a level the fit never saw
+      # would silently be scored as the reference; refuse it instead.
+      seen   <- attr(object$Y, "covariate_levels")[[tm]]
+      unseen <- setdiff(unique(as.character(v[!is.na(v)])), seen)
+      if (!is.null(seen) && length(unseen))
+        stop(sprintf(paste0("Predictor '%s' has level%s %s in `newdata` ",
+                            "that the model was not fitted with."), tm,
+                     if (length(unseen) == 1L) "" else "s",
+                     paste0("'", unseen, "'", collapse = ", ")),
+             call. = FALSE)
       level  <- substring(cn[i], nchar(tm) + 2L)
       Y[, i] <- ifelse(is.na(v), NA_real_, as.numeric(as.character(v) == level))
     }

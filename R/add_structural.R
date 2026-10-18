@@ -62,9 +62,11 @@
   empty  <- md$empty_rows
 
   if (nrow(Y) == n_in && length(empty) > 0L) {
-    terms_attr <- attr(Y, "covariate_terms")
+    terms_attr  <- attr(Y, "covariate_terms")
+    levels_attr <- attr(Y, "covariate_levels")
     Y <- Y[-empty, , drop = FALSE]
-    attr(Y, "covariate_terms") <- terms_attr
+    attr(Y, "covariate_terms")  <- terms_attr
+    attr(Y, "covariate_levels") <- levels_attr
     message(sprintf(
       paste0("%d case(s) had been removed at fitting time for having no ",
              "observed indicator; the matching rows of `%s` were dropped."),

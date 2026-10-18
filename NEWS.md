@@ -23,9 +23,11 @@ uses: the E-step of the fitted model applied to new rows, which Vermunt and
 Magidson (2025) show is exactly a logistic scoring equation for the standard
 emissions. Indicators are matched by name and coded by the levels the model
 was fitted with, so a factor whose levels arrive in another order is coded
-correctly and a level the model never saw is an error. A missing answer drops
-out of that case's likelihood; a case missing every indicator, or a predictor
-the model needs, gets `NA`. A model with predictors uses the fitted
+correctly and a level the model never saw is an error; the same holds for a
+factor or character predictor, whose unseen level would otherwise be scored
+as the reference level. A missing answer drops out of that case's
+likelihood; a case missing every indicator, or a predictor the model needs,
+gets `NA`. A model with predictors uses the fitted
 class-membership regression at the new case's predictors; a distal outcome is
 never used. On the estimation sample of a one-step model the result equals
 `class_assignments()` exactly, and held-out posteriors with missing answers

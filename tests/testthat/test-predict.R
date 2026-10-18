@@ -196,3 +196,24 @@ test_that("models predict() does not cover are refused", {
   g$group_info <- list()
   expect_error(predict(g, b$X), "multiple-group")
 })
+
+test_that("a factor predictor's unseen level is refused, not read as the reference", {
+  set.seed(3)
+  n <- 300
+  z <- sample(2, n, TRUE)
+  d <- data.frame(u1 = rbinom(n, 1, c(.2, .8)[z]),
+                  u2 = rbinom(n, 1, c(.2, .8)[z]),
+                  u3 = rbinom(n, 1, c(.3, .7)[z]),
+                  g  = factor(sample(c("lo", "mid", "hi"), n, TRUE),
+                              levels = c("lo", "mid", "hi")))
+  fit <- suppressMessages(fit_mixture(d[1:3], 2, "binary", predictors = d["g"],
+                                      n_steps = 1, n_init = 3,
+                                      random_state = 1, n_cores = 1))
+  nd <- d[1:3, ]
+  nd$g <- as.character(nd$g)
+  expect_equal(predict(fit, nd, "posterior"),
+               class_assignments(fit, "posterior")[1:3, ], tolerance = 1e-10,
+               ignore_attr = TRUE)
+  nd$g[3] <- "zzz"
+  expect_error(predict(fit, nd), "level 'zzz'")
+})

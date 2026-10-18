@@ -553,6 +553,7 @@ prepare_covariates <- function(Y, min_level_n = 5L) {
   df <- as.data.frame(Y)
   out_cols <- vector("list", ncol(df))
   out_terms <- vector("list", ncol(df))
+  levels_seen <- list()
   idx <- 0L
 
   for (nm in names(df)) {
@@ -608,6 +609,7 @@ prepare_covariates <- function(Y, min_level_n = 5L) {
         call. = FALSE)
 
     other <- lvls[-1L]   # reference = first level
+    levels_seen[[nm]] <- lvls
 
     if (length(other) == 1L) {
       # Binary: single column named "var.Level" so the active level is clear
@@ -630,6 +632,7 @@ prepare_covariates <- function(Y, min_level_n = 5L) {
 
   out <- do.call(cbind, out_cols[seq_len(idx)])
   attr(out, "covariate_terms") <- unlist(out_terms[seq_len(idx)], use.names = FALSE)
+  if (length(levels_seen)) attr(out, "covariate_levels") <- levels_seen
   out
 }
 
@@ -659,7 +662,9 @@ prepare_covariates <- function(Y, min_level_n = 5L) {
   parts <- parts[!vapply(parts, is.null, logical(1))]
   if (!length(parts)) return(NULL)
   terms <- unlist(lapply(parts, .covariate_terms), use.names = FALSE)
+  lvls  <- do.call(c, lapply(parts, attr, "covariate_levels"))
   out   <- do.call(cbind, parts)
   attr(out, "covariate_terms") <- terms
+  if (length(lvls)) attr(out, "covariate_levels") <- lvls
   out
 }

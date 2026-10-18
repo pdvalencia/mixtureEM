@@ -40,7 +40,9 @@ carry other columns. A factor or character indicator is coded against the
 levels it had when the model was fitted, never against the levels in
 \code{newdata}, and a value the fitted model never saw is an error rather than a
 silent mis-coding. A binary indicator that was recoded to 0/1 at fit time is
-recoded the same way.
+recoded the same way. The same holds for a factor or character predictor:
+a level the model was not fitted with is an error, where scoring it would
+silently treat the case as belonging to the reference level.
 
 \strong{Missing values.} A missing answer simply drops out of that case's
 likelihood (full-information scoring), whether or not the estimation sample
