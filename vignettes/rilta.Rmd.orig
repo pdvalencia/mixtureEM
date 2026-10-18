@@ -315,10 +315,18 @@ positive: poverty lowers reading readiness by about 0.9 standard
 deviations of the factor, a large and precisely estimated effect. With
 that in the model the transition effects that remain are the ones
 *given* readiness: over the summer a child in poverty has six times the
-odds of staying in low alphabet rather than reaching comprehension, and
-over first grade three times the odds of stopping at early word reading.
+odds of staying in low alphabet rather than reaching comprehension, a
+clearly estimated effect. Over first grade the estimate is three times the
+odds of stopping at early word reading, but its interval is wide enough to
+include no effect at all, so the data do not settle it.
 The `from:` terms are origin-status intercepts, several of them for cells
-almost nobody occupies, which is what their standard errors say.
+almost nobody occupies, such as moving back from comprehension. Their
+estimates run off towards the edge of the logit scale, and their standard
+errors, either very large or printed as 0.000, mean only that the data
+carry no information about those cells. A coefficient estimated alongside
+them, such as the summer effect of poverty on reaching early word
+reading, inherits some of that instability, so read its standard error
+with care.
 
 The final model was fitted with standard errors, so the loadings now
 come with theirs:

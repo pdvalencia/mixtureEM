@@ -101,6 +101,7 @@ summary(fit_cov)
 #> =========================================================
 #>              STRUCTURAL MODEL SUMMARY                    
 #> =========================================================
+#>   Best solution  : found by 20 of 20 starts
 #> 
 #> CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)
 #> Reference Class: 1
@@ -109,25 +110,25 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                1.179  [    0.234,     5.933]     0.841
-#>   sex.Female               2.641  [    1.104,     6.319]     0.029
-#>   age                      0.942  [    0.884,     1.003]     0.063
+#>   Intercept                1.179  [    0.236,     5.891]     0.841
+#>   sex.Female               2.641  [    1.106,     6.306]     0.029
+#>   age                      0.942  [    0.885,     1.003]     0.061
 #> 
 #> Class 3 ON
-#>   Intercept                0.315  [    0.104,     0.952]     0.041
+#>   Intercept                0.315  [    0.104,     0.949]     0.040
 #>   sex.Female               0.342  [    0.183,     0.640]    < .001
-#>   age                      1.033  [    0.997,     1.071]     0.074
+#>   age                      1.033  [    0.997,     1.071]     0.072
 #> 
 #> Class 4 ON
-#>   Intercept                0.247  [    0.078,     0.779]     0.017
-#>   sex.Female               0.655  [    0.331,     1.299]     0.226
-#>   age                      1.024  [    0.985,     1.065]     0.227
+#>   Intercept                0.247  [    0.078,     0.777]     0.017
+#>   sex.Female               0.655  [    0.331,     1.297]     0.225
+#>   age                      1.024  [    0.985,     1.064]     0.225
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   sex                       23.067    3    < .001
-#>   age                        9.646    3     0.022
+#>   sex                       23.165    3    < .001
+#>   age                        9.764    3     0.021
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================
@@ -159,6 +160,9 @@ summary(fit_cov)
 | Latent class growth analysis, growth mixture models | `fit_lcga()`, `fit_gmm()` | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |
 | Linking two different mixture models by the three-step, e.g. early classes predicting later growth classes | `link_models()` | `?link_models` |
 | Complex survey designs (weights, strata, clusters) | every model | [`survey_lca`](https://pdvalencia.github.io/mixtureEM/articles/survey_lca.html) |
+| Growth-model standard errors and tests of equality constraints | `growth_estimates()`, `wald_test()` | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |
+| After the fit: classifying new cases, simulating from the model, merging classes into clusters, class separation | `predict()`, `simulate()`, `merge_classes()`, `classification_diagnostics()` | `?predict.mixture_model` |
+| Writing it up: a methods paragraph, the GRoLTS checklist, measurement standard errors | `report_methods()`, `grolts_report()`, `measurement_estimates()` | [`reporting`](https://pdvalencia.github.io/mixtureEM/articles/reporting.html) |
 
 Also included: mixed measurement models (binary + continuous + count
 indicators in one model), full-information missing-data handling

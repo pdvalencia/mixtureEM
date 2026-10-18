@@ -130,6 +130,9 @@ summary(fit_cov)
 | Latent class growth analysis, growth mixture models | `fit_lcga()`, `fit_gmm()` | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |
 | Linking two different mixture models by the three-step, e.g. early classes predicting later growth classes | `link_models()` | `?link_models` |
 | Complex survey designs (weights, strata, clusters) | every model | [`survey_lca`](https://pdvalencia.github.io/mixtureEM/articles/survey_lca.html) |
+| Growth-model standard errors and tests of equality constraints | `growth_estimates()`, `wald_test()` | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |
+| After the fit: classifying new cases, simulating from the model, merging classes into clusters, class separation | `predict()`, `simulate()`, `merge_classes()`, `classification_diagnostics()` | `?predict.mixture_model` |
+| Writing it up: a methods paragraph, the GRoLTS checklist, measurement standard errors | `report_methods()`, `grolts_report()`, `measurement_estimates()` | [`reporting`](https://pdvalencia.github.io/mixtureEM/articles/reporting.html) |
 
 Also included: mixed measurement models (binary + continuous + count
 indicators in one model), full-information missing-data handling
