@@ -116,8 +116,8 @@ that will use the exported variable anyway.
 \code{correction = "ML"}): the modal class under the measurement model's
 posterior against the modal class under the step-3 posterior, as a count,
 a proportion and a cross-tabulation. The three-step method assumes the
-structural model leaves the classes as step 1 defined them (Vermunt,
-2010); many moved cases mean the structural model is redefining the
+structural model leaves the classes as step 1 defined them (Vermunt, 2010;
+Asparouhov & Muthén, 2014); many moved cases mean the structural model is redefining the
 classes, and the one-step and two-step fits are the comparison to run.
 }
 \examples{
@@ -128,13 +128,19 @@ classification_diagnostics(fit)
 
 }
 \references{
+Asparouhov, T., & Muthén, B. (2014). Auxiliary variables in mixture
+modeling: Three-step approaches using Mplus. \emph{Structural Equation
+Modeling}, \emph{21}(3), 329-341. \doi{10.1080/10705511.2014.915181}
+
 Celeux, G., & Soromenho, G. (1996). An entropy criterion for assessing the
 number of clusters in a mixture model. \emph{Journal of Classification},
 \emph{13}(2), 195-212. \doi{10.1007/BF01246098}
 
-Chen et al. (2026). When is hard class assignment defensible? An
-uncertainty-aware framework for psychometric profile analysis.
-\emph{Educational and Psychological Measurement}.
+Chen, X., Chen, S., Wang, C., Sweeney, C., Bailey, R., & Samsudin, N.
+(2026). When is hard class assignment defensible? An uncertainty-aware
+framework for psychometric profile interpretation. \emph{Educational and
+Psychological Measurement}. Advance online publication.
+\doi{10.1177/00131644261469071}
 
 Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
 growth mixture models (GMM). In \emph{International Encyclopedia of
