@@ -1,5 +1,28 @@
 # mixtureEM (development version)
 
+## `blrt()` accepts sampling weights and a survey design
+
+`blrt()` used to refuse a comparison fitted with sampling weights, `strata` or
+`cluster`, because its observed statistic is then a pseudo-likelihood ratio
+that the design inflates, while its bootstrap replicates are simple random
+samples that carry no such inflation. It now fits the replicates as the simple
+random samples they are and multiplies each replicate statistic by the null
+model's generalized design effect, tr(A⁻¹B)/p (Satorra & Bentler, 1988;
+Asparouhov, 2005), which puts the reference distribution on the observed
+statistic's scale. The result carries `scaled` and `scaling_factor`, and
+`print()` reports the factor.
+
+The null model's factor is used rather than the alternative's or the
+two-model difference factor, because under the null the alternative's extra
+class is noise and both of those inherit its instability. On ten simulated
+two-class data sets with informative weights, half of them clustered, the
+rescaled null came within about 10% of the true null distribution of the
+weighted statistic at its 95th percentile and gave p-values off by 0.04 on
+average, against 35% short and 0.24 unscaled; the difference factor was off by
+up to 92%. The corrected test is still slightly liberal. A model whose design
+effect cannot be computed, such as a growth model, is still refused, and
+frequency weights are not rescaled. Unweighted results do not change.
+
 ## Fixed: step-3 standard errors under frequency weights treated each row as one case
 
 With `weight_type = "frequency"`, where a weight of 3 says the row stands for

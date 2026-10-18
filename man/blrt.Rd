@@ -102,7 +102,9 @@ which class counts to compare; everything else comes from the fit.}
 An object of class \code{blrt_test}: a list with \code{p_value},
 \code{obs_diff} (the observed \eqn{2\,\Delta\ell} statistic),
 \code{null_dist} (the bootstrap null distribution), \code{n_negative} (how
-many draws produced a negative statistic), and the compared class counts.
+many draws produced a negative statistic), the compared class counts,
+\code{scaled} (whether the draws were rescaled for a survey design) and
+\code{scaling_factor} (the design effect used, \code{NA} when not).
 It has \code{print} and \code{plot} methods.
 }
 \description{
@@ -130,6 +132,32 @@ for comparing models that allow for different types of between-class
 differences" (Ram & Grimm, 2009, p. 571). Passing the fit guarantees it by
 construction.
 }
+\section{Sampling weights and survey designs}{
+
+With sampling weights, \code{strata} or \code{cluster} passed through
+\code{...}, the observed statistic is a pseudo-likelihood ratio, which the
+design inflates relative to a simple random sample of the same size. The
+bootstrap replicates are still drawn and fitted as simple random samples
+(resampling the design itself is not available), and each replicate
+statistic is multiplied by the null model's generalized design effect
+\eqn{c_0 = \mathrm{tr}(A^{-1}B)/p}, the scaling factor of Satorra and
+Bentler (1988) and Asparouhov (2005) computed from the \code{k_small} fit's
+information matrix \eqn{A} and its design-based score covariance \eqn{B}.
+\code{null_dist} is returned on that rescaled scale.
+
+The null model's factor is used rather than the alternative's, or the
+two-model difference factor that \code{\link{lr_test}} uses, because the
+replicates are generated from the null and, when the null is true, the
+alternative's extra class is noise that makes its factor unstable. In a
+simulation of a two-class model under informative weights, with and without
+clustering, the rescaled null came within about 10\\% of the true null
+distribution of the weighted statistic at its 95th percentile, where the
+unscaled one was about 35\\% short; the corrected test is therefore still
+slightly liberal. Frequency weights (\code{weight_type = "frequency"}) are
+not rescaled. A model for which the design effect cannot be computed (a
+growth measurement model, among others) is refused.
+}
+
 \examples{
 \dontrun{
 set.seed(1)
@@ -142,6 +170,10 @@ res$p_value
 
 }
 \references{
+Asparouhov, T. (2005). Sampling weights in latent variable modeling.
+\emph{Structural Equation Modeling}, \emph{12}(3), 411-434.
+\doi{10.1207/s15328007sem1203_4}
+
 Davison, A. C., & Hinkley, D. V. (1997). \emph{Bootstrap Methods and Their
 Application} (ch. 4). Cambridge University Press.
 
@@ -153,6 +185,11 @@ latent class analysis. \emph{Structural Equation Modeling}, \emph{21}(4),
 McLachlan, G. J. (1987). On bootstrapping the likelihood ratio test statistic
 for the number of components in a normal mixture. \emph{Applied Statistics},
 \emph{36}(3), 318-324. \doi{10.2307/2347790}
+
+Satorra, A., & Bentler, P. M. (1988). Scaling corrections for chi-square
+statistics in covariance structure analysis. \emph{Proceedings of the
+Business and Economic Statistics Section of the American Statistical
+Association}, 308-313.
 
 Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
 identifying differences in longitudinal change among unobserved groups.

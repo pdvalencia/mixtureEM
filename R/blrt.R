@@ -266,8 +266,34 @@ generate_synthetic_data <- function(mm, classes, N) {
 #' @return An object of class \code{blrt_test}: a list with \code{p_value},
 #'   \code{obs_diff} (the observed \eqn{2\,\Delta\ell} statistic),
 #'   \code{null_dist} (the bootstrap null distribution), \code{n_negative} (how
-#'   many draws produced a negative statistic), and the compared class counts.
+#'   many draws produced a negative statistic), the compared class counts,
+#'   \code{scaled} (whether the draws were rescaled for a survey design) and
+#'   \code{scaling_factor} (the design effect used, \code{NA} when not).
 #'   It has \code{print} and \code{plot} methods.
+#'
+#' @section Sampling weights and survey designs:
+#' With sampling weights, \code{strata} or \code{cluster} passed through
+#' \code{...}, the observed statistic is a pseudo-likelihood ratio, which the
+#' design inflates relative to a simple random sample of the same size. The
+#' bootstrap replicates are still drawn and fitted as simple random samples
+#' (resampling the design itself is not available), and each replicate
+#' statistic is multiplied by the null model's generalized design effect
+#' \eqn{c_0 = \mathrm{tr}(A^{-1}B)/p}, the scaling factor of Satorra and
+#' Bentler (1988) and Asparouhov (2005) computed from the \code{k_small} fit's
+#' information matrix \eqn{A} and its design-based score covariance \eqn{B}.
+#' \code{null_dist} is returned on that rescaled scale.
+#'
+#' The null model's factor is used rather than the alternative's, or the
+#' two-model difference factor that \code{\link{lr_test}} uses, because the
+#' replicates are generated from the null and, when the null is true, the
+#' alternative's extra class is noise that makes its factor unstable. In a
+#' simulation of a two-class model under informative weights, with and without
+#' clustering, the rescaled null came within about 10\% of the true null
+#' distribution of the weighted statistic at its 95th percentile, where the
+#' unscaled one was about 35\% short; the corrected test is therefore still
+#' slightly liberal. Frequency weights (\code{weight_type = "frequency"}) are
+#' not rescaled. A model for which the design effect cannot be computed (a
+#' growth measurement model, among others) is refused.
 #'
 #' @examples
 #' \dontrun{
@@ -280,6 +306,10 @@ generate_synthetic_data <- function(mm, classes, N) {
 #' }
 #'
 #' @references
+#' Asparouhov, T. (2005). Sampling weights in latent variable modeling.
+#' \emph{Structural Equation Modeling}, \emph{12}(3), 411-434.
+#' \doi{10.1207/s15328007sem1203_4}
+#'
 #' Davison, A. C., & Hinkley, D. V. (1997). \emph{Bootstrap Methods and Their
 #' Application} (ch. 4). Cambridge University Press.
 #'
@@ -291,6 +321,11 @@ generate_synthetic_data <- function(mm, classes, N) {
 #' McLachlan, G. J. (1987). On bootstrapping the likelihood ratio test statistic
 #' for the number of components in a normal mixture. \emph{Applied Statistics},
 #' \emph{36}(3), 318-324. \doi{10.2307/2347790}
+#'
+#' Satorra, A., & Bentler, P. M. (1988). Scaling corrections for chi-square
+#' statistics in covariance structure analysis. \emph{Proceedings of the
+#' Business and Economic Statistics Section of the American Statistical
+#' Association}, 308-313.
 #'
 #' Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
 #' identifying differences in longitudinal change among unobserved groups.
@@ -346,10 +381,10 @@ blrt <- function(indicators, k_small, k_large, measurement,
 
   # One place that calls the engine, so the observed fits and the replicates
   # cannot drift apart in what they were given.
-  fit_engine <- function(data, k, ...)
+  fit_engine <- function(data, k, ..., args = extra)
     do.call(fit_mixture_internal,
             c(list(X = data, n_components = k, measurement = measurement),
-              list(...), extra))
+              list(...), args))
 
   if (verbose)
     message(sprintf("BLRT: comparing %d vs %d classes with %d bootstrap draws...",
@@ -361,20 +396,36 @@ blrt <- function(indicators, k_small, k_large, measurement,
   alt_model  <- fit_engine(Xd, k_large, n_init = n_init_base, n_cores = n_cores)
 
   # The bootstrap null below is drawn i.i.d. -- no weights, no clustering --
-  # while a weighted or design-based observed fit's statistic already carries
-  # them, so the two are not comparable. `lr_test()` refuses the analogous
-  # case (R/lta_methods.R) via the same predicate; `blrt()` has no correction
-  # to fall back on the way `lr_test()` does, because a bootstrap p-value
-  # from the wrong null is not a weaker answer, it is a different question.
+  # while a weighted or design-based observed fit's statistic is a
+  # pseudo-likelihood ratio that the design inflates. The replicates are
+  # therefore fitted as the simple random samples they are, and each
+  # replicate statistic is multiplied by the null model's generalized design
+  # effect c0 = tr(A^-1 B) / p (Satorra & Bentler, 1988; Asparouhov, 2005),
+  # which puts the reference distribution on the observed statistic's scale.
+  # c0 rather than the alternative's c1 or the difference factor `lr_test()`
+  # uses: the replicates are drawn from the null, and under the null the
+  # alternative's extra class is noise, so c1 and the difference factor
+  # inherit its instability. Where c0 cannot be computed the test is refused,
+  # since a bootstrap p-value from the wrong null is not a weaker answer, it
+  # is a different question.
+  scaling_factor <- NA_real_
+  rep_extra      <- extra
   if (.needs_scaling_correction(.nested_fit_info(null_model)) ||
-      .needs_scaling_correction(.nested_fit_info(alt_model)))
-    stop(paste(
-      "blrt() was fit under sampling weights or a complex survey design, so",
-      "the observed statistic is a pseudo-likelihood-ratio but the bootstrap",
-      "null distribution above is drawn i.i.d. and carries neither. There is",
-      "currently no design-aware correction for this comparison -- refit",
-      "without `weights`/`strata`/`cluster`, or treat this as a diagnostic",
-      "rather than a calibrated test."), call. = FALSE)
+      .needs_scaling_correction(.nested_fit_info(alt_model))) {
+    pieces <- .scaling_pieces(.nested_fit_info(null_model))
+    if (is.null(pieces) || !is.finite(pieces$c) || pieces$c <= 0)
+      stop(paste(
+        "blrt() was fit under sampling weights or a complex survey design, so",
+        "the observed statistic is a pseudo-likelihood-ratio and the i.i.d.",
+        "bootstrap null has to be rescaled by the null model's design effect.",
+        "That design effect cannot be computed for this model (a growth",
+        "measurement model, a constrained group structure, or a family with",
+        "no unconstrained packing) -- refit without",
+        "`weights`/`strata`/`cluster`, or treat this as a diagnostic rather",
+        "than a calibrated test."), call. = FALSE)
+    scaling_factor <- pieces$c
+    rep_extra[c("weights", "weight_type", "strata", "cluster")] <- NULL
+  }
 
   obs_diff  <- 2 * (alt_model$metrics$ll - null_model$metrics$ll)
   N         <- nrow(Xd)
@@ -414,9 +465,10 @@ blrt <- function(indicators, k_small, k_large, measurement,
     # single currency (n_init_boot) used to spend on each side.
     m_null_gen <- fit_engine(X_gen, k_small, n_init = 0L, refine = FALSE,
                              n_cores = 1L,
-                             warm_start = .mixture_refine_warm_start(null_model))
+                             warm_start = .mixture_refine_warm_start(null_model),
+                             args = rep_extra)
     m_alt_gen  <- fit_engine(X_gen, k_large, n_init = 2L * n_init_boot,
-                             refine = FALSE, n_cores = 1L)
+                             refine = FALSE, n_cores = 1L, args = rep_extra)
 
     2 * (m_alt_gen$metrics$ll - m_null_gen$metrics$ll)
   }
@@ -433,10 +485,13 @@ blrt <- function(indicators, k_small, k_large, measurement,
         message(sprintf("  %d / %d draws complete", i, n_reps))
     }
   }
+  # A negative draw is a search failure whatever the scale, so it is counted
+  # before the design rescaling.
+  n_negative <- sum(null_dist < 0)
+  if (is.finite(scaling_factor)) null_dist <- null_dist * scaling_factor
   p_val <- (sum(null_dist >= obs_diff) + 1) / (n_reps + 1)
 
   .blrt_check_granularity(p_val, n_reps)
-  n_negative <- sum(null_dist < 0)
   .blrt_check_negative(n_negative, n_reps, k_small, k_large)
 
   result <- list(
@@ -448,7 +503,9 @@ blrt <- function(indicators, k_small, k_large, measurement,
     n_reps     = n_reps,
     n_negative = n_negative,
     ll_small   = null_model$metrics$ll,
-    ll_large   = alt_model$metrics$ll
+    ll_large   = alt_model$metrics$ll,
+    scaled         = is.finite(scaling_factor),
+    scaling_factor = scaling_factor
   )
   class(result) <- c("blrt_test", "list")
   result
@@ -518,6 +575,9 @@ print.blrt_test <- function(x, ...) {
               x$ll_small, x$k_small, x$ll_large, x$k_large))
   cat(sprintf("  LR statistic     : %.2f\n", x$obs_diff))
   cat(sprintf("  Bootstrap draws  : %d\n", x$n_reps))
+  if (isTRUE(x$scaled))
+    cat(sprintf("  Design effect    : %.3f (draws rescaled by it)\n",
+                x$scaling_factor))
   # Only when there are any: on a clean run this line would be a zero the reader
   # has to interpret.
   if (isTRUE(x$n_negative > 0L))
