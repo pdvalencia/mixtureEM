@@ -96,3 +96,18 @@ test_that("a pattern that never makes a transition keeps a finite coefficient", 
   expect_lt(slope(on), 8)
   expect_gt(slope(off), slope(on) + 2)
 })
+
+test_that("a one-step fit prints the observed-information standard errors", {
+  # The M-step's complete-data Hessian treats the statuses as observed, so
+  # its standard errors are too small; the printed table must read se$vcov.
+  fit <- .lcp_fit(.lcp_sim(), effects = "common")
+  out <- capture.output(lta_covariate_summary(fit, digits = 6))
+  blk <- Find(function(b) identical(b$name, "delta_beta"), fit$se$blocks)
+  se_v <- sqrt(diag(fit$se$vcov)[blk$cols])
+  se_h <- sqrt(diag(pinv(-fit$delta_hessian)))
+  row  <- grep("^ *Status 1 +x ", out, value = TRUE)
+  expect_length(row, 1L)
+  printed <- as.numeric(strsplit(trimws(row), " +")[[1]][5])
+  expect_equal(printed, round(se_v[2], 6))
+  expect_gt(se_v[2], se_h[2])
+})

@@ -431,19 +431,21 @@ lta_covariate_summary <- function(object, digits = 3) {
     cat("exp(coefficient) is an odds ratio.\n")
   }
 
-  # Coefficient table with Wald tests from the multinomial-logit information.
-  # The Hessian covers the free classes only, packed row-major by class.
-  # A two-step fit's structural coefficients do not get their standard errors
-  # from the Hessian stored by the M-step: that is the curvature of the
-  # structural block alone, and it omits the uncertainty in the measurement
-  # parameters the second step held fixed. The two-step variance computed in
-  # R/twostep_variance.R carries both, and is stored on `se$vcov` in the
-  # packing order, one contiguous slice per block. Looked up by the block's own
+  # Coefficient table with Wald tests. The standard errors come from `se$vcov`
+  # whenever the fit has one, never from the Hessian stored by the M-step:
+  # that is the complete-data curvature of the structural block alone, which
+  # treats the statuses as observed, and on a one-step fit it gave standard
+  # errors 30-46% too small. `se$vcov` is the observed information over the
+  # whole vector (one-step), the two-step variance of R/twostep_variance.R,
+  # which also carries the measurement parameters the second step held fixed,
+  # or the corrected three-step variance; each is stored in the packing order,
+  # one contiguous slice per block. The M-step Hessian, which covers the free
+  # classes only, packed row-major by class, is the fallback for a fit fitted
+  # with `standard_errors = FALSE`. Looked up by the block's own
   # name so that the two descriptions of the vector -- the one the scores use
   # and the one printed here -- cannot be matched up by position and drift.
   ts_block <- function(name) {
-    if (!(isTRUE(object$se$twostep) || isTRUE(object$se$threestep)) ||
-        is.null(object$se$vcov)) return(NULL)
+    if (is.null(object$se$vcov)) return(NULL)
     blk <- Find(function(b) identical(b$name, name), object$se$blocks)
     if (is.null(blk)) return(NULL)
     object$se$vcov[blk$cols, blk$cols, drop = FALSE]

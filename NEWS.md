@@ -1,5 +1,19 @@
 # mixtureEM (development version)
 
+## Fixed: `lta_covariate_summary()` printed too-small standard errors on a one-step fit
+
+On a one-step latent transition model with predictors, the coefficient
+table of `lta_covariate_summary()` took its standard errors from the
+M-step's curvature of the regression alone. That curvature treats each
+case's latent statuses as if they were observed, so it leaves out the
+information lost by not seeing them, and the standard errors it gave were
+30-46% too small on a four-status, two-occasion model with one
+predictor. The table now reads the fit's own covariance matrix, `$se$vcov`,
+the observed information of the whole model, exactly as two- and three-step
+fits already did. Estimates do not change; the printed standard errors, z
+values and p-values do. A fit made with `standard_errors = FALSE` still
+falls back to the M-step's curvature.
+
 ## Classifying new cases
 
 `predict()` is new for models from `fit_mixture()`. Given cases that were not
