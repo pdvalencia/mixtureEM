@@ -1,4 +1,11 @@
-# mixtureEM (development version)
+# mixtureEM 0.6.0
+
+Growth mixture models you can report, and the post-fit tools every applied
+paper needs: standard errors and Wald tests for growth models, the
+class-specific growth-factor variances, growth-factor covariances fitted
+without bounds and explained when they leave their usual range;
+`predict()`, `simulate()`, `merge_classes()`, class separation and the
+methods paragraph.
 
 ## One definition of a collapsed class, in every model
 

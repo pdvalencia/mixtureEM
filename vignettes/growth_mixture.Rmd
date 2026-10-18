@@ -97,6 +97,32 @@ splitting one cloud in half:
 plot(fit_gmm2, class_labels = c("Stable low", "Declining"))
 ```
 
+## Standard errors and tests
+
+`growth_estimates()` lists every growth parameter with its standard error,
+one row per parameter and class. The default is the sandwich (`"robust"`)
+estimator, which stays valid when the within-class distributions are not
+exactly normal; `se = "hessian"` gives the model-based one:
+
+```{r growth-estimates}
+est <- growth_estimates(fit_gmm2)
+est[est$parameter %in% c("growth_mean", "growth_variance"),
+    c("parameter", "item", "class", "estimate", "se")]
+```
+
+The growth-factor variances are the same in both classes because the
+default `psi = "equal"` holds them equal; `psi = "variances"` frees them
+by class and `psi = "free"` frees the covariances too.
+
+`wald_test()` tests linear constraints on those parameters by their labels,
+`"<parameter>[<item>, <class>]"`, without refitting the model. Do the two
+classes change at the same average rate?
+
+```{r wald}
+wald_test(fit_gmm2, list(c("growth_mean[linear, 1]",
+                           "growth_mean[linear, 2]")))
+```
+
 ## Covariates, two different questions
 
 Two kinds of covariate enter a growth mixture model, and they answer
@@ -107,15 +133,14 @@ different questions:
 
 ```{r membership}
 x_member <- rnorm(n, mean = 0.7 * cls)
-fit_cov  <- add_covariates(fit_gmm2, x_member, se = "robust")
+fit_cov  <- add_covariates(fit_gmm2, x_member)
 results  <- summary(fit_cov)
 ```
 
-  The default `se = "corrected"` adds step 1's uncertainty to the
-  step-3 sandwich, and that correction is not yet available for a growth
-  model, so the sandwich is requested by name. Its intervals treat the
-  growth model as known and are too narrow when the classes overlap; see
-  `?covariate_se`.
+  The default `se = "corrected"` adds the growth model's own uncertainty
+  to the step-3 sandwich, so the intervals do not treat the trajectory
+  classes as known; `se = "robust"` leaves that part out and is too narrow
+  when the classes overlap. See `?covariate_se`.
 
 * **Who, within a class, starts higher or declines faster?** — covariates
   on the growth factors themselves, which are part of the measurement
@@ -176,19 +201,34 @@ blrt(k_small = 2, k_large = 3, from_fit = fit_gmm2, n_reps = 100)
   fix it: more starts means more chances of finding the spike, and a
   solution that only one start in fifty reaches is evidence about the
   specification rather than about the search (Hipp & Bauer, 2006).
-* **A lower log-likelihood is not always a worse answer.** The
-  growth-factor covariance is constrained here to be positive
-  semi-definite, and the residual variances to be positive. An unconstrained
-  optimiser can reach a negative variance, or variances that are each
-  positive while implying a correlation greater than one in absolute value
-  — and the likelihood at such a solution is evaluated outside the parameter
-  space, so it is not comparable with one that is inside it. When a published
-  analysis of the same model reports a higher likelihood, check its covariance
-  matrix before concluding anything: an admissible solution with a smaller
-  likelihood is the reportable one. The right
-  response to a model that cannot produce a proper solution is Berlin,
-  Parra and Williams's (2014): to report that no reasonable and proper
-  solution was found, and to simplify the specification.
+* **An impossible variance is a message about the model, not a failed
+  fit.** The residual variances are kept positive, and each class's
+  covariance of the repeated measures must stay positive definite, but the
+  growth-factor covariance itself is not bounded: when the data have
+  almost no person-to-person variation in a growth factor, its estimated
+  variance can land slightly below zero, or two factors can imply a
+  correlation beyond one. mixtureEM reports such a fit as estimated, with
+  a warning. Here every member of a class declines at exactly the class's
+  rate, so the true slope variance is zero:
+
+```{r inadmissible, cache = TRUE}
+set.seed(1)
+m  <- 300
+c2 <- rbinom(m, 1, 0.4)
+Z  <- outer(ifelse(c2 == 1, 6, 2) + rnorm(m, 0, 0.9), rep(1, 5)) +
+  outer(ifelse(c2 == 1, -0.7, 0.05), waves) +
+  matrix(rnorm(m * 5, 0, 0.8), m, 5)
+fit_neg <- fit_gmm(Z, times = 5, n_classes = 2, n_init = 10,
+                   random_state = 1)
+```
+
+  The log-likelihood and BIC of such a fit are a valid maximum, but the
+  negative value should not be read as a variance. It is what a variance
+  that is truly zero looks like when it is estimated with noise on both
+  sides of zero, and the matching model drops that random effect
+  (`random_effects = "intercept"`); BIC then chooses between the two. When
+  no specification produces a proper solution, report that, as Berlin,
+  Parra and Williams (2014) recommend, and simplify.
 * Class enumeration is harder than in cross-sectional LCA: BIC, the
   plotted trajectories against observed means, and substantive
   interpretability should all agree before a solution is reported
