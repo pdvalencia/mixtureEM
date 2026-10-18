@@ -374,11 +374,29 @@ compute_survey_B <- function(score_mat, strata, cluster) {
 # not sum to zero -- they balance the prior's gradient -- so centring would
 # remove a piece of the estimating equation the sandwich is built on. Without
 # a prior the two coincide.
-.score_meat <- function(S, strata = NULL, cluster = NULL, survey = FALSE) {
+#
+# `n` is the number of cases in the N / (N - 1) factor: the rows, unless each
+# row stands for several cases (frequency weights), when it is their total.
+.score_meat <- function(S, strata = NULL, cluster = NULL, survey = FALSE,
+                        n = nrow(S)) {
   if (isTRUE(survey)) return(compute_survey_B(S, strata, cluster))
   S <- as.matrix(S)
-  n <- nrow(S)
   (n / max(n - 1, 1)) * crossprod(S)
+}
+
+# What multiplies each case's score before the meat's outer product. A sampling
+# weight w stands for one sampled case counted w times, so its score enters as
+# w s and the meat is sum w^2 s s'. A frequency weight w is w identical cases,
+# each contributing its own s s', so the score enters as sqrt(w) s and the meat
+# is sum w s s' -- what the same data expanded to one row per case give
+# unweighted.
+.meat_weights <- function(w, weight_type = "sampling") {
+  if (identical(weight_type, "frequency")) sqrt(w) else w
+}
+
+# The case count for .score_meat()'s N / (N - 1) factor.
+.meat_n <- function(w, weight_type = "sampling") {
+  if (identical(weight_type, "frequency")) sum(w) else length(w)
 }
 
 # Relative Entropy (normalised by log(K), scales 0-1)

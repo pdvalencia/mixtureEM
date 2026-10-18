@@ -469,7 +469,8 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
 
   if (max_iter > 0 && cont_out)
     model_state$sm <- .attach_step3_distal_vcov(
-      model_state$sm, Y_clean, A1, C_row_norm, w_s, pi_step3, se)
+      model_state$sm, Y_clean, A1, C_row_norm, w_s, pi_step3, se,
+      model_state$weight_type %||% "sampling")
 
   # ============================================================================
   # Variance estimation for structural models under ML step-3.
@@ -539,11 +540,15 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   # without a design it is sum_i w_i^2 s_i s_i', the sampling-weight sandwich
   # the continuous and joint branches build. A case listwise deleted for a
   # missing outcome covariate is not in step 3: its `w_s` is zero, which
-  # removes it from the curvature and the meat alike.
+  # removes it from the curvature and the meat alike. Frequency weights enter
+  # as sqrt(w_i), for sum_i w_i s_i s_i' (.meat_weights()).
   if (cat_out) {
-    meat_fn <- function(S) .score_meat(S * w_s, model_state$strata[keep],
+    wtype   <- model_state$weight_type %||% "sampling"
+    meat_fn <- function(S) .score_meat(S * .meat_weights(w_s, wtype),
+                                       model_state$strata[keep],
                                        model_state$cluster[keep],
-                                       isTRUE(model_state$has_survey_design))
+                                       isTRUE(model_state$has_survey_design),
+                                       n = .meat_n(w_s, wtype))
     if (inherits(model_state$sm, "distal_pooled")) {
       bp_dim <- dim(model_state$sm$parameters$beta_pooled)
       V <- .step3_cat_vcov(
@@ -611,8 +616,10 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
 # and not from the M-step's weighted fit, which holds every case's class
 # weights fixed and so understates it. `se = "hessian"` gives the inverse
 # observed information; otherwise the sandwich H^-1 B H^-1 (White, 1982).
-# Step 1's estimates are treated as known.
-.attach_step3_distal_vcov <- function(sm, Y, A1, Cn, w, pk, se) {
+# Step 1's estimates are treated as known. Frequency weights enter the meat as
+# sqrt(w) (.meat_weights()).
+.attach_step3_distal_vcov <- function(sm, Y, A1, Cn, w, pk, se,
+                                      weight_type = "sampling") {
   K   <- sm$n_components
   pk  <- pmax(pk, 1e-12)
   par <- c(log(pk[-K] / pk[K]), .qn_pack_sm(sm)$par)
@@ -636,7 +643,7 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   }, numeric(length(par)))
   Hi <- tryCatch(solve(-(H + t(H)) / 2), error = function(e) NULL)
   if (is.null(Hi)) return(sm)
-  V  <- if (identical(se, "hessian")) Hi else Hi %*% crossprod(w * S) %*% Hi
+  V  <- if (identical(se, "hessian")) Hi else Hi %*% crossprod(.meat_weights(w, weight_type) * S) %*% Hi
   V_method <- if (identical(se, "hessian"))
     "Observed information (step 3)" else "Sandwich (step 3)"
   # With covariates the coefficients lead .qn_pack_sm()'s vector, in the

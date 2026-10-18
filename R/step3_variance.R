@@ -854,13 +854,16 @@ NULL
     return(list(V = pad(H3_inv), method = "Observed information (step 3 only)"))
 
   # --- D3: sandwich over case-level (or PSU-level) scores ---------------------
-  S      <- .step3_scores(pieces, Zmat, w, K)
+  # Frequency weights enter the meat as sqrt(w) (.meat_weights()).
+  wtype  <- model_state$weight_type %||% "sampling"
+  S      <- .step3_scores(pieces, Zmat, .meat_weights(w, wtype), K)
   survey <- isTRUE(model_state$sm$has_survey_design) &&
     length(model_state$sm$strata) == nrow(Zmat) &&
     length(model_state$sm$cluster) == nrow(Zmat)
 
   D3 <- H3_inv %*% (.score_meat(S, model_state$sm$strata,
-                                model_state$sm$cluster, survey) - Hp) %*%
+                                model_state$sm$cluster, survey,
+                                n = .meat_n(w, wtype)) - Hp) %*%
     H3_inv
   label_D3 <- if (isTRUE(model_state$sm$has_survey_design))
     "survey-linearized" else "robust"

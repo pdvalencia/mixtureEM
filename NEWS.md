@@ -1,5 +1,18 @@
 # mixtureEM (development version)
 
+## Fixed: step-3 standard errors under frequency weights treated each row as one case
+
+With `weight_type = "frequency"`, where a weight of 3 says the row stands for
+three identical cases, the sandwich standard errors of a step-3 class
+regression or distal outcome (categorical, continuous, or a joint model) used
+the sampling-weight meat Σ wᵢ² sᵢ sᵢ′. Three cases carry three independent
+scores, so the meat is now Σ wᵢ sᵢ sᵢ′, and the small-sample factor N / (N - 1)
+counts the cases rather than the rows. A frequency-weighted fit now gives the
+same standard errors as the unweighted fit of the data expanded to one row per
+case. On five simulated data sets with counts of 1 to 5 the old standard
+errors were 1.5 to 2.1 times too large. Sampling-weighted and unweighted fits,
+and every point estimate, are unchanged.
+
 ## Fixed: a weighted categorical distal's robust standard errors ignored the weights
 
 The ML-corrected step 3 of a lone categorical distal outcome, fitted with
