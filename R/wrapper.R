@@ -2770,7 +2770,7 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
                          ncol(indicators), 1L, declared)
     return(list(descriptor = measurement, indicators = rec$indicators,
                 recode = rec$map, cats = cc$cats, declared = declared,
-                empty = cc))
+                empty = cc, labels = labels))
   }
 
   if (!is.list(measurement))
@@ -2853,7 +2853,8 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
        indicators = indicators,
        recode     = recode,
        declared   = declared,
-       empty      = empty)
+       empty      = empty,
+       labels     = labels)
 }
 
 .categorical_families <- c("categorical", "multinoulli",
@@ -2934,7 +2935,10 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
              else format(vals)
 
     indicators[, j] <- as.numeric(v == vals[2L])
-    map[[nm]] <- list(item = nm, zero = shown[1L], one = shown[2L])
+    # `codes` are the two values as data.matrix() left them, which is what
+    # predict() has to map a new case's answers onto.
+    map[[nm]] <- list(item = nm, zero = shown[1L], one = shown[2L],
+                      codes = vals)
   }
 
   if (length(map)) {
@@ -4108,6 +4112,9 @@ fit_mixture <- function(indicators = NULL,
   }
 
   if (length(mm$recode)) fit$binary_recode <- mm$recode
+  # The labels data.matrix() turned into codes, so that predict() codes a new
+  # case's factors the same way rather than by whatever levels its data has.
+  fit$indicator_levels <- mm$labels
 
   if (!is.null(group)) {
     fit$group_info    <- group_info

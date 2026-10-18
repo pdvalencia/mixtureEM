@@ -1,5 +1,25 @@
 # mixtureEM (development version)
 
+## Classifying new cases
+
+`predict()` is new for models from `fit_mixture()`. Given cases that were not
+in the estimation sample, it returns their modal class or posterior class
+probabilities at the fitted parameters, in the format `class_assignments()`
+uses: the E-step of the fitted model applied to new rows, which Vermunt and
+Magidson (2025) show is exactly a logistic scoring equation for the standard
+emissions. Indicators are matched by name and coded by the levels the model
+was fitted with, so a factor whose levels arrive in another order is coded
+correctly and a level the model never saw is an error. A missing answer drops
+out of that case's likelihood; a case missing every indicator, or a predictor
+the model needs, gets `NA`. A model with predictors uses the fitted
+class-membership regression at the new case's predictors; a distal outcome is
+never used. On the estimation sample of a one-step model the result equals
+`class_assignments()` exactly, and held-out posteriors with missing answers
+and a predictor reproduce independently computed values at the same
+parameters to 1e-8. Latent transition models, growth models fitted from long
+data, multiple-group models and models with direct effects on items are not
+covered and are refused. No estimate changes.
+
 ## Merging fitted classes into clusters
 
 `merge_classes()` is new. Given a fitted model, it combines its classes two
