@@ -1,5 +1,20 @@
 # mixtureEM (development version)
 
+## Merging fitted classes into clusters
+
+`merge_classes()` is new. Given a fitted model, it combines its classes two
+at a time, at each step joining the pair whose union removes the most
+classification entropy (Baudry, Raftery, Celeux, Lo & Gottardo, 2010), and
+returns the whole path from the fitted number of classes down to one: which
+classes were joined, the merged posterior probabilities, and the entropy at
+every K, with a plot of it. This is the reading for a solution in which
+several classes describe one non-normally shaped group. Nothing is refitted,
+so the likelihood and every parameter are those of the fit at every K, and
+no number of clusters is chosen: which classes belong together is the
+analyst's call (Hennig, 2010). It works on every measurement model
+`fit_mixture()` fits; latent statuses from `fit_lta()` are not merged. No
+estimate changes.
+
 ## How far apart the classes are, and what modal assignment costs
 
 `classification_diagnostics()` prints and returns three new measurements,
