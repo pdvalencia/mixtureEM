@@ -28,10 +28,10 @@
       cleanly cases are classified; they are not criteria for the number of
       classes (Masyn, #).
       
-      Models were estimated with the R package mixtureEM (version #.#.#.#)
-      in R #.#.#. Random starts were drawn with random_state = #. The model
-      is refitted by: fit_mixture(indicators = X, n_classes = #, measurement
-      = "binary", n_init = #, random_state = #)
+      Models were estimated with the R package mixtureEM (version #.#.#) in R
+      #.#.#. Random starts were drawn with random_state = #. The model is
+      refitted by: fit_mixture(indicators = X, n_classes = #, measurement =
+      "binary", n_init = #, random_state = #)
       
       References
       Dempster, A. P., Laird, N. M., & Rubin, D. B. (#). Maximum
@@ -70,10 +70,10 @@
       cleanly cases are classified; they are not criteria for the number of
       classes (Masyn, #).
       
-      Models were estimated with the R package mixtureEM (version #.#.#.#)
-      in R #.#.#. Random starts were drawn with random_state = #. The model
-      is refitted by: fit_lcga(indicator = y, n_classes = #, times = #,
-      family = "gaussian", n_init = #, random_state = #)
+      Models were estimated with the R package mixtureEM (version #.#.#) in R
+      #.#.#. Random starts were drawn with random_state = #. The model is
+      refitted by: fit_lcga(indicator = y, n_classes = #, times = #, family =
+      "gaussian", n_init = #, random_state = #)
       
       References
       Chen, J., Tan, X., & Zhang, R. (#). Inference for normal mixtures in
@@ -104,7 +104,7 @@
           No values were missing on the # occasions.
       
       #. Is the software mentioned?
-          R package mixtureEM #.#.#.#, R #.#.#.
+          R package mixtureEM #.#.#, R #.#.#.
       
       #. Is information reported about the number of random start values and
           final iterations included?
@@ -125,10 +125,10 @@
           #.#%, #.#%.
       
       #. Are the syntax files available?
-          Models were estimated with the R package mixtureEM (version
-          #.#.#.#) in R #.#.#. Random starts were drawn with random_state
-          = #. The model is refitted by: fit_lcga(indicator = y, n_classes =
-          #, times = #, family = "gaussian", n_init = #, random_state = #)
+          Models were estimated with the R package mixtureEM (version #.#.#)
+          in R #.#.#. Random starts were drawn with random_state = #. The
+          model is refitted by: fit_lcga(indicator = y, n_classes = #, times
+          = #, family = "gaussian", n_init = #, random_state = #)
       
       
       You must supply
@@ -227,9 +227,9 @@
       cleanly cases are classified; they are not criteria for the number of
       statuses (Masyn, #).
       
-      Models were estimated with the R package mixtureEM (version #.#.#.#)
-      in R #.#.#. Random starts were drawn with random_state = #. The model
-      is refitted by: fit_lta(indicators = Xl, n_statuses = #, times = #,
+      Models were estimated with the R package mixtureEM (version #.#.#) in R
+      #.#.#. Random starts were drawn with random_state = #. The model is
+      refitted by: fit_lta(indicators = Xl, n_statuses = #, times = #,
       measurement = "binary", n_init = #, random_state = #, standard_errors =
       FALSE)
       

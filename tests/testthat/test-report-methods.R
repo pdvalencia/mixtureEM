@@ -71,6 +71,8 @@ test_that("a plain-ML fit says so and an unseeded fit says it cannot be reproduc
 })
 
 test_that("the report wording is stable for each model family", {
+  # A fixed version, so a version bump does not move the line breaks.
+  local_mocked_bindings(.report_version = function() "1.2.3")
   fit <- lca_fixture()
   expect_snapshot(print(report_methods(fit)), transform = mask_digits)
 

@@ -193,7 +193,7 @@
                     mover_stayer = isTRUE(x$mover_stayer),
                     random_intercept = !is.null(x$ri),
                     n_classes = x$n_classes %||% 1L),
-    version     = as.character(utils::packageVersion("mixtureEM")),
+    version     = .report_version(),
     r_version   = paste(R.version$major, R.version$minor, sep = "."),
     seed        = seed,
     call        = call,
@@ -787,3 +787,7 @@ print.grolts_report <- function(x, ...) {
   }
   invisible(x)
 }
+
+# The package version the reports quote, in one place so a test can hold it
+# fixed: the length of the version string moves every later line break.
+.report_version <- function() as.character(utils::packageVersion("mixtureEM"))

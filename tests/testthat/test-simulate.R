@@ -16,9 +16,9 @@ test_that("a seed reproduces the draw and leaves the caller's stream alone", {
                 dimnames = list(NULL, paste0("u", 1:6)))
   fit <- .s_fit("binary", X)
   set.seed(99)
-  before <- .Random.seed
+  before <- get(".Random.seed", envir = globalenv())
   a <- simulate(fit, nsim = 2, seed = 7, n = 50)
-  expect_identical(.Random.seed, before)
+  expect_identical(get(".Random.seed", envir = globalenv()), before)
   b <- simulate(fit, nsim = 2, seed = 7, n = 50)
   expect_identical(a, b)
   expect_identical(attr(a, "seed")[[1]], 7)
