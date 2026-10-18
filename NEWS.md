@@ -20,6 +20,23 @@ parameters to 1e-8. Latent transition models, growth models fitted from long
 data, multiple-group models and models with direct effects on items are not
 covered and are refused. No estimate changes.
 
+## Simulating data from a fitted model
+
+`simulate()` is new for models from `fit_mixture()`, `fit_lcga()` and
+`fit_gmm()`. It draws `nsim` data sets of `n` cases from the fitted
+measurement model taken as the truth, each with its drawn classes attached,
+under the seed contract of `stats::simulate()`: binary, categorical, count,
+continuous and mixed indicators, LCGA trajectories, and growth mixtures with
+their within-class covariance. A model with predictors draws each case's
+class from its fitted membership probabilities at the observed predictors,
+so the data sets keep the estimation sample's size. Refitting to the draws is
+the Monte Carlo route to a sample-size question. In 100 data sets of 1500
+cases from a three-class binary model, the average refitted estimate of every
+parameter agrees with an independent Monte Carlo run from the same
+population within 2.4 Monte Carlo standard errors. Distal outcomes are not
+simulated; latent transition, multiple-group and direct-effect models are
+refused. No estimate changes.
+
 ## Merging fitted classes into clusters
 
 `merge_classes()` is new. Given a fitted model, it combines its classes two

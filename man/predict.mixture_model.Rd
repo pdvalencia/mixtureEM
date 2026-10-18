@@ -56,7 +56,11 @@ case is classified from its indicators only, which is what keeps the outcome
 out of the classification (Vermunt and Magidson, 2025, sec. 1.4). For a
 model fitted with a distal outcome in one step, \code{predict()} on the
 estimation data therefore differs from \code{\link[=class_assignments]{class_assignments()}}, which
-conditions on the outcome too.
+conditions on the outcome too. It differs for a three-step model with
+predictors as well: there \code{\link[=class_assignments]{class_assignments()}} reports the step-3
+posterior, which conditions on the step-1 class assignment, while
+\code{predict()} conditions on the indicators themselves, since a new case has
+no step-1 assignment. On a one-step model the two agree exactly.
 
 \strong{Not covered.} Latent transition models (scoring a sequence of statuses
 needs a choice between filtered and smoothed probabilities), growth models

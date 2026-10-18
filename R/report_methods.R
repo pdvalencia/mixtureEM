@@ -6,8 +6,8 @@
 # fit. A number that would have to be computed here for the first time belongs
 # in the fitting code instead, where print() and summary() can show it too.
 #
-# Items still to come add their facts to .report_facts() and their sentence to
-# the paragraph builders below: predict()/simulate() (roadmap B3).
+# predict() and simulate() add nothing here: they are uses of a fit, and the
+# fit does not record what is later done with it.
 
 # The references the paragraphs may cite, keyed so that each paragraph names the
 # ones it uses and the report prints only those, once, at the end.

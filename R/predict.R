@@ -251,3 +251,118 @@ predict.lta_model <- function(object, ...)
   }
   Y
 }
+
+# ==============================================================================
+# Simulating data from a fitted model
+# ==============================================================================
+
+#' Simulate data sets from a fitted model
+#'
+#' Draws new data sets from a fitted model's measurement model, taking its
+#' estimates as the truth: each case's class is drawn from the class
+#' probabilities, then its indicators from that class's distribution. Refitting
+#' the model to many such data sets and counting how often the classes and
+#' parameters are recovered is the Monte Carlo route to a sample-size or power
+#' question, with the fitted (or a hypothesised) solution as the population.
+#'
+#' @details
+#' Classes are drawn from the fitted class proportions. For a model with
+#' predictors they are drawn from each case's fitted class-membership
+#' probabilities given its observed predictors, which are held fixed rather
+#' than resampled, so `n` must equal the estimation sample size; the same rule
+#' holds for a growth mixture model with covariates on the growth factors. A
+#' distal outcome is not simulated. The data come back complete and on the
+#' model's own coding (0/1 for a binary item, 1 to M for a categorical one),
+#' which [`fit_mixture()`] reads back unchanged.
+#'
+#' To simulate from a hypothesised solution rather than a fitted one, fit any
+#' model of the right shape and overwrite its parameters before calling
+#' `simulate()`. Latent transition models, multiple-group models and models
+#' with direct effects on items are not covered.
+#'
+#' @param object A fitted model from [`fit_mixture()`], [`fit_lcga()`] or
+#'   [`fit_gmm()`].
+#' @param nsim Number of data sets.
+#' @param seed `NULL`, or an integer passed to [set.seed()]; the random number
+#'   state is restored afterwards, as for [stats::simulate()].
+#' @param n Cases per data set; defaults to the estimation sample size.
+#' @param ... Unused.
+#'
+#' @return A list of `nsim` data frames named like the fitted indicators, each
+#'   carrying the drawn classes as its `"classes"` attribute, with the random
+#'   number state as the list's `"seed"` attribute.
+#'
+#' @seealso [`predict.mixture_model()`] to classify the simulated cases.
+#'
+#' @examples
+#' set.seed(1)
+#' X   <- matrix(rbinom(600, 1, rep(c(0.2, 0.8), each = 300)), ncol = 6,
+#'               dimnames = list(NULL, paste0("u", 1:6)))
+#' fit <- fit_mixture(X, n_classes = 2, measurement = "binary")
+#' sims <- simulate(fit, nsim = 2, seed = 42, n = 200)
+#' head(sims[[1]])
+#' table(attr(sims[[1]], "classes"))
+#'
+#' @importFrom stats simulate
+#' @export
+simulate.mixture_model <- function(object, nsim = 1, seed = NULL, n = NULL,
+                                   ...) {
+  .simulate_refuse(object)
+  N <- nrow(object$data)
+  n <- n %||% N
+  covariate <- inherits(object$sm, "covariate")
+  if (covariate && n != N)
+    stop(sprintf(paste0("A model with predictors simulates classes ",
+                        "conditional on the observed predictors, so a data ",
+                        "set must have one case per original case (%d ",
+                        "requested, %d available)."), n, N), call. = FALSE)
+
+  # The seed contract of stats::simulate(): a supplied seed is used and the
+  # caller's random number state put back afterwards.
+  if (!exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE))
+    stats::runif(1)
+  if (is.null(seed)) {
+    rng <- get(".Random.seed", envir = .GlobalEnv)
+  } else {
+    saved <- get(".Random.seed", envir = .GlobalEnv)
+    on.exit(assign(".Random.seed", saved, envir = .GlobalEnv))
+    set.seed(seed)
+    rng <- structure(seed, kind = as.list(RNGkind()))
+  }
+
+  K     <- object$n_components
+  probs <- if (covariate) exp(log_likelihood(object$sm, object$Y)) else NULL
+  nm    <- colnames(object$data)
+  out <- lapply(seq_len(nsim), function(s) {
+    cls <- if (covariate)
+      vapply(seq_len(n), function(i) sample.int(K, 1L, prob = probs[i, ]),
+             integer(1))
+    else sample.int(K, n, replace = TRUE, prob = object$weights)
+    d <- as.data.frame(generate_synthetic_data(object$mm, cls, n))
+    if (!is.null(nm)) names(d) <- nm
+    # "class" is already the data frame's own attribute, so the drawn classes
+    # ride as "classes".
+    attr(d, "classes") <- cls
+    d
+  })
+  attr(out, "seed") <- rng
+  out
+}
+
+#' @export
+simulate.lta_model <- function(object, ...)
+  stop("simulate() does not cover latent transition models yet.",
+       call. = FALSE)
+
+.simulate_refuse <- function(object) {
+  if (!is.null(object$group_info) || inherits(object$mm, "group_blocks") ||
+      inherits(object$sm, "group_prevalence"))
+    stop("simulate() does not cover multiple-group models yet.", call. = FALSE)
+  if (.has_dif(object$mm))
+    stop("simulate() does not cover models with direct effects of ",
+         "covariates on items (`predictors_items`).", call. = FALSE)
+  if (is.null(object$data))
+    stop("`object` carries no estimation data to size the simulation by.",
+         call. = FALSE)
+  invisible(TRUE)
+}
