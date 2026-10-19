@@ -14,7 +14,10 @@ carries the step-1 variability the analytical estimators approximate to
 first order (see
 [`covariate_se`](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md)),
 so it is worth the wait in small samples or when classes overlap
-substantially.
+substantially. Hypotheses other than "this covariate has no effect" –
+equal coefficients across classes, equal growth means, any linear
+constraint – are tested by
+[`wald_test`](https://pdvalencia.github.io/mixtureEM/reference/wald_test.md).
 
 ## Usage
 

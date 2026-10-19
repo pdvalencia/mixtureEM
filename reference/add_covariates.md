@@ -19,6 +19,7 @@ add_covariates(
   assignment = c("proportional", "modal"),
   max_iter = 1000,
   data = NULL,
+  missing_predictors = c("listwise", "mean"),
   ...
 )
 ```
@@ -93,6 +94,15 @@ add_covariates(
   omnibus Wald test in
   [`analytical_wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/analytical_wald_test.md).
 
+- missing_predictors:
+
+  What to do with a case missing a predictor. `"listwise"` (the default)
+  leaves it out of the class-membership regression, with a message
+  saying how many cases that was; `"mean"` keeps it and completes the
+  missing value under the class-invariant Gaussian marginal of the
+  predictors (Sterba, 2014), which for a single predictor is its mean.
+  See "Missing predictors" below.
+
 - ...:
 
   Currently unused.
@@ -106,13 +116,26 @@ omnibus tests; [`coef()`](https://rdrr.io/r/stats/coef.html),
 [`wald_omnibus_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_omnibus_test.md)
 also apply.
 
-## Details
+## Missing predictors
 
-A case missing a predictor is retained, not deleted: the missing value
-is completed under the class-invariant Gaussian marginal of the
-predictors (Sterba, 2014), so the analysis keeps its full N. An analysis
-that listwise deletes them is fitted to fewer cases; check the reported
-N before comparing coefficients with a published set.
+Under `"listwise"` a case missing a predictor is still part of step 1
+and of the classification-error table the correction inverts, because
+its indicators are observed and tell us as much about that table as
+anyone else's do; it is only left out of the regression of class on the
+predictors, the one step that needs its predictor values. Its class
+probabilities stay those of the measurement model.
+
+Listwise deletion is the default because it does not bias the regression
+when whether a predictor is missing depends on the predictor itself, a
+common pattern (income left blank more often by high earners), whereas
+completing the value with the mean does: it shrinks the slopes toward
+zero, and the shrinkage does not go away as the sample grows. When
+missingness is unrelated to anything (missing completely at random) both
+rules are unbiased and the mean fill, which keeps every case, can be
+somewhat more precise. When missingness depends on the class itself
+neither rule is unbiased. Little (1992) sets out why deleting incomplete
+cases is unbiased in a regression whose missingness depends only on the
+predictors.
 
 `se = "corrected"` (the default) is the Bakk, Oberski and Vermunt (2014)
 estimator, which propagates the uncertainty in the step-1 estimates as
@@ -135,7 +158,25 @@ two-stage design – fit the measurement model first, decide on classes,
 only then look at what predicts them – keeps that choice from being made
 by a covariate that happens to correlate with the outcome.
 
+**Why the classes are counted before any covariate is added.** Arch and
+Nylund-Gibson (2026) went looking for conditions under which counting
+classes without covariates goes wrong when items behave differently
+across covariate values (differential item functioning) that the model
+does not include, and largely did not find them. It was enumeration
+*with* the covariates in the model, but without their direct effects on
+the items, that over-extracted classes, most of all when those effects
+were strong and the sample was large. That is the order this function
+assumes: the number of classes is settled on the unconditional fit you
+pass in. One caveat travels with the result: even the study's
+"realistic" separation condition had an entropy of about .84, so how
+well the advice holds for poorly separated classes is untested there.
+
 ## References
+
+Arch, D. A. N., & Nylund-Gibson, K. (2026). Unmodeled DIF in latent
+class analysis: Consequences for class enumeration. *Methods in
+Psychology*, *14*, 100243.
+[doi:10.1016/j.metip.2026.100243](https://doi.org/10.1016/j.metip.2026.100243)
 
 Vermunt, J. K. (2010). Latent class modeling with covariates: Two
 improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
@@ -167,6 +208,15 @@ modeling of cross-sectional health outcomes and longitudinal predictors
 via mixtures of latent classes. *Statistics and Its Interface*, *9*,
 183–201.
 
+Little, R. J. A. (1992). Regression with missing X's: A review. *Journal
+of the American Statistical Association*, *87*(420), 1227–1237.
+[doi:10.1080/01621459.1992.10476282](https://doi.org/10.1080/01621459.1992.10476282)
+
+Sterba, S. K. (2014). Handling missing covariates in conditional mixture
+models under missing at random assumptions. *Multivariate Behavioral
+Research*, *49*(6), 614–632.
+[doi:10.1080/00273171.2014.950719](https://doi.org/10.1080/00273171.2014.950719)
+
 ## See also
 
 [`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md)
@@ -187,6 +237,7 @@ summary(fit_cov)
 #> =========================================================
 #>              STRUCTURAL MODEL SUMMARY                    
 #> =========================================================
+#>   Best solution  : found by 20 of 20 starts
 #> 
 #> CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)
 #> Reference Class: 1
@@ -195,7 +246,7 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.761  [    0.041,    13.974]     0.854
+#>   Intercept                0.761  [    0.041,    13.984]     0.854
 #>   age                      0.929  [    0.387,     2.229]     0.869
 #> =========================================================
 

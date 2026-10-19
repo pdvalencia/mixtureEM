@@ -137,10 +137,12 @@ linearized (sandwich) estimates that respect the strata and clusters.
 
 fit_cov <- add_covariates(fit, yrbs2005[, "sex", drop = FALSE])
 #> Using 'ML' bias correction (set `correction` to override).
+#> 22 cases missing a predictor were left out of the class-membership regression (n = 13818 used). Set `missing_predictors = "mean"` to complete them instead.
 results <- summary(fit_cov)
 #> =========================================================
 #>              STRUCTURAL MODEL SUMMARY                    
 #> =========================================================
+#>   Best solution  : found by 10 of 20 starts
 #> 
 #> CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)
 #> Reference Class: 1
@@ -149,25 +151,25 @@ results <- summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.126  [    0.103,     0.155]    < .001
-#>   sex.Male                 1.876  [    1.561,     2.256]    < .001
+#>   Intercept                0.126  [    0.103,     0.156]    < .001
+#>   sex.Male                 1.874  [    1.560,     2.252]    < .001
 #> 
 #> Class 3 ON
-#>   Intercept                0.107  [    0.082,     0.140]    < .001
-#>   sex.Male                 1.215  [    0.985,     1.500]     0.069
+#>   Intercept                0.107  [    0.081,     0.139]    < .001
+#>   sex.Male                 1.217  [    0.985,     1.502]     0.069
 #> 
 #> Class 4 ON
 #>   Intercept                0.082  [    0.065,     0.104]    < .001
-#>   sex.Male                 0.685  [    0.545,     0.861]     0.001
+#>   sex.Male                 0.685  [    0.545,     0.860]     0.001
 #> 
 #> Class 5 ON
 #>   Intercept                0.037  [    0.029,     0.047]    < .001
-#>   sex.Male                 2.120  [    1.639,     2.743]    < .001
+#>   sex.Male                 2.123  [    1.640,     2.747]    < .001
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   sex                       74.956    4    < .001
+#>   sex                       75.081    4    < .001
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================

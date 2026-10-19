@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,6 +43,7 @@
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="../articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -476,6 +477,22 @@ marginal. Splitting the sample into subgroups widens these basins,
 because the pile-up makes up a larger share of each smaller sample, so a
 model that looks clean on the whole sample deserves the check again on
 the parts.</p>
+<p>One check runs on its own. After the search, every converged start is
+scored again with its single best-fitted case removed — the 1-deleted
+log-likelihood Seo &amp; Lindsay (2010, sec. 4) suggest for choosing
+between maxima. A real subgroup survives losing one case; a spike does
+not, because most of its height came from that case. When some other
+start beats the reported one on this score, <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> adds a
+<code>Spike check</code> line: the reported maximum may rest on a few
+observations rather than on a subgroup. The answer is not changed — the
+reported fit is still the highest — and the numbers are in
+<code>$metrics</code> (<code>kdel_ll</code>, <code>kdel_best</code>,
+<code>kdel_disagrees</code>). With the default constants the score is
+taken on the same penalised scale the search ranks on, so the line
+appears only when one case, not the prior, decides the order. It is
+silent on a class that has wrapped itself around a single outlier, since
+the rest of that solution still fits the other cases best; the
+collapsed-variance warning covers that one.</p>
 </div>
 </div>
 <div class="section level2">
@@ -609,6 +626,10 @@ Models</em>. Wiley.</p>
 <p>Nylund-Gibson, K., &amp; Choi, A. Y. (2018). Ten frequently asked
 questions about latent class analysis. <em>Translational Issues in
 Psychological Science</em>, <em>4</em>(4), 440-461.</p>
+<p>Seo, B., &amp; Lindsay, B. G. (2010). A computational strategy for
+doubly smoothed MLE exemplified in the normal mixture model.
+<em>Computational Statistics &amp; Data Analysis</em>, <em>54</em>(8),
+1930-1941.</p>
 <p>Shireman, E., Steinley, D., &amp; Brusco, M. J. (2017). Examining the
 effect of initialization strategies on the performance of Gaussian
 mixture modeling. <em>Behavior Research Methods</em>, <em>49</em>(1),

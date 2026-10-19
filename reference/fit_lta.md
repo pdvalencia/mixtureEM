@@ -89,6 +89,7 @@ fit_lta(
   correction = c("ML", "BCH", "none"),
   assignment = c("proportional", "modal"),
   distal = NULL,
+  missing_predictors = c("listwise", "mean"),
   ...
 )
 ```
@@ -117,7 +118,13 @@ fit_lta(
   mixed block. `"ordinal"` fits one cumulative-logit block per item,
   with its own number of ordered categories inferred per item (so a
   3/3/2-category block needs no mixed specification); without a random
-  intercept it is numerically identical to `"categorical"`.
+  intercept it is numerically identical to `"categorical"`. A continuous
+  item's variances are free by status, so a status can sit on one tied
+  value of it (a scale floor or ceiling) and run its variance to the
+  boundary; a start that ends with more than 90% of a status on one
+  value of such an item is ranked behind every start that does not, the
+  rule every model in the package applies (see `bayes_constants` in
+  [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)).
 
 - measurement_invariance:
 
@@ -448,14 +455,18 @@ fit_lta(
   estimator around the same curvature, \\H^{-1} (B - H_p) H^{-1}\\, with
   \\B\\ the outer product of the case scores and \\H_p\\ the prior's
   curvature, so that it reduces to the default when the model is
-  correctly specified; under `strata` or `cluster` the default is that
-  sandwich with the design-based \\B\\. The observed information costs
-  \\2p\\ passes over the data, \\p\\ the number of free parameters, so
-  it takes seconds on most models and longer on a large random-intercept
-  model. A model whose parameters cannot all be packed on an
-  unconstrained scale (nominal, count or mixed indicators) gets the
-  outer product of the case scores instead, and `"robust"` is not
-  available for it; `$se$method` names the estimator used.
+  correctly specified. In \\B - H_p\\ the prior's curvature is taken on
+  each parameter's natural scale: logits as fitted, and for a continuous
+  item's variance the precision \\1/\sigma^2\\, on which the variance
+  prior's curvature does not depend on the data. Under `strata` or
+  `cluster` the default is that sandwich with the design-based \\B\\.
+  The observed information costs \\2p\\ passes over the data, \\p\\ the
+  number of free parameters, so it takes seconds on most models and
+  longer on a large random-intercept model. A model whose parameters
+  cannot all be packed on an unconstrained scale (nominal, count or
+  mixed indicators) gets the outer product of the case scores instead,
+  and `"robust"` is not available for it; `$se$method` names the
+  estimator used.
 
 - predictors_initial:
 
@@ -601,6 +612,24 @@ fit_lta(
   [`outcome_contrasts()`](https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.md)
   gives the pairwise status differences. `NULL` (the default) fits no
   outcome.
+
+- missing_predictors:
+
+  What to do with a case missing a value of `predictors_initial`,
+  `predictors_transition`, `predictors_items` or
+  `predictors_random_intercept`. `"listwise"` (the default) fits the
+  one-step model (`n_steps = 1`) without that case, with a message
+  saying how many cases that was; `"mean"` keeps it and completes the
+  missing value under the Gaussian marginal of the covariates, which for
+  a single covariate is its mean. Deleting the case leaves the
+  regressions unbiased when whether a covariate is missing depends on
+  the covariate itself or on the status, and completing it with the mean
+  does not (Little, 1992). Under `n_steps = 2` or `3`, `"listwise"`
+  keeps the case in step 1, where its responses still inform the
+  measurement model and the classification error, and gives it weight
+  zero in the step that fits the initial-status and transition
+  regressions; it keeps its step-1 posterior. A missing
+  `predictors_items` value is completed in either case.
 
 - ...:
 
@@ -804,6 +833,10 @@ Fienberg, S. E., & Holland, P. W. (1973). Simultaneous estimation of
 multinomial cell probabilities. *Journal of the American Statistical
 Association*, *68*(343), 683-691.
 [doi:10.1080/01621459.1973.10481405](https://doi.org/10.1080/01621459.1973.10481405)
+
+Little, R. J. A. (1992). Regression with missing X's: A review. *Journal
+of the American Statistical Association*, *87*(420), 1227–1237.
+[doi:10.1080/01621459.1992.10476282](https://doi.org/10.1080/01621459.1992.10476282)
 
 Muthen, B., & Asparouhov, T. (2022). Latent transition analysis with
 random intercepts (RI-LTA). *Psychological Methods*, *27*(1), 1-16.

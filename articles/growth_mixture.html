@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,6 +43,7 @@
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="../articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -131,35 +132,35 @@ both intercept and slope, i.e. GMM-type data:</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; GROWTH COEFFICIENTS (link scale)</span></span>
 <span><span class="co">#&gt;         intercept linear</span></span>
-<span><span class="co">#&gt; Class 1     1.824  0.037</span></span>
-<span><span class="co">#&gt; Class 2     5.766 -0.592</span></span>
+<span><span class="co">#&gt; Class 1     1.823  0.037</span></span>
+<span><span class="co">#&gt; Class 2     5.771 -0.593</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; FITTED TRAJECTORY (mean)</span></span>
 <span><span class="co">#&gt;            T1    T2    T3    T4    T5</span></span>
-<span><span class="co">#&gt; Class 1 1.824 1.861 1.898 1.935 1.972</span></span>
-<span><span class="co">#&gt; Class 2 5.766 5.174 4.582 3.991 3.399</span></span>
+<span><span class="co">#&gt; Class 1 1.823 1.860 1.897 1.934 1.972</span></span>
+<span><span class="co">#&gt; Class 2 5.771 5.178 4.586 3.993 3.400</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; RESIDUAL VARIANCE (within class, constant over occasions)</span></span>
 <span><span class="co">#&gt;          Class 1 Class 2</span></span>
-<span><span class="co">#&gt; Variance   1.513   1.754</span></span>
+<span><span class="co">#&gt; Variance   1.514   1.752</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt;                   LATENT MIXTURE MODEL                   </span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Classes Estimated  : 2</span></span>
 <span><span class="co">#&gt; Estimation Method  : 1-step</span></span>
-<span><span class="co">#&gt; Converged          : TRUE (in 19 iterations)</span></span>
+<span><span class="co">#&gt; Converged          : TRUE (in 22 iterations)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;   Log-Likelihood : -6245.41</span></span>
 <span><span class="co">#&gt;   Parameters     : 7</span></span>
-<span><span class="co">#&gt;   AIC            : 12504.83</span></span>
-<span><span class="co">#&gt;   BIC            : 12536.69</span></span>
-<span><span class="co">#&gt;   SABIC          : 12514.46</span></span>
-<span><span class="co">#&gt;   Rel. Entropy   : 0.9175</span></span>
+<span><span class="co">#&gt;   AIC            : 12504.82</span></span>
+<span><span class="co">#&gt;   BIC            : 12536.68</span></span>
+<span><span class="co">#&gt;   SABIC          : 12514.45</span></span>
+<span><span class="co">#&gt;   Rel. Entropy   : 0.9176</span></span>
 <span><span class="co">#&gt;   Best solution  : found by 15 of 15 starts</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt; Class Weights (Sizes):</span></span>
-<span><span class="co">#&gt;   Class 1: 55.63%</span></span>
-<span><span class="co">#&gt;   Class 2: 44.37%</span></span>
+<span><span class="co">#&gt;   Class 1: 55.65%</span></span>
+<span><span class="co">#&gt;   Class 2: 44.35%</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; Type summary(model) for structural parameters or measurement_summary(model) for item parameters.</span></span></code></pre></div>
 </div>
@@ -228,7 +229,7 @@ they are, by a wide margin, as simulated:</p>
 <span>  bic   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">fit_lcga2</span><span class="op">$</span><span class="va">metrics</span><span class="op">$</span><span class="va">bic</span>, <span class="va">fit_gmm2</span><span class="op">$</span><span class="va">metrics</span><span class="op">$</span><span class="va">bic</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt;              model        ll      bic</span></span>
-<span><span class="co">#&gt; 1 LCGA (2 classes) -6245.414 12536.69</span></span>
+<span><span class="co">#&gt; 1 LCGA (2 classes) -6245.409 12536.68</span></span>
 <span><span class="co">#&gt; 2  GMM (2 classes) -5570.910 11226.98</span></span></code></pre></div>
 <p><code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> overlays the observed class means on the
 estimated curves — the check that a class describes a real subgroup
@@ -236,6 +237,47 @@ rather than an artifact of splitting one cloud in half:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_gmm2</span>, class_labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Stable low"</span>, <span class="st">"Declining"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p><img src="growth_mixture_files/figure-html/plot-1.png" class="r-plt" alt="" width="672"></p>
+</div>
+<div class="section level2">
+<h2 id="standard-errors-and-tests">Standard errors and tests<a class="anchor" aria-label="anchor" href="#standard-errors-and-tests"></a>
+</h2>
+<p><code><a href="../reference/growth_estimates.html">growth_estimates()</a></code> lists every growth parameter with its
+standard error, one row per parameter and class. The default is the
+sandwich (<code>"robust"</code>) estimator, which stays valid when the
+within-class distributions are not exactly normal;
+<code>se = "hessian"</code> gives the model-based one:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">est</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/growth_estimates.html">growth_estimates</a></span><span class="op">(</span><span class="va">fit_gmm2</span><span class="op">)</span></span>
+<span><span class="va">est</span><span class="op">[</span><span class="va">est</span><span class="op">$</span><span class="va">parameter</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"growth_mean"</span>, <span class="st">"growth_variance"</span><span class="op">)</span>,</span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"parameter"</span>, <span class="st">"item"</span>, <span class="st">"class"</span>, <span class="st">"estimate"</span>, <span class="st">"se"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;         parameter      item class    estimate          se</span></span>
+<span><span class="co">#&gt; 1     growth_mean intercept     1  1.89764005 0.058099807</span></span>
+<span><span class="co">#&gt; 2     growth_mean intercept     2  6.01585549 0.071905850</span></span>
+<span><span class="co">#&gt; 3     growth_mean    linear     1  0.08906937 0.017518578</span></span>
+<span><span class="co">#&gt; 4     growth_mean    linear     2 -0.72402202 0.022234878</span></span>
+<span><span class="co">#&gt; 5 growth_variance intercept     1  0.76543604 0.075246580</span></span>
+<span><span class="co">#&gt; 6 growth_variance intercept     2  0.76543604 0.075246580</span></span>
+<span><span class="co">#&gt; 7 growth_variance    linear     1  0.05595402 0.007760327</span></span>
+<span><span class="co">#&gt; 8 growth_variance    linear     2  0.05595402 0.007760327</span></span></code></pre></div>
+<p>The growth-factor variances are the same in both classes because the
+default <code>psi = "equal"</code> holds them equal;
+<code>psi = "variances"</code> frees them by class and
+<code>psi = "free"</code> frees the covariances too.</p>
+<p><code><a href="../reference/wald_test.html">wald_test()</a></code> tests linear constraints on those parameters
+by their labels,
+<code>"&lt;parameter&gt;[&lt;item&gt;, &lt;class&gt;]"</code>, without
+refitting the model. Do the two classes change at the same average
+rate?</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/wald_test.html">wald_test</a></span><span class="op">(</span><span class="va">fit_gmm2</span>, <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"growth_mean[linear, 1]"</span>,</span>
+<span>                           <span class="st">"growth_mean[linear, 2]"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; =========================================================</span></span>
+<span><span class="co">#&gt;                 WALD TEST (CONSTRAINTS)                  </span></span>
+<span><span class="co">#&gt; =========================================================</span></span>
+<span><span class="co">#&gt;   Method    : Sandwich (robust)</span></span>
+<span><span class="co">#&gt; ---------------------------------------------------------</span></span>
+<span><span class="co">#&gt;   Wald χ²(1) = 873.702,  p &lt; .001</span></span>
+<span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="covariates-two-different-questions">Covariates, two different questions<a class="anchor" aria-label="anchor" href="#covariates-two-different-questions"></a>
@@ -247,30 +289,31 @@ different questions:</p>
 <strong>Who is in which class?</strong> — class-membership
 predictors, through the usual stepwise workflow:</li>
 </ul>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">x_member</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, mean <span class="op">=</span> <span class="fl">0.7</span> <span class="op">*</span> <span class="va">cls</span><span class="op">)</span></span>
-<span><span class="va">fit_cov</span>  <span class="op">&lt;-</span> <span class="fu"><a href="../reference/add_covariates.html">add_covariates</a></span><span class="op">(</span><span class="va">fit_gmm2</span>, <span class="va">x_member</span>, se <span class="op">=</span> <span class="st">"robust"</span><span class="op">)</span></span>
+<span><span class="va">fit_cov</span>  <span class="op">&lt;-</span> <span class="fu"><a href="../reference/add_covariates.html">add_covariates</a></span><span class="op">(</span><span class="va">fit_gmm2</span>, <span class="va">x_member</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Using 'ML' bias correction (set `correction` to override).</span></span>
 <span><span class="va">results</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_cov</span><span class="op">)</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt;              STRUCTURAL MODEL SUMMARY                    </span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
+<span><span class="co">#&gt;   Best solution  : found by 4 of 4 starts that ran to convergence (of 15 requested)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)</span></span>
 <span><span class="co">#&gt; Reference Class: 1</span></span>
-<span><span class="co">#&gt; Standard errors: Step-3 sandwich (robust)</span></span>
+<span><span class="co">#&gt; Standard errors: Bakk-Oberski-Vermunt corrected (robust step 3, hessian step 1)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;                               OR         [95% CI]         P-Value</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 2 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.562  [    0.472,     0.671]    &lt; .001</span></span>
-<span><span class="co">#&gt;   x_member                 1.817  [    1.537,     2.148]    &lt; .001</span></span>
+<span><span class="co">#&gt;   Intercept                0.562  [    0.470,     0.673]    &lt; .001</span></span>
+<span><span class="co">#&gt;   x_member                 1.817  [    1.536,     2.149]    &lt; .001</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
-<p>The default <code>se = "corrected"</code> adds step 1’s uncertainty
-to the step-3 sandwich, and that correction is not yet available for a
-growth model, so the sandwich is requested by name. Its intervals treat
-the growth model as known and are too narrow when the classes overlap;
-see <code><a href="../reference/covariate_se.html">?covariate_se</a></code>.</p>
+<p>The default <code>se = "corrected"</code> adds the growth model’s own
+uncertainty to the step-3 sandwich, so the intervals do not treat the
+trajectory classes as known; <code>se = "robust"</code> leaves that part
+out and is too narrow when the classes overlap. See
+<code><a href="../reference/covariate_se.html">?covariate_se</a></code>.</p>
 <ul>
 <li>
 <strong>Who, within a class, starts higher or declines
@@ -278,7 +321,7 @@ faster?</strong> — covariates on the growth factors themselves, which
 are part of the measurement model and therefore supplied to
 <code><a href="../reference/fit_gmm.html">fit_gmm()</a></code> directly:</li>
 </ul>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">x_growth</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span></span>
 <span><span class="va">fit_gp</span>   <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_gmm.html">fit_gmm</a></span><span class="op">(</span><span class="va">Y</span>, times <span class="op">=</span> <span class="fl">5</span>, n_classes <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>                    growth_predictors <span class="op">=</span> <span class="va">x_growth</span>,</span>
@@ -344,7 +387,7 @@ tidy data frame — the growth-factor means, their variances and
 covariances, the residual variances and the fitted trajectory, one row
 per parameter and class — so the numbers can go into a table without
 being retyped from the printed output:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">params</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/measurement_summary.html">measurement_summary</a></span><span class="op">(</span><span class="va">fit_gmm2</span><span class="op">)</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt;              MEASUREMENT MODEL PARAMETERS                </span></span>
@@ -396,13 +439,13 @@ being retyped from the printed output:</p>
 one specification and tabulates the criteria, and for a growth model its
 default range starts at one class — the ordinary latent growth curve
 model, which is the benchmark the class solutions have to beat:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/compare_longitudinal.html">compare_longitudinal</a></span><span class="op">(</span><span class="va">Y</span>, model <span class="op">=</span> <span class="st">"gmm"</span>, times <span class="op">=</span> <span class="fl">5</span>, k_range <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>,</span>
 <span>                     n_init <span class="op">=</span> <span class="fl">15</span>, random_state <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span></code></pre></div>
 <p><code><a href="../reference/blrt.html">blrt()</a></code> takes the fitted model itself, so the
 bootstrapped comparison is run on the same time design and covariance
 structure rather than on a re-specified model:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/blrt.html">blrt</a></span><span class="op">(</span>k_small <span class="op">=</span> <span class="fl">2</span>, k_large <span class="op">=</span> <span class="fl">3</span>, from_fit <span class="op">=</span> <span class="va">fit_gmm2</span>, n_reps <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
@@ -424,42 +467,62 @@ more starts means more chances of finding the spike, and a solution that
 only one start in fifty reaches is evidence about the specification
 rather than about the search (Hipp &amp; Bauer, 2006).</li>
 <li>
-<strong>A lower log-likelihood is not always a worse
-answer.</strong> The growth-factor covariance is constrained here to be
-positive semi-definite, and the residual variances to be positive. An
-unconstrained optimiser can reach a negative variance, or variances that
-are each positive while implying a correlation greater than one in
-absolute value — and the likelihood at such a solution is evaluated
-outside the parameter space, so it is not comparable with one that is
-inside it. When a published analysis of the same model reports a higher
-likelihood, check its covariance matrix before concluding anything: an
-admissible solution with a smaller likelihood is the reportable one. The
-right response to a model that cannot produce a proper solution is
-Berlin, Parra and Williams’s (2014): to report that no reasonable and
-proper solution was found, and to simplify the specification.</li>
-<li>Class enumeration is harder than in cross-sectional LCA: BIC, the
-plotted trajectories against observed means, and substantive
-interpretability should all agree before a solution is reported (Nylund
-et al., 2007). Checklists for reporting a trajectory study (van de
-Schoot et al., 2017) ask for the one-class solution, the criteria at
-every class count, the class sizes and the classification diagnostics;
+<strong>An impossible variance is a message about the model, not a
+failed fit.</strong> The residual variances are kept positive, and each
+class’s covariance of the repeated measures must stay positive definite,
+but the growth-factor covariance itself is not bounded: when the data
+have almost no person-to-person variation in a growth factor, its
+estimated variance can land slightly below zero, or two factors can
+imply a correlation beyond one. mixtureEM reports such a fit as
+estimated, with a warning. Here every member of a class declines at
+exactly the class’s rate, so the true slope variance is zero:</li>
+</ul>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">m</span>  <span class="op">&lt;-</span> <span class="fl">300</span></span>
+<span><span class="va">c2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="va">m</span>, <span class="fl">1</span>, <span class="fl">0.4</span><span class="op">)</span></span>
+<span><span class="va">Z</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/outer.html" class="external-link">outer</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">c2</span> <span class="op">==</span> <span class="fl">1</span>, <span class="fl">6</span>, <span class="fl">2</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">m</span>, <span class="fl">0</span>, <span class="fl">0.9</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">5</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/outer.html" class="external-link">outer</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">c2</span> <span class="op">==</span> <span class="fl">1</span>, <span class="op">-</span><span class="fl">0.7</span>, <span class="fl">0.05</span><span class="op">)</span>, <span class="va">waves</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">m</span> <span class="op">*</span> <span class="fl">5</span>, <span class="fl">0</span>, <span class="fl">0.8</span><span class="op">)</span>, <span class="va">m</span>, <span class="fl">5</span><span class="op">)</span></span>
+<span><span class="va">fit_neg</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_gmm.html">fit_gmm</a></span><span class="op">(</span><span class="va">Z</span>, times <span class="op">=</span> <span class="fl">5</span>, n_classes <span class="op">=</span> <span class="fl">2</span>, n_init <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>                   random_state <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning: The growth-factor covariance is outside its usual range: the linear</span></span>
+<span><span class="co">#&gt; variance is -0.003537. This is not an estimation failure. Every class's</span></span>
+<span><span class="co">#&gt; covariance of the repeated measures is positive definite, so the</span></span>
+<span><span class="co">#&gt; log-likelihood, BIC and the other estimates are a valid maximum and are</span></span>
+<span><span class="co">#&gt; reported as estimated, with no bound applied and no parameter dropped from the</span></span>
+<span><span class="co">#&gt; count. The impossible value itself should not be interpreted as a variance or a</span></span>
+<span><span class="co">#&gt; correlation: a negative variance is consistent with one that is truly zero, and</span></span>
+<span><span class="co">#&gt; the model without that random effect is the matching one (random_effects =</span></span>
+<span><span class="co">#&gt; "intercept" keeps only the intercept's; with no growth-factor variance left,</span></span>
+<span><span class="co">#&gt; fit_lcga()); under a covariance held equal across classes it can also mean the</span></span>
+<span><span class="co">#&gt; classes' covariances differ and the constraint forces one value on them; psi =</span></span>
+<span><span class="co">#&gt; "free" estimates them by class. Compare the fits on BIC.</span></span></code></pre></div>
+<p>The log-likelihood and BIC of such a fit are a valid maximum, but the
+negative value should not be read as a variance. It is what a variance
+that is truly zero looks like when it is estimated with noise on both
+sides of zero, and the matching model drops that random effect
+(<code>random_effects = "intercept"</code>); BIC then chooses between
+the two. When no specification produces a proper solution, report that,
+as Berlin, Parra and Williams (2014) recommend, and simplify. * Class
+enumeration is harder than in cross-sectional LCA: BIC, the plotted
+trajectories against observed means, and substantive interpretability
+should all agree before a solution is reported (Nylund et al., 2007).
+Checklists for reporting a trajectory study (van de Schoot et al., 2017)
+ask for the one-class solution, the criteria at every class count, the
+class sizes and the classification diagnostics;
 <code><a href="../reference/compare_longitudinal.html">compare_longitudinal()</a></code>, <code><a href="../reference/class_sizes.html">class_sizes()</a></code> and
-<code><a href="../reference/classification_diagnostics.html">classification_diagnostics()</a></code> supply them.</li>
-<li>
+<code><a href="../reference/classification_diagnostics.html">classification_diagnostics()</a></code> supply them. *
 <strong>Enumerate before you restrict the within-class model, not
-after.</strong> Liu
-<ol start="2011" style="list-style-type: decimal">
-<li>recommends fitting the least restrictive trajectory model first — an
-LCGA or GMM with <code>random_effects = "intercept_slope"</code> and
+after.</strong> Liu (2011) recommends fitting the least restrictive
+trajectory model first — an LCGA or GMM with
+<code>random_effects = "intercept_slope"</code> and
 <code>residual = "occasion"</code> rather than a single shared residual
 — and imposing a simpler covariance structure only once the class count
 is settled, because “within-class model misspecification might lead to
 spurious latent classes”. Deciding K on the most restrictive model in
 the sequence risks a class count that is compensating for structure the
-model was not given, rather than describing a real subgroup.</li>
-</ol>
-</li>
-</ul>
+model was not given, rather than describing a real subgroup.</p>
 </div>
 <div class="section level2">
 <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>

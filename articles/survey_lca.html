@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,6 +43,7 @@
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="../articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -194,10 +195,12 @@ clusters.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_cov</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/add_covariates.html">add_covariates</a></span><span class="op">(</span><span class="va">fit</span>, <span class="va">yrbs2005</span><span class="op">[</span>, <span class="st">"sex"</span>, drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Using 'ML' bias correction (set `correction` to override).</span></span>
+<span><span class="co">#&gt; 22 cases missing a predictor were left out of the class-membership regression (n = 13818 used). Set `missing_predictors = "mean"` to complete them instead.</span></span>
 <span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_cov</span><span class="op">)</span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt;              STRUCTURAL MODEL SUMMARY                    </span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
+<span><span class="co">#&gt;   Best solution  : found by 10 of 20 starts</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)</span></span>
 <span><span class="co">#&gt; Reference Class: 1</span></span>
@@ -206,25 +209,25 @@ clusters.</p>
 <span><span class="co">#&gt;                               OR         [95% CI]         P-Value</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 2 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.126  [    0.103,     0.155]    &lt; .001</span></span>
-<span><span class="co">#&gt;   sex.Male                 1.876  [    1.561,     2.256]    &lt; .001</span></span>
+<span><span class="co">#&gt;   Intercept                0.126  [    0.103,     0.156]    &lt; .001</span></span>
+<span><span class="co">#&gt;   sex.Male                 1.874  [    1.560,     2.252]    &lt; .001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 3 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.107  [    0.082,     0.140]    &lt; .001</span></span>
-<span><span class="co">#&gt;   sex.Male                 1.215  [    0.985,     1.500]     0.069</span></span>
+<span><span class="co">#&gt;   Intercept                0.107  [    0.081,     0.139]    &lt; .001</span></span>
+<span><span class="co">#&gt;   sex.Male                 1.217  [    0.985,     1.502]     0.069</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 4 ON</span></span>
 <span><span class="co">#&gt;   Intercept                0.082  [    0.065,     0.104]    &lt; .001</span></span>
-<span><span class="co">#&gt;   sex.Male                 0.685  [    0.545,     0.861]     0.001</span></span>
+<span><span class="co">#&gt;   sex.Male                 0.685  [    0.545,     0.860]     0.001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 5 ON</span></span>
 <span><span class="co">#&gt;   Intercept                0.037  [    0.029,     0.047]    &lt; .001</span></span>
-<span><span class="co">#&gt;   sex.Male                 2.120  [    1.639,     2.743]    &lt; .001</span></span>
+<span><span class="co">#&gt;   sex.Male                 2.123  [    1.640,     2.747]    &lt; .001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;                          Wald Chi2   df  P-Value</span></span>
-<span><span class="co">#&gt;   sex                       74.956    4    &lt; .001</span></span>
+<span><span class="co">#&gt;   sex                       75.081    4    &lt; .001</span></span>
 <span><span class="co">#&gt;   Note: a non-significant test beside large coefficients can be the</span></span>
 <span><span class="co">#&gt;         Hauck-Donner effect; confirm with wald_omnibus_test().</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>

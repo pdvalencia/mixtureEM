@@ -105,7 +105,11 @@ fit_lcga(
     is a curve in the mean, and each class also carries a residual
     variance, constant across occasions. This is LCGA in the sense of
     Nagin's censored-normal model without the censoring, and the
-    no-random-effects special case of a growth mixture model.
+    no-random-effects special case of a growth mixture model. A class
+    with more than 90% of its scores, over all occasions, on one value
+    (a floor of zeros, say) has no residual spread left; a start that
+    ends there is set aside, as in every model the package fits, and a
+    warning is given only if every start did.
 
   - `"poisson"` — a count outcome, log link. The trajectory is a curve
     in the event rate. Counts must be whole and non-negative;
@@ -190,6 +194,8 @@ identifying differences in longitudinal change among unobserved groups.
 
 ## See also
 
+[`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)
+for the coefficients with standard errors,
 [`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md)
 for unconstrained trajectory classes and
 [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
@@ -216,31 +222,31 @@ fit
 #> 
 #> GROWTH COEFFICIENTS (link scale)
 #>         intercept linear
-#> Class 1    -0.732 -0.054
-#> Class 2    -0.048  1.125
+#> Class 1    -0.732 -0.051
+#> Class 2    -0.046  1.147
 #> 
 #> FITTED TRAJECTORY (probability)
 #>            T1    T2    T3    T4
-#> Class 1 0.325 0.313 0.301 0.290
-#> Class 2 0.488 0.746 0.900 0.965
+#> Class 1 0.325 0.314 0.303 0.292
+#> Class 2 0.489 0.750 0.904 0.968
 #> =========================================================
 #>                   LATENT MIXTURE MODEL                   
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 61 iterations)
+#> Converged          : TRUE (in 70 iterations)
 #> ---------------------------------------------------------
-#>   Log-Likelihood : -1032.42
+#>   Log-Likelihood : -1032.40
 #>   Parameters     : 5
-#>   AIC            : 2074.83
-#>   BIC            : 2094.79
-#>   SABIC          : 2078.93
-#>   Rel. Entropy   : 0.6319
+#>   AIC            : 2074.80
+#>   BIC            : 2094.76
+#>   SABIC          : 2078.90
+#>   Rel. Entropy   : 0.6354
 #>   Best solution  : found by 5 of 5 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 58.24%
-#>   Class 2: 41.76%
+#>   Class 1: 58.61%
+#>   Class 2: 41.39%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 # }

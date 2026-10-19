@@ -13,7 +13,7 @@ automatically."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -34,6 +34,7 @@ automatically."></head><body>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="../articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -183,7 +184,11 @@ function people call casually should not pay that unasked. The other is that
 the test does not deserve to be printed as a matter of course. Vermunt (2024)
 concludes that "neither of the two implementations yield uniformly
 distributed p-values under the correct null hypothesis, indicating this test
-is not the best model selection tool in mixture modeling".</p>
+is not the best model selection tool in mixture modeling". Arch and
+Nylund-Gibson (2026) likewise found VLMR unreliable across their simulation
+conditions and advise against it as a standalone index. The same study is
+why the <code>-&gt; Best model</code> line and <code>best_k</code> use <code>BIC</code> alone: it and <code>CAIC</code>
+were the most reliable indices there; see <code><a href="print.mixture_comparison.html">print.mixture_comparison()</a></code>.</p>
 <p>The two versions of the test differ only in which covariance matrix of the
 parameters enters the reference distribution: the ordinary one
 (<code>vlmr = "standard"</code>) or the robust sandwich (<code>vlmr = "robust"</code>;
@@ -215,7 +220,10 @@ not have.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
-    <p>Nylund, K. L., Asparouhov, T., &amp; Muthen, B. O. (2007). Deciding on the number
+    <p>Arch, D. A. N., &amp; Nylund-Gibson, K. (2026). Unmodeled DIF in latent class
+analysis: Consequences for class enumeration. <em>Methods in Psychology</em>,
+<em>14</em>, 100243. <a href="https://doi.org/10.1016/j.metip.2026.100243" class="external-link">doi:10.1016/j.metip.2026.100243</a></p>
+<p>Nylund, K. L., Asparouhov, T., &amp; Muthen, B. O. (2007). Deciding on the number
 of classes in latent class analysis and growth mixture modeling: A Monte
 Carlo simulation study. <em>Structural Equation Modeling</em>, <em>14</em>(4),
 535-569. <a href="https://doi.org/10.1080/10705510701575396" class="external-link">doi:10.1080/10705510701575396</a></p>

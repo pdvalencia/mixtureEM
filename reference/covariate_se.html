@@ -17,7 +17,7 @@ estimators of the covariate covariance matrix."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -38,6 +38,7 @@ estimators of the covariate covariance matrix."></head><body>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="../articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -81,9 +82,11 @@ recommends; the second-order form of their eq. 18 adds a term that
 vanishes asymptotically. \(D_1\) needs the step-1 model in an
 unconstrained parameterisation, which exists for binary, categorical,
 count and continuous indicators, alone, mixed, in time blocks, by
-group, or with item DIF. For a growth mixture model or an LCGA as
-step 1, the <code>"robust"</code> estimator is
-reported instead, with a warning, and <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> names it.</p></dd>
+group, or with item DIF, and for a growth mixture model or an LCGA as
+step 1. A growth step 1 is put on the scale its estimation works on
+(growth-factor means, covariance elements, log residual standard
+deviations); the corrected variance does not depend on that choice,
+because \(J\) and \(D_1\) change by the same Jacobian.</p></dd>
 
 <dt><code>"robust"</code></dt>
 <dd><p>The step-3 sandwich only,
@@ -129,7 +132,8 @@ sandwich alone omits.</p>
 fitted to the BCH-weighted log-likelihood, and <code>"corrected"</code> is its
 sandwich clustered on the case plus \(J D_1 J'\), with step 1 reaching
 step 3 through the BCH weights rebuilt from the moved posteriors. The other
-two settings report the Hessian of that weighted fit.</p>
+two settings report the case-clustered sandwich alone: the Hessian of the
+weighted fit counts each case fully in every class and is too narrow.</p>
 <p>How much this matters depends almost entirely on how well separated the
 classes are. A 250-replication coverage study on the design of Bakk et al.
 (<code>data-raw/covariate_se_simulation.R</code> in the package sources) gives, for
@@ -203,18 +207,19 @@ Class predictors fitted together with distal outcomes
 too: the step-1 term is taken over the whole joint parameter vector, so the
 outcome parameters carry it as well. Under modal assignment the derivative
 holds each case's assigned class fixed and moves only the classification
-table built from it. Three cases fall back to the uncorrected Hessian, and
-say so in the printed output: <code>correction = "BCH"</code> (whose weights need
-their own variance treatment, and which is not recommended for covariates
-in any case; with <code>predictors</code> it reports the case-clustered sandwich);
+table built from it. <code>correction = "BCH"</code> (not recommended for
+covariates) reports the case-clustered sandwich of its weighted fit, with
+the step-1 term added under <code>"corrected"</code>. Two cases fall back to the
+uncorrected Hessian, and say so in the printed output:
 <code>n_steps = 1</code>, where measurement and structural parameters are
 estimated jointly and no carry-over correction applies; and a two-step fit
 whose structural model is a distal outcome rather than class predictors.
 The step-1 term additionally requires a measurement model whose parameters
 this package can put on an unconstrained scale — binary, polytomous,
-Gaussian, count, mixed, and repeated-measures models qualify; growth models
-do not, and there the robust sandwich (three-step) or \(V_2\) (two-step)
-is reported instead.</p>
+Gaussian, count, mixed, and repeated-measures models qualify, and growth
+models (<code><a href="fit_gmm.html">fit_gmm()</a></code>, <code><a href="fit_lcga.html">fit_lcga()</a></code>) qualify for the three-step
+term. A two-step fit on a growth step 1 does not carry it yet: there
+\(V_2\) is reported instead, with a warning.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>

@@ -15,7 +15,7 @@ by the classes."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -36,6 +36,7 @@ by the classes."></head><body>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="../articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -74,6 +75,7 @@ by the classes.</p>
 <span>  outcome_covariates <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  outcome_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"continuous"</span>, <span class="st">"categorical"</span><span class="op">)</span>,</span>
 <span>  slopes <span class="op">=</span> <span class="st">"pooled"</span>,</span>
+<span>  outcome_variances <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"equal"</span>, <span class="st">"class_specific"</span><span class="op">)</span>,</span>
 <span>  group <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  group_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"both"</span>, <span class="st">"measurement"</span>, <span class="st">"prevalence"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
 <span>  group_invariant_items <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -99,6 +101,7 @@ by the classes.</p>
 <span>  bayes_constants <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  se <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"corrected"</span>, <span class="st">"robust"</span>, <span class="st">"hessian"</span><span class="op">)</span>,</span>
 <span>  n_cores <span class="op">=</span> <span class="fu">.default_n_cores</span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  missing_predictors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"listwise"</span>, <span class="st">"mean"</span><span class="op">)</span>,</span>
 <span>  X <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  Y <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_components <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -140,7 +143,9 @@ choice the package makes.</p>
 <p><strong>Missing values need no special handling.</strong> Any indicator containing
 <code>NA</code> is estimated by full-information maximum likelihood under the
 usual missing-at-random assumption, chosen automatically; cases missing on
-every indicator are dropped, with a warning saying how many. There is
+every indicator are dropped, with a warning saying how many, except in a
+one-step fit with an <code>outcome</code>, where a case that observes the
+outcome is part of the joint likelihood and is kept. There is
 nothing to switch on. (The <code>"*_nan"</code> spellings are still accepted, and
 force the same estimator, but they are a leftover and you do not need them.)</p>
 <p><strong>Binary items need not be coded 0/1.</strong> A two-level factor or
@@ -209,6 +214,14 @@ some covariates while adjusting for others. The last form is
 continuous-outcome only. For a continuous outcome,
 <code>"class_specific"</code> is the same model as naming every covariate, and
 is fitted as one.</p></dd>
+
+
+<dt id="arg-outcome-variances">outcome_variances<a class="anchor" aria-label="anchor" href="#arg-outcome-variances"></a></dt>
+<dd><p>For a continuous <code>outcome</code>: <code>"equal"</code>
+(default; one variance, or residual variance when there are
+<code>outcome_covariates</code>, shared by the classes) or
+<code>"class_specific"</code> (one per class). As in <code><a href="add_outcome.html">add_outcome()</a></code>'s
+<code>variances</code>.</p></dd>
 
 
 <dt id="arg-group">group<a class="anchor" aria-label="anchor" href="#arg-group"></a></dt>
@@ -564,9 +577,14 @@ local maximum.</p>
 <p><strong>Rescuing a collapsed fit:</strong> this situation is now rare, because a
 continuous measurement model holds the variances equal across classes by
 default and that bounds the likelihood; it arises when you have explicitly
-passed <code>variances_equal = FALSE</code>. If a fit warns that a class variance
-has collapsed, the prior is one of three remedies, and not the first to
-reach for. Constraining the variances to be equal across classes
+passed <code>variances_equal = FALSE</code>. Even then the search sets aside any
+start that ends with a class sitting on one value of an item – more than
+90\<!-- % of the class on a single score of an item whose variance is the -->
+class's own – and reports the best of the others; <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> says how
+many were set aside. This is the same rule in every model the package
+fits, growth and transition models included. A fit warns that a class
+variance has collapsed only when every start ended that way. Then the
+prior is one of three remedies, and not the first to reach for. Constraining the variances to be equal across classes
 (<code>variances_equal = TRUE</code>) bounds the likelihood so the problem cannot
 arise at all; fitting fewer classes often removes the class that was
 describing a spike. Where neither is acceptable substantively, raise
@@ -583,11 +601,24 @@ longer be far below the others in the model, and its class mean should have
 come off the floor or ceiling of the response scale. It is worth looking at
 the distribution of the named item as well, for the floor, ceiling or spike
 the class latched onto.</p>
-<p>Raising <code>n_init</code> is <em>not</em> a remedy here. A collapsed variance is
-not a convergence failure but a property of the likelihood, which really is
-unbounded in that direction, so a longer search can find a taller spike and
-report a better log-likelihood for a worse solution. For the same reason a
-flagged fit's BIC is not comparable with a clean fit's.</p>
+<p>Raising <code>n_init</code> can help only in that last situation, where no start
+escaped the spike, and is not the remedy to reach for. A collapsed variance
+is not a convergence failure but a property of the likelihood, which really
+is unbounded in that direction, and a model whose every start collapses is
+usually asking for one of the remedies above. A flagged fit's BIC is not
+comparable with a clean fit's.</p>
+<p><strong>Spike check:</strong> a related line in <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> looks at the
+restarts rather than at the variances. Each converged start is scored
+again with its single best-fitted case removed (the 1-deleted
+log-likelihood of Seo &amp; Lindsay, 2010, sec. 4, on the same penalised
+scale the search ranks on). When another start comes out ahead of the
+reported one on that score, the reported maximum owes its lead to one
+observation, and <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> says so. Nothing is re-selected: the
+values are in <code>$metrics</code> (<code>kdel_ll</code>, <code>kdel_best</code>,
+<code>kdel_disagrees</code>) for information only. A class sitting on one isolated
+outlier usually does <em>not</em> trigger it, because the rest of that
+solution still fits the other cases best; a class on a single case is a
+class on one value, which the search sets aside as above.</p>
 <p>The theory behind the prior settles its form and not its size: within the
 conditions Chen, Tan, &amp; Zhang (2008) impose — which any fixed positive
 constant meets — a penalty that diverges as a variance approaches zero and
@@ -642,6 +673,20 @@ forgotten by the next, and the slowest operations in the package –
 <code><a href="blrt.html">blrt()</a></code>, <code><a href="compare_mixtures.html">compare_mixtures()</a></code>, <code><a href="bivariate_residuals.html">bivariate_residuals()</a></code>
 – are the ones it is easiest to forget. An argument given here overrides
 the option.</p></dd>
+
+
+<dt id="arg-missing-predictors">missing_predictors<a class="anchor" aria-label="anchor" href="#arg-missing-predictors"></a></dt>
+<dd><p>What to do with a case missing one of
+<code>predictors</code> or <code>outcome_covariates</code>. <code>"listwise"</code> (the
+default) leaves it out: a one-step model (<code>n_steps = 1</code>) is fitted
+without that case at all, and a stepwise one keeps it in step 1 and
+leaves it out of the class-membership or outcome regression only, with a
+message either way saying how many cases that was. <code>"mean"</code> keeps
+every case and completes the missing values under the class-invariant
+Gaussian marginal of the covariates (Sterba, 2014). A missing
+<code>outcome</code> is not a reason to delete a case. Why listwise is the
+default is in <code><a href="add_covariates.html">add_covariates</a></code>, "Missing predictors", and
+<code><a href="add_outcome.html">add_outcome</a></code>, "Missing covariates".</p></dd>
 
 
 <dt id="arg-x-y-n-components-structural">X, Y, n_components, structural<a class="anchor" aria-label="anchor" href="#arg-x-y-n-components-structural"></a></dt>

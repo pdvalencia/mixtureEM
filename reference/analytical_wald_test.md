@@ -14,6 +14,11 @@ poorly conditioned Hessians, consider
 [`wald_omnibus_test`](https://pdvalencia.github.io/mixtureEM/reference/wald_omnibus_test.md)
 instead, which uses bootstrapped standard errors from
 [`bootstrap_covariates`](https://pdvalencia.github.io/mixtureEM/reference/bootstrap_covariates.md).
+To test any other hypothesis about the coefficients – that two classes
+share a coefficient, or that a coefficient takes a stated value – use
+[`wald_test`](https://pdvalencia.github.io/mixtureEM/reference/wald_test.md),
+which takes the constraints directly; with every one of this covariate's
+coefficients set to zero it gives this same statistic.
 
 A caveat that applies to any Wald test of a strong effect: under the
 Hauck-Donner phenomenon a coefficient large enough to nearly separate a

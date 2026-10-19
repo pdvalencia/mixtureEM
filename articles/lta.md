@@ -317,9 +317,9 @@ says which is which —
 round(status_prevalences(fit_pov), 3)
 #>    Status 1 Status 2 Status 3
 #> T1    0.023    0.692    0.285
-#> T2    0.134    0.223    0.643
-#> T3    0.232    0.125    0.643
-#> T4    0.819    0.034    0.147
+#> T2    0.130    0.234    0.636
+#> T3    0.232    0.140    0.628
+#> T4    0.805    0.041    0.154
 ```
 
 — here status 2 is the low-alphabet stage (the one 69% start in), status
@@ -339,45 +339,45 @@ lta_covariate_summary(fit_pov)
 #> 
 #> PREDICTING LATENT STATUS AT THE FIRST OCCASION
 #>    Status      Term Estimate    SE      z      p    OR
-#>  Status 1 Intercept   -2.489 0.117 -21.22 <1e-16 0.083
-#>  Status 1   poverty   -0.581 0.571  -1.02  0.309 0.559
-#>  Status 2 Intercept    0.676 0.040  16.94 <1e-16 1.966
-#>  Status 2   poverty    1.459 0.131  11.17 <1e-16 4.301
+#>  Status 1 Intercept   -2.489 0.130 -19.15 <1e-16 0.083
+#>  Status 1   poverty   -0.581 0.593  -0.98  0.327 0.559
+#>  Status 2 Intercept    0.676 0.048  14.13 <1e-16 1.966
+#>  Status 2   poverty    1.459 0.149   9.82 <1e-16 4.301
 #> 
 #> PREDICTING TRANSITIONS
 #> 
 #>   [occasion 1 -> 2]
 #>       Status      Term Estimate    SE      z        p       OR
-#>  to Status 1 Intercept   -0.664 0.068  -9.77  < 1e-16    0.515
-#>  to Status 1    from:1    7.200 2.942   2.45   0.0144 1339.308
-#>  to Status 1    from:2   -3.370 0.196 -17.22  < 1e-16    0.034
-#>  to Status 1   poverty    0.404 0.214   1.88   0.0595    1.497
-#>  to Status 2 Intercept   -6.687 1.029  -6.50 8.04e-11    0.001
-#>  to Status 2    from:1    6.587 4.300   1.53   0.1256  725.539
-#>  to Status 2    from:2    5.707 1.030   5.54 2.98e-08  300.973
-#>  to Status 2   poverty    1.187 0.097  12.28  < 1e-16    3.277
+#>  to Status 1 Intercept   -0.664 0.078  -8.55  < 1e-16    0.515
+#>  to Status 1    from:1    7.200 3.004   2.40   0.0165 1339.308
+#>  to Status 1    from:2   -3.370 0.285 -11.83  < 1e-16    0.034
+#>  to Status 1   poverty    0.404 0.248   1.63   0.1040    1.497
+#>  to Status 2 Intercept   -6.687 1.308  -5.11 3.17e-07    0.001
+#>  to Status 2    from:1    6.587 4.443   1.48   0.1382  725.539
+#>  to Status 2    from:2    5.707 1.310   4.36 1.31e-05  300.973
+#>  to Status 2   poverty    1.187 0.106  11.18  < 1e-16    3.277
 #> 
 #>   [occasion 2 -> 3]
 #>       Status      Term Estimate    SE      z        p       OR
-#>  to Status 1 Intercept   -1.538 0.059 -26.01  < 1e-16    0.215
-#>  to Status 1    from:1    7.357 0.772   9.52  < 1e-16 1567.628
-#>  to Status 1    from:2   -3.448 0.729  -4.73 2.28e-06    0.032
-#>  to Status 1   poverty   -1.215 0.241  -5.05 4.41e-07    0.297
-#>  to Status 2 Intercept   -5.922 0.403 -14.69  < 1e-16    0.003
-#>  to Status 2    from:1    5.274 1.260   4.19 2.84e-05  195.283
-#>  to Status 2    from:2    5.952 0.407  14.63  < 1e-16  384.645
-#>  to Status 2   poverty    0.917 0.148   6.18 6.48e-10    2.503
+#>  to Status 1 Intercept   -1.538 0.075 -20.59  < 1e-16    0.215
+#>  to Status 1    from:1    7.357 1.230   5.98 2.21e-09 1567.628
+#>  to Status 1    from:2   -3.448 0.985  -3.50 0.000465    0.032
+#>  to Status 1   poverty   -1.215 0.331  -3.67 0.000238    0.297
+#>  to Status 2 Intercept   -5.922 0.723  -8.19 2.57e-16    0.003
+#>  to Status 2    from:1    5.274 1.718   3.07 0.002139  195.283
+#>  to Status 2    from:2    5.952 0.731   8.15 3.75e-16  384.645
+#>  to Status 2   poverty    0.917 0.180   5.09 3.53e-07    2.503
 #> 
 #>   [occasion 3 -> 4]
 #>       Status      Term Estimate    SE      z        p       OR
-#>  to Status 1 Intercept    2.041 0.070  29.10  < 1e-16    7.699
-#>  to Status 1    from:1    6.920 2.940   2.35   0.0186 1012.049
-#>  to Status 1    from:2   -2.457 0.131 -18.81  < 1e-16    0.086
-#>  to Status 1   poverty   -0.823 0.121  -6.81 9.94e-12    0.439
-#>  to Status 2 Intercept   -3.260 0.303 -10.77  < 1e-16    0.038
-#>  to Status 2    from:1    4.900 3.205   1.53   0.1263  134.241
-#>  to Status 2    from:2    2.565 0.318   8.06 7.83e-16   13.001
-#>  to Status 2   poverty    0.109 0.198   0.55   0.5827    1.115
+#>  to Status 1 Intercept    2.041 0.082  24.96  < 1e-16    7.699
+#>  to Status 1    from:1    6.920 3.001   2.31   0.0211 1012.049
+#>  to Status 1    from:2   -2.457 0.168 -14.61  < 1e-16    0.086
+#>  to Status 1   poverty   -0.823 0.137  -5.99 2.10e-09    0.439
+#>  to Status 2 Intercept   -3.260 0.339  -9.61  < 1e-16    0.038
+#>  to Status 2    from:1    4.900 3.703   1.32   0.1858  134.241
+#>  to Status 2    from:2    2.565 0.363   7.06 1.64e-12   13.001
+#>  to Status 2   poverty    0.109 0.213   0.51   0.6085    1.115
 #> 
 #> =========================================================
 ```
@@ -417,9 +417,9 @@ fit_pov3 <- fit_lta(items, n_statuses = 3, times = 4, measurement = "binary",
 round(status_prevalences(fit_pov3), 3)
 #>    Status 1 Status 2 Status 3
 #> T1    0.683    0.296    0.021
-#> T2    0.220    0.635    0.144
-#> T3    0.118    0.646    0.235
-#> T4    0.033    0.146    0.821
+#> T2    0.231    0.629    0.141
+#> T3    0.134    0.631    0.235
+#> T4    0.039    0.153    0.807
 ```
 
 Here status 1 is the low-alphabet stage, status 2 early word reading and
@@ -439,44 +439,44 @@ lta_covariate_summary(fit_pov3)
 #> PREDICTING LATENT STATUS AT THE FIRST OCCASION
 #>    Status      Term Estimate    SE     z       p     OR
 #>  Status 1 Intercept    3.252 0.152 21.44 < 1e-16 25.831
-#>  Status 1   poverty    1.864 0.673  2.77 0.00559  6.451
+#>  Status 1   poverty    1.864 0.675  2.76 0.00573  6.451
 #>  Status 2 Intercept    2.622 0.158 16.61 < 1e-16 13.767
-#>  Status 2   poverty    0.461 0.697  0.66 0.50838  1.586
+#>  Status 2   poverty    0.461 0.699  0.66 0.50957  1.586
 #> 
 #> PREDICTING TRANSITIONS
 #> 
 #>   [occasion 1 -> 2]
 #>       Status      Term Estimate    SE     z        p        OR
-#>  to Status 1 Intercept   -6.437 2.905 -2.22 0.026714     0.002
-#>  to Status 1    from:1   10.521 3.024  3.48 0.000503 37099.353
-#>  to Status 1    from:2   -1.278 3.962 -0.32 0.747051     0.279
-#>  to Status 1   poverty    0.767 0.347  2.21 0.026874     2.153
-#>  to Status 2 Intercept   -6.050 2.954 -2.05 0.040543     0.002
-#>  to Status 2    from:1   11.125 3.071  3.62 0.000292 67841.014
-#>  to Status 2    from:2    6.511 2.956  2.20 0.027638   672.647
-#>  to Status 2   poverty   -0.416 0.323 -1.29 0.198028     0.660
+#>  to Status 1 Intercept   -6.437 2.987 -2.16 0.031131     0.002
+#>  to Status 1    from:1   10.521 3.101  3.39 0.000692 37099.353
+#>  to Status 1    from:2   -1.278 4.192 -0.30 0.760468     0.279
+#>  to Status 1   poverty    0.767 0.347  2.21 0.027053     2.153
+#>  to Status 2 Intercept   -6.050 2.955 -2.05 0.040595     0.002
+#>  to Status 2    from:1   11.125 3.072  3.62 0.000293 67841.014
+#>  to Status 2    from:2    6.511 2.957  2.20 0.027680   672.647
+#>  to Status 2   poverty   -0.416 0.324 -1.29 0.198537     0.660
 #> 
 #>   [occasion 2 -> 3]
 #>       Status      Term Estimate    SE     z        p          OR
-#>  to Status 1 Intercept   -8.742 3.024 -2.89 0.003846       0.000
-#>  to Status 1    from:1   15.434 4.216  3.66 0.000251 5044757.321
-#>  to Status 1    from:2    2.154 4.226  0.51 0.610206       8.621
-#>  to Status 1   poverty    2.240 0.511  4.38 1.19e-05       9.392
-#>  to Status 2 Intercept   -7.643 2.955 -2.59 0.009702       0.000
+#>  to Status 1 Intercept   -8.742 3.019 -2.90 0.003791       0.000
+#>  to Status 1    from:1   15.434 4.210  3.67 0.000247 5044757.321
+#>  to Status 1    from:2    2.154 4.220  0.51 0.609673       8.621
+#>  to Status 1   poverty    2.240 0.512  4.38  1.2e-05       9.392
+#>  to Status 2 Intercept   -7.643 2.958 -2.58 0.009763       0.000
 #>  to Status 2    from:1   14.356 4.168  3.44 0.000572 1717091.369
-#>  to Status 2    from:2    9.261 2.957  3.13 0.001736   10523.390
-#>  to Status 2   poverty    1.312 0.470  2.79 0.005255       3.713
+#>  to Status 2    from:2    9.261 2.959  3.13 0.001752   10523.390
+#>  to Status 2   poverty    1.312 0.470  2.79 0.005267       3.713
 #> 
 #>   [occasion 3 -> 4]
 #>       Status      Term Estimate    SE     z        p        OR
-#>  to Status 1 Intercept   -6.528 1.070 -6.10 1.05e-09     0.001
-#>  to Status 1    from:1    6.369 1.085  5.87 4.42e-09   583.569
-#>  to Status 1    from:2    0.567 1.355  0.42 0.675617     1.763
-#>  to Status 1   poverty    0.919 0.251  3.66 0.000255     2.507
-#>  to Status 2 Intercept   -8.730 2.994 -2.92 0.003553     0.000
-#>  to Status 2    from:1    9.225 2.999  3.08 0.002098 10151.021
-#>  to Status 2    from:2    6.704 2.996  2.24 0.025226   815.713
-#>  to Status 2   poverty    0.806 0.150  5.36 8.25e-08     2.239
+#>  to Status 1 Intercept   -6.528 1.072 -6.09 1.13e-09     0.001
+#>  to Status 1    from:1    6.369 1.088  5.86 4.74e-09   583.569
+#>  to Status 1    from:2    0.567 1.359  0.42 0.676411     1.763
+#>  to Status 1   poverty    0.919 0.251  3.66 0.000256     2.507
+#>  to Status 2 Intercept   -8.730 2.997 -2.91 0.003586     0.000
+#>  to Status 2    from:1    9.225 3.002  3.07 0.002120 10151.021
+#>  to Status 2    from:2    6.704 2.999  2.24 0.025371   815.713
+#>  to Status 2   poverty    0.806 0.150  5.36 8.28e-08     2.239
 #> 
 #> Standard errors are the three-step (pseudo-maximum-likelihood) ones:
 #> the curvature of step 3's likelihood in these coefficients, plus the

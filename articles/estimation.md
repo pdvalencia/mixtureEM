@@ -349,6 +349,23 @@ Splitting the sample into subgroups widens these basins, because the
 pile-up makes up a larger share of each smaller sample, so a model that
 looks clean on the whole sample deserves the check again on the parts.
 
+One check runs on its own. After the search, every converged start is
+scored again with its single best-fitted case removed — the 1-deleted
+log-likelihood Seo & Lindsay (2010, sec. 4) suggest for choosing between
+maxima. A real subgroup survives losing one case; a spike does not,
+because most of its height came from that case. When some other start
+beats the reported one on this score,
+[`print()`](https://rdrr.io/r/base/print.html) adds a `Spike check`
+line: the reported maximum may rest on a few observations rather than on
+a subgroup. The answer is not changed — the reported fit is still the
+highest — and the numbers are in `$metrics` (`kdel_ll`, `kdel_best`,
+`kdel_disagrees`). With the default constants the score is taken on the
+same penalised scale the search ranks on, so the line appears only when
+one case, not the prior, decides the order. It is silent on a class that
+has wrapped itself around a single outlier, since the rest of that
+solution still fits the other cases best; the collapsed-variance warning
+covers that one.
+
 ## Transitions get their own prior
 
 [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
@@ -476,6 +493,10 @@ McLachlan, G. J., & Peel, D. (2000). *Finite Mixture Models*. Wiley.
 Nylund-Gibson, K., & Choi, A. Y. (2018). Ten frequently asked questions
 about latent class analysis. *Translational Issues in Psychological
 Science*, *4*(4), 440-461.
+
+Seo, B., & Lindsay, B. G. (2010). A computational strategy for doubly
+smoothed MLE exemplified in the normal mixture model. *Computational
+Statistics & Data Analysis*, *54*(8), 1930-1941.
 
 Shireman, E., Steinley, D., & Brusco, M. J. (2017). Examining the effect
 of initialization strategies on the performance of Gaussian mixture

@@ -237,6 +237,7 @@ results <- summary(fit_cov)
 #> =========================================================
 #>              STRUCTURAL MODEL SUMMARY                    
 #> =========================================================
+#>   Best solution  : found by 26 of 30 starts
 #> 
 #> CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)
 #> Reference Class: 1
@@ -292,20 +293,20 @@ tables invisibly, so the odds ratios are available as a data frame:
 ``` r
 
 head(results$coefficients)
-#>   class                                term    estimate         se          z
-#> 1     2                           Intercept  0.33366232 0.89259365  0.3738121
-#> 2     2                          sex.Female  1.01254307 0.45777196  2.2118940
-#> 3     2                                 age -0.06928884 0.03690748 -1.8773658
-#> 4     2 sexual_orientation.Not heterosexual -0.11389010 0.45895681 -0.2481499
-#> 5     2          relationship_duration.Long  0.13361840 0.38978411  0.3428010
-#> 6     3                           Intercept -1.42973254 0.60311835 -2.3705671
+#>   class                                term    estimate        se         z
+#> 1     2                           Intercept  0.33366232 0.8925938  0.373812
+#> 2     2                          sex.Female  1.01254307 0.4577726  2.211891
+#> 3     2                                 age -0.06928884 0.0369074 -1.877370
+#> 4     2 sexual_orientation.Not heterosexual -0.11389010 0.4589567 -0.248150
+#> 5     2          relationship_duration.Long  0.13361840 0.3897853  0.342800
+#> 6     3                           Intercept -1.42973254 0.6031192 -2.370564
 #>            p        OR   OR_lower  OR_upper
-#> 1 0.70854411 1.3960716 0.24272620 8.0296896
-#> 2 0.02697399 2.7525921 1.12222129 6.7515771
-#> 3 0.06046797 0.9330571 0.86794451 1.0030545
-#> 4 0.80401840 0.8923560 0.36296624 2.1938659
-#> 5 0.73174814 1.1429566 0.53240093 2.4536955
-#> 6 0.01776082 0.2393729 0.07339903 0.7806561
+#> 1 0.70854416 1.3960716 0.24272612 8.0296923
+#> 2 0.02697419 2.7525921 1.12221995 6.7515852
+#> 3 0.06046744 0.9330571 0.86794464 1.0030543
+#> 4 0.80401833 0.8923560 0.36296635 2.1938652
+#> 5 0.73174895 1.1429566 0.53239965 2.4537014
+#> 6 0.01776097 0.2393729 0.07339892 0.7806573
 ```
 
 Reference class 1 is Fidelity (the largest class). Reading the odds

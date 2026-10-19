@@ -143,7 +143,12 @@ unasked. The other is that the test does not deserve to be printed as a
 matter of course. Vermunt (2024) concludes that "neither of the two
 implementations yield uniformly distributed p-values under the correct
 null hypothesis, indicating this test is not the best model selection
-tool in mixture modeling".
+tool in mixture modeling". Arch and Nylund-Gibson (2026) likewise found
+VLMR unreliable across their simulation conditions and advise against it
+as a standalone index. The same study is why the `-> Best model` line
+and `best_k` use `BIC` alone: it and `CAIC` were the most reliable
+indices there; see
+[`print.mixture_comparison()`](https://pdvalencia.github.io/mixtureEM/reference/print.mixture_comparison.md).
 
 The two versions of the test differ only in which covariance matrix of
 the parameters enters the reference distribution: the ordinary one
@@ -179,6 +184,11 @@ no entropy threshold: the decision needs the substantive context this
 function does not have.
 
 ## References
+
+Arch, D. A. N., & Nylund-Gibson, K. (2026). Unmodeled DIF in latent
+class analysis: Consequences for class enumeration. *Methods in
+Psychology*, *14*, 100243.
+[doi:10.1016/j.metip.2026.100243](https://doi.org/10.1016/j.metip.2026.100243)
 
 Nylund, K. L., Asparouhov, T., & Muthen, B. O. (2007). Deciding on the
 number of classes in latent class analysis and growth mixture modeling:

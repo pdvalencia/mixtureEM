@@ -108,11 +108,13 @@ set.seed(2)
 free_v <- fit_mixture(ind, n_classes = 3, measurement = "continuous",
                       variances_equal = FALSE, n_init = 30)
 #> Warning: A class variance has collapsed towards the boundary: report in class 2
-#> (variance 0.0101 vs 1.96 for the item overall). These estimates are not
-#> interpretable, and this fit's BIC cannot be compared with a clean fit's. Ways
-#> out, to choose between on substantive grounds: (1) variances_equal = TRUE; (2)
-#> fewer classes; or (3) a stronger variance prior, bayes_constants =
-#> list(variances = 3). See ?fit_mixture for why, and what to check afterwards.
+#> (97% at 1, a data boundary; variance 0.0101 vs 1.96 overall). Every start ended
+#> on a class sitting on one value, so there was no other solution to report.
+#> These estimates are not interpretable, and this fit's BIC cannot be compared
+#> with a clean fit's. Ways out, to choose between on substantive grounds: (1)
+#> variances_equal = TRUE; (2) fewer classes; or (3) a stronger variance prior,
+#> bayes_constants = list(variances = 3). See ?fit_mixture for why, and what to
+#> check afterwards.
 ```
 
 Freeing the residual variances lets a class shrink onto a handful of
@@ -127,18 +129,26 @@ set.seed(2)
 free_v_fixed <- fit_mixture(ind, n_classes = 3, measurement = "continuous",
                             variances_equal = FALSE, n_init = 30,
                             bayes_constants = list(variances = 3))
+#> Warning: A class variance has collapsed towards the boundary: report in class 3
+#> (92% at 1, a data boundary; variance 0.0381 vs 1.96 overall). Every start ended
+#> on a class sitting on one value, so there was no other solution to report.
+#> These estimates are not interpretable, and this fit's BIC cannot be compared
+#> with a clean fit's. Ways out, to choose between on substantive grounds: (1)
+#> variances_equal = TRUE; (2) fewer classes; or (3) a stronger variance prior,
+#> bayes_constants = list(variances = 3). See ?fit_mixture for why, and what to
+#> check afterwards.
 free_v_fixed
 #> =========================================================
 #>                   LATENT MIXTURE MODEL                   
 #> =========================================================
 #> Classes Estimated  : 3
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 40 iterations)
+#> Converged          : TRUE (in 10 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1929.58
 #>   Parameters     : 32
 #>   AIC            : 3923.16
-#>   BIC            : 4041.69
+#>   BIC            : 4041.69 (inflated by the variance collapse; see note below)
 #>   SABIC          : 3940.20
 #>   Rel. Entropy   : 0.8732
 #>   Best solution  : found by 26 of 30 starts
@@ -148,6 +158,12 @@ free_v_fixed
 #>   Class 2: 30.11%
 #>   Class 3: 28.69%
 #> =========================================================
+#> 
+#> WARNING - collapsed class variance:
+#>   report in class 3 (92% at 1, a data boundary; variance 0.0381 vs 1.96 overall)
+#>   These estimates are not interpretable, and this fit's BIC cannot be
+#>   compared with a clean one's. See ?fit_mixture for what to do.
+#> 
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 ```
 
@@ -234,10 +250,12 @@ covs <- add_covariates(
   data = liang_park_sim
 )
 #> Using 'ML' bias correction (set `correction` to override).
+#> 4 cases missing a predictor were left out of the class-membership regression (n = 296 used). Set `missing_predictors = "mean"` to complete them instead.
 summary(covs)
 #> =========================================================
 #>              STRUCTURAL MODEL SUMMARY                    
 #> =========================================================
+#>   Best solution  : found by 20 of 20 starts
 #> 
 #> CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)
 #> Reference Class: 1
@@ -246,38 +264,38 @@ summary(covs)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept               15.248  [    0.462,   503.232]     0.127
-#>   age                      0.987  [    0.955,     1.020]     0.445
-#>   male                     4.508  [    2.256,     9.011]    < .001
-#>   sh_experience            0.538  [    0.239,     1.211]     0.134
-#>   org_intolerance_sh       1.823  [    1.113,     2.986]     0.017
-#>   masc_job_context         0.630  [    0.155,     2.569]     0.520
-#>   anger                    0.577  [    0.334,     0.999]     0.050
-#>   empathy                  0.874  [    0.490,     1.561]     0.650
-#>   curb_expectancy          0.608  [    0.386,     0.958]     0.032
+#>   Intercept               11.497  [    0.352,   375.161]     0.170
+#>   age                      0.989  [    0.956,     1.022]     0.493
+#>   male                     4.501  [    2.242,     9.039]    < .001
+#>   sh_experience            0.564  [    0.252,     1.262]     0.163
+#>   org_intolerance_sh       1.858  [    1.119,     3.085]     0.017
+#>   masc_job_context         0.692  [    0.163,     2.926]     0.616
+#>   anger                    0.551  [    0.318,     0.955]     0.034
+#>   empathy                  0.908  [    0.508,     1.622]     0.744
+#>   curb_expectancy          0.619  [    0.389,     0.984]     0.042
 #> 
 #> Class 3 ON
-#>   Intercept                0.000  [    0.000,     0.058]     0.002
-#>   age                      0.968  [    0.935,     1.001]     0.058
-#>   male                     1.413  [    0.661,     3.023]     0.373
-#>   sh_experience            1.636  [    0.892,     3.003]     0.112
-#>   org_intolerance_sh       1.576  [    1.054,     2.357]     0.027
-#>   masc_job_context         0.339  [    0.085,     1.352]     0.125
-#>   anger                    2.778  [    1.237,     6.239]     0.013
-#>   empathy                  1.125  [    0.605,     2.090]     0.710
-#>   curb_expectancy          1.346  [    0.798,     2.270]     0.265
+#>   Intercept                0.001  [    0.000,     0.075]     0.003
+#>   age                      0.965  [    0.933,     0.999]     0.047
+#>   male                     1.398  [    0.657,     2.976]     0.385
+#>   sh_experience            1.563  [    0.852,     2.867]     0.149
+#>   org_intolerance_sh       1.556  [    1.046,     2.316]     0.029
+#>   masc_job_context         0.330  [    0.081,     1.338]     0.121
+#>   anger                    2.777  [    1.218,     6.332]     0.015
+#>   empathy                  1.136  [    0.609,     2.119]     0.689
+#>   curb_expectancy          1.292  [    0.770,     2.167]     0.332
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   age                        3.597    2     0.166
-#>   male                      18.975    2    < .001
-#>   sh_experience              6.443    2     0.040
-#>   org_intolerance_sh         8.707    2     0.013
-#>   masc_job_context           2.364    2     0.307
-#>   anger                     14.541    2    < .001
-#>   empathy                    0.565    2     0.754
-#>   curb_expectancy            8.491    2     0.014
+#>   age                        3.953    2     0.139
+#>   male                      18.682    2    < .001
+#>   sh_experience              5.433    2     0.066
+#>   org_intolerance_sh         8.665    2     0.013
+#>   masc_job_context           2.411    2     0.300
+#>   anger                     15.501    2    < .001
+#>   empathy                    0.438    2     0.803
+#>   curb_expectancy            7.267    2     0.026
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================
@@ -311,6 +329,7 @@ summary(add_outcome(fit, liang_park_sim$harasser_aggression,
 #> =========================================================
 #>              STRUCTURAL MODEL SUMMARY                    
 #> =========================================================
+#>   Best solution  : found by 20 of 20 starts
 #> 
 #> CONTINUOUS DISTAL OUTCOME (MEANS)
 #> ---------------------------------------------------------
@@ -334,6 +353,7 @@ summary(add_outcome(fit, liang_park_sim$target_gratitude,
 #> =========================================================
 #>              STRUCTURAL MODEL SUMMARY                    
 #> =========================================================
+#>   Best solution  : found by 20 of 20 starts
 #> 
 #> CONTINUOUS DISTAL OUTCOME (MEANS)
 #> ---------------------------------------------------------
@@ -357,6 +377,7 @@ summary(add_outcome(fit, liang_park_sim$third_party_elevation,
 #> =========================================================
 #>              STRUCTURAL MODEL SUMMARY                    
 #> =========================================================
+#>   Best solution  : found by 20 of 20 starts
 #> 
 #> CONTINUOUS DISTAL OUTCOME (MEANS)
 #> ---------------------------------------------------------
@@ -442,6 +463,23 @@ classification_diagnostics(fit)
 #>      1      0.423 0.423 0.947 24.449
 #>      2      0.296 0.297 0.966 67.678
 #>      3      0.281 0.280 0.953 51.836
+#> 
+#> Class separation: Mahalanobis distance between class means, 
+#> against the pooled within-class variance
+#>         Class 1 Class 2 Class 3
+#> Class 1   0.000   4.371   4.035
+#> Class 2   4.371   0.000   7.355
+#> Class 3   4.035   7.355   0.000
+#> attr(,"min")
+#> [1] 4.034502
+#> Smallest distance between two classes: 4.035
+#> 
+#> Modal minus probability-weighted class means of the indicators 
+#> (how far exporting a modal class variable moves each profile)
+#>         confront distract support report discuss
+#> Class 1   -0.019    0.022   0.019 -0.010   0.020
+#> Class 2   -0.017    0.001  -0.009  0.015   0.004
+#> Class 3    0.055   -0.027  -0.009  0.009  -0.027
 ```
 
 ## References

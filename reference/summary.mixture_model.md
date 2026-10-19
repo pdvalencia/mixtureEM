@@ -47,5 +47,6 @@ X <- matrix(rbinom(500, 1, 0.5), nrow = 100)
 fit <- fit_mixture(X, n_components = 2, measurement = "binary")
 #> Note: `X`, `Y`, `n_components`, and `structural` are the legacy interface. The current arguments are `indicators`, `n_classes`, `predictors`, and `outcome` / `outcome_covariates`.
 summary(fit)
+#>   Best solution  : found by 20 of 20 starts
 #> Notice: No structural model found. Use measurement_summary() for item parameters.
 ```

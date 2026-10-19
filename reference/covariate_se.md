@@ -22,10 +22,11 @@ selects among three estimators of the covariate covariance matrix.
   term that vanishes asymptotically. \\D_1\\ needs the step-1 model in
   an unconstrained parameterisation, which exists for binary,
   categorical, count and continuous indicators, alone, mixed, in time
-  blocks, by group, or with item DIF. For a growth mixture model or an
-  LCGA as step 1, the `"robust"` estimator is reported instead, with a
-  warning, and [`summary()`](https://rdrr.io/r/base/summary.html) names
-  it.
+  blocks, by group, or with item DIF, and for a growth mixture model or
+  an LCGA as step 1. A growth step 1 is put on the scale its estimation
+  works on (growth-factor means, covariance elements, log residual
+  standard deviations); the corrected variance does not depend on that
+  choice, because \\J\\ and \\D_1\\ change by the same Jacobian.
 
 - `"robust"`:
 
@@ -72,7 +73,9 @@ Under `correction = "BCH"` there is no classification table: step 3 is
 fitted to the BCH-weighted log-likelihood, and `"corrected"` is its
 sandwich clustered on the case plus \\J D_1 J'\\, with step 1 reaching
 step 3 through the BCH weights rebuilt from the moved posteriors. The
-other two settings report the Hessian of that weighted fit.
+other two settings report the case-clustered sandwich alone: the Hessian
+of the weighted fit counts each case fully in every class and is too
+narrow.
 
 How much this matters depends almost entirely on how well separated the
 classes are. A 250-replication coverage study on the design of Bakk et
@@ -161,19 +164,21 @@ distal outcomes (`add_outcome(predictors = )`, `correction = "ML"`) are
 covered too: the step-1 term is taken over the whole joint parameter
 vector, so the outcome parameters carry it as well. Under modal
 assignment the derivative holds each case's assigned class fixed and
-moves only the classification table built from it. Three cases fall back
-to the uncorrected Hessian, and say so in the printed output:
-`correction = "BCH"` (whose weights need their own variance treatment,
-and which is not recommended for covariates in any case; with
-`predictors` it reports the case-clustered sandwich); `n_steps = 1`,
-where measurement and structural parameters are estimated jointly and no
-carry-over correction applies; and a two-step fit whose structural model
-is a distal outcome rather than class predictors. The step-1 term
-additionally requires a measurement model whose parameters this package
-can put on an unconstrained scale — binary, polytomous, Gaussian, count,
-mixed, and repeated-measures models qualify; growth models do not, and
-there the robust sandwich (three-step) or \\V_2\\ (two-step) is reported
-instead.
+moves only the classification table built from it. `correction = "BCH"`
+(not recommended for covariates) reports the case-clustered sandwich of
+its weighted fit, with the step-1 term added under `"corrected"`. Two
+cases fall back to the uncorrected Hessian, and say so in the printed
+output: `n_steps = 1`, where measurement and structural parameters are
+estimated jointly and no carry-over correction applies; and a two-step
+fit whose structural model is a distal outcome rather than class
+predictors. The step-1 term additionally requires a measurement model
+whose parameters this package can put on an unconstrained scale —
+binary, polytomous, Gaussian, count, mixed, and repeated-measures models
+qualify, and growth models
+([`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md),
+[`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md))
+qualify for the three-step term. A two-step fit on a growth step 1 does
+not carry it yet: there \\V_2\\ is reported instead, with a warning.
 
 ## References
 

@@ -25,3 +25,5 @@
 
 - [What mixtureEM Estimates, and
   Why](https://pdvalencia.github.io/mixtureEM/articles/estimation.md):
+- [Reporting a Mixture
+  Model](https://pdvalencia.github.io/mixtureEM/articles/reporting.md):

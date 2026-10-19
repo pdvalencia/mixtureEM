@@ -51,8 +51,13 @@ with no spread left, and a start that ends there outscores every meaningful
 solution while describing the ties rather than a subgroup. The search
 therefore counts such a start as one that did not converge and reports the
 best of the others (McLachlan &amp;amp; Peel, 2000, ch. 3); the print method says
-how many were set aside. Only when every start ends that way is such a
-point reported, with a warning.
+how many were set aside. A start is set aside when a class whose variances
+are its own – psi or the residual variances free by class – has more
+than 90% of itself on one value of an occasion. That is the rule every model
+in the package applies to its own variances, so a latent profile model, a
+latent transition model and a growth model call the same solution
+degenerate. Only when every start ends that way is such a point reported,
+with a warning.
 Contrast fit_lcga(), which fixes the growth-factor variances at zero, so
 every case in a class sits on that class's curve up to occasion-level noise.
 LCGA is the more parsimonious model and, in criminology especially, often the
@@ -110,8 +115,13 @@ with no spread left, and a start that ends there outscores every meaningful
 solution while describing the ties rather than a subgroup. The search
 therefore counts such a start as one that did not converge and reports the
 best of the others (McLachlan &amp;amp; Peel, 2000, ch. 3); the print method says
-how many were set aside. Only when every start ends that way is such a
-point reported, with a warning.
+how many were set aside. A start is set aside when a class whose variances
+are its own – psi or the residual variances free by class – has more
+than 90% of itself on one value of an occasion. That is the rule every model
+in the package applies to its own variances, so a latent profile model, a
+latent transition model and a growth model call the same solution
+degenerate. Only when every start ends that way is such a point reported,
+with a warning.
 Contrast fit_lcga(), which fixes the growth-factor variances at zero, so
 every case in a class sits on that class's curve up to occasion-level noise.
 LCGA is the more parsimonious model and, in criminology especially, often the
@@ -125,7 +135,7 @@ made on BIC."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -146,6 +156,7 @@ made on BIC."></head><body>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="../articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -217,8 +228,13 @@ with no spread left, and a start that ends there outscores every meaningful
 solution while describing the ties rather than a subgroup. The search
 therefore counts such a start as one that did not converge and reports the
 best of the others (McLachlan &amp; Peel, 2000, ch. 3); the print method says
-how many were set aside. Only when every start ends that way is such a
-point reported, with a warning.</p>
+how many were set aside. A start is set aside when a class whose variances
+are its own – <code>psi</code> or the residual variances free by class – has more
+than 90% of itself on one value of an occasion. That is the rule every model
+in the package applies to its own variances, so a latent profile model, a
+latent transition model and a growth model call the same solution
+degenerate. Only when every start ends that way is such a point reported,
+with a warning.</p>
 <p>Contrast <code><a href="fit_lcga.html">fit_lcga()</a></code>, which fixes the growth-factor variances at zero, so
 every case in a class sits on that class's curve up to occasion-level noise.
 LCGA is the more parsimonious model and, in criminology especially, often the

@@ -8,7 +8,11 @@ The test uses whichever analytical variance the model was fitted with (see
 covariate_se) and names it in the returned Method
 column. For small samples or poorly conditioned Hessians, consider
 wald_omnibus_test instead, which uses bootstrapped standard
-errors from bootstrap_covariates.
+errors from bootstrap_covariates. To test any other
+hypothesis about the coefficients – that two classes share a coefficient,
+or that a coefficient takes a stated value – use wald_test,
+which takes the constraints directly; with every one of this covariate's
+coefficients set to zero it gives this same statistic.
 A caveat that applies to any Wald test of a strong effect: under the
 Hauck-Donner phenomenon a coefficient large enough to nearly separate a
 class drives the Wald statistic back towards zero. A non-significant omnibus
@@ -22,7 +26,11 @@ The test uses whichever analytical variance the model was fitted with (see
 covariate_se) and names it in the returned Method
 column. For small samples or poorly conditioned Hessians, consider
 wald_omnibus_test instead, which uses bootstrapped standard
-errors from bootstrap_covariates.
+errors from bootstrap_covariates. To test any other
+hypothesis about the coefficients – that two classes share a coefficient,
+or that a coefficient takes a stated value – use wald_test,
+which takes the constraints directly; with every one of this covariate's
+coefficients set to zero it gives this same statistic.
 A caveat that applies to any Wald test of a strong effect: under the
 Hauck-Donner phenomenon a coefficient large enough to nearly separate a
 class drives the Wald statistic back towards zero. A non-significant omnibus
@@ -35,7 +43,7 @@ light; a likelihood-ratio or bootstrap test settles it."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -56,6 +64,7 @@ light; a likelihood-ratio or bootstrap test settles it."></head><body>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="../articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -84,7 +93,11 @@ simultaneously; the degrees of freedom are
 <code><a href="covariate_se.html">covariate_se</a></code>) and names it in the returned <code>Method</code>
 column. For small samples or poorly conditioned Hessians, consider
 <code><a href="wald_omnibus_test.html">wald_omnibus_test</a></code> instead, which uses bootstrapped standard
-errors from <code><a href="bootstrap_covariates.html">bootstrap_covariates</a></code>.</p>
+errors from <code><a href="bootstrap_covariates.html">bootstrap_covariates</a></code>. To test any other
+hypothesis about the coefficients – that two classes share a coefficient,
+or that a coefficient takes a stated value – use <code><a href="wald_test.html">wald_test</a></code>,
+which takes the constraints directly; with every one of this covariate's
+coefficients set to zero it gives this same statistic.</p>
 <p>A caveat that applies to any Wald test of a strong effect: under the
 Hauck-Donner phenomenon a coefficient large enough to nearly separate a
 class drives the Wald statistic back towards zero. A non-significant omnibus

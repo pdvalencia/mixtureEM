@@ -61,35 +61,35 @@ fit_lcga2
 #> 
 #> GROWTH COEFFICIENTS (link scale)
 #>         intercept linear
-#> Class 1     1.824  0.037
-#> Class 2     5.766 -0.592
+#> Class 1     1.823  0.037
+#> Class 2     5.771 -0.593
 #> 
 #> FITTED TRAJECTORY (mean)
 #>            T1    T2    T3    T4    T5
-#> Class 1 1.824 1.861 1.898 1.935 1.972
-#> Class 2 5.766 5.174 4.582 3.991 3.399
+#> Class 1 1.823 1.860 1.897 1.934 1.972
+#> Class 2 5.771 5.178 4.586 3.993 3.400
 #> 
 #> RESIDUAL VARIANCE (within class, constant over occasions)
 #>          Class 1 Class 2
-#> Variance   1.513   1.754
+#> Variance   1.514   1.752
 #> =========================================================
 #>                   LATENT MIXTURE MODEL                   
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 19 iterations)
+#> Converged          : TRUE (in 22 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -6245.41
 #>   Parameters     : 7
-#>   AIC            : 12504.83
-#>   BIC            : 12536.69
-#>   SABIC          : 12514.46
-#>   Rel. Entropy   : 0.9175
+#>   AIC            : 12504.82
+#>   BIC            : 12536.68
+#>   SABIC          : 12514.45
+#>   Rel. Entropy   : 0.9176
 #>   Best solution  : found by 15 of 15 starts
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 55.63%
-#>   Class 2: 44.37%
+#>   Class 1: 55.65%
+#>   Class 2: 44.35%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 ```
@@ -165,7 +165,7 @@ data.frame(
   bic   = c(fit_lcga2$metrics$bic, fit_gmm2$metrics$bic)
 )
 #>              model        ll      bic
-#> 1 LCGA (2 classes) -6245.414 12536.69
+#> 1 LCGA (2 classes) -6245.409 12536.68
 #> 2  GMM (2 classes) -5570.910 11226.98
 ```
 
@@ -181,6 +181,52 @@ plot(fit_gmm2, class_labels = c("Stable low", "Declining"))
 
 ![](growth_mixture_files/figure-html/plot-1.png)
 
+## Standard errors and tests
+
+[`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)
+lists every growth parameter with its standard error, one row per
+parameter and class. The default is the sandwich (`"robust"`) estimator,
+which stays valid when the within-class distributions are not exactly
+normal; `se = "hessian"` gives the model-based one:
+
+``` r
+
+est <- growth_estimates(fit_gmm2)
+est[est$parameter %in% c("growth_mean", "growth_variance"),
+    c("parameter", "item", "class", "estimate", "se")]
+#>         parameter      item class    estimate          se
+#> 1     growth_mean intercept     1  1.89764005 0.058099807
+#> 2     growth_mean intercept     2  6.01585549 0.071905850
+#> 3     growth_mean    linear     1  0.08906937 0.017518578
+#> 4     growth_mean    linear     2 -0.72402202 0.022234878
+#> 5 growth_variance intercept     1  0.76543604 0.075246580
+#> 6 growth_variance intercept     2  0.76543604 0.075246580
+#> 7 growth_variance    linear     1  0.05595402 0.007760327
+#> 8 growth_variance    linear     2  0.05595402 0.007760327
+```
+
+The growth-factor variances are the same in both classes because the
+default `psi = "equal"` holds them equal; `psi = "variances"` frees them
+by class and `psi = "free"` frees the covariances too.
+
+[`wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_test.md)
+tests linear constraints on those parameters by their labels,
+`"<parameter>[<item>, <class>]"`, without refitting the model. Do the
+two classes change at the same average rate?
+
+``` r
+
+wald_test(fit_gmm2, list(c("growth_mean[linear, 1]",
+                           "growth_mean[linear, 2]")))
+#> =========================================================
+#>                 WALD TEST (CONSTRAINTS)                  
+#> =========================================================
+#>   Method    : Sandwich (robust)
+#> ---------------------------------------------------------
+#>   Wald χ²(1) = 873.702,  p < .001
+#> =========================================================
+```
+
 ## Covariates, two different questions
 
 Two kinds of covariate enter a growth mixture model, and they answer
@@ -192,29 +238,30 @@ different questions:
 ``` r
 
 x_member <- rnorm(n, mean = 0.7 * cls)
-fit_cov  <- add_covariates(fit_gmm2, x_member, se = "robust")
+fit_cov  <- add_covariates(fit_gmm2, x_member)
 #> Using 'ML' bias correction (set `correction` to override).
 results  <- summary(fit_cov)
 #> =========================================================
 #>              STRUCTURAL MODEL SUMMARY                    
 #> =========================================================
+#>   Best solution  : found by 4 of 4 starts that ran to convergence (of 15 requested)
 #> 
 #> CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)
 #> Reference Class: 1
-#> Standard errors: Step-3 sandwich (robust)
+#> Standard errors: Bakk-Oberski-Vermunt corrected (robust step 3, hessian step 1)
 #> ---------------------------------------------------------
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.562  [    0.472,     0.671]    < .001
-#>   x_member                 1.817  [    1.537,     2.148]    < .001
+#>   Intercept                0.562  [    0.470,     0.673]    < .001
+#>   x_member                 1.817  [    1.536,     2.149]    < .001
 #> =========================================================
 ```
 
-The default `se = "corrected"` adds step 1’s uncertainty to the step-3
-sandwich, and that correction is not yet available for a growth model,
-so the sandwich is requested by name. Its intervals treat the growth
-model as known and are too narrow when the classes overlap; see
+The default `se = "corrected"` adds the growth model’s own uncertainty
+to the step-3 sandwich, so the intervals do not treat the trajectory
+classes as known; `se = "robust"` leaves that part out and is too narrow
+when the classes overlap. See
 [`?covariate_se`](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md).
 
 - **Who, within a class, starts higher or declines faster?** —
@@ -379,43 +426,67 @@ blrt(k_small = 2, k_large = 3, from_fit = fit_gmm2, n_reps = 100)
   fix it: more starts means more chances of finding the spike, and a
   solution that only one start in fifty reaches is evidence about the
   specification rather than about the search (Hipp & Bauer, 2006).
-- **A lower log-likelihood is not always a worse answer.** The
-  growth-factor covariance is constrained here to be positive
-  semi-definite, and the residual variances to be positive. An
-  unconstrained optimiser can reach a negative variance, or variances
-  that are each positive while implying a correlation greater than one
-  in absolute value — and the likelihood at such a solution is evaluated
-  outside the parameter space, so it is not comparable with one that is
-  inside it. When a published analysis of the same model reports a
-  higher likelihood, check its covariance matrix before concluding
-  anything: an admissible solution with a smaller likelihood is the
-  reportable one. The right response to a model that cannot produce a
-  proper solution is Berlin, Parra and Williams’s (2014): to report that
-  no reasonable and proper solution was found, and to simplify the
-  specification.
-- Class enumeration is harder than in cross-sectional LCA: BIC, the
-  plotted trajectories against observed means, and substantive
-  interpretability should all agree before a solution is reported
-  (Nylund et al., 2007). Checklists for reporting a trajectory study
-  (van de Schoot et al., 2017) ask for the one-class solution, the
-  criteria at every class count, the class sizes and the classification
-  diagnostics;
-  [`compare_longitudinal()`](https://pdvalencia.github.io/mixtureEM/reference/compare_longitudinal.md),
-  [`class_sizes()`](https://pdvalencia.github.io/mixtureEM/reference/class_sizes.md)
-  and
-  [`classification_diagnostics()`](https://pdvalencia.github.io/mixtureEM/reference/classification_diagnostics.md)
-  supply them.
-- **Enumerate before you restrict the within-class model, not after.**
-  Liu
-  2011. recommends fitting the least restrictive trajectory model first
-        — an LCGA or GMM with `random_effects = "intercept_slope"` and
-        `residual = "occasion"` rather than a single shared residual —
-        and imposing a simpler covariance structure only once the class
-        count is settled, because “within-class model misspecification
-        might lead to spurious latent classes”. Deciding K on the most
-        restrictive model in the sequence risks a class count that is
-        compensating for structure the model was not given, rather than
-        describing a real subgroup.
+- **An impossible variance is a message about the model, not a failed
+  fit.** The residual variances are kept positive, and each class’s
+  covariance of the repeated measures must stay positive definite, but
+  the growth-factor covariance itself is not bounded: when the data have
+  almost no person-to-person variation in a growth factor, its estimated
+  variance can land slightly below zero, or two factors can imply a
+  correlation beyond one. mixtureEM reports such a fit as estimated,
+  with a warning. Here every member of a class declines at exactly the
+  class’s rate, so the true slope variance is zero:
+
+``` r
+
+set.seed(1)
+m  <- 300
+c2 <- rbinom(m, 1, 0.4)
+Z  <- outer(ifelse(c2 == 1, 6, 2) + rnorm(m, 0, 0.9), rep(1, 5)) +
+  outer(ifelse(c2 == 1, -0.7, 0.05), waves) +
+  matrix(rnorm(m * 5, 0, 0.8), m, 5)
+fit_neg <- fit_gmm(Z, times = 5, n_classes = 2, n_init = 10,
+                   random_state = 1)
+#> Warning: The growth-factor covariance is outside its usual range: the linear
+#> variance is -0.003537. This is not an estimation failure. Every class's
+#> covariance of the repeated measures is positive definite, so the
+#> log-likelihood, BIC and the other estimates are a valid maximum and are
+#> reported as estimated, with no bound applied and no parameter dropped from the
+#> count. The impossible value itself should not be interpreted as a variance or a
+#> correlation: a negative variance is consistent with one that is truly zero, and
+#> the model without that random effect is the matching one (random_effects =
+#> "intercept" keeps only the intercept's; with no growth-factor variance left,
+#> fit_lcga()); under a covariance held equal across classes it can also mean the
+#> classes' covariances differ and the constraint forces one value on them; psi =
+#> "free" estimates them by class. Compare the fits on BIC.
+```
+
+The log-likelihood and BIC of such a fit are a valid maximum, but the
+negative value should not be read as a variance. It is what a variance
+that is truly zero looks like when it is estimated with noise on both
+sides of zero, and the matching model drops that random effect
+(`random_effects = "intercept"`); BIC then chooses between the two. When
+no specification produces a proper solution, report that, as Berlin,
+Parra and Williams (2014) recommend, and simplify. \* Class enumeration
+is harder than in cross-sectional LCA: BIC, the plotted trajectories
+against observed means, and substantive interpretability should all
+agree before a solution is reported (Nylund et al., 2007). Checklists
+for reporting a trajectory study (van de Schoot et al., 2017) ask for
+the one-class solution, the criteria at every class count, the class
+sizes and the classification diagnostics;
+[`compare_longitudinal()`](https://pdvalencia.github.io/mixtureEM/reference/compare_longitudinal.md),
+[`class_sizes()`](https://pdvalencia.github.io/mixtureEM/reference/class_sizes.md)
+and
+[`classification_diagnostics()`](https://pdvalencia.github.io/mixtureEM/reference/classification_diagnostics.md)
+supply them. \* **Enumerate before you restrict the within-class model,
+not after.** Liu (2011) recommends fitting the least restrictive
+trajectory model first — an LCGA or GMM with
+`random_effects = "intercept_slope"` and `residual = "occasion"` rather
+than a single shared residual — and imposing a simpler covariance
+structure only once the class count is settled, because “within-class
+model misspecification might lead to spurious latent classes”. Deciding
+K on the most restrictive model in the sequence risks a class count that
+is compensating for structure the model was not given, rather than
+describing a real subgroup.
 
 ## References
 

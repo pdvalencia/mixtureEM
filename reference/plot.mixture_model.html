@@ -57,7 +57,7 @@ Uses only base graphics and the colour-blind-friendly Okabe-Ito palette."></head
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -78,6 +78,7 @@ Uses only base graphics and the colour-blind-friendly Okabe-Ito palette."></head
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="../articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -135,6 +136,8 @@ shape depends on the sample's most extreme observation.</p>
 <span>  class_labels <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  colors <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  scale <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"total"</span>, <span class="st">"within"</span><span class="op">)</span>,</span>
+<span>  error_bars <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  level <span class="op">=</span> <span class="fl">0.95</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -178,6 +181,18 @@ literature and is what makes the figure invariant to pre-standardization.
 classes, giving a Cohen's-d-like reading against residual rather than total
 dispersion. <code>"within"</code> is arguably the more informative quantity; it is not
 the default because it is not what applied papers plot.</p></dd>
+
+
+<dt id="arg-error-bars">error_bars<a class="anchor" aria-label="anchor" href="#arg-error-bars"></a></dt>
+<dd><p>For <code>type = "bar"</code> only: draw a confidence interval on
+each bar, from the standard error of the class mean
+(<code><a href="measurement_estimates.html">measurement_estimates()</a></code>, robust estimator) divided by the same
+denominator as the bar. Off by default. The intervals are conditional on
+the number of classes, and treat the z-score's denominator as fixed.</p></dd>
+
+
+<dt id="arg-level">level<a class="anchor" aria-label="anchor" href="#arg-level"></a></dt>
+<dd><p>Confidence level of the error bars. Default <code>0.95</code>.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>

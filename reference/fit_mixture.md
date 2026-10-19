@@ -19,6 +19,7 @@ fit_mixture(
   outcome_covariates = NULL,
   outcome_type = c("auto", "continuous", "categorical"),
   slopes = "pooled",
+  outcome_variances = c("equal", "class_specific"),
   group = NULL,
   group_effects = c("both", "measurement", "prevalence", "none"),
   group_invariant_items = NULL,
@@ -44,6 +45,7 @@ fit_mixture(
   bayes_constants = NULL,
   se = c("corrected", "robust", "hessian"),
   n_cores = .default_n_cores(),
+  missing_predictors = c("listwise", "mean"),
   X = NULL,
   Y = NULL,
   n_components = NULL,
@@ -86,9 +88,11 @@ fit_mixture(
   `NA` is estimated by full-information maximum likelihood under the
   usual missing-at-random assumption, chosen automatically; cases
   missing on every indicator are dropped, with a warning saying how
-  many. There is nothing to switch on. (The `"*_nan"` spellings are
-  still accepted, and force the same estimator, but they are a leftover
-  and you do not need them.)
+  many, except in a one-step fit with an `outcome`, where a case that
+  observes the outcome is part of the joint likelihood and is kept.
+  There is nothing to switch on. (The `"*_nan"` spellings are still
+  accepted, and force the same estimator, but they are a leftover and
+  you do not need them.)
 
   **Binary items need not be coded 0/1.** A two-level factor or
   character, a logical, or any pair of numbers — 1/2 is the commonest —
@@ -159,6 +163,14 @@ fit_mixture(
   form is continuous-outcome only. For a continuous outcome,
   `"class_specific"` is the same model as naming every covariate, and is
   fitted as one.
+
+- outcome_variances:
+
+  For a continuous `outcome`: `"equal"` (default; one variance, or
+  residual variance when there are `outcome_covariates`, shared by the
+  classes) or `"class_specific"` (one per class). As in
+  [`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md)'s
+  `variances`.
 
 - group:
 
@@ -551,32 +563,52 @@ fit_mixture(
   **Rescuing a collapsed fit:** this situation is now rare, because a
   continuous measurement model holds the variances equal across classes
   by default and that bounds the likelihood; it arises when you have
-  explicitly passed `variances_equal = FALSE`. If a fit warns that a
-  class variance has collapsed, the prior is one of three remedies, and
-  not the first to reach for. Constraining the variances to be equal
-  across classes (`variances_equal = TRUE`) bounds the likelihood so the
-  problem cannot arise at all; fitting fewer classes often removes the
-  class that was describing a spike. Where neither is acceptable
-  substantively, raise `variances`. A useful starting point is **one
-  artificial observation per class**, i.e. `variances = n_classes`,
-  increasing it a little at a time if the warning persists. State it
-  that way rather than as a bare number: the constant is divided among
-  the classes, so `variances = n_classes` is what holds the prior at one
-  pseudo-observation per class at *every* number of classes — the way
-  the penalised-mixture literature applies it, the same amount to every
-  component — while a fixed value drifts as classes are added. Then
-  check the result rather than just that the warning stopped — the
-  flagged variance should no longer be far below the others in the
-  model, and its class mean should have come off the floor or ceiling of
-  the response scale. It is worth looking at the distribution of the
-  named item as well, for the floor, ceiling or spike the class latched
-  onto.
+  explicitly passed `variances_equal = FALSE`. Even then the search sets
+  aside any start that ends with a class sitting on one value of an item
+  – more than 90\\ class's own – and reports the best of the others;
+  [`print()`](https://rdrr.io/r/base/print.html) says how many were set
+  aside. This is the same rule in every model the package fits, growth
+  and transition models included. A fit warns that a class variance has
+  collapsed only when every start ended that way. Then the prior is one
+  of three remedies, and not the first to reach for. Constraining the
+  variances to be equal across classes (`variances_equal = TRUE`) bounds
+  the likelihood so the problem cannot arise at all; fitting fewer
+  classes often removes the class that was describing a spike. Where
+  neither is acceptable substantively, raise `variances`. A useful
+  starting point is **one artificial observation per class**, i.e.
+  `variances = n_classes`, increasing it a little at a time if the
+  warning persists. State it that way rather than as a bare number: the
+  constant is divided among the classes, so `variances = n_classes` is
+  what holds the prior at one pseudo-observation per class at *every*
+  number of classes — the way the penalised-mixture literature applies
+  it, the same amount to every component — while a fixed value drifts as
+  classes are added. Then check the result rather than just that the
+  warning stopped — the flagged variance should no longer be far below
+  the others in the model, and its class mean should have come off the
+  floor or ceiling of the response scale. It is worth looking at the
+  distribution of the named item as well, for the floor, ceiling or
+  spike the class latched onto.
 
-  Raising `n_init` is *not* a remedy here. A collapsed variance is not a
-  convergence failure but a property of the likelihood, which really is
-  unbounded in that direction, so a longer search can find a taller
-  spike and report a better log-likelihood for a worse solution. For the
-  same reason a flagged fit's BIC is not comparable with a clean fit's.
+  Raising `n_init` can help only in that last situation, where no start
+  escaped the spike, and is not the remedy to reach for. A collapsed
+  variance is not a convergence failure but a property of the
+  likelihood, which really is unbounded in that direction, and a model
+  whose every start collapses is usually asking for one of the remedies
+  above. A flagged fit's BIC is not comparable with a clean fit's.
+
+  **Spike check:** a related line in
+  [`print()`](https://rdrr.io/r/base/print.html) looks at the restarts
+  rather than at the variances. Each converged start is scored again
+  with its single best-fitted case removed (the 1-deleted log-likelihood
+  of Seo & Lindsay, 2010, sec. 4, on the same penalised scale the search
+  ranks on). When another start comes out ahead of the reported one on
+  that score, the reported maximum owes its lead to one observation, and
+  [`print()`](https://rdrr.io/r/base/print.html) says so. Nothing is
+  re-selected: the values are in `$metrics` (`kdel_ll`, `kdel_best`,
+  `kdel_disagrees`) for information only. A class sitting on one
+  isolated outlier usually does *not* trigger it, because the rest of
+  that solution still fits the other cases best; a class on a single
+  case is a class on one value, which the search sets aside as above.
 
   The theory behind the prior settles its form and not its size: within
   the conditions Chen, Tan, & Zhang (2008) impose — which any fixed
@@ -641,6 +673,22 @@ fit_mixture(
   [`bivariate_residuals()`](https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.md)
   – are the ones it is easiest to forget. An argument given here
   overrides the option.
+
+- missing_predictors:
+
+  What to do with a case missing one of `predictors` or
+  `outcome_covariates`. `"listwise"` (the default) leaves it out: a
+  one-step model (`n_steps = 1`) is fitted without that case at all, and
+  a stepwise one keeps it in step 1 and leaves it out of the
+  class-membership or outcome regression only, with a message either way
+  saying how many cases that was. `"mean"` keeps every case and
+  completes the missing values under the class-invariant Gaussian
+  marginal of the covariates (Sterba, 2014). A missing `outcome` is not
+  a reason to delete a case. Why listwise is the default is in
+  [`add_covariates`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md),
+  "Missing predictors", and
+  [`add_outcome`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md),
+  "Missing covariates".
 
 - X, Y, n_components, structural:
 

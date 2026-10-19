@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,6 +43,7 @@
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="../articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -163,6 +164,20 @@ record; <code>print(selection, columns = "all")</code> adds AIC, CAIC,
 AWE, ICL and the approximate Bayes factor and correct-model probability,
 and <code>selection$fit_table</code> holds every column at full
 precision.</p>
+<p>The short view is a judgement backed by a study, not a matter of
+taste. Arch and Nylund-Gibson (2026) found BIC and CAIC the most
+reliable indices across a large simulation, AWE the worst, and VLMR
+unreliable on its own. The correct-model probability turned out to
+repeat what BIC already says rather than add to it, so printing both can
+make one vote look like two. Their simulated classes were all well
+separated (entropy about .84 to .88), so the ranking is firmest
+there.</p>
+<p>Count the classes before adding any covariate. The same study found
+that enumerating with no covariates held up even when items behaved
+differently across covariate values. Putting the covariates in during
+enumeration, without their direct effects on the items, is what
+over-extracted classes. <code><a href="../reference/add_covariates.html">add_covariates()</a></code> assumes that
+order.</p>
 <p>BIC prefers three classes here — the solution the methodological
 literature has repeatedly recovered for these data: clearly negative
 slides, clearly positive slides, and an ambiguous group the raters split
@@ -293,7 +308,14 @@ guarantee.</p>
 <span><span class="co">#&gt;  Class Proportion  mcaP AvePP     OCC</span></span>
 <span><span class="co">#&gt;      1      0.445 0.432 0.994 213.049</span></span>
 <span><span class="co">#&gt;      2      0.375 0.373 0.981  87.793</span></span>
-<span><span class="co">#&gt;      3      0.180 0.195 0.869  30.253</span></span></code></pre></div>
+<span><span class="co">#&gt;      3      0.180 0.195 0.869  30.253</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Modal minus probability-weighted class means of the indicators </span></span>
+<span><span class="co">#&gt; (how far exporting a modal class variable moves each profile)</span></span>
+<span><span class="co">#&gt;              A      B      C      D      E      F     G</span></span>
+<span><span class="co">#&gt; Class 1  0.000 -0.001  0.028  0.021  0.002  0.015 0.000</span></span>
+<span><span class="co">#&gt; Class 2 -0.013 -0.006  0.000  0.000 -0.011  0.000 0.000</span></span>
+<span><span class="co">#&gt; Class 3  0.054  0.001 -0.003 -0.010  0.024 -0.001 0.019</span></span></code></pre></div>
 <div class="section level3">
 <h3 id="which-entropy-is-being-reported">Which entropy is being reported<a class="anchor" aria-label="anchor" href="#which-entropy-is-being-reported"></a>
 </h3>
@@ -377,6 +399,9 @@ meaningful:</p>
 </h2>
 <p>Agresti, A. (2002). <em>Categorical data analysis</em> (2nd ed.).
 Wiley.</p>
+<p>Arch, D. A. N., &amp; Nylund-Gibson, K. (2026). Unmodeled DIF in
+latent class analysis: Consequences for class enumeration. <em>Methods
+in Psychology</em>, <em>14</em>, 100243. <a href="https://doi.org/10.1016/j.metip.2026.100243" class="external-link uri">https://doi.org/10.1016/j.metip.2026.100243</a></p>
 <p>Kim, S., Kirby, J., Evudottir, S., Wang, Y., Tong, X., Goretzko, D.,
 Ferron, J., &amp; Jing, S. (2026). A small latent class in growth
 mixture modeling: A simulation study. <em>Structural Equation

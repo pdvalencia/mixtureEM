@@ -47,7 +47,7 @@ construction.'></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -68,6 +68,7 @@ construction.'></head><body>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="../articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -236,12 +237,43 @@ which class counts to compare; everything else comes from the fit.</p></dd>
     <p>An object of class <code>blrt_test</code>: a list with <code>p_value</code>,
 <code>obs_diff</code> (the observed \(2\,\Delta\ell\) statistic),
 <code>null_dist</code> (the bootstrap null distribution), <code>n_negative</code> (how
-many draws produced a negative statistic), and the compared class counts.
+many draws produced a negative statistic), the compared class counts,
+<code>scaled</code> (whether the draws were rescaled for a survey design) and
+<code>scaling_factor</code> (the design effect used, <code>NA</code> when not).
 It has <code>print</code> and <code>plot</code> methods.</p>
     </div>
     <div class="section level2">
+    <h2 id="sampling-weights-and-survey-designs">Sampling weights and survey designs<a class="anchor" aria-label="anchor" href="#sampling-weights-and-survey-designs"></a></h2>
+
+
+<p>With sampling weights, <code>strata</code> or <code>cluster</code> passed through
+<code>...</code>, the observed statistic is a pseudo-likelihood ratio, which the
+design inflates relative to a simple random sample of the same size. The
+bootstrap replicates are still drawn and fitted as simple random samples
+(resampling the design itself is not available), and each replicate
+statistic is multiplied by the null model's generalized design effect
+\(c_0 = \mathrm{tr}(A^{-1}B)/p\), the scaling factor of Satorra and
+Bentler (1988) and Asparouhov (2005) computed from the <code>k_small</code> fit's
+information matrix \(A\) and its design-based score covariance \(B\).
+<code>null_dist</code> is returned on that rescaled scale.</p>
+<p>The null model's factor is used rather than the alternative's, or the
+two-model difference factor that <code><a href="lr_test.html">lr_test</a></code> uses, because the
+replicates are generated from the null and, when the null is true, the
+alternative's extra class is noise that makes its factor unstable. In a
+simulation of a two-class model under informative weights, with and without
+clustering, the rescaled null came within about 10\<!-- % of the true null -->
+distribution of the weighted statistic at its 95th percentile, where the
+unscaled one was about 35\<!-- % short; the corrected test is therefore still -->
+slightly liberal. Frequency weights (<code>weight_type = "frequency"</code>) are
+not rescaled. A model for which the design effect cannot be computed (a
+growth measurement model, among others) is refused.</p>
+    </div>
+    <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
-    <p>Davison, A. C., &amp; Hinkley, D. V. (1997). <em>Bootstrap Methods and Their
+    <p>Asparouhov, T. (2005). Sampling weights in latent variable modeling.
+<em>Structural Equation Modeling</em>, <em>12</em>(3), 411-434.
+<a href="https://doi.org/10.1207/s15328007sem1203_4" class="external-link">doi:10.1207/s15328007sem1203_4</a></p>
+<p>Davison, A. C., &amp; Hinkley, D. V. (1997). <em>Bootstrap Methods and Their
 Application</em> (ch. 4). Cambridge University Press.</p>
 <p>Dziak, J. J., Lanza, S. T., &amp; Tan, X. (2014). Effect size, statistical power
 and sample size requirements for the bootstrap likelihood ratio test in
@@ -250,6 +282,10 @@ latent class analysis. <em>Structural Equation Modeling</em>, <em>21</em>(4),
 <p>McLachlan, G. J. (1987). On bootstrapping the likelihood ratio test statistic
 for the number of components in a normal mixture. <em>Applied Statistics</em>,
 <em>36</em>(3), 318-324. <a href="https://doi.org/10.2307/2347790" class="external-link">doi:10.2307/2347790</a></p>
+<p>Satorra, A., &amp; Bentler, P. M. (1988). Scaling corrections for chi-square
+statistics in covariance structure analysis. <em>Proceedings of the
+Business and Economic Statistics Section of the American Statistical
+Association</em>, 308-313.</p>
 <p>Ram, N., &amp; Grimm, K. J. (2009). Growth mixture modeling: A method for
 identifying differences in longitudinal change among unobserved groups.
 <em>International Journal of Behavioral Development</em>, <em>33</em>(6),

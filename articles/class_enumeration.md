@@ -93,6 +93,22 @@ record; `print(selection, columns = "all")` adds AIC, CAIC, AWE, ICL and
 the approximate Bayes factor and correct-model probability, and
 `selection$fit_table` holds every column at full precision.
 
+The short view is a judgement backed by a study, not a matter of taste.
+Arch and Nylund-Gibson (2026) found BIC and CAIC the most reliable
+indices across a large simulation, AWE the worst, and VLMR unreliable on
+its own. The correct-model probability turned out to repeat what BIC
+already says rather than add to it, so printing both can make one vote
+look like two. Their simulated classes were all well separated (entropy
+about .84 to .88), so the ranking is firmest there.
+
+Count the classes before adding any covariate. The same study found that
+enumerating with no covariates held up even when items behaved
+differently across covariate values. Putting the covariates in during
+enumeration, without their direct effects on the items, is what
+over-extracted classes.
+[`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md)
+assumes that order.
+
 BIC prefers three classes here — the solution the methodological
 literature has repeatedly recovered for these data: clearly negative
 slides, clearly positive slides, and an ambiguous group the raters split
@@ -225,6 +241,13 @@ classification_diagnostics(fit)
 #>      1      0.445 0.432 0.994 213.049
 #>      2      0.375 0.373 0.981  87.793
 #>      3      0.180 0.195 0.869  30.253
+#> 
+#> Modal minus probability-weighted class means of the indicators 
+#> (how far exporting a modal class variable moves each profile)
+#>              A      B      C      D      E      F     G
+#> Class 1  0.000 -0.001  0.028  0.021  0.002  0.015 0.000
+#> Class 2 -0.013 -0.006  0.000  0.000 -0.011  0.000 0.000
+#> Class 3  0.054  0.001 -0.003 -0.010  0.024 -0.001 0.019
 ```
 
 ### Which entropy is being reported
@@ -313,6 +336,10 @@ plot(fit, class_labels = c("Negative", "Positive", "Ambiguous"),
 ## References
 
 Agresti, A. (2002). *Categorical data analysis* (2nd ed.). Wiley.
+
+Arch, D. A. N., & Nylund-Gibson, K. (2026). Unmodeled DIF in latent
+class analysis: Consequences for class enumeration. *Methods in
+Psychology*, *14*, 100243. <https://doi.org/10.1016/j.metip.2026.100243>
 
 Kim, S., Kirby, J., Evudottir, S., Wang, Y., Tong, X., Goretzko, D.,
 Ferron, J., & Jing, S. (2026). A small latent class in growth mixture

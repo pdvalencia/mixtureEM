@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -45,6 +45,7 @@
     <li><a class="dropdown-item" href="articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
@@ -117,6 +118,7 @@
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt;              STRUCTURAL MODEL SUMMARY                    </span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
+<span><span class="co">#&gt;   Best solution  : found by 20 of 20 starts</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)</span></span>
 <span><span class="co">#&gt; Reference Class: 1</span></span>
@@ -125,25 +127,25 @@
 <span><span class="co">#&gt;                               OR         [95% CI]         P-Value</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 2 ON</span></span>
-<span><span class="co">#&gt;   Intercept                1.179  [    0.234,     5.933]     0.841</span></span>
-<span><span class="co">#&gt;   sex.Female               2.641  [    1.104,     6.319]     0.029</span></span>
-<span><span class="co">#&gt;   age                      0.942  [    0.884,     1.003]     0.063</span></span>
+<span><span class="co">#&gt;   Intercept                1.179  [    0.236,     5.891]     0.841</span></span>
+<span><span class="co">#&gt;   sex.Female               2.641  [    1.106,     6.306]     0.029</span></span>
+<span><span class="co">#&gt;   age                      0.942  [    0.885,     1.003]     0.061</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 3 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.315  [    0.104,     0.952]     0.041</span></span>
+<span><span class="co">#&gt;   Intercept                0.315  [    0.104,     0.949]     0.040</span></span>
 <span><span class="co">#&gt;   sex.Female               0.342  [    0.183,     0.640]    &lt; .001</span></span>
-<span><span class="co">#&gt;   age                      1.033  [    0.997,     1.071]     0.074</span></span>
+<span><span class="co">#&gt;   age                      1.033  [    0.997,     1.071]     0.072</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Class 4 ON</span></span>
-<span><span class="co">#&gt;   Intercept                0.247  [    0.078,     0.779]     0.017</span></span>
-<span><span class="co">#&gt;   sex.Female               0.655  [    0.331,     1.299]     0.226</span></span>
-<span><span class="co">#&gt;   age                      1.024  [    0.985,     1.065]     0.227</span></span>
+<span><span class="co">#&gt;   Intercept                0.247  [    0.078,     0.777]     0.017</span></span>
+<span><span class="co">#&gt;   sex.Female               0.655  [    0.331,     1.297]     0.225</span></span>
+<span><span class="co">#&gt;   age                      1.024  [    0.985,     1.064]     0.225</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; OMNIBUS TEST PER COVARIATE (effect across all classes)</span></span>
 <span><span class="co">#&gt; ---------------------------------------------------------</span></span>
 <span><span class="co">#&gt;                          Wald Chi2   df  P-Value</span></span>
-<span><span class="co">#&gt;   sex                       23.067    3    &lt; .001</span></span>
-<span><span class="co">#&gt;   age                        9.646    3     0.022</span></span>
+<span><span class="co">#&gt;   sex                       23.165    3    &lt; .001</span></span>
+<span><span class="co">#&gt;   age                        9.764    3     0.021</span></span>
 <span><span class="co">#&gt;   Note: a non-significant test beside large coefficients can be the</span></span>
 <span><span class="co">#&gt;         Hauck-Donner effect; confirm with wald_omnibus_test().</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
@@ -242,6 +244,27 @@
 <td>Complex survey designs (weights, strata, clusters)</td>
 <td>every model</td>
 <td><a href="https://pdvalencia.github.io/mixtureEM/articles/survey_lca.html"><code>survey_lca</code></a></td>
+</tr>
+<tr>
+<td>Growth-model standard errors and tests of equality constraints</td>
+<td>
+<code><a href="reference/growth_estimates.html">growth_estimates()</a></code>, <code><a href="reference/wald_test.html">wald_test()</a></code>
+</td>
+<td><a href="https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html"><code>growth_mixture</code></a></td>
+</tr>
+<tr>
+<td>After the fit: classifying new cases, simulating from the model, merging classes into clusters, class separation</td>
+<td>
+<code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code>, <code><a href="https://rdrr.io/r/stats/simulate.html" class="external-link">simulate()</a></code>, <code><a href="reference/merge_classes.html">merge_classes()</a></code>, <code><a href="reference/classification_diagnostics.html">classification_diagnostics()</a></code>
+</td>
+<td><code><a href="reference/predict.mixture_model.html">?predict.mixture_model</a></code></td>
+</tr>
+<tr>
+<td>Writing it up: a methods paragraph, the GRoLTS checklist, measurement standard errors</td>
+<td>
+<code><a href="reference/report_methods.html">report_methods()</a></code>, <code><a href="reference/grolts_report.html">grolts_report()</a></code>, <code><a href="reference/measurement_estimates.html">measurement_estimates()</a></code>
+</td>
+<td><a href="https://pdvalencia.github.io/mixtureEM/articles/reporting.html"><code>reporting</code></a></td>
 </tr>
 </tbody>
 </table>

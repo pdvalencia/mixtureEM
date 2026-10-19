@@ -9,6 +9,7 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/articles/liang_park_lpa.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/articles/lta.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/articles/mglca_yrbs.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/articles/reporting.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/articles/rilta.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/articles/rmlca.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/articles/survey_lca.html</loc></url>
@@ -42,6 +43,7 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/fit_mixture_internal.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/gaussian_model.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/grolts_report.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/index.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/lcga_model.html</loc></url>
@@ -52,7 +54,9 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/lta_covariate_summary.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/lta_g2.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/mcar_test.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/measurement_estimates.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/merge_classes.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/ordinal_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/plot.bivariate_residuals.html</loc></url>
@@ -63,6 +67,7 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/plot.mixture_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/plot.rmlca.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/poisson_model.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/predict.mixture_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/print.gmm.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/print.lcga.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/print.mixture_comparison.html</loc></url>
@@ -70,6 +75,8 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/print.rmlca.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/random_intercept_loadings.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/random_intercept_scores.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/report_methods.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/simulate.mixture_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/status_prevalences.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/structured_normal_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/summary.lta_model.html</loc></url>
@@ -79,6 +86,7 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/vcov.mixture_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/ventura_leon.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/wald_omnibus_test.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/wald_test.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/yrbs2005.html</loc></url>
 </urlset>
 

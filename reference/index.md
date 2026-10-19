@@ -55,6 +55,8 @@
   : Repeated-Measures Latent Class Analysis
 - [`gaussian_model()`](https://pdvalencia.github.io/mixtureEM/reference/gaussian_model.md)
   : Constructor for Gaussian models
+- [`grolts_report()`](https://pdvalencia.github.io/mixtureEM/reference/grolts_report.md)
+  : Answer the GRoLTS Reporting Checklist for a Trajectory Model
 - [`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)
   : Growth Mixture Parameter Estimates with Standard Errors
 - [`lcga_model()`](https://pdvalencia.github.io/mixtureEM/reference/lcga_model.md)
@@ -74,8 +76,12 @@
   : Likelihood-Ratio Goodness-of-Fit Statistic
 - [`mcar_test()`](https://pdvalencia.github.io/mixtureEM/reference/mcar_test.md)
   : Test Whether Data Are Missing Completely at Random
+- [`measurement_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_estimates.md)
+  : Measurement Parameter Estimates with Standard Errors
 - [`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
   : Print Measurement Model Parameters
+- [`merge_classes()`](https://pdvalencia.github.io/mixtureEM/reference/merge_classes.md)
+  : Merge fitted classes into clusters
 - [`ordinal_model()`](https://pdvalencia.github.io/mixtureEM/reference/ordinal_model.md)
   : Constructor for the ordinal emission model
 - [`outcome_contrasts()`](https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.md)
@@ -96,6 +102,8 @@
   : Trajectory Plot for a Repeated-Measures Latent Class Model
 - [`poisson_model()`](https://pdvalencia.github.io/mixtureEM/reference/poisson_model.md)
   : Constructor for Poisson (count) models
+- [`predict(`*`<mixture_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/predict.mixture_model.md)
+  : Classify new cases from a fitted model
 - [`print(`*`<gmm>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/print.gmm.md)
   : Print a Fitted Growth Mixture Model
 - [`print(`*`<lcga>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/print.lcga.md)
@@ -110,6 +118,10 @@
   : Random-intercept loadings
 - [`random_intercept_scores()`](https://pdvalencia.github.io/mixtureEM/reference/random_intercept_scores.md)
   : Random-intercept factor scores
+- [`report_methods()`](https://pdvalencia.github.io/mixtureEM/reference/report_methods.md)
+  : Write the Methods Paragraph for a Fitted Mixture Model
+- [`simulate(`*`<mixture_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/simulate.mixture_model.md)
+  : Simulate data sets from a fitted model
 - [`status_prevalences()`](https://pdvalencia.github.io/mixtureEM/reference/status_prevalences.md)
   : Latent Status Prevalences by Occasion
 - [`structured_normal_model()`](https://pdvalencia.github.io/mixtureEM/reference/structured_normal_model.md)
@@ -128,5 +140,7 @@
   : Infidelity behavior patterns in Peruvian young adults
 - [`wald_omnibus_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_omnibus_test.md)
   : Bootstrap Wald Omnibus Test for a Covariate
+- [`wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_test.md)
+  : Wald Test of Linear Constraints on Model Parameters
 - [`yrbs2005`](https://pdvalencia.github.io/mixtureEM/reference/yrbs2005.md)
   : Youth Risk Behavior Survey, 2005 (national public-use file)

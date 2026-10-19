@@ -111,6 +111,7 @@ summary(fit_cov)
 #> =========================================================
 #>              STRUCTURAL MODEL SUMMARY                    
 #> =========================================================
+#>   Best solution  : found by 20 of 20 starts
 #> 
 #> CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)
 #> Reference Class: 1
@@ -119,25 +120,25 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                1.179  [    0.234,     5.933]     0.841
-#>   sex.Female               2.641  [    1.104,     6.319]     0.029
-#>   age                      0.942  [    0.884,     1.003]     0.063
+#>   Intercept                1.179  [    0.236,     5.891]     0.841
+#>   sex.Female               2.641  [    1.106,     6.306]     0.029
+#>   age                      0.942  [    0.885,     1.003]     0.061
 #> 
 #> Class 3 ON
-#>   Intercept                0.315  [    0.104,     0.952]     0.041
+#>   Intercept                0.315  [    0.104,     0.949]     0.040
 #>   sex.Female               0.342  [    0.183,     0.640]    < .001
-#>   age                      1.033  [    0.997,     1.071]     0.074
+#>   age                      1.033  [    0.997,     1.071]     0.072
 #> 
 #> Class 4 ON
-#>   Intercept                0.247  [    0.078,     0.779]     0.017
-#>   sex.Female               0.655  [    0.331,     1.299]     0.226
-#>   age                      1.024  [    0.985,     1.065]     0.227
+#>   Intercept                0.247  [    0.078,     0.777]     0.017
+#>   sex.Female               0.655  [    0.331,     1.297]     0.225
+#>   age                      1.024  [    0.985,     1.064]     0.225
 #> 
 #> OMNIBUS TEST PER COVARIATE (effect across all classes)
 #> ---------------------------------------------------------
 #>                          Wald Chi2   df  P-Value
-#>   sex                       23.067    3    < .001
-#>   age                        9.646    3     0.022
+#>   sex                       23.165    3    < .001
+#>   age                        9.764    3     0.021
 #>   Note: a non-significant test beside large coefficients can be the
 #>         Hauck-Donner effect; confirm with wald_omnibus_test().
 #> =========================================================
@@ -169,6 +170,9 @@ summary(fit_cov)
 | Latent class growth analysis, growth mixture models | [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md), [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md) | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |
 | Linking two different mixture models by the three-step, e.g. early classes predicting later growth classes | [`link_models()`](https://pdvalencia.github.io/mixtureEM/reference/link_models.md) | [`?link_models`](https://pdvalencia.github.io/mixtureEM/reference/link_models.md) |
 | Complex survey designs (weights, strata, clusters) | every model | [`survey_lca`](https://pdvalencia.github.io/mixtureEM/articles/survey_lca.html) |
+| Growth-model standard errors and tests of equality constraints | [`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md), [`wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_test.md) | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |
+| After the fit: classifying new cases, simulating from the model, merging classes into clusters, class separation | [`predict()`](https://rdrr.io/r/stats/predict.html), [`simulate()`](https://rdrr.io/r/stats/simulate.html), [`merge_classes()`](https://pdvalencia.github.io/mixtureEM/reference/merge_classes.md), [`classification_diagnostics()`](https://pdvalencia.github.io/mixtureEM/reference/classification_diagnostics.md) | [`?predict.mixture_model`](https://pdvalencia.github.io/mixtureEM/reference/predict.mixture_model.md) |
+| Writing it up: a methods paragraph, the GRoLTS checklist, measurement standard errors | [`report_methods()`](https://pdvalencia.github.io/mixtureEM/reference/report_methods.md), [`grolts_report()`](https://pdvalencia.github.io/mixtureEM/reference/grolts_report.md), [`measurement_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_estimates.md) | [`reporting`](https://pdvalencia.github.io/mixtureEM/articles/reporting.html) |
 
 Also included: mixed measurement models (binary + continuous + count
 indicators in one model), full-information missing-data handling
@@ -301,6 +305,8 @@ improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
   : Repeated-Measures Latent Class Analysis
 - [`gaussian_model()`](https://pdvalencia.github.io/mixtureEM/reference/gaussian_model.md)
   : Constructor for Gaussian models
+- [`grolts_report()`](https://pdvalencia.github.io/mixtureEM/reference/grolts_report.md)
+  : Answer the GRoLTS Reporting Checklist for a Trajectory Model
 - [`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)
   : Growth Mixture Parameter Estimates with Standard Errors
 - [`lcga_model()`](https://pdvalencia.github.io/mixtureEM/reference/lcga_model.md)
@@ -320,8 +326,12 @@ improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
   : Likelihood-Ratio Goodness-of-Fit Statistic
 - [`mcar_test()`](https://pdvalencia.github.io/mixtureEM/reference/mcar_test.md)
   : Test Whether Data Are Missing Completely at Random
+- [`measurement_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_estimates.md)
+  : Measurement Parameter Estimates with Standard Errors
 - [`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
   : Print Measurement Model Parameters
+- [`merge_classes()`](https://pdvalencia.github.io/mixtureEM/reference/merge_classes.md)
+  : Merge fitted classes into clusters
 - [`ordinal_model()`](https://pdvalencia.github.io/mixtureEM/reference/ordinal_model.md)
   : Constructor for the ordinal emission model
 - [`outcome_contrasts()`](https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.md)
@@ -342,6 +352,8 @@ improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
   : Trajectory Plot for a Repeated-Measures Latent Class Model
 - [`poisson_model()`](https://pdvalencia.github.io/mixtureEM/reference/poisson_model.md)
   : Constructor for Poisson (count) models
+- [`predict(`*`<mixture_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/predict.mixture_model.md)
+  : Classify new cases from a fitted model
 - [`print(`*`<gmm>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/print.gmm.md)
   : Print a Fitted Growth Mixture Model
 - [`print(`*`<lcga>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/print.lcga.md)
@@ -356,6 +368,10 @@ improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
   : Random-intercept loadings
 - [`random_intercept_scores()`](https://pdvalencia.github.io/mixtureEM/reference/random_intercept_scores.md)
   : Random-intercept factor scores
+- [`report_methods()`](https://pdvalencia.github.io/mixtureEM/reference/report_methods.md)
+  : Write the Methods Paragraph for a Fitted Mixture Model
+- [`simulate(`*`<mixture_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/simulate.mixture_model.md)
+  : Simulate data sets from a fitted model
 - [`status_prevalences()`](https://pdvalencia.github.io/mixtureEM/reference/status_prevalences.md)
   : Latent Status Prevalences by Occasion
 - [`structured_normal_model()`](https://pdvalencia.github.io/mixtureEM/reference/structured_normal_model.md)
@@ -374,6 +390,8 @@ improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
   : Infidelity behavior patterns in Peruvian young adults
 - [`wald_omnibus_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_omnibus_test.md)
   : Bootstrap Wald Omnibus Test for a Covariate
+- [`wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_test.md)
+  : Wald Test of Linear Constraints on Model Parameters
 - [`yrbs2005`](https://pdvalencia.github.io/mixtureEM/reference/yrbs2005.md)
   : Youth Risk Behavior Survey, 2005 (national public-use file)
 
@@ -404,3 +422,5 @@ improved three-step approaches. *Political Analysis*, *18*(4), 450–469.
 
 - [What mixtureEM Estimates, and
   Why](https://pdvalencia.github.io/mixtureEM/articles/estimation.md):
+- [Reporting a Mixture
+  Model](https://pdvalencia.github.io/mixtureEM/articles/reporting.md):

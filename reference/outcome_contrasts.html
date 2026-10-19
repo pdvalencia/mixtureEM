@@ -39,7 +39,7 @@ wherever it is available."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -60,6 +60,7 @@ wherever it is available."></head><body>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="../articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -103,10 +104,11 @@ wherever it is available.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">outcome_contrasts</span><span class="op">(</span></span>
 <span>  <span class="va">fit</span>,</span>
 <span>  ref <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  adjust <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"holm"</span>, <span class="st">"bonferroni"</span><span class="op">)</span>,</span>
+<span>  adjust <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"BH"</span>, <span class="st">"holm"</span>, <span class="st">"bonferroni"</span><span class="op">)</span>,</span>
 <span>  level <span class="op">=</span> <span class="fl">0.95</span>,</span>
 <span>  outcome <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  term <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  effect_size <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -128,10 +130,11 @@ of classes. <code>NULL</code> (the default) reports all pairs.</p></dd>
 
 <dt id="arg-adjust">adjust<a class="anchor" aria-label="anchor" href="#arg-adjust"></a></dt>
 <dd><p>Multiplicity adjustment across the reported contrasts, passed
-to <code><a href="https://rdrr.io/r/stats/p.adjust.html" class="external-link">stats::p.adjust()</a></code>: <code>"none"</code> (the default), <code>"holm"</code> or
+to <code><a href="https://rdrr.io/r/stats/p.adjust.html" class="external-link">stats::p.adjust()</a></code>: <code>"none"</code> (the default), <code>"BH"</code>, <code>"holm"</code> or
 <code>"bonferroni"</code>. With <code>"none"</code> the p-values are the per-contrast ones, which
 is what to report when the contrasts were named in advance; an adjustment
-belongs on the all-pairs table read as a family.</p></dd>
+belongs on the all-pairs table read as a family. See "Choosing an
+adjustment" below.</p></dd>
 
 
 <dt id="arg-level">level<a class="anchor" aria-label="anchor" href="#arg-level"></a></dt>
@@ -152,6 +155,12 @@ whose slopes to contrast, by its column name. <code>NULL</code> (the default)
 contrasts the class intercepts instead. See "Slope contrasts" below.</p></dd>
 
 
+<dt id="arg-effect-size">effect_size<a class="anchor" aria-label="anchor" href="#arg-effect-size"></a></dt>
+<dd><p>If <code>TRUE</code>, add standardized effect sizes for a
+continuous outcome: Cohen's d for every contrast and the LTB-\(\omega\)
+across all classes. Default <code>FALSE</code>. See "Effect sizes" below.</p></dd>
+
+
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Currently unused.</p></dd>
 
@@ -163,8 +172,69 @@ columns <code>category</code> (the outcome category the contrast is on, <code>NA
 continuous outcome), <code>class</code>, <code>reference</code>, <code>estimate</code>, <code>se</code>, <code>lower</code>,
 <code>upper</code>, <code>z</code> and <code>p</code>, plus <code>p_adj</code> when <code>adjust</code> is not <code>"none"</code> and
 <code>OR</code>, <code>OR_lower</code>, <code>OR_upper</code> for a categorical outcome, whose estimates are
-log odds. The <code>method</code> attribute names the covariance the standard errors
-came from.</p>
+log odds. With <code>effect_size = TRUE</code>, also <code>d</code>, <code>d_se</code>, <code>d_lower</code> and
+<code>d_upper</code>, and the <code>omega</code> attribute. The <code>method</code> attribute names the
+covariance the standard errors came from.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="effect-sizes">Effect sizes<a class="anchor" aria-label="anchor" href="#effect-sizes"></a></h2>
+
+
+<p>A contrast's p-value says whether two classes can be told apart, not how
+far apart they are; with enough cases a trivial gap is significant, and a
+large one can miss significance in a small class. <code>effect_size = TRUE</code>
+reports the size of the differences on a scale that does not depend on the
+outcome's units.</p>
+<p>For each pair, Cohen's d is the difference between the two class means
+divided by the square root of the average of the two class variances,
+\(d_{jk} = (\mu_j - \mu_k) / \sqrt{(\sigma^2_j + \sigma^2_k)/2}\)
+(Carter, 2026); with a variance shared by the classes it is the gap
+measured in within-class standard deviations. The point estimate is the
+standardized mean difference of Hedges and Olkin (2014).</p>
+<p>Across all classes, the LTB-\(\omega\) of Lanza, Tan and Bray (2013) is
+the spread of the class means around their overall mean, each weighted by
+its class size: \(\omega = \sqrt{\sum_k \pi_k (\mu_k - \bar\mu)^2}\),
+\(\bar\mu = \sum_k \pi_k \mu_k\). It is in the outcome's units. The
+printed value is standardized by the outcome's total standard deviation,
+\(\omega_{std} = \omega / \sqrt{\sum_k \pi_k \sigma^2_k + \omega^2}\), so
+that \(\omega_{std}^2\) is the share of the outcome's variance that lies
+between the classes. Both are in the <code>omega</code> attribute of the result
+(<code>$standardized</code> and <code>$raw</code>, each with <code>estimate</code>, <code>se</code>, <code>lower</code> and
+<code>upper</code>); the raw one is the \(\omega\) of Carter's reporting workflow.
+The effect size answers a different question from the omnibus test in
+<code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> and does not replace it.</p>
+<p>Standard errors and intervals are by the delta method from the joint
+covariance of the class sizes, means and variances, so the uncertainty in
+the sizes and the variances is carried along with that of the means. That
+covariance is stored by a one-step <code><a href="fit_gmm.html">fit_gmm()</a></code> or <code><a href="fit_lcga.html">fit_lcga()</a></code> outcome
+(the robust sandwich of <code><a href="growth_estimates.html">growth_estimates()</a></code>) and by
+<code>add_outcome(correction = "ML")</code>; for other outcome models, including the
+BCH correction, <code>effect_size = TRUE</code> is an error. No thresholds such as
+"small" or "large" are attached: what size of difference matters depends on
+the outcome and the field.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="choosing-an-adjustment">Choosing an adjustment<a class="anchor" aria-label="anchor" href="#choosing-an-adjustment"></a></h2>
+
+
+<p>The adjustments answer different questions. <code>"holm"</code> and <code>"bonferroni"</code>
+control the family-wise error rate, the chance of even one false positive
+among the contrasts; that is the right guarantee for a narrowly
+confirmatory comparison, where a single wrong claim is costly. <code>"BH"</code>
+(Benjamini and Hochberg, 1995) controls the false discovery rate, the
+expected share of false positives among the contrasts declared
+significant; that is the right guarantee when the aim is to describe the
+pattern of differences between the classes, which is the usual aim of a
+distal-outcome analysis.</p>
+<p>The pairwise contrasts are positively dependent by construction: each class
+mean enters several of them (in a three-class model, class 1's mean is in
+both the 1-vs-2 and the 1-vs-3 contrast). Family-wise procedures do not
+use that dependence and are conservative here, so they suppress more of a
+real pattern than the number of contrasts alone suggests. Benjamini and
+Yekutieli (2001) prove that the BH procedure keeps its false discovery rate
+under positive regression dependence, which covers positively correlated
+one-sided tests; the p-values here are two-sided, for which that proof does
+not apply as it stands.</p>
     </div>
     <div class="section level2">
     <h2 id="slope-contrasts">Slope contrasts<a class="anchor" aria-label="anchor" href="#slope-contrasts"></a></h2>
@@ -193,6 +263,22 @@ covariate first moves that comparison to its mean.</p>
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
     <p>Arch, D. A. N., Nylund-Gibson, K., &amp; Ing, M. (2026). Moderation with a
 latent class variable. <em>Behavior Research Methods</em>, 58, 108.</p>
+<p>Benjamini, Y., &amp; Hochberg, Y. (1995). Controlling the false discovery rate:
+A practical and powerful approach to multiple testing. <em>Journal of the
+Royal Statistical Society: Series B</em>, <em>57</em>(1), 289–300.
+<a href="https://doi.org/10.1111/j.2517-6161.1995.tb02031.x" class="external-link">doi:10.1111/j.2517-6161.1995.tb02031.x</a></p>
+<p>Benjamini, Y., &amp; Yekutieli, D. (2001). The control of the false discovery
+rate in multiple testing under dependency. <em>The Annals of Statistics</em>,
+<em>29</em>(4), 1165–1188. <a href="https://doi.org/10.1214/aos/1013699998" class="external-link">doi:10.1214/aos/1013699998</a></p>
+<p>Carter, D. B. (2026). Distal outcomes in mixture modeling: A guide for
+pairwise comparisons, multiplicity control, and effect size reporting.
+<em>Behavior Research Methods</em>, <em>58</em>, 268.
+<a href="https://doi.org/10.3758/s13428-026-03144-4" class="external-link">doi:10.3758/s13428-026-03144-4</a></p>
+<p>Hedges, L. V., &amp; Olkin, I. (2014). <em>Statistical methods for
+meta-analysis</em>. Academic Press.</p>
+<p>Lanza, S. T., Tan, X., &amp; Bray, B. C. (2013). Latent class analysis with
+distal outcomes: A flexible model-based approach. <em>Structural Equation
+Modeling</em>, <em>20</em>(1), 1–26. <a href="https://doi.org/10.1080/10705511.2013.742377" class="external-link">doi:10.1080/10705511.2013.742377</a></p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

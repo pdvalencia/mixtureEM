@@ -69,7 +69,7 @@ them with lr_test().'></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -90,6 +90,7 @@ them with lr_test().'></head><body>
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="../articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -190,6 +191,7 @@ them with <code><a href="lr_test.html">lr_test()</a></code>.</p>
 <span>  correction <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ML"</span>, <span class="st">"BCH"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
 <span>  assignment <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"proportional"</span>, <span class="st">"modal"</span><span class="op">)</span>,</span>
 <span>  distal <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  missing_predictors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"listwise"</span>, <span class="st">"mean"</span><span class="op">)</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -218,7 +220,12 @@ frame with <code>id</code> and <code>time</code>.</p></dd>
 block. <code>"ordinal"</code> fits one cumulative-logit block per item, with its own
 number of ordered categories inferred per item (so a 3/3/2-category block
 needs no mixed specification); without a random intercept it is
-numerically identical to <code>"categorical"</code>.</p></dd>
+numerically identical to <code>"categorical"</code>. A continuous item's variances are
+free by status, so a status can sit on one tied value of it (a scale floor
+or ceiling) and run its variance to the boundary; a start that ends with
+more than 90% of a status on one value of such an item is ranked behind
+every start that does not, the rule every model in the package applies
+(see <code>bayes_constants</code> in <code><a href="fit_mixture.html">fit_mixture()</a></code>).</p></dd>
 
 
 <dt id="arg-measurement-invariance">measurement_invariance<a class="anchor" aria-label="anchor" href="#arg-measurement-invariance"></a></dt>
@@ -523,7 +530,11 @@ rare statuses, transitions near zero and small samples. <code>FALSE</code> skips
 them. <code>"robust"</code> returns the sandwich estimator around the same
 curvature, \(H^{-1} (B - H_p) H^{-1}\), with \(B\) the outer product of
 the case scores and \(H_p\) the prior's curvature, so that it reduces to
-the default when the model is correctly specified; under <code>strata</code> or
+the default when the model is correctly specified. In \(B - H_p\) the
+prior's curvature is taken on each parameter's natural scale: logits as
+fitted, and for a continuous item's variance the precision
+\(1/\sigma^2\), on which the variance prior's curvature does not
+depend on the data. Under <code>strata</code> or
 <code>cluster</code> the default is that sandwich with the design-based \(B\). The
 observed information costs \(2p\) passes over the data, \(p\) the
 number of free parameters, so it takes seconds on most models and longer
@@ -669,6 +680,23 @@ informs the last occasion's posteriors and the transitions (Vermunt,
 The estimates, with standard errors that carry step 1's uncertainty, are
 returned as <code>distal</code>; <code><a href="outcome_contrasts.html">outcome_contrasts()</a></code> gives the pairwise status
 differences. <code>NULL</code> (the default) fits no outcome.</p></dd>
+
+
+<dt id="arg-missing-predictors">missing_predictors<a class="anchor" aria-label="anchor" href="#arg-missing-predictors"></a></dt>
+<dd><p>What to do with a case missing a value of
+<code>predictors_initial</code>, <code>predictors_transition</code>, <code>predictors_items</code> or
+<code>predictors_random_intercept</code>. <code>"listwise"</code> (the default) fits the
+one-step model (<code>n_steps = 1</code>) without that case, with a message saying
+how many cases that was; <code>"mean"</code> keeps it and completes the missing
+value under the Gaussian marginal of the covariates, which for a single
+covariate is its mean. Deleting the case leaves the regressions unbiased
+when whether a covariate is missing depends on the covariate itself or
+on the status, and completing it with the mean does not (Little, 1992).
+Under <code>n_steps = 2</code> or <code>3</code>, <code>"listwise"</code> keeps the case in step 1, where
+its responses still inform the measurement model and the classification
+error, and gives it weight zero in the step that fits the initial-status
+and transition regressions; it keeps its step-1 posterior. A missing
+<code>predictors_items</code> value is completed in either case.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -849,6 +877,9 @@ inference and estimation. <em>Statistics in Medicine</em>, <em>27</em>(11),
 multinomial cell probabilities. <em>Journal of the American Statistical
 Association</em>, <em>68</em>(343), 683-691.
 <a href="https://doi.org/10.1080/01621459.1973.10481405" class="external-link">doi:10.1080/01621459.1973.10481405</a></p>
+<p>Little, R. J. A. (1992). Regression with missing X's: A review.
+<em>Journal of the American Statistical Association</em>, <em>87</em>(420),
+1227–1237. <a href="https://doi.org/10.1080/01621459.1992.10476282" class="external-link">doi:10.1080/01621459.1992.10476282</a></p>
 <p>Muthen, B., &amp; Asparouhov, T. (2022). Latent transition analysis with random
 intercepts (RI-LTA). <em>Psychological Methods</em>, <em>27</em>(1), 1-16.
 <a href="https://doi.org/10.1037/met0000370" class="external-link">doi:10.1037/met0000370</a></p>

@@ -27,7 +27,7 @@ dropped from x$fit_table, which keeps every column at full precision.'></head><b
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.5.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.6.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -48,6 +48,7 @@ dropped from x$fit_table, which keeps every column at full precision.'></head><b
     <li><a class="dropdown-item" href="../articles/survey_lca.html">LCA with Complex Survey Data</a></li>
     <li><a class="dropdown-item" href="../articles/mglca_yrbs.html">Multiple-Group LCA: Do the Classes Differ by Grade?</a></li>
     <li><a class="dropdown-item" href="../articles/estimation.html">What mixtureEM Estimates, and Why</a></li>
+    <li><a class="dropdown-item" href="../articles/reporting.html">Reporting a Mixture Model</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -108,14 +109,26 @@ dropped from <code>x$fit_table</code>, which keeps every column at full precisio
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>A log-likelihood marked <code>*</code> is a maximum that only one start reached.
+    <p><code>AWE</code> and <code>cmP</code> are left out of the default view on purpose. In a large
+simulation that included misspecified models, Arch and Nylund-Gibson (2026)
+found <code>BIC</code> and <code>CAIC</code> the most reliable indices, with no significant
+difference between the two; <code>AWE</code> performed worst overall, most of all at
+small samples; and <code>cmP</code>, being a rescaling of the <code>BIC</code> differences in the
+table, tracked <code>BIC</code> so closely that printing it adds no independent
+evidence and can make one index's choice look like two. The classes in
+every simulated population were well separated (entropy about .84 to .88),
+so the ranking is firmest there.</p>
+<p>A log-likelihood marked <code>*</code> is a maximum that only one start reached.
 <code>BF</code> spans many orders of magnitude, and its reading bands stop at 100 and
 start at 0.1 (Wagenmakers, 2007), so it is printed as <code>&gt; 100</code> and <code>&lt; 0.1</code>
 beyond them; <code>cmP</code> below 0.001 is printed as <code>&lt; 0.001</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
-    <p>Dias, J. G. (2006). Latent class analysis and model selection. In M. Spiliopoulou
+    <p>Arch, D. A. N., &amp; Nylund-Gibson, K. (2026). Unmodeled DIF in latent class
+analysis: Consequences for class enumeration. <em>Methods in Psychology</em>,
+<em>14</em>, 100243. <a href="https://doi.org/10.1016/j.metip.2026.100243" class="external-link">doi:10.1016/j.metip.2026.100243</a></p>
+<p>Dias, J. G. (2006). Latent class analysis and model selection. In M. Spiliopoulou
 et al. (Eds.), <em>From Data and Information Analysis to Knowledge
 Engineering</em> (pp. 95-102). Springer.</p>
 <p>Masyn, K. E. (2013). Latent class analysis and finite mixture modeling. In

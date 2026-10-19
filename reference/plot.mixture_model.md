@@ -44,6 +44,8 @@ plot(
   class_labels = NULL,
   colors = NULL,
   scale = c("total", "within"),
+  error_bars = FALSE,
+  level = 0.95,
   ...
 )
 ```
@@ -86,6 +88,19 @@ plot(
   against residual rather than total dispersion. `"within"` is arguably
   the more informative quantity; it is not the default because it is not
   what applied papers plot.
+
+- error_bars:
+
+  For `type = "bar"` only: draw a confidence interval on each bar, from
+  the standard error of the class mean
+  ([`measurement_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_estimates.md),
+  robust estimator) divided by the same denominator as the bar. Off by
+  default. The intervals are conditional on the number of classes, and
+  treat the z-score's denominator as fixed.
+
+- level:
+
+  Confidence level of the error bars. Default `0.95`.
 
 - ...:
 

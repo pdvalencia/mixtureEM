@@ -22,6 +22,7 @@ add_outcome(
   assignment = c("proportional", "modal"),
   max_iter = 1000,
   data = NULL,
+  missing_predictors = c("listwise", "mean"),
   ...
 )
 ```
@@ -94,10 +95,13 @@ add_outcome(
 
 - variances:
 
-  For a continuous outcome with `covariates`: `"equal"` (default; one
-  residual variance shared by the classes) or `"class_specific"` (one
-  per class). A continuous outcome without covariates always has one
-  variance per class.
+  For a continuous outcome: `"equal"` (default; one variance, or
+  residual variance when there are `covariates`, shared by the classes)
+  or `"class_specific"` (one per class). The shared variance is the more
+  stable choice when a class is small, because one estimate pools every
+  case; one per class is the better description when the classes really
+  do differ in spread, and the two can be compared by their BIC on the
+  same fit.
 
 - correction:
 
@@ -122,13 +126,14 @@ add_outcome(
 
   Standard-error estimator passed on to the third step: `"corrected"`
   (default), `"robust"`, or `"hessian"`. It governs the covariate part
-  of the third step. A continuous distal outcome under
-  `correction = "BCH"` always reports a sandwich clustered on the case,
-  whatever this is set to, and so does a BCH model with `predictors`:
-  the expanded data set carries one weighted record per class per case,
-  so a case-clustered sandwich is the only estimator that prices the
-  information the correction gives up. With `predictors`, under either
-  correction, `"corrected"` adds the step-1 term of
+  of the third step. Under `correction = "BCH"` every outcome, and a BCH
+  model with `predictors`, reports a sandwich clustered on the case
+  whatever this is set to, with `"corrected"` adding step 1's
+  uncertainty: the expanded data set carries one weighted record per
+  class per case, so a case-clustered sandwich is the only estimator
+  that prices the information the correction gives up. With
+  `predictors`, under either correction, `"corrected"` adds the step-1
+  term of
   [covariate_se](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md)
   over the whole joint model, so the outcome blocks carry step 1's
   uncertainty too; under BCH it enters through the BCH weights, which
@@ -166,6 +171,16 @@ add_outcome(
   `covariates` a one-sided formula (interactions included, e.g.
   `~ age * sex`) or a vector of column names.
 
+- missing_predictors:
+
+  What to do with a case missing one of `covariates` or `predictors`.
+  `"listwise"` (the default) leaves it out of the step-3 model, with a
+  message saying how many cases that was; `"mean"` keeps it and
+  completes the missing value under the class-invariant Gaussian
+  marginal of the covariates, which for a single covariate is its mean.
+  A missing *outcome* is never deleted for this reason: that case simply
+  contributes no outcome information. See "Missing covariates" below.
+
 - ...:
 
   Currently unused.
@@ -177,6 +192,19 @@ A `mixture_model` with the distal-outcome model attached. Use
 means or probabilities and their tests, and
 [`outcome_contrasts()`](https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.md)
 for which classes differ from which, rather than whether any of them do.
+
+## Missing covariates
+
+Under `"listwise"` a case missing a covariate of the outcome, or a class
+predictor, is still part of step 1 and of the classification-error table
+the correction inverts, and is left out of step 3 only; its class
+probabilities stay those of the measurement model. For a covariate of
+the outcome, deletion leaves the regression unbiased when whether the
+covariate is missing depends on the covariate itself or on the class,
+and completing it with the mean does not; when missingness is unrelated
+to anything the two agree (Little, 1992). For class predictors see
+"Missing predictors" in
+[`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md).
 
 ## References
 
@@ -199,6 +227,10 @@ association between latent class membership and external variables using
 bias-adjusted three-step approaches. *Sociological Methodology*,
 *43*(1), 272–311.
 [doi:10.1177/0081175012470644](https://doi.org/10.1177/0081175012470644)
+
+Little, R. J. A. (1992). Regression with missing X's: A review. *Journal
+of the American Statistical Association*, *87*(420), 1227–1237.
+[doi:10.1080/01621459.1992.10476282](https://doi.org/10.1080/01621459.1992.10476282)
 
 ## See also
 
@@ -223,6 +255,7 @@ summary(fit_out)
 #> =========================================================
 #>              STRUCTURAL MODEL SUMMARY                    
 #> =========================================================
+#>   Best solution  : found by 20 of 20 starts
 #> 
 #> CONTINUOUS DISTAL OUTCOME (MEANS)
 #> ---------------------------------------------------------

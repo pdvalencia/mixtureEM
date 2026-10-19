@@ -31,6 +31,7 @@ fit_mixture_internal(
   dif = NULL,
   se = c("corrected", "robust", "hessian"),
   n_cores = .default_n_cores(),
+  missing_predictors = c("listwise", "mean"),
   ...
 )
 ```
@@ -203,6 +204,12 @@ fit_mixture_internal(
   `options(mixtureEM.n_cores = )` where that has been set; an argument
   given here overrides the option.
 
+- missing_predictors:
+
+  What to do with a case missing a covariate: `"listwise"` (the default)
+  or `"mean"`, as in
+  [`fit_mixture`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md).
+
 - ...:
 
   Additional arguments passed to the measurement or structural model
@@ -264,6 +271,7 @@ print(fit)
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 summary(fit)
+#>   Best solution  : found by 5 of 5 starts
 #> Notice: No structural model found. Use measurement_summary() for item parameters.
 measurement_summary(fit)
 #> =========================================================
@@ -297,6 +305,7 @@ summary(fit_cov)
 #> =========================================================
 #>              STRUCTURAL MODEL SUMMARY                    
 #> =========================================================
+#>   Best solution  : found by 5 of 5 starts
 #> 
 #> CATEGORICAL LATENT VARIABLE REGRESSION (CLASS PREDICTORS)
 #> Reference Class: 1

@@ -43,12 +43,27 @@ print(x, columns = c("default", "all"), ...)
 
 ## Details
 
+`AWE` and `cmP` are left out of the default view on purpose. In a large
+simulation that included misspecified models, Arch and Nylund-Gibson
+(2026) found `BIC` and `CAIC` the most reliable indices, with no
+significant difference between the two; `AWE` performed worst overall,
+most of all at small samples; and `cmP`, being a rescaling of the `BIC`
+differences in the table, tracked `BIC` so closely that printing it adds
+no independent evidence and can make one index's choice look like two.
+The classes in every simulated population were well separated (entropy
+about .84 to .88), so the ranking is firmest there.
+
 A log-likelihood marked `*` is a maximum that only one start reached.
 `BF` spans many orders of magnitude, and its reading bands stop at 100
 and start at 0.1 (Wagenmakers, 2007), so it is printed as `> 100` and
 `< 0.1` beyond them; `cmP` below 0.001 is printed as `< 0.001`.
 
 ## References
+
+Arch, D. A. N., & Nylund-Gibson, K. (2026). Unmodeled DIF in latent
+class analysis: Consequences for class enumeration. *Methods in
+Psychology*, *14*, 100243.
+[doi:10.1016/j.metip.2026.100243](https://doi.org/10.1016/j.metip.2026.100243)
 
 Dias, J. G. (2006). Latent class analysis and model selection. In M.
 Spiliopoulou et al. (Eds.), *From Data and Information Analysis to
