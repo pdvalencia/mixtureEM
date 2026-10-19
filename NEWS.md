@@ -1,3 +1,5 @@
+# mixtureEM (development version)
+
 # mixtureEM 0.6.0
 
 Growth mixture models you can report, and the post-fit tools every applied
