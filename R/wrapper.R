@@ -2223,6 +2223,9 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   starts over. Default \code{1} (sequential), or the value of
 #'   \code{options(mixtureEM.n_cores = )} where that has been set; an argument
 #'   given here overrides the option.
+#' @param missing_predictors What to do with a case missing a covariate:
+#'   \code{"listwise"} (the default) or \code{"mean"}, as in
+#'   \code{\link{fit_mixture}}.
 #' @param ... Additional arguments passed to the measurement or structural
 #'   model constructors (e.g., \code{max_val} for multinoulli models).
 #'

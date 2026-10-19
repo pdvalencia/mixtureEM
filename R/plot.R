@@ -367,12 +367,12 @@ plot.mixture_model <- function(x, type = c("profile", "bar", "line"),
   # each wrapped line gets its own line of bottom margin. Text is measured on
   # the open device, not estimated from a character count.
   wrap_note <- function(s) {
-    w <- strwidth(s, units = "inches", cex = 0.8, font = 3)
+    w <- graphics::strwidth(s, units = "inches", cex = 0.8, font = 3)
     strwrap(s, width = max(30, floor(0.95 * par("din")[1] * nchar(s) / w)))
   }
   footnotes  <- unlist(lapply(footnotes, wrap_note))
   # The 45-degree item names drop by their width times sin(45 degrees).
-  lab_drop   <- max(strwidth(colnames(plot_mat), units = "inches", cex = 0.9)) *
+  lab_drop   <- max(graphics::strwidth(colnames(plot_mat), units = "inches", cex = 0.9)) *
     sin(pi / 4) / par("csi")
   mar_bottom <- max(5, min(2 + lab_drop, 12)) + max(0, length(footnotes) - 1)
   # The first item's rotated label leans left of the axis, so the left margin

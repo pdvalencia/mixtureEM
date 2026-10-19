@@ -141,9 +141,9 @@ wald_test <- function(fit, constraints, rhs = 0,
     return(list(estimate = est, vcov = V, method = method))
   }
   if (!is.null(fit$sm) && inherits(fit$sm, "covariate")) {
-    V   <- vcov(fit)
+    V   <- stats::vcov(fit)
     ref <- attr(V, "ref_class")
-    b   <- coef(fit, exponentiate = FALSE, ref_class = ref)
+    b   <- stats::coef(fit, exponentiate = FALSE, ref_class = ref)
     D   <- ncol(b)
     free <- setdiff(seq_len(nrow(b)), ref)
     est <- as.vector(t(b[free, , drop = FALSE]))
