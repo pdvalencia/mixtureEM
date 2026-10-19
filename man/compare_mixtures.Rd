@@ -12,6 +12,7 @@ compare_mixtures(
   n_steps = 1,
   vlmr = c("none", "standard", "robust", "both"),
   n_cores = .default_n_cores(),
+  alongside = NULL,
   ...
 )
 }
@@ -40,6 +41,22 @@ covariance, or \code{"both"}. See Details for why it is off by default.}
 starts over, within each K. Default \code{1} (sequential), or the
 value of \code{options(mixtureEM.n_cores = )} where that has been set; an
 argument given here overrides the option.}
+
+\item{alongside}{Optional fitted models to show beside the table without
+ranking them: one fit, or a list of fits whose names label the rows. They
+print in a block of their own with their log-likelihood, parameter count,
+\code{BIC}, \code{SABIC}, \code{AIC3} and \code{Entropy}, and they take no part in \code{BF},
+\code{cmP}, VLMR or the best-model choice, which come from the sweep alone.
+This is the place for a fit that assumes a different within-class
+distribution, such as a normal fit next to a sweep of Poisson fits. Its
+criteria are printed, but the two are not ranked, because information
+criteria do not choose between distributions reliably: under skewed data
+the lowest \code{BIC} across families belonged to a symmetric model that
+found spurious classes almost every time (Guerra-Pena et al., 2020). The
+choice of distribution is a modelling decision made on substantive and
+distributional grounds -- is the scale bounded, are the counts zero-heavy,
+are there outliers -- not a fit-index decision, and the block says so
+when its family differs. Returned as \code{alongside} in the result.}
 
 \item{...}{Additional arguments passed to \code{\link{fit_mixture}}.}
 }
@@ -76,6 +93,9 @@ holding the likelihood-ratio statistic and, for each requested form, the
 mean and standard deviation of the reference distribution alongside the
 p-value. Those two moments are what say which distribution produced a
 given p-value, and are not printed.
+\item \code{alongside} Present only when \code{alongside} is set: a data frame with one
+row per fit, its label (\code{Model}), its within-class distribution
+(\code{Family}) and the criteria printed for it.
 }
 
 The table is printed when the fits finish and the object is returned
@@ -214,6 +234,11 @@ normal mixture". \emph{Biometrika}, \emph{90}(4), 991-994.
 
 Imhof, J. P. (1961). Computing the distribution of quadratic forms in normal
 variables. \emph{Biometrika}, \emph{48}(3/4), 419-426.
+
+Guerra-Pena, K., Garcia-Batista, Z. E., Depaoli, S., & Garrido, L. E.
+(2020). Class enumeration false positive in skew-t family of continuous
+growth mixture models. \emph{PLoS ONE}, \emph{15}(4), e0231525.
+\doi{10.1371/journal.pone.0231525}
 
 Kim, S., Kirby, J., Evudottir, S., Wang, Y., Tong, X., Goretzko, D., Ferron,
 J., & Jing, S. (2026). A small latent class in growth mixture modeling: A

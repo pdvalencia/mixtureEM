@@ -602,6 +602,11 @@ lta_g2 <- function(object) {
 #'   by default. It is unavailable for `model = "lta"`, whose latent variable is
 #'   a status per occasion rather than one class per case; those rows come back
 #'   `NA` with a message.
+#' @param alongside Optional fitted models to show beside the table without
+#'   ranking them, such as a gaussian LCGA next to a sweep of Poisson ones;
+#'   one fit or a named list. See [`compare_mixtures()`]: they print in a
+#'   block of their own, take no part in the best-model choice, and the block
+#'   says why when they assume a different within-class distribution.
 #' @param ... Further arguments passed to the fitting function, such as
 #'   `measurement`, `time_invariance` or `tau_homogeneous` for the categorical
 #'   models, `degree`, `time_scores`, `random_effects`, `psi` or `residual` for
@@ -649,9 +654,11 @@ compare_longitudinal <- function(indicators, k_range = NULL,
                                  model = c("lta", "rmlca", "gmm", "lcga"),
                                  times = NULL, verbose = TRUE,
                                  vlmr = c("none", "standard", "robust",
-                                          "both"), ...) {
+                                          "both"),
+                                 alongside = NULL, ...) {
   model <- match.arg(model)
   vlmr  <- match.arg(vlmr)
+  alongside <- .alongside_rows(alongside)
   growth <- model %in% c("gmm", "lcga")
   if (is.null(k_range)) k_range <- if (growth) 1:4 else 2:4
   if (any(k_range < 1L))
@@ -712,6 +719,10 @@ compare_longitudinal <- function(indicators, k_range = NULL,
   if (vlmr != "none") {
     out$vlmr <- attr(tab, "vlmr_detail")
     attr(out$fit_table, "vlmr_detail") <- NULL
+  }
+  if (!is.null(alongside)) {
+    out$alongside <- alongside
+    attr(out, "family") <- .emission_family(models[[1L]])
   }
   out$call <- match.call()
   class(out) <- "mixture_comparison"

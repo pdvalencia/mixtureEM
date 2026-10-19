@@ -11,6 +11,7 @@ compare_longitudinal(
   times = NULL,
   verbose = TRUE,
   vlmr = c("none", "standard", "robust", "both"),
+  alongside = NULL,
   ...
 )
 }
@@ -34,6 +35,12 @@ outcome, in any format accepted by \code{\link[=fit_gmm]{fit_gmm()}}.}
 by default. It is unavailable for \code{model = "lta"}, whose latent variable is
 a status per occasion rather than one class per case; those rows come back
 \code{NA} with a message.}
+
+\item{alongside}{Optional fitted models to show beside the table without
+ranking them, such as a gaussian LCGA next to a sweep of Poisson ones;
+one fit or a named list. See \code{\link[=compare_mixtures]{compare_mixtures()}}: they print in a
+block of their own, take no part in the best-model choice, and the block
+says why when they assume a different within-class distribution.}
 
 \item{...}{Further arguments passed to the fitting function, such as
 \code{measurement}, \code{time_invariance} or \code{tau_homogeneous} for the categorical

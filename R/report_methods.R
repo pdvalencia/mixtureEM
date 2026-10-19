@@ -80,6 +80,23 @@
          m)
 }
 
+# The indicator types a fit models, in .indicator_word()'s words: one word for
+# a single-type fit, one per block for a mixed one.
+.indicator_types <- function(x) {
+  if (inherits(x, c("gmm", "lcga"))) {
+    if (identical(x$growth$family, "gaussian")) "continuous"
+    else .indicator_word(x$growth$family)
+  } else if (!is.null(x$longitudinal$measurement)) {
+    .indicator_word(x$longitudinal$measurement)
+  } else {
+    d <- x$measurement_descriptor
+    if (is.character(d) && length(d) == 1L) .indicator_word(d)
+    else tryCatch(unique(vapply(d, function(b) .indicator_word(
+      if (is.list(b)) b$type %||% b[[1L]] else b), character(1))),
+      error = function(e) "mixed-type")
+  }
+}
+
 # Which Bayes constant acts on which indicator type. A constant that has no
 # parameter to act on is not mentioned: "every sentence must be true of this
 # fit" rules out stating a prior that did nothing.
@@ -111,18 +128,7 @@
   n_cells  <- md$n_cells %||% length(dat)
   w        <- x$sample_weights %||% x$weights_vec
 
-  types <- if (family %in% c("gmm", "lcga")) {
-    if (identical(x$growth$family, "gaussian")) "continuous"
-    else .indicator_word(x$growth$family)
-  } else if (!is.null(x$longitudinal$measurement)) {
-    .indicator_word(x$longitudinal$measurement)
-  } else {
-    d <- x$measurement_descriptor
-    if (is.character(d) && length(d) == 1L) .indicator_word(d)
-    else tryCatch(unique(vapply(d, function(b) .indicator_word(
-      if (is.list(b)) b$type %||% b[[1L]] else b), character(1))),
-      error = function(e) "mixed-type")
-  }
+  types <- .indicator_types(x)
 
   shares <- if (lta) unname(x$prevalences[1L, ]) else unname(x$weights)
   n_eff  <- x$n_eff

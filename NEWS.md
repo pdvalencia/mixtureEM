@@ -1,5 +1,14 @@
 # mixtureEM (development version)
 
+* `compare_mixtures()` and `compare_longitudinal()` take `alongside`: fitted
+  models shown in a block of their own beside the comparison table, with
+  their criteria but no ranking. A fit that assumes a different within-class
+  distribution (a normal fit beside Poisson ones, say) is labelled and never
+  ranked against the sweep, because information criteria do not choose
+  between distributions reliably; that choice is made on substantive and
+  distributional grounds. Nothing changes without `alongside`, and no fitted
+  number moves.
+
 # mixtureEM 0.6.0
 
 Growth mixture models you can report, and the post-fit tools every applied

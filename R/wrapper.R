@@ -4357,6 +4357,21 @@ print.mixture_model <- function(x, ...) {
 #'   starts over, within each K. Default \code{1} (sequential), or the
 #'   value of \code{options(mixtureEM.n_cores = )} where that has been set; an
 #'   argument given here overrides the option.
+#' @param alongside Optional fitted models to show beside the table without
+#'   ranking them: one fit, or a list of fits whose names label the rows. They
+#'   print in a block of their own with their log-likelihood, parameter count,
+#'   `BIC`, `SABIC`, `AIC3` and `Entropy`, and they take no part in `BF`,
+#'   `cmP`, VLMR or the best-model choice, which come from the sweep alone.
+#'   This is the place for a fit that assumes a different within-class
+#'   distribution, such as a normal fit next to a sweep of Poisson fits. Its
+#'   criteria are printed, but the two are not ranked, because information
+#'   criteria do not choose between distributions reliably: under skewed data
+#'   the lowest `BIC` across families belonged to a symmetric model that
+#'   found spurious classes almost every time (Guerra-Pena et al., 2020). The
+#'   choice of distribution is a modelling decision made on substantive and
+#'   distributional grounds -- is the scale bounded, are the counts zero-heavy,
+#'   are there outliers -- not a fit-index decision, and the block says so
+#'   when its family differs. Returned as `alongside` in the result.
 #' @param ... Additional arguments passed to \code{\link{fit_mixture}}.
 #'
 #' @return An object of class `mixture_comparison`: a named list with three
@@ -4390,6 +4405,9 @@ print.mixture_model <- function(x, ...) {
 #'     mean and standard deviation of the reference distribution alongside the
 #'     p-value. Those two moments are what say which distribution produced a
 #'     given p-value, and are not printed.
+#'   * `alongside` Present only when `alongside` is set: a data frame with one
+#'     row per fit, its label (`Model`), its within-class distribution
+#'     (`Family`) and the criteria printed for it.
 #'
 #'   The table is printed when the fits finish and the object is returned
 #'   invisibly; `print()` shows it again ([print.mixture_comparison()]: a short
@@ -4456,6 +4474,11 @@ print.mixture_model <- function(x, ...) {
 #' Imhof, J. P. (1961). Computing the distribution of quadratic forms in normal
 #' variables. \emph{Biometrika}, \emph{48}(3/4), 419-426.
 #'
+#' Guerra-Pena, K., Garcia-Batista, Z. E., Depaoli, S., & Garrido, L. E.
+#' (2020). Class enumeration false positive in skew-t family of continuous
+#' growth mixture models. \emph{PLoS ONE}, \emph{15}(4), e0231525.
+#' \doi{10.1371/journal.pone.0231525}
+#'
 #' Kim, S., Kirby, J., Evudottir, S., Wang, Y., Tong, X., Goretzko, D., Ferron,
 #' J., & Jing, S. (2026). A small latent class in growth mixture modeling: A
 #' simulation study. \emph{Structural Equation Modeling}, \emph{33}(4),
@@ -4466,9 +4489,11 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
                              n_init = 10, n_steps = 1,
                              vlmr = c("none", "standard", "robust", "both"),
                              n_cores = .default_n_cores(),
-                             ...) {
+                             alongside = NULL, ...) {
   if (missing(measurement)) .require_measurement(X)
   vlmr <- match.arg(vlmr)
+  # Checked before any K is fitted, so a mistyped argument fails at once.
+  alongside <- .alongside_rows(alongside)
   # k=0 would silently fit a degenerate model with LL=-Inf; negative
   # k values crash deep in initialisation with a cryptic error.
   if (any(k_range < 1L))
@@ -4541,6 +4566,10 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
     out$vlmr <- attr(fit_table, "vlmr_detail")
     attr(out$fit_table, "vlmr_detail") <- NULL
   }
+  if (!is.null(alongside)) {
+    out$alongside <- alongside
+    attr(out, "family") <- .emission_family(models[[1L]])
+  }
   out$call <- match.call()
   class(out) <- "mixture_comparison"
   print(out)
@@ -4582,6 +4611,53 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
   rel     <- exp(sic - max(sic))
   tab$cmP <- rel / sum(rel)
   tab
+}
+
+# The within-class distribution a fit assumes, which is what BIC cannot choose
+# between (Guerra-Pena, Garcia-Batista, Depaoli & Garrido, 2020). Binary,
+# polytomous and ordinal items are one family, and so are the normal fits
+# whatever their covariance structure: within either, criteria compare
+# like with like. A mixed fit is its blocks' families together.
+.emission_family <- function(x) {
+  if (inherits(x, "gmm")) return("normal")
+  fam <- vapply(.indicator_types(x), function(t) switch(t,
+    binary = , binomial = , polytomous = , ordinal = "categorical",
+    continuous = "normal",
+    count = "Poisson",
+    t), character(1))
+  paste(sort(unique(fam)), collapse = " + ")
+}
+
+# One comparison-table row for a model fitted outside the sweep, read the way
+# compare_longitudinal() reads its own: a three-step fit by its step-1 model,
+# and no entropy for one class.
+.comparison_row <- function(fit, label) {
+  m <- (if (inherits(fit, "lta_model") && .is_threestep_lta(fit))
+          fit$step1 else fit)$metrics
+  k <- fit$n_statuses %||% fit$n_components
+  data.frame(Model = label, Family = .emission_family(fit), Classes = k,
+             LL = m$ll, Params = m$n_params, BIC = m$bic, SABIC = m$sabic,
+             AIC3 = m$aic3,
+             Entropy = if (k == 1L) NA_real_ else m$entropy %||% NA_real_,
+             check.names = FALSE, stringsAsFactors = FALSE)
+}
+
+# The `alongside` fits of compare_mixtures() and compare_longitudinal(), as
+# rows. They are shown, never ranked: no BF, cmP or best K reaches them.
+.alongside_rows <- function(alongside) {
+  if (is.null(alongside)) return(NULL)
+  fitted <- c("mixture_model", "lta_model")
+  if (inherits(alongside, fitted)) alongside <- list(alongside)
+  ok <- is.list(alongside) && length(alongside) > 0L &&
+    all(vapply(alongside, inherits, logical(1), fitted))
+  if (!ok)
+    stop("`alongside` must be a fitted model, or a list of them, from one of ",
+         "the package's fitting functions.", call. = FALSE)
+  labels <- names(alongside) %||% rep("", length(alongside))
+  labels[labels == ""] <- paste("alongside", which(labels == ""))
+  rows <- do.call(rbind, Map(.comparison_row, alongside, labels))
+  rownames(rows) <- NULL
+  rows
 }
 
 #' Print a Model-Comparison Table
@@ -4682,6 +4758,32 @@ print.mixture_comparison <- function(x, columns = c("default", "all"), ...) {
               attr(x, "unit") %||% "classes"))
   if (columns == "default")
     cat("   print(x, columns = \"all\") adds AIC, CAIC, AWE, ICL, BF and cmP.\n")
+
+  # Fits passed in through `alongside` print in a block of their own, with no
+  # ranking: the best-model line above was chosen from the sweep alone.
+  al <- x$alongside
+  if (!is.null(al)) {
+    shown <- data.frame(Model = al$Model, Family = al$Family,
+                        Classes = al$Classes, LL = num(al$LL),
+                        Params = al$Params, check.names = FALSE)
+    for (nm in c("BIC", "SABIC", "AIC3", "Entropy")) shown[[nm]] <- num(al[[nm]])
+    cat("\n=== Shown alongside, not ranked ===\n")
+    print(shown, row.names = FALSE, right = TRUE)
+    foreign <- setdiff(unique(al$Family), attr(x, "family"))
+    plural  <- sum(al$Family %in% foreign) > 1L
+    if (length(foreign))
+      cat(strwrap(sprintf(paste(
+        "Not ranked against the table above: %s %s a different within-class",
+        "distribution (%s, against %s), and choosing among distributions is a",
+        "modelling decision made on substantive and distributional grounds --",
+        "is the scale bounded, are the counts zero-heavy, are there outliers --",
+        "not a fit-index one."),
+        if (plural) "those fits" else "that fit",
+        if (plural) "assume" else "assumes",
+        paste(foreign, collapse = ", "), attr(x, "family")),
+        prefix = "\n", initial = ""), sep = "")
+    cat("\n")
+  }
   invisible(x)
 }
 
