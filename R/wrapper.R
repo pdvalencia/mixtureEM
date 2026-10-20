@@ -72,25 +72,20 @@ sort_model_classes <- function(model_state) {
   # The flat-parameter block above only touches model_state$mm$parameters, which
   # is empty for nested models.  Sub-model parameters live one level deeper at
   # model_state$mm$models[[name]]$parameters and must be sorted independently.
+  # A block can itself be nested -- a multiple-group model whose items are of
+  # mixed types holds one nested model per group -- so the sort recurses.
+  sort_sub <- function(sub) {
+    for (nm in c("pis", "means", "covariances", "rates", "inflation",
+                 "overdispersion"))
+      if (!is.null(sub$parameters[[nm]]))
+        sub$parameters[[nm]] <- sub$parameters[[nm]][new_order, , drop = FALSE]
+    if (inherits(sub, c("nested", "blocks")))
+      for (name in names(sub$models)) sub$models[[name]] <- sort_sub(sub$models[[name]])
+    sub
+  }
   if (inherits(model_state$mm, c("nested", "blocks"))) {
-    for (name in names(model_state$mm$models)) {
-      sub <- model_state$mm$models[[name]]
-      if (!is.null(sub$parameters[["pis"]]))
-        sub$parameters$pis <- sub$parameters$pis[new_order, , drop = FALSE]
-      if (!is.null(sub$parameters[["means"]]))
-        sub$parameters$means <- sub$parameters$means[new_order, , drop = FALSE]
-      if (!is.null(sub$parameters[["covariances"]]))
-        sub$parameters$covariances <-
-          sub$parameters$covariances[new_order, , drop = FALSE]
-      if (!is.null(sub$parameters[["rates"]]))
-        sub$parameters$rates <- sub$parameters$rates[new_order, , drop = FALSE]
-      if (!is.null(sub$parameters[["inflation"]]))
-        sub$parameters$inflation <- sub$parameters$inflation[new_order, , drop = FALSE]
-      if (!is.null(sub$parameters[["overdispersion"]]))
-        sub$parameters$overdispersion <-
-          sub$parameters$overdispersion[new_order, , drop = FALSE]
-      model_state$mm$models[[name]] <- sub
-    }
+    for (name in names(model_state$mm$models))
+      model_state$mm$models[[name]] <- sort_sub(model_state$mm$models[[name]])
   }
 
   # --- Sort structural model parameters ---

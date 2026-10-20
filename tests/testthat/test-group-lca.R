@@ -601,3 +601,24 @@ test_that("the profile plot keeps a pooled-share note and long labels on the dev
   expect_no_error(plot(fit, class_labels = c("A very long first class label",
                                              "And an equally long second one")))
 })
+
+test_that("a group-varying model with mixed item types sorts every block's classes", {
+  # Each group's block is itself a nested model here; the size sort has to
+  # reach its sub-models, or the stored posteriors and item parameters describe
+  # different classes.
+  set.seed(3)
+  n  <- 600
+  G  <- rep(1:2, each = n / 2)
+  cl <- ifelse(G == 1, sample(1:3, n, TRUE, c(.5, .3, .2)),
+               sample(1:3, n, TRUE, c(.2, .3, .5)))
+  p  <- rbind(c(.9, .9, .8, .9), c(.9, .2, .1, .2), c(.1, .1, .2, .1))
+  X  <- t(sapply(cl, function(k) rbinom(4, 1, p[k, ])))
+  Xm <- cbind(X[, 1:2], X[, 3] + X[, 4] + 1)
+  f  <- suppressWarnings(fit_mixture(Xm, n_classes = 3,
+          measurement = list(binary = 1:2, categorical = 3), group = G,
+          group_effects = "both", n_steps = 1, n_init = 4, random_state = 1,
+          n_cores = 1))
+  e <- e_step(f, f$data, f$Y)
+  expect_equal(sum(e$log_prob_norm), f$metrics$ll, tolerance = 1e-8)
+  expect_lt(max(abs(exp(e$log_resp) - exp(f$log_resp))), 1e-8)
+})

@@ -1,5 +1,18 @@
 # mixtureEM (development version)
 
+## Class order in multiple-group models with mixed item types
+
+**A multiple-group model whose measurement differs by group and whose
+items are of more than one type** (`group =` with `group_effects = "both"`
+or `"measurement"` and a mixed `measurement` list) left each group's item
+parameters in the estimation order when the classes were sorted by size at
+the end of the fit, while the class sizes, posteriors and structural
+parameters were sorted. Whenever the sort moved a class, the printed item
+profiles, `measurement_estimates()` and anything recomputed from the fitted
+parameters belonged to the wrong classes. The sort now reaches every
+group's sub-models. Single-type and group-invariant models were not
+affected.
+
 ## Frequency weights in the two-step and BCH latent transition variances
 
 **Standard errors change for frequency-weighted fits** (`weight_type =
