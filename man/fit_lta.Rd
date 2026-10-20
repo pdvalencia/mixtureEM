@@ -418,7 +418,15 @@ sections below.}
 slope per covariate shared across origins, which is the specification in
 Wang & Wang eq. 6.28 and by far the better-behaved one. \code{"by_origin"} fits
 a separate regression per origin status, which is saturated and often fails
-to converge usefully when transitions are sparse.}
+to converge usefully when transitions are sparse. A named character
+vector sets it covariate by covariate, e.g.
+\code{c(female = "by_origin", .default = "common")}: a covariate named
+\code{"by_origin"} gets its own slopes in every origin status while the others
+keep one slope shared across origins (a factor is named by its variable
+name and all its dummies follow it). Unnamed covariates take \code{.default},
+itself \code{"common"} unless given. The by-origin slopes are reported as the
+last origin status's slope (the covariate's own term) and, for every
+other origin, its difference from that slope (\verb{from:k x covariate}).}
 
 \item{group}{Optional grouping variable for a multiple-group model
 (Collins & Lanza, sec. 8.2-8.3). It is entered as dummy predictors,

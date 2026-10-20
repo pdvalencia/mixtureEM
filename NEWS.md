@@ -1,5 +1,19 @@
 # mixtureEM (development version)
 
+## Covariates acting by origin for some transition regressors only
+
+`fit_lta(transition_effects =)` also takes a named vector, so one covariate
+can act on the transitions by origin status while the others keep one slope
+shared across origins, e.g. `c(female = "by_origin", .default = "common")`.
+The fit is the shared-slope regression with the named covariates multiplied
+by the origin indicators: the covariate's own term is the last origin's
+slope and `from:k x covariate` is origin k's difference from it, which is
+how `lta_covariate_summary()` prints them. A factor is named by its
+variable. Naming every covariate `"by_origin"` gives the by-origin model and
+naming none the common one. Not available with a `group` acting on the
+transitions; enter the group as a transition covariate instead. Nothing
+changes for existing fits.
+
 ## Direct covariate effects on ordinal indicators
 
 `fit_mixture(measurement = "ordinal", predictors_items =)` now fits

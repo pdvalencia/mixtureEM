@@ -524,7 +524,10 @@
     if (is.null(v)) default else v
   }
   inv       <- arg("transition_invariance", "none")[1L]
-  effects   <- arg("transition_effects", "common")[1L]
+  effects   <- arg("transition_effects", "common")
+  # A per-covariate setting reaches step 3 through `carried`; the pattern
+  # start only needs a shape, and "common" is the shared part of it.
+  effects   <- if (!is.null(names(effects))) "common" else effects[1L]
   shared    <- inv %in% c("full", "slopes")
 
   search <- c("n_init", "max_iter", "tol", "smoothing", "random_state",

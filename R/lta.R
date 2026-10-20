@@ -368,7 +368,15 @@
 #'   slope per covariate shared across origins, which is the specification in
 #'   Wang & Wang eq. 6.28 and by far the better-behaved one. `"by_origin"` fits
 #'   a separate regression per origin status, which is saturated and often fails
-#'   to converge usefully when transitions are sparse.
+#'   to converge usefully when transitions are sparse. A named character
+#'   vector sets it covariate by covariate, e.g.
+#'   `c(female = "by_origin", .default = "common")`: a covariate named
+#'   `"by_origin"` gets its own slopes in every origin status while the others
+#'   keep one slope shared across origins (a factor is named by its variable
+#'   name and all its dummies follow it). Unnamed covariates take `.default`,
+#'   itself `"common"` unless given. The by-origin slopes are reported as the
+#'   last origin status's slope (the covariate's own term) and, for every
+#'   other origin, its difference from that slope (`from:k x covariate`).
 #' @param group Optional grouping variable for a multiple-group model
 #'   (Collins & Lanza, sec. 8.2-8.3). It is entered as dummy predictors,
 #'   saturated over the transition rows, which gives each group its own status
@@ -734,7 +742,16 @@ fit_lta <- function(indicators,
   transition_invariance  <- match.arg(transition_invariance)
   random_intercept       <- match.arg(random_intercept)
   layout                 <- match.arg(layout)
-  transition_effects     <- match.arg(transition_effects)
+  # A named vector sets the effect covariate by covariate (.lta_tau_cross()):
+  # the fit is then the "common" regression with the named covariates crossed
+  # with the origin dummies.
+  tau_cross_spec <- NULL
+  if (!is.null(names(transition_effects))) {
+    tau_cross_spec     <- transition_effects
+    transition_effects <- "common"
+  } else {
+    transition_effects <- match.arg(transition_effects)
+  }
   group_effects          <- match.arg(group_effects)
   missing_predictors     <- match.arg(missing_predictors)
   weight_type            <- match.arg(weight_type)
@@ -1057,9 +1074,16 @@ fit_lta <- function(indicators,
       # A multiple-group model gives every group its own transition matrix, so
       # the group must enter every transition row separately rather than as one
       # shared shift (Collins & Lanza, sec. 8.3 and the equivalence in 8.14).
+      if (!is.null(tau_cross_spec))
+        stop("A per-covariate `transition_effects` cannot be combined with a ",
+             "`group` acting on the transitions, which already gives every ",
+             "origin its own regression. Enter the group in ",
+             "`predictors_transition` and name it \"by_origin\" instead.",
+             call. = FALSE)
       transition_effects <- "by_origin"
     }
   }
+  tau_cross <- .lta_tau_cross(tau_cross_spec, Z_tau)
   if (!is.null(Z_tau) && !is.null(forbidden_transitions))
     stop("`forbidden_transitions` cannot be combined with covariates on the ",
          "transitions: a logistic regression has no way to hold a probability ",
@@ -1207,6 +1231,7 @@ fit_lta <- function(indicators,
     Z_ri            = Z_ri,
     ri_beta         = NULL,
     transition_effects = transition_effects,
+    tau_cross       = tau_cross,
     group_info      = group_info,
     group_effects   = if (is.null(group)) NULL else group_effects,
     bayes_constants = bayes_constants,

@@ -129,7 +129,52 @@
   dummies <- matrix(0, nrow(Z), K - 1L)
   if (k < K) dummies[, k] <- 1
   colnames(dummies) <- paste0("from:", seq_len(K - 1L))
-  cbind(Z[, 1L, drop = FALSE], dummies, Z[, -1L, drop = FALSE], occ)
+  cbind(Z[, 1L, drop = FALSE], dummies, Z[, -1L, drop = FALSE],
+        .lta_tau_cross_block(state, Z, dummies), occ)
+}
+
+# A per-covariate `transition_effects`: the covariates named "by_origin" times
+# each origin dummy, so origin k < K has slope (covariate + from:k x
+# covariate) and origin K the covariate's own term. Zero-width otherwise.
+.lta_tau_cross_block <- function(state, Z, dummies) {
+  cross <- state$tau_cross
+  if (is.null(cross)) return(NULL)
+  Zc <- Z[, -1L, drop = FALSE][, cross, drop = FALSE]
+  do.call(cbind, lapply(seq_len(ncol(dummies)), function(j) {
+    M <- Zc * dummies[, j]
+    colnames(M) <- paste0("from:", j, " x ", colnames(Zc))
+    M
+  }))
+}
+
+# Resolve a named `transition_effects` against the transition design's
+# covariate columns: TRUE where a column acts by origin. A name matches its
+# own column or, failing that, the dummies of a factor of that name. NULL when
+# nothing is by origin, which is the plain "common" model.
+.lta_tau_cross <- function(spec, Z) {
+  if (is.null(spec)) return(NULL)
+  if (is.null(Z))
+    stop("A per-covariate `transition_effects` needs `predictors_transition`.",
+         call. = FALSE)
+  spec <- vapply(spec, as.character, character(1))
+  bad  <- setdiff(unname(spec), c("common", "by_origin"))
+  if (length(bad) || any(names(spec) == ""))
+    stop("A per-covariate `transition_effects` is a named vector of ",
+         "\"common\" and \"by_origin\", e.g. c(female = \"by_origin\").",
+         call. = FALSE)
+  cols <- colnames(Z)[-1L]
+  def  <- if (".default" %in% names(spec)) spec[[".default"]] else "common"
+  out  <- stats::setNames(rep(def == "by_origin", length(cols)), cols)
+  for (nm in setdiff(names(spec), ".default")) {
+    hit <- cols == nm
+    if (!any(hit)) hit <- startsWith(cols, nm)
+    if (!any(hit))
+      stop(sprintf(paste0("`transition_effects` names `%s`, which is not among ",
+                          "the transition covariates (%s)."),
+                   nm, paste(cols, collapse = ", ")), call. = FALSE)
+    out[hit] <- spec[[nm]] == "by_origin"
+  }
+  if (!any(out)) NULL else out
 }
 
 # The Tn - 2 occasion contrasts, or NULL where there are none to add. Separated
