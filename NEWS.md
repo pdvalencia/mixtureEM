@@ -26,6 +26,27 @@ fit whose data are duplicated case by case, which should leave every
 standard error where it was, now does so to 2e-5 where it used to drift by
 7e-3. No estimate or log-likelihood changes.
 
+## Transition coefficients with no finite maximum print no standard error
+
+When a latent transition model with covariates has a transition that the
+fit expects almost no case to make (a status nobody returns from, say), the
+logits that depend on that cell have no finite maximum: the EM stops
+climbing toward infinity wherever its tolerance says, and the information
+has no curvature in that direction. `lta_covariate_summary()` used to print
+whatever standard error the inversion left there, which on simulated data
+ranged from 0.000 (with z in the hundreds of thousands) to 167. Those rows
+now print `NA` for the standard error, z and p, with a note under the
+table. Which rows are marked follows from the design: under
+`transition_effects = "common"` an intercept or origin contrast is marked
+only when the transitions that do occur cannot determine it, and the shared
+slopes never are; under `"by_origin"` the whole row of that origin is. On
+eight simulated two-occasion models the marked rows were exactly the ones
+with no finite maximum, a rare transition that does occur was left alone,
+and the slopes and the identified intercepts kept stable standard errors
+under both the observed information and the sandwich, so nothing else
+needed to change. No estimate, log-likelihood or unmarked standard error
+moves.
+
 ## Fits from another family, shown beside a comparison
 
 * `compare_mixtures()` and `compare_longitudinal()` take `alongside`: fitted

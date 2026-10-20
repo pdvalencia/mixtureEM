@@ -4,14 +4,15 @@
 # each estimated transition matrix (U distinct covariate patterns).
 
 .lcp_sim <- function(n = 300, Tn = 2, seed = 11, no_return = FALSE,
-                     p_item = 0.9) {
+                     p_item = 0.9, never_return = FALSE) {
   set.seed(seed)
   x <- rbinom(n, 1, 0.5)
   S <- matrix(0L, n, Tn)
   S[, 1] <- 1L + rbinom(n, 1, plogis(0.3 - 0.8 * x))
   for (t in 2:Tn) {
     move12 <- plogis(-1.6 + 0.6 * x)
-    move21 <- if (no_return) ifelse(x == 1, 0, plogis(-1.9)) else
+    move21 <- if (never_return) 0 else
+      if (no_return) ifelse(x == 1, 0, plogis(-1.9)) else
       plogis(-1.9 - 0.5 * x)
     u <- runif(n)
     S[, t] <- ifelse(S[, t - 1] == 1L, ifelse(u < move12, 2L, 1L),
@@ -110,4 +111,29 @@ test_that("a one-step fit prints the observed-information standard errors", {
   printed <- as.numeric(strsplit(trimws(row), " +")[[1]][5])
   expect_equal(printed, round(se_v[2], 6))
   expect_gt(se_v[2], se_h[2])
+})
+
+test_that("a transition nobody makes prints no standard error for the logits it unbounds", {
+  # Status 2 never returns to status 1, so with the prior off that cell's
+  # probability goes to zero and the origin contrast of the one free row has
+  # no finite maximum; so does the intercept when the never-made move starts
+  # from the reference origin, which the size ordering decides. The shared
+  # slope is still identified from the other origin and keeps its standard
+  # error.
+  fit <- .lcp_fit(.lcp_sim(never_return = TRUE), effects = "common",
+                  smoothing = 0)
+  u <- .lta_tau_unbounded(fit, 1L)
+  expect_equal(dim(u), c(1L, 3L))
+  expect_true(u[1, 2])
+  expect_false(u[1, 3])
+  out <- capture.output(lta_covariate_summary(fit))
+  rows <- grep("^ *to Status 1 ", out, value = TRUE)
+  expect_length(rows, 3L)
+  expect_equal(grepl(" NA ", rows), as.vector(u))
+  expect_true(any(grepl("^SE NA:", out)))
+
+  # With every transition made by someone, nothing is marked.
+  ctl <- .lcp_fit(.lcp_sim(), effects = "common", smoothing = 0)
+  expect_false(any(.lta_tau_unbounded(ctl, 1L)))
+  expect_false(any(grepl("^SE NA:", capture.output(lta_covariate_summary(ctl)))))
 })

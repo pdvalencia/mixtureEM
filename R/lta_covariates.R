@@ -379,6 +379,56 @@
   out
 }
 
+# Which transition coefficients of block `m` (origin `k` under "by_origin")
+# have no finite maximum-likelihood value, as a (K - 1) x D logical matrix in
+# the layout of the block's beta. A cell into which the model expects fewer
+# than 0.01 cases to move, summing every case's probability of the move as if
+# all of them started in that origin, is one the data put at zero (or, for the
+# reference destination, makes every other destination's logit run off
+# together): the climb toward its unbounded logit stops wherever the EM
+# tolerance does, around logit 14 on simulated two-occasion data, so a cut
+# on the probability alone misses it. Under "by_origin" that unbounds the
+# whole row of that origin. Under "common" the slopes stay identified from the other origins; an intercept-type
+# coefficient (intercept, `from:k`, `occ:t`: constant within each origin and
+# occasion) is finite exactly when the intercept parts of the cells that are
+# not at the boundary determine it, i.e. when its unit vector lies in their row
+# space. Its standard error is then meaningful; otherwise the information has
+# no curvature in that direction and the printed value is an artefact of where
+# the climb stopped.
+.lta_tau_unbounded <- function(object, m, k = NULL) {
+  K  <- object$n_statuses
+  lt <- .lta_log_tau(object)
+  occs <- if (isTRUE(object$tau_homogeneous)) seq_along(lt) else m
+  w    <- object$weights_vec
+  edge <- function(t, o) colSums(exp(lt[[t]][[o]]) * w) < 0.01
+  if (!is.null(k)) {
+    D   <- ncol(object$Z_tau)
+    out <- matrix(FALSE, K - 1L, D)
+    for (t in occs) {
+      e <- edge(t, k)
+      out[e[-K] | e[K], ] <- TRUE
+    }
+    return(out)
+  }
+  cells <- expand.grid(o = seq_len(K), t = occs)
+  Zs    <- Map(function(o, t) .lta_tau_design(object, o, t), cells$o, cells$t)
+  A     <- do.call(rbind, lapply(Zs, function(Z) Z[1L, ]))
+  B     <- do.call(rbind, Map(edge, cells$t, cells$o))
+  const <- Reduce(`&`, lapply(Zs, function(Z)
+    apply(Z, 2L, function(z) all(z == z[1L]))))
+  out <- matrix(FALSE, K - 1L, ncol(A))
+  rk  <- function(M) if (nrow(M)) qr(M)$rank else 0L
+  for (j in seq_len(K - 1L)) {
+    fin <- A[!(B[, j] | B[, K]), const, drop = FALSE]
+    r0  <- rk(fin)
+    for (ci in which(const)) {
+      u <- as.numeric(which(const) == ci)
+      out[j, ci] <- rk(rbind(fin, u)) > r0
+    }
+  }
+  out
+}
+
 .lta_tau_cov_n_params <- function(state) {
   K <- state$n_statuses
   mats <- if (isTRUE(state$tau_homogeneous)) 1L else state$n_times - 1L
@@ -406,6 +456,12 @@
 #' row-specific intercepts, followed by the covariate slopes, which are shared
 #' across origin statuses. With `"by_origin"` a separate table is printed per
 #' origin status.
+#'
+#' A transition coefficient whose logit has no finite maximum, because the fit
+#' expects almost no case (under 0.01, summed over cases) to make a transition
+#' it depends on, prints its standard error, z and p as `NA`. Under `"common"`
+#' the shared slopes stay identified; under `"by_origin"` the whole row of that
+#' origin is marked.
 #'
 #' @param object A model fitted by [`fit_lta()`] with covariates or a group.
 #' @param digits Number of digits to print.
@@ -451,7 +507,11 @@ lta_covariate_summary <- function(object, digits = 3) {
     object$se$vcov[blk$cols, blk$cols, drop = FALSE]
   }
 
-  show_block <- function(beta, hessian, cov_names, row_lab, V = NULL) {
+  # `unbounded` (.lta_tau_unbounded()) marks the coefficients whose logit has
+  # no finite maximum; their standard error is not printed.
+  n_unbounded <- 0L
+  show_block <- function(beta, hessian, cov_names, row_lab, V = NULL,
+                         unbounded = NULL) {
     free <- K - 1L
     D    <- ncol(beta)
     if (is.null(V))
@@ -459,6 +519,11 @@ lta_covariate_summary <- function(object, digits = 3) {
                                                     error = function(e) NULL)
     se   <- if (is.null(V)) rep(NA_real_, free * D) else
       sqrt(pmax(diag(V), 0))
+    if (!is.null(unbounded)) {
+      drop <- as.vector(t(unbounded))
+      se[drop] <- NA_real_
+      n_unbounded <<- n_unbounded + sum(drop)
+    }
     est  <- as.vector(t(beta[seq_len(free), , drop = FALSE]))
     z    <- est / se
     out  <- data.frame(
@@ -502,15 +567,22 @@ lta_covariate_summary <- function(object, digits = 3) {
           show_block(object$tau_beta[[m]][[k]], object$tau_hessian[[m]][[k]],
                      colnames(object$Z_tau),
                      paste0("to Status ", seq_len(K - 1L)),
-                     V = ts_block(sprintf("tau_beta%s[from %d]", occ, k)))
+                     V = ts_block(sprintf("tau_beta%s[from %d]", occ, k)),
+                     unbounded = .lta_tau_unbounded(object, m, k))
         }
       } else {
         show_block(object$tau_beta[[m]], object$tau_hessian[[m]],
                    colnames(.lta_tau_design(object, 1L)),
                    paste0("to Status ", seq_len(K - 1L)),
-                   V = ts_block(sprintf("tau_beta%s", occ)))
+                   V = ts_block(sprintf("tau_beta%s", occ)),
+                   unbounded = .lta_tau_unbounded(object, m))
       }
     }
+    if (n_unbounded > 0L)
+      cat("\nSE NA: the fit expects almost no case to make a transition this",
+          "coefficient\ndepends on, so its logit has no finite maximum and",
+          "no standard error. The\nother coefficients' standard errors are",
+          "unaffected.\n")
   }
 
   if (!is.null(object$ri_beta)) {

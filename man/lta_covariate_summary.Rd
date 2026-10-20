@@ -25,4 +25,10 @@ contains the origin-status dummies (labelled \code{from:k}) that supply the
 row-specific intercepts, followed by the covariate slopes, which are shared
 across origin statuses. With \code{"by_origin"} a separate table is printed per
 origin status.
+
+A transition coefficient whose logit has no finite maximum, because the fit
+expects almost no case (under 0.01, summed over cases) to make a transition
+it depends on, prints its standard error, z and p as \code{NA}. Under \code{"common"}
+the shared slopes stay identified; under \code{"by_origin"} the whole row of that
+origin is marked.
 }
