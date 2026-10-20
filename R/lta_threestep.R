@@ -663,7 +663,12 @@
   if (is.null(alpha))
     stop("`s12` carries no `smoothing`: the variance cannot tell which prior ",
          "the two steps were fitted under.", call. = FALSE)
-  if (!isTRUE(fit$mm_fixed) || !is.null(fit$ri) || !is.null(step1$ri) ||
+  # A step 1 with `predictors_items` rides a random-intercept factor with one
+  # node and no loading (fit_lta(), R/lta.R), which is an exact reduction to
+  # the plain chain; a genuine random intercept is not covered.
+  degenerate_ri <- function(ri) is.null(ri) ||
+    (!.lta_ri_loading_free(list(ri = ri)) && length(ri$mass) == 1L)
+  if (!isTRUE(fit$mm_fixed) || !is.null(fit$ri) || !degenerate_ri(step1$ri) ||
       (fit$n_classes %||% 1L) > 1L)
     return(NULL)
 
@@ -672,37 +677,27 @@
   X1 <- as.matrix(step1$data)
   w1 <- step1$weights_vec
 
-  # Step 1, reduced to its free parameters.
-  s1 <- step1
-  s1$tau_independent <- FALSE
-  lay1  <- .lta_par_layout(s1)
-  full1 <- .lta_par_pack(s1, lay1)
-  len   <- vapply(lay1, function(b) as.integer(b$len), integer(1))
-  beg   <- cumsum(len) - len
-  src   <- integer(length(full1))
-  n_red <- 0L
-  first <- list()
-  for (i in seq_along(lay1)) {
-    b    <- lay1[[i]]
-    cols <- beg[i] + seq_len(len[i])
-    key  <- if (identical(b$kind, "tau")) paste0("tau", b$i_mat) else NULL
-    if (!is.null(key) && !is.null(first[[key]])) {
-      src[cols] <- first[[key]]
-    } else {
-      src[cols] <- n_red + seq_len(len[i])
-      n_red <- n_red + len[i]
-      if (!is.null(key)) first[[key]] <- src[cols]
-    }
-  }
-  r0 <- full1[match(seq_len(n_red), src)]
-  if (max(abs(r0[src] - full1)) > 1e-8) return(NULL)
+  # Step 1, reduced to its free parameters. With a status regression (a DIF
+  # step 1) the origin-free design already packs one row per occasion.
+  red <- .qn_lta_reduction(step1)
+  if (is.null(red)) return(NULL)
+  s1    <- red$state
+  lay1  <- red$layout
+  src   <- red$src
+  r0    <- red$r0
+  n_red <- length(r0)
 
   # Every nudge below re-runs a forward-backward pass, so both steps run on
   # their distinct rows with the case weights summed, as the search does
-  # (.lta_collapse()). Step 1 has no covariates, so its rows are response
+  # (.lta_collapse()). Without covariates step 1's rows are response
   # patterns, and a posterior -- hence a modal assignment -- is a function of
   # the pattern, so the per-case posteriors are the pattern's, expanded back.
-  pat1 <- .pattern_index(X1)
+  # A DIF step 1's emission and status regression read the case's covariates
+  # too, and its rows are kept as they are.
+  covariates <- !is.null(s1$Z_delta) || !is.null(s1$Z_tau) ||
+    !is.null(s1$dif) || !is.null(s1$Z_ri)
+  pat1 <- if (covariates) list(idx = seq_len(nrow(X1)), rep_row = seq_len(nrow(X1)))
+          else .pattern_index(X1)
   X1c  <- X1[pat1$rep_row, , drop = FALSE]
   w1c  <- as.vector(rowsum(w1, pat1$idx))
   s1$weights_vec <- w1c
@@ -723,8 +718,9 @@
   # What step 3 reads off step 1, at an arbitrary point of step 1's vector.
   posteriors <- function(r) {
     st <- .lta_par_unpack(r[src], s1, lay1)
-    g  <- .lta_forward_backward(.lta_emission_loglik(st$mm, X1c),
-                                .lta_log_delta(st), .lta_log_tau(st), w1c)$gamma
+    g  <- if (!is.null(st$ri)) .lta_ri_e_step(st, X1c, w1c)$es[[1L]]$gamma else
+      .lta_forward_backward(.lta_emission_loglik(st$mm, X1c),
+                            .lta_log_delta(st), .lta_log_tau(st), w1c)$gamma
     lapply(g, function(m) m[pat1$idx, , drop = FALSE])
   }
   emission <- function(gamma) lapply(seq_len(Tn), function(t) {

@@ -594,9 +594,9 @@
 #'   at every occasion is also regressed on the same covariates (without that
 #'   regression the item slope would have to carry the whole association
 #'   between the covariate and the status). Step 3 fits whatever
-#'   `predictors_initial` and `predictors_transition` ask for. Step 1 has no
-#'   standard errors in this case, so step 3's treat the classification error
-#'   as known rather than adding step 1's uncertainty.
+#'   `predictors_initial` and `predictors_transition` ask for. Step 3's
+#'   standard errors carry step 1's uncertainty here too, item slopes and
+#'   status regressions included.
 #'
 #' @references
 #' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent

@@ -1,5 +1,18 @@
 # mixtureEM (development version)
 
+## Three-step latent transition SEs with item covariates carry step 1's uncertainty
+
+**Standard errors grow for `fit_lta(n_steps = 3, predictors_items = )`.**
+With direct covariate effects on the items, step 3's standard errors
+treated the classification error as known: the first-order correction of
+Bakk, Oberski and Vermunt (2014), which every other three-step fit already
+carried, was skipped. It now covers these fits, the item slopes and the
+per-occasion status regressions of step 1 included. The estimates do not
+change. The step-3-only variance is still kept as `$se$threestep_V2`. On a
+two-occasion, four-status example with one item slope, the standard errors
+of the initial-status logits doubled and those of the transition logits
+grew by up to a third.
+
 ## Multiple-group models with mixed item types reach their maximum
 
 **Estimates move slightly for multiple-group fits whose measurement differs

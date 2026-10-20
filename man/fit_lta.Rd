@@ -690,9 +690,9 @@ intercepts, \code{n_classes > 1}, \code{mover_stayer} and \code{group} are refus
 at every occasion is also regressed on the same covariates (without that
 regression the item slope would have to carry the whole association
 between the covariate and the status). Step 3 fits whatever
-\code{predictors_initial} and \code{predictors_transition} ask for. Step 1 has no
-standard errors in this case, so step 3's treat the classification error
-as known rather than adding step 1's uncertainty.
+\code{predictors_initial} and \code{predictors_transition} ask for. Step 3's
+standard errors carry step 1's uncertainty here too, item slopes and
+status regressions included.
 }
 
 \references{

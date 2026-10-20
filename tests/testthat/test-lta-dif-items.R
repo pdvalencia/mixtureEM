@@ -119,4 +119,12 @@ test_that("the three-step accepts DIF and keeps it in step 1 only", {
   expect_false(is.null(fit$step1$tau_beta))
   expect_null(fit$dif)
   expect_null(fit$delta_beta)
+
+  # Step 3's SEs carry step 1's uncertainty, which only adds to the variance.
+  # Its size is graded in the validation file.
+  expect_true(isTRUE(fit$se$threestep))
+  V <- fit$se$vcov; V2 <- fit$se$threestep_V2
+  expect_true(all(is.finite(V)))
+  expect_true(all(diag(V) >= diag(V2) - 1e-10))
+  expect_gt(max(diag(V) - diag(V2)), 0)
 })
