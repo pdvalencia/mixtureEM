@@ -1,5 +1,16 @@
 # mixtureEM (development version)
 
+## Frequency weights in the two-step and BCH latent transition variances
+
+**Standard errors change for frequency-weighted fits** (`weight_type =
+"frequency"`) in three places that still treated a frequency weight as a
+sampling weight, counting each row's score w^2 times instead of once per
+counted case: the two-step sandwich (`n_steps = 2, se = "robust"`), the
+outer-product step-1 variance inside corrected step-3 standard errors (used
+for large measurement models), and the BCH step 3 of a latent transition
+model. Each now equals the unweighted fit on the data expanded to one row per
+case. Sampling weights and unweighted fits do not change.
+
 ## The bootstrap likelihood-ratio test under frequency weights
 
 **`blrt()` p-values change for fits with `weight_type = "frequency"`.** The

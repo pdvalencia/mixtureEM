@@ -1032,6 +1032,12 @@
     S <- matrix(0, n, length(par))
     for (g in seq_len(G))
       S <- S + case_w[, g] * Gc[(g - 1L) * P + idx, , drop = FALSE]
+    # Each case's score carries its weight; a frequency weight's meat takes
+    # sqrt(w) instead (.meat_weights()), w identical cases each counted once.
+    if (identical(s12$step1$weight_type, "frequency")) {
+      w <- .lta_threestep_case_w(s12)
+      S <- S * (.meat_weights(w, "frequency") / pmax(w, 1e-300))
+    }
     Hi <- .psd_pinv(-H)
     V  <- Hi %*% crossprod(S) %*% Hi
     V  <- (V + t(V)) / 2

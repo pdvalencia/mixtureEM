@@ -721,7 +721,12 @@ NULL
 # Returns a list of `V` and the `method` actually used, which is not always the
 # one asked for: see the fallback below.
 .step1_variance <- function(model_state, X, par, scores, w, method) {
-  outer_v <- function() pinv(.score_meat(scores))
+  # `scores` carry w (.step1_case_scores()); a frequency weight's meat takes
+  # sqrt(w) instead (.meat_weights()) and counts cases rather than rows.
+  wtype   <- model_state$weight_type %||% "sampling"
+  outer_v <- function()
+    pinv(.score_meat(scores * (.meat_weights(w, wtype) / pmax(w, 1e-300)),
+                     n = .meat_n(w, wtype)))
   if (method == "outer")
     return(list(V = outer_v(), method = "outer", fallback = FALSE))
 

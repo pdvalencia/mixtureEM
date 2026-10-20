@@ -156,8 +156,12 @@
   if (identical(se, "robust")) {
     survey <- isTRUE(sm$has_survey_design) && length(sm$strata) == nrow(X) &&
       length(sm$cluster) == nrow(X)
-    D2 <- V2 %*% (.score_meat(info$S2, sm$strata, sm$cluster, survey) - Hp) %*%
-      V2
+    # The scores carry w; a frequency weight's meat takes sqrt(w) instead
+    # (.meat_weights()), and counts cases rather than rows.
+    wtype <- model_state$weight_type %||% "sampling"
+    S2 <- info$S2 * (.meat_weights(w, wtype) / pmax(w, 1e-300))
+    D2 <- V2 %*% (.score_meat(S2, sm$strata, sm$cluster, survey,
+                              n = .meat_n(w, wtype)) - Hp) %*% V2
     return(list(V = pad((D2 + t(D2)) / 2),
                 method = sprintf("Two-step sandwich (%s)",
                                  if (isTRUE(sm$has_survey_design))
