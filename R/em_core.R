@@ -478,7 +478,8 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
       m[!is.finite(m)] <- 0
       lam <- pmax(sub$parameters$rates[, cols, drop = FALSE], 1e-300)
       mm_ <- matrix(m, nrow = K, ncol = length(cols), byrow = TRUE)
-      val <- val + scale * (a / K) * sum(mm_ * log(lam) - lam)
+      on  <- mm_ > 0
+      val <- val + scale * (a / K) * sum((log(lam) - lam / mm_)[on])
     }
   } else if (fam %in% c("gaussian_diag", "gaussian_diag_nan")) {
     a <- .bayes_alpha(sub, "variances")
@@ -521,7 +522,8 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
     if (a > 0) {
       lam <- pmax(mm$parameters$rates, 1e-300)
       m   <- matrix(marginals$m, nrow = K, ncol = ncol(lam), byrow = TRUE)
-      val <- val + (a / K) * sum(m * log(lam) - lam)
+      on  <- m > 0
+      val <- val + (a / K) * sum((log(lam) - lam / m)[on])
     }
   } else if (fam %in% c("gaussian_diag", "gaussian_diag_nan")) {
     a <- .bayes_alpha(mm, "variances")

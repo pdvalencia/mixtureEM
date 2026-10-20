@@ -1,5 +1,21 @@
 # mixtureEM (development version)
 
+## The count prior weighs events, not cases
+
+The default prior on a count item's class rates was alpha / K pseudo-cases
+at the item's mean, which is the item mean times alpha / K pseudo-events: the
+higher an item's counts, the harder the prior pulled each class towards the
+item mean. It is now alpha / K pseudo-events at the observed rate,
+(alpha / K) [log lambda - lambda / m], whatever the item's scale, the form
+`fit_lcga()` already used. **Default-prior estimates of every
+cross-sectional count fit change** (`measurement = "count"`, `"zip"`,
+`"negbin"`, and count items inside mixed or blocked models): rates move
+away from the item means, by little for Poisson items (on a three-class,
+five-item example the log-likelihood moved 0.11 and no rate more than 1%)
+and by up to a standard error for a small negative binomial class, where
+the old prior was strongest. Fits with `bayes_constants = list(poisson = 0)`
+and growth models do not change.
+
 ## Negative binomial counts
 
 `fit_lcga(family = "negbin")` and `fit_mixture(measurement = "negbin")` fit

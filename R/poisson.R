@@ -34,6 +34,12 @@ poisson_model <- function(n_components, type = "poisson", ...) {
 # start every class in the wrong place for all but one item. Perturbing the
 # observed marginal keeps the starting values on the data's own scale while
 # still separating the classes enough for EM to move them apart.
+# The gamma prior's pseudo-events per item, a / K wherever the item has a
+# positive mean and none where it is all zeros (its kernel log lambda -
+# lambda / m has no centre there).
+.poisson_prior_events <- function(a, marginal)
+  ifelse(is.finite(marginal) & marginal > 0, a, 0)
+
 #' @exportS3Method
 init_params.poisson <- function(model_state, X, resp, random_state = NULL, ...) {
   if (!is.null(random_state)) set.seed(random_state)
@@ -48,11 +54,15 @@ init_params.poisson <- function(model_state, X, resp, random_state = NULL, ...) 
   return(model_state)
 }
 
-# The weighted-mean update is the Poisson M-step, with the same conservative
-# Gamma prior the Bernoulli model uses in Dirichlet form: prior_obs = alpha / K
-# pseudo-observations centred on the item's marginal mean. Without it a class
-# that empties out during EM drives a rate to exactly zero, and dpois(x, 0) is
-# -Inf for any x > 0 — an absorbing state that no later iteration can leave.
+# The weighted-mean update is the Poisson M-step, with a conservative gamma
+# prior on each rate: (alpha / K) [log lambda - lambda / m], m the item's
+# marginal mean, i.e. alpha / K pseudo-events at the observed rate, whatever
+# the item's scale (the form fit_lcga() uses). In weighted-mean terms
+# that is alpha / K events in the numerator over alpha / (K m) cases in the
+# denominator. Without it a class that empties out during EM drives a rate to
+# exactly zero, and dpois(x, 0) is -Inf for any x > 0 -- an absorbing state
+# that no later iteration can leave. An item that is all zeros (m = 0) gets
+# no prior.
 #' @exportS3Method
 m_step.poisson <- function(model_state, X, resp, weights = NULL, alpha = NULL,
                            prior_scale = 1, ...) {
@@ -66,12 +76,11 @@ m_step.poisson <- function(model_state, X, resp, weights = NULL, alpha = NULL,
   marginal[!is.finite(marginal)] <- 0
 
   K         <- model_state$n_components
-  prior_obs <- prior_scale * alpha / K
+  prior_ev  <- .poisson_prior_events(prior_scale * alpha / K, marginal)
 
   rates    <- t(resp) %*% X
-  rates    <- sweep(rates, 2, prior_obs * marginal, "+")
-  sum_resp <- colSums(resp) + prior_obs
-  rates    <- sweep(rates, 1, sum_resp, "/")
+  rates    <- sweep(rates, 2, prior_ev, "+")
+  rates    <- rates / outer(colSums(resp), prior_ev / pmax(marginal, 1e-300), "+")
 
   model_state$parameters$rates <- pmax(rates, 1e-10)
   return(model_state)
@@ -107,7 +116,7 @@ m_step.poisson_nan <- function(model_state, X, resp, weights = NULL, alpha = NUL
   if (!is.null(weights)) resp <- sweep(resp, 1, weights, "*")
 
   K         <- model_state$n_components
-  prior_obs <- prior_scale * alpha / K
+  prior_a   <- prior_scale * alpha / K
   rates     <- matrix(0, nrow = K, ncol = ncol(X),
                       dimnames = list(NULL, colnames(X)))
 
@@ -123,8 +132,9 @@ m_step.poisson_nan <- function(model_state, X, resp, weights = NULL, alpha = NUL
         sum(x_j * weights[valid]) / sum(weights[valid])
       else mean(x_j)
 
-      rates[, j] <- (as.vector(t(resp_valid) %*% x_j) + prior_obs * marg_j) /
-        (colSums(resp_valid) + prior_obs)
+      ev_j <- .poisson_prior_events(prior_a, marg_j)
+      rates[, j] <- (as.vector(t(resp_valid) %*% x_j) + ev_j) /
+        (colSums(resp_valid) + ev_j / max(marg_j, 1e-300))
     } else {
       rates[, j] <- 1e-2   # item never observed: hold at the init_params floor
     }
@@ -188,7 +198,7 @@ m_step.zip <- function(model_state, X, resp, weights = NULL, alpha = NULL,
   zer <- obs & X0 == 0
   marg <- colSums(X0 * (if (is.null(weights)) 1 else weights)) /
     pmax(colSums(obs * (if (is.null(weights)) 1 else weights)), 1e-12)
-  prior_obs <- prior_scale * alpha / K
+  prior_ev  <- .poisson_prior_events(prior_scale * alpha / K, marg)
 
   lam <- model_state$parameters$rates
   pz  <- model_state$parameters$inflation
@@ -198,8 +208,8 @@ m_step.zip <- function(model_state, X, resp, weights = NULL, alpha = NULL,
     Z  <- ifelse(zer, P / (P + (1 - P) * exp(-L)), 0)
     rk <- resp[, k]
     at_risk  <- colSums(rk * obs * (1 - Z))
-    lam[k, ] <- (colSums(rk * X0 * (1 - Z)) + prior_obs * marg) /
-      (at_risk + prior_obs)
+    lam[k, ] <- (colSums(rk * X0 * (1 - Z)) + prior_ev) /
+      (at_risk + prior_ev / pmax(marg, 1e-300))
     pz[k, ]  <- colSums(rk * Z) / pmax(colSums(rk * obs), 1e-300)
   }
   model_state$parameters$rates     <- pmax(lam, 1e-10)
@@ -262,8 +272,8 @@ init_params.negbin <- function(model_state, X, resp, random_state = NULL, ...) {
 }
 
 # ECM. The mean of an item in a class, at fixed alpha and under the Poisson
-# model's gamma prior (prior_obs pseudo-cases at the item mean m), solves
-#   (Sx - R mu) / (mu (1 + alpha mu)) + prior_obs (m - mu) / mu = 0,
+# model's gamma prior (a / K) [log mu - mu / m], solves
+#   (Sx - R mu) / (mu (1 + alpha mu)) + p (m - mu) / mu = 0,  p = a / (K m),
 # a quadratic with one positive root; with no prior it is the weighted mean,
 # whatever alpha. Then each item's alpha, pooled over the classes.
 #' @exportS3Method
@@ -276,8 +286,10 @@ m_step.negbin <- function(model_state, X, resp, weights = NULL, alpha = NULL,
   X0  <- replace(X, !obs, 0)
   marg <- colSums(X0 * (if (is.null(weights)) 1 else weights)) /
     pmax(colSums(obs * (if (is.null(weights)) 1 else weights)), 1e-12)
-  p  <- prior_scale * alpha / K
   od <- model_state$parameters$overdispersion
+  # Per item: the prior's weight in pseudo-cases, a / (K m).
+  p  <- matrix(.poisson_prior_events(prior_scale * alpha / K, marg) /
+                 pmax(marg, 1e-300), K, ncol(X), byrow = TRUE)
 
   Sx <- t(resp) %*% X0                       # K x J
   R  <- t(resp) %*% obs

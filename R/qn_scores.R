@@ -415,8 +415,10 @@
         list(g = A * (mg$m[jj] - ev), h = -A * ev * (1 - ev))
       },
       poisson = {
+        # (A)[log lambda - lambda / m] on the log-rate scale.
         A <- scale * .bayes_alpha(sub, "poisson") / K
-        list(g = A * (mg$m[jj] - ev), h = -A * ev)
+        w <- ifelse(mg$m[jj] > 0, A / pmax(mg$m[jj], 1e-300), 0)
+        list(g = w * (mg$m[jj] - ev), h = -w * ev)
       },
       list(g = numeric(K * J), h = numeric(K * J)))
     out$item <- jj
