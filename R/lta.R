@@ -2649,7 +2649,7 @@ fit_lta <- function(indicators,
   lp <- function(p) .lta_log_prior(.lta_par_unpack(p, state, layout), X, alpha,
                                    marg)
   Hp <- if (is.na(lp(par))) matrix(0, length(par), length(par)) else
-    .step1_fd_hessian(lp, par, .lta_fd_step)
+    .step1_fd_hessian(lp, par, .fd_hessian_step)
 
   # Hn, the prior's curvature as the sandwich's meat takes it: on each
   # parameter's natural scale, as in .reported_vcov() (R/gmm_se.R). Logits

@@ -1,5 +1,33 @@
 # mixtureEM (development version)
 
+## Numerical second derivatives on a step that does not round
+
+Where a standard error needs the curvature of a log-likelihood and no
+closed form is available, mixtureEM differences the log-likelihood twice.
+Every one of those second differences now uses a relative step of 2e-4
+instead of 1e-5. A second difference of a whole-sample log-likelihood loses
+about eps * |LL| / h^2 to rounding, and |LL| grows with the sample: at 1e-5
+and |LL| near 10,000 that was enough to move a standard error by up to 1.3%
+on a latent transition step 1 and by up to 2.7% in the inverse of the VLMR
+test's information matrix, and to differ between platforms. At 2e-4 the
+curvature agrees with its extrapolated limit to about 1e-7 across binary,
+continuous, item-DIF and latent transition models from a few hundred to
+50,000 cases. The latent transition variance code already used this step
+for its own second differences; the rest of the package now does too.
+
+What moves: the step-1 term of corrected three-step and two-step standard
+errors, the VLMR test's statistic and p-value, the continuous
+local-dependence statistics, `dif_effects()` standard errors, the scaling
+factor of `lr_test()` on latent transition fits, and the latent transition
+three-step, BCH and distal-outcome standard errors. On the models measured
+the change is below 3e-5 in a binary or continuous LCA standard error and
+up to 1.3e-3 on a latent transition step 1; a latent transition three-step
+fit whose data are duplicated case by case, which should leave every
+standard error where it was, now does so to 2e-5 where it used to drift by
+7e-3. No estimate or log-likelihood changes.
+
+## Fits from another family, shown beside a comparison
+
 * `compare_mixtures()` and `compare_longitudinal()` take `alongside`: fitted
   models shown in a block of their own beside the comparison table, with
   their criteria but no ranking. A fit that assumes a different within-class

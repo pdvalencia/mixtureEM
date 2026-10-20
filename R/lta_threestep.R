@@ -713,7 +713,7 @@
   lp1 <- function(r)
     .lta_log_prior(.lta_par_unpack(r[src], s1, lay1), X1c, alpha)
   if (is.na(lp1(r0))) lp1 <- function(r) 0
-  Hp1 <- .step1_fd_hessian(lp1, r0, .lta_fd_step)
+  Hp1 <- .step1_fd_hessian(lp1, r0, .fd_hessian_step)
   S11 <- .psd_pinv(-(.step1_fd_hessian(ll1, r0) + Hp1))
   S11 <- (S11 + t(S11)) / 2
 
@@ -797,7 +797,7 @@
   # leaves the cross derivative alone. No forward-backward pass: it is cheap.
   Hp3 <- .step1_fd_hessian(function(v)
     .lta_log_prior_dt(.lta_par_unpack(v, fit, lay3), alpha), par3,
-    .lta_fd_step)
+    .fd_hessian_step)
   V2 <- .psd_pinv(-(info$H22 + Hp3))
   V2 <- (V2 + t(V2)) / 2
   V  <- V2 + V2 %*% t(info$H12) %*% S11 %*% info$H12 %*% V2

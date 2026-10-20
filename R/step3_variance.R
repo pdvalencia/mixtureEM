@@ -755,12 +755,11 @@ NULL
 }
 
 # Symmetric numerical Hessian of a scalar function of the step-one parameter
-# vector, by the four-point central second difference, on the same relative
-# step every other step-one derivative uses unless `step` says otherwise. Kept
-# in one place because .step1_variance() and the VLMR test (R/vlmr.R) need the
-# same matrix: the
-# former negates and inverts it, the latter passes it on as Vuong's `A`.
-.step1_fd_hessian <- function(ll, par, step = .step1_fd_step) {
+# vector, by the four-point central second difference on the relative step
+# `.fd_hessian_step`. Kept in one place because .step1_variance() and the VLMR
+# test (R/vlmr.R) need the same matrix: the former negates and inverts it, the
+# latter passes it on as Vuong's `A`.
+.step1_fd_hessian <- function(ll, par, step = .fd_hessian_step) {
   p <- length(par)
   h <- step * pmax(1, abs(par))
   H <- matrix(0, p, p)
@@ -934,17 +933,23 @@ NULL
 # typical model; the estimators are asymptotically equivalent either way.
 .step1_hessian_max <- 100L
 
-# Relative step for every finite difference taken with respect to the step-one
-# parameters. They live on logit/log/identity scales, so the step is scaled by
+# Relative steps for the finite differences taken with respect to the step-one
+# parameters. They live on logit/log/identity scales, so each step is scaled by
 # max(1, |theta|) to stay meaningful for an item probability pushed far out on
 # the logit scale.
 #
-# 1e-5 is chosen from the middle of the flat part of the accuracy curve rather
-# than by taking the smallest step available. On the sleep-quality model the
-# corrected standard errors are identical to four decimals from 1e-3 down to
-# 1e-6 and then break at 1e-7, where the four-point second difference in
-# .step1_variance() divides by h^2 = 1e-14 and loses to cancellation.
-.step1_fd_step <- 1e-5
+# A first difference (a score) rounds to about eps * |ll| / h, where ll is one
+# case's log-likelihood, so 1e-5 is safe for it. A second difference of the
+# whole-sample log-likelihood rounds to about eps * |LL| / h^2, and |LL| grows
+# with n: at 1e-5 and |LL| ~ 1e4 that is ~0.02 per element, which moved
+# standard errors by up to 1.3% on a latent transition step 1 and by 2.7% on
+# the inverse of VLMR's A. Every second difference therefore uses 2e-4: across
+# binary, continuous (raw and standardised scale, mean 100 with sd 2 among
+# them), DIF and latent transition fits with |LL| from 1e3 to 4e5, steps from
+# 1e-4 to 5e-4 agree to 1e-4 in every standard error, and 2e-4 is the most
+# accurate step against a Richardson extrapolation wherever that is defined.
+.step1_fd_step   <- 1e-5
+.fd_hessian_step <- 2e-4
 
 # Design matrix a covariate model builds from Y, kept in one place so that the
 # variance code and `m_step.covariate()` cannot drift apart.

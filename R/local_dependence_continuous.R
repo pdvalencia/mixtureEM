@@ -70,7 +70,7 @@
 # fallback and a variance (not raw Hessian) return value.
 .local_dep_psi_hessian <- function(model_state, X, par, w) {
   p  <- length(par)
-  h  <- .step1_fd_step * pmax(1, abs(par))
+  h  <- .fd_hessian_step * pmax(1, abs(par))
   ll <- function(v) sum(w * .step1_ll_case(model_state, X, v))
 
   H <- matrix(0, p, p)
@@ -99,8 +99,8 @@
 # tried and measured unstable: the mixed partial it produces is swamped by
 # d^2 ll / dpsi_m^2, which is not itself suppressed by h_th, and the result
 # was wrong by orders of magnitude. The full central 4-point formula below,
-# at the same step used everywhere else in the package, is accurate from
-# 1e-5 to 1e-2 relative step on the reference data and is what is used.
+# on the step every second difference uses (`.fd_hessian_step`), is accurate
+# from 1e-5 to 1e-2 relative step on the reference data and is what is used.
 .local_dep_statistic <- function(model_state, X, par, w, ll0, ll0_case,
                                  a, b, k, h_th, Hpsipsi_inv, S1) {
   llp_case <- .local_dep_ll_case(model_state, X, par,  h_th, a, b, k)
@@ -115,10 +115,10 @@
   # scheme built from a shared baseline turns out to be swamped by
   # d^2ll/dpsi_m^2, which is not itself suppressed by h_th (measured: garbage
   # results, off by orders of magnitude and not even stable in sign). The
-  # full central 4-point formula, at the same step used everywhere else in
-  # the package, is what is actually stable here.
+  # full central 4-point formula, on the step every second difference uses,
+  # is what is actually stable here.
   p1 <- length(par)
-  h  <- .step1_fd_step * pmax(1, abs(par))
+  h  <- .fd_hessian_step * pmax(1, abs(par))
   ll_at <- function(theta, par_v)
     sum(w * .local_dep_ll_case(model_state, X, par_v, theta, a, b, k))
   Hthpsi <- vapply(seq_len(p1), function(m) {
@@ -215,7 +215,7 @@
   # residual covariance is bounded in magnitude by the geometric mean of the
   # two items' own variances, so that is what "order one" means for it.
   for (k in seq_len(K)) for (b in seq_len(J)) for (a in seq_len(b - 1L)) {
-    h_th <- .step1_fd_step * sqrt(s2[k, a] * s2[k, b])
+    h_th <- .fd_hessian_step * sqrt(s2[k, a] * s2[k, b])
     st <- .local_dep_statistic(object, X, par, w, ll0, ll0_case,
                                a, b, k, h_th, Hpsipsi_inv, S1)
     mi[b, a, k]  <- st$mi

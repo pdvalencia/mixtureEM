@@ -1056,11 +1056,9 @@ test_that("with the prior on, V2 is the penalised objective's inverse informatio
 #       one, which agrees with the model-based variance to sampling error;
 #   (p) every case duplicated inside its own PSU: a copy adds no information,
 #       so every standard error is where it was, to the finite-difference
-#       noise of step 1's Hessian. That noise is ~0.02 per element at
-#       |LL| ~ 1e4 (rounding over h^2 = 1e-10) and moves these SEs by up to
-#       1.2%. The 3.4e-3 once recorded here measured two bitwise-identical
-#       EM iterates, whose rounding errors were the same; the Newton-type
-#       finish leaves the two fits 5e-11 apart, which is enough to show it.
+#       noise of step 1's Hessian. The two fits sit 5e-11 apart, so that
+#       noise is what this measures: 7.3e-3 when second differences used a
+#       1e-5 step (rounding over h^2 = 1e-10 at |LL| ~ 1e4), 2.2e-5 at 2e-4.
 # ==============================================================================
 
 .ts3_w6b <- function(X, ...) {
@@ -1090,7 +1088,7 @@ test_that("duplicating every case inside its own PSU changes no standard error",
   d2 <- .ts3_w6b(X[rep(seq_len(n), each = 2), ],
                  cluster = rep(seq_len(n), each = 2))
   expect_equal(d2$delta, d1$delta, tolerance = 1e-8)
-  expect_lt(max(abs(sqrt(diag(d2$se$vcov) / diag(d1$se$vcov)) - 1)), 0.02)
+  expect_lt(max(abs(sqrt(diag(d2$se$vcov) / diag(d1$se$vcov)) - 1)), 1e-3)
 })
 
 # ==============================================================================

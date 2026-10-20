@@ -44,17 +44,17 @@
 #     Theory and applications. The Annals of Statistics, 9(4), 861-869.
 
 # The blocks of the joint information matrix a two-step covariate fit needs,
-# by central differences on the relative step every step-one derivative uses
-# (`.step1_fd_step`). Returns H22 (p2 x p2) and H12 (p1 x p2), both as second
-# derivatives of the log-likelihood (negate for information), and the n x p2
-# matrix of case-level scores in theta2. H12 is NULL when the measurement
-# model has no unconstrained packing.
+# by central differences on the second-difference step `.fd_hessian_step`
+# (the scores share its perturbed densities). Returns H22 (p2 x p2) and H12
+# (p1 x p2), both as second derivatives of the log-likelihood (negate for
+# information), and the n x p2 matrix of case-level scores in theta2. H12 is
+# NULL when the measurement model has no unconstrained packing.
 .twostep_information <- function(model_state, X, Y, w) {
   mm <- model_state$mm
   sm <- model_state$sm
   th2 <- .step1_pack_sm(sm)
   p2  <- length(th2)
-  h2  <- .step1_fd_step * pmax(1, abs(th2))
+  h2  <- .fd_hessian_step * pmax(1, abs(th2))
 
   A0   <- log_likelihood(mm, X)
   B_at <- function(v) log_likelihood(.step1_unpack_sm(sm, v), Y)
@@ -94,7 +94,7 @@
     return(list(H22 = H22, H12 = NULL, S2 = S2))
 
   p1  <- length(th1)
-  h1  <- .step1_fd_step * pmax(1, abs(th1))
+  h1  <- .fd_hessian_step * pmax(1, abs(th1))
   H12 <- matrix(0, p1, p2)
   for (a in seq_len(p1)) {
     va <- th1; va[a] <- va[a] + h1[a]
@@ -250,25 +250,18 @@
 # .lta_standard_errors() pays because a sandwich needs it and this does not.
 
 # I22 and I12 of the joint log-likelihood at the fitted point, by the same
-# four-point central difference .step1_fd_hessian() uses, on the relative
-# step `.lta_fd_step` rather than its 1e-5. A second difference of a
-# log-likelihood in the thousands at 1e-5 is mostly rounding, which differs
-# between platforms' maths libraries and, once inverted, moved standard errors
-# by a percent or more; at 2e-4 it agrees with the curvature of the analytic
-# score to 1e-7. The prior's curvature, which every latent transition variance
-# adds, is differenced on the same step for the same reason: at 1e-5 it sits
-# off the plateau that steps from 3e-5 to 2e-4 agree on, and the sandwich
-# magnifies that. Returned as second derivatives of the log-likelihood; negate
-# for
+# four-point central difference .step1_fd_hessian() uses, on its relative
+# step `.fd_hessian_step` (R/step3_variance.R, which says why it is 2e-4). The
+# prior's curvature, which every latent transition variance adds, is
+# differenced on the same step: the sandwich magnifies any noise in it.
+# Returned as second derivatives of the log-likelihood; negate for
 # information. `ll` is the objective on the whole vector; the default is the
 # joint log-likelihood of `state`, and the three-step passes its own, in which
 # the step-1 coordinates reach step 3 through the classification error.
-.lta_fd_step <- 2e-4
-
 .lta_twostep_information <- function(state, X, w, layout, par, idx1, idx2,
                                      ll = function(v)
                                        sum(w * .lta_ll_case(state, X, v, layout))) {
-  h  <- .lta_fd_step * pmax(1, abs(par))
+  h  <- .fd_hessian_step * pmax(1, abs(par))
   bump <- function(i, s) { v <- par; v[i] <- v[i] + s * h[i]; v }
   two  <- function(i, si, j, sj) {
     v <- par; v[i] <- v[i] + si * h[i]; v[j] <- v[j] + sj * h[j]; ll(v)
@@ -365,7 +358,7 @@
     .lta_log_prior(.lta_par_unpack(p, state, layout), X, alpha, marg)
   }
   Hp22 <- if (is.na(lp2(par[idx2]))) 0 else
-    .step1_fd_hessian(lp2, par[idx2], .lta_fd_step)
+    .step1_fd_hessian(lp2, par[idx2], .fd_hessian_step)
   V2 <- .psd_pinv(-(info$H22 + Hp22))
   V2 <- (V2 + t(V2)) / 2
   V1 <- V2 %*% t(info$H12) %*% S11 %*% info$H12 %*% V2
