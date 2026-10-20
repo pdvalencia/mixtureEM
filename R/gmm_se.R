@@ -218,10 +218,14 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
   }, numeric(p))
   info <- -(H + t(H)) / 2
 
-  cl <- fit$cluster
-  if (is.null(cl) || length(cl) != n) cl <- seq_len(n)
-  Sc   <- rowsum(w * S, cl, reorder = FALSE)
-  meat <- crossprod(Sc)
+  # A survey design takes the linearisation meat every other clustered
+  # sandwich in the package uses (compute_survey_B()): PSU score totals within
+  # strata, with the finite-G factor C/(C - 1). Without one the meat is the
+  # plain case-level sum, as before.
+  meat <- if (isTRUE(fit$has_survey_design) && length(fit$cluster) == n &&
+              length(fit$strata) == n)
+    compute_survey_B(w * S, fit$strata, fit$cluster)
+  else crossprod(w * S)
   opg  <- crossprod(sqrt(w) * S)
 
   # With `prior`, the variances are the penalised objective's, the rule the

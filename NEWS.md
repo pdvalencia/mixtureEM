@@ -1,5 +1,27 @@
 # mixtureEM (development version)
 
+## Clustered standard errors of growth and measurement parameters, and of BCH means
+
+**Standard errors change for fits with `cluster =` or `strata =`.** Two
+sandwiches ignored part of the survey design:
+
+* `growth_estimates(se = "robust")` and `measurement_estimates(se =
+  "robust")` summed the scores within clusters but applied no finite-cluster
+  factor and ignored strata. They now use the same linearisation as every
+  other clustered variance in the package, with the factor C/(C - 1) per
+  stratum (Binder, 1983; Williams, 2000), so their clustered standard errors
+  rise by about sqrt(G / (G - 1)) for G clusters: 5.4% at 10 clusters, 2.6%
+  at 20, 1% at 50. On simulated clustered growth mixtures they now agree with
+  the linearisation estimator to within 0.3%.
+* The bias-adjusted (BCH) class means of a continuous outcome, under any
+  `se` other than `"corrected"`, treated every case as its own cluster. With
+  clusters their standard errors were far too small (a quarter to a half of
+  the clustered value with 10 to 20 clusters); they now take the clustered
+  joint sandwich that `se = "corrected"` already used, without its step-1
+  term.
+
+Fits without `cluster` or `strata` do not change.
+
 ## Covariates acting by origin for some transition regressors only
 
 `fit_lta(transition_effects =)` also takes a named vector, so one covariate

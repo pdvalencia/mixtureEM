@@ -253,9 +253,12 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional",
   # (R/step3_joint.R). A class regression or a categorical outcome takes the
   # sandwich under every `se`: the Hessian of the weighted M-step counts each
   # case fully in every class and runs 18-32% narrow. A continuous outcome
-  # keeps the sandwich of its means built above unless `se = "corrected"`.
+  # keeps the sandwich of its means built above unless `se = "corrected"` or
+  # the fit has a survey design: that sandwich treats every case as its own
+  # PSU, and with clusters it ran at a quarter of the clustered variance's
+  # standard errors, so a design takes the joint one too.
   if (.nested_packable(model_state$sm) &&
-      (identical(se, "corrected") ||
+      (identical(se, "corrected") || isTRUE(model_state$has_survey_design) ||
        inherits(model_state$sm, c("covariate", "distal_pooled"))))
     model_state <- .attach_nested_step3_vcov(
       model_state, Y, bch_resp, NULL, w_s, se = se,
