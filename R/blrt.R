@@ -171,7 +171,9 @@ generate_synthetic_data <- function(mm, classes, N) {
          "not carry.", call. = FALSE)
 
   args <- if (inherits(fit, "lcga"))
-    list(design = g$design, family = g$family)
+    list(design = g$design, family = g$family,
+         dispersion_structure = g$dispersion %||% "occasion",
+         inflation_design = g$inflation_design)
   else
     list(design                  = g$design,
          random_effects          = g$random_effects,

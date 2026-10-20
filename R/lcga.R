@@ -51,21 +51,27 @@
 #'   overdispersion is one value per occasion shared by the classes
 #'   (`"occasion"`) or one per class constant over occasions (`"class"`).
 #'   Ignored by the other families.
+#' @param inflation_design For `family = "zip"`, the design of the
+#'   zero-inflation logit, one row per occasion. `NULL`, the default, is a
+#'   single constant column. Ignored by the other families.
 #' @param ... Additional arguments, ignored.
 #'
 #' @return A list object of class \code{c("lcga", "emission")}.
 #' @export
 lcga_model <- function(n_components, design, family = "binomial",
-                       dispersion_structure = "occasion", ...) {
+                       dispersion_structure = "occasion",
+                       inflation_design = NULL, ...) {
   state <- list(
     n_components = n_components,
     design       = design,
     family       = family,
     fam          = .wglm_family(family),
-    # The zero-inflation logit's own design, one row per occasion: a constant,
-    # so each class has one probability of a structural zero at every occasion.
+    # The zero-inflation logit's own design, one row per occasion: a constant
+    # unless fit_lcga() passes a polynomial, so by default each class has one
+    # probability of a structural zero at every occasion.
     inflation_design = if (identical(family, "zip"))
-      matrix(1, nrow(design), 1L, dimnames = list(NULL, "intercept")),
+      inflation_design %||%
+        matrix(1, nrow(design), 1L, dimnames = list(NULL, "intercept")),
     # Which cells of the K x T overdispersion matrix share one free value.
     dispersion_structure = if (identical(family, "negbin"))
       match.arg(dispersion_structure, c("occasion", "class")),
@@ -482,8 +488,9 @@ n_parameters.lcga <- function(model_state, ...) {
 #'     occasion, and a Poisson zero, from a case that is at risk but had no
 #'     event (Lambert, 1992; Nagin & Land, 1993, call the first intermittency).
 #'     Each class has its own trajectory in the rate of the at-risk part and
-#'     its own probability of a structural zero, constant over occasions and
-#'     estimated on the logit scale. Excess zeros fitted with `"poisson"`
+#'     its own probability of a structural zero, estimated on the logit scale:
+#'     constant over occasions, or linear in time with `inflation_degree = 1`.
+#'     Excess zeros fitted with `"poisson"`
 #'     have nowhere to go but extra classes, so where zeros pile up beyond
 #'     what the rate implies, compare the two families before reading the
 #'     class count.
@@ -497,6 +504,15 @@ n_parameters.lcga <- function(model_state, ...) {
 #' @param dispersion Character, `family = "negbin"` only. `"occasion"` (the
 #'   default) estimates one alpha per occasion, shared by the classes;
 #'   `"class"` estimates one alpha per class, constant over occasions.
+#' @param inflation_degree `family = "zip"` only. Degree of the polynomial in
+#'   time for the logit of the structural-zero probability, in each class: `0`
+#'   (the default) holds the probability constant over occasions, `1` lets it
+#'   rise or fall linearly on the logit scale, which is how a share of cases
+#'   that stop or start being at risk with age is written (Nagin & Land,
+#'   1993). Uses the same `time_scores` as the trajectory. Higher degrees are
+#'   not offered: a structural zero and a Poisson zero look alike at every
+#'   occasion, so the inflation curve is the weakest-identified part of the
+#'   model.
 #' @param time_scores Numeric values of time used in the polynomial, one per
 #'   occasion. Defaults to `0, 1, ..., times - 1`, which makes the intercept the
 #'   fitted value at the first occasion. Supply the actual measurement times
@@ -517,8 +533,10 @@ n_parameters.lcga <- function(model_state, ...) {
 #'   usual fields it carries `$growth`, holding the design matrix, time scores,
 #'   family, per-class coefficients, the fitted trajectories, and — for
 #'   `family = "gaussian"` — the per-class residual variance, or — for
-#'   `family = "zip"` — the per-class inflation logits (`inflation`) and the
-#'   probability of a structural zero they imply (`inflation_probability`).
+#'   `family = "zip"` — the per-class inflation logits (`inflation`, one
+#'   column per inflation coefficient) and the probability of a structural
+#'   zero they imply (`inflation_probability`: one per class, or a K x T
+#'   matrix when `inflation_degree = 1`).
 #'   The fitted trajectory of a `"zip"` fit is the at-risk rate; the expected
 #'   count is that rate times one minus the inflation probability. A
 #'   `"negbin"` fit carries `overdispersion`, the K x T matrix of alpha
@@ -588,6 +606,7 @@ fit_lcga <- function(indicator,
                      family = c("binomial", "gaussian", "poisson", "zip",
                                 "negbin"),
                      dispersion = c("occasion", "class"),
+                     inflation_degree = 0,
                      time_scores = NULL,
                      layout = c("time_major", "item_major"),
                      id = NULL, time = NULL, item = NULL,
@@ -630,9 +649,25 @@ fit_lcga <- function(indicator,
              "would reproduce the occasion means exactly."),
       degree, degree + 2L, Tn, degree + 1L), call. = FALSE)
 
+  inflation_degree <- as.integer(inflation_degree)
+  if (length(inflation_degree) != 1L || is.na(inflation_degree) ||
+      !inflation_degree %in% 0:1)
+    stop("`inflation_degree` must be 0 (constant) or 1 (linear in time).",
+         call. = FALSE)
+  if (inflation_degree > 0L && family != "zip")
+    stop('`inflation_degree` applies to family = "zip" only.', call. = FALSE)
+  # The same spare occasion as the trajectory: one inflation value per occasion
+  # would leave nothing for the rate and the inflation to be told apart by.
+  if (inflation_degree + 1L >= Tn)
+    stop(sprintf(
+      "A linear inflation logit needs at least 3 occasions but %d were given.",
+      Tn), call. = FALSE)
+
   .lcga_check_outcome(prep$X, family)
 
   design <- .lcga_design(time_scores, degree)
+  inflation_design <- if (family == "zip")
+    .lcga_design(time_scores, inflation_degree)
 
   if (!is.null(predictors))
     predictors <- .as_named_covariates(predictors, substitute(predictors),
@@ -646,6 +681,7 @@ fit_lcga <- function(indicator,
     design      = design,
     family      = family,
     dispersion_structure = dispersion,
+    inflation_design = inflation_design,
     ...
   )
 
@@ -666,8 +702,12 @@ fit_lcga <- function(indicator,
   if (family == "gaussian")
     fit$growth$residual_variance <- fit$mm$parameters$dispersion
   if (family == "zip") {
+    fit$growth$inflation_degree <- inflation_degree
+    fit$growth$inflation_design <- inflation_design
     fit$growth$inflation <- fit$mm$parameters$inflation
-    fit$growth$inflation_probability <- .lcga_inflation(fit$mm)[, 1L]
+    # One probability per class when it is constant; K x T when it moves.
+    fit$growth$inflation_probability <- if (inflation_degree == 0L)
+      .lcga_inflation(fit$mm)[, 1L] else .lcga_inflation(fit$mm)
   }
   if (family == "negbin") {
     fit$growth$overdispersion <- fit$mm$parameters$overdispersion
@@ -789,10 +829,15 @@ print.lcga <- function(x, ...) {
   }
 
   if (!is.null(g$inflation_probability)) {
-    cat("\nZERO INFLATION (probability of a structural zero, constant over occasions)\n")
-    ip <- matrix(g$inflation_probability, nrow = 1,
-                 dimnames = list("Probability",
-                                 paste("Class", seq_along(g$inflation_probability))))
+    ip <- g$inflation_probability
+    if (is.matrix(ip)) {
+      cat("\nZERO INFLATION (probability of a structural zero, by occasion)\n")
+      dimnames(ip) <- list(paste("Class", seq_len(nrow(ip))), g$time_labels)
+    } else {
+      cat("\nZERO INFLATION (probability of a structural zero, constant over occasions)\n")
+      ip <- matrix(ip, nrow = 1,
+                   dimnames = list("Probability", paste("Class", seq_along(ip))))
+    }
     print(round(ip, 3))
   }
 

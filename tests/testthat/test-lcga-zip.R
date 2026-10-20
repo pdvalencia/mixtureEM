@@ -69,3 +69,45 @@ test_that("cross-sectional ZIP fits, with missing cells, and reports the inflati
   expect_true(all(is.na(infl$se[infl$boundary])))
   expect_output(measurement_summary(f), "ZERO INFLATION")
 })
+
+test_that("a linear inflation logit is fitted, counted and reported", {
+  sim_zip_t <- function(n, b, g, seed) {
+    set.seed(seed)
+    t  <- 0:4
+    mu <- exp(b[1] + b[2] * t)
+    p  <- plogis(g[1] + g[2] * t)
+    y  <- matrix(rpois(n * 5, rep(mu, each = n)), n, 5)
+    y[matrix(runif(n * 5) < rep(p, each = n), n, 5)] <- 0
+    y
+  }
+  y <- rbind(sim_zip_t(400, c(1.3, -0.1), c(-2, 0.6), 7),
+             sim_zip_t(400, c(0.6, 0.1), c(0.8, -0.5), 8))
+  f0 <- fit_lcga(y, times = 5, n_classes = 2, family = "zip", n_init = 5,
+                 random_state = 1, n_cores = 1, bayes_constants = off)
+  f1 <- fit_lcga(y, times = 5, n_classes = 2, family = "zip",
+                 inflation_degree = 1, n_init = 5, random_state = 1,
+                 n_cores = 1, bayes_constants = off)
+  # Degree 0 is the constant model it always was.
+  expect_null(dim(f0$growth$inflation_probability))
+  expect_equal(f1$metrics$n_params, 9)
+  expect_gt(f1$metrics$ll, f0$metrics$ll)
+  hi <- which.max(f1$growth$coefficients[, 1])
+  expect_gt(f1$growth$inflation[hi, 2], 0)
+  expect_lt(f1$growth$inflation[3 - hi, 2], 0)
+  expect_equal(dim(f1$growth$inflation_probability), c(2L, 5L))
+  ge <- growth_estimates(f1)
+  gl <- ge[ge$parameter == "inflation_logit", ]
+  expect_setequal(unique(gl$item), c("intercept", "linear"))
+  expect_true(all(is.finite(gl$se)))
+  expect_output(print(f1), "by occasion")
+})
+
+test_that("inflation_degree is refused where it cannot apply", {
+  y <- sim_zip(100, 4, 0.5, 0.1, 0.3, 9)
+  expect_error(fit_lcga(y, times = 4, family = "poisson", inflation_degree = 1),
+               "zip")
+  expect_error(fit_lcga(y, times = 4, family = "zip", inflation_degree = 2),
+               "0 (constant) or 1", fixed = TRUE)
+  expect_error(fit_lcga(y[, 1:2], times = 2, degree = 0, family = "zip",
+                        inflation_degree = 1), "at least 3 occasions")
+})

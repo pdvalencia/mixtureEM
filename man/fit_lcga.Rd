@@ -11,6 +11,7 @@ fit_lcga(
   degree = 1,
   family = c("binomial", "gaussian", "poisson", "zip", "negbin"),
   dispersion = c("occasion", "class"),
+  inflation_degree = 0,
   time_scores = NULL,
   layout = c("time_major", "item_major"),
   id = NULL,
@@ -63,8 +64,9 @@ structural zero, from a case that is not at risk of the event at that
 occasion, and a Poisson zero, from a case that is at risk but had no
 event (Lambert, 1992; Nagin & Land, 1993, call the first intermittency).
 Each class has its own trajectory in the rate of the at-risk part and
-its own probability of a structural zero, constant over occasions and
-estimated on the logit scale. Excess zeros fitted with \code{"poisson"}
+its own probability of a structural zero, estimated on the logit scale:
+constant over occasions, or linear in time with \code{inflation_degree = 1}.
+Excess zeros fitted with \code{"poisson"}
 have nowhere to go but extra classes, so where zeros pile up beyond
 what the rate implies, compare the two families before reading the
 class count.
@@ -80,6 +82,16 @@ count.
 \item{dispersion}{Character, \code{family = "negbin"} only. \code{"occasion"} (the
 default) estimates one alpha per occasion, shared by the classes;
 \code{"class"} estimates one alpha per class, constant over occasions.}
+
+\item{inflation_degree}{\code{family = "zip"} only. Degree of the polynomial in
+time for the logit of the structural-zero probability, in each class: \code{0}
+(the default) holds the probability constant over occasions, \code{1} lets it
+rise or fall linearly on the logit scale, which is how a share of cases
+that stop or start being at risk with age is written (Nagin & Land,
+1993). Uses the same \code{time_scores} as the trajectory. Higher degrees are
+not offered: a structural zero and a Poisson zero look alike at every
+occasion, so the inflation curve is the weakest-identified part of the
+model.}
 
 \item{time_scores}{Numeric values of time used in the polynomial, one per
 occasion. Defaults to \verb{0, 1, ..., times - 1}, which makes the intercept the
@@ -108,8 +120,10 @@ An object of class \code{c("lcga", "mixture_model")}. In addition to the
 usual fields it carries \verb{$growth}, holding the design matrix, time scores,
 family, per-class coefficients, the fitted trajectories, and — for
 \code{family = "gaussian"} — the per-class residual variance, or — for
-\code{family = "zip"} — the per-class inflation logits (\code{inflation}) and the
-probability of a structural zero they imply (\code{inflation_probability}).
+\code{family = "zip"} — the per-class inflation logits (\code{inflation}, one
+column per inflation coefficient) and the probability of a structural
+zero they imply (\code{inflation_probability}: one per class, or a K x T
+matrix when \code{inflation_degree = 1}).
 The fitted trajectory of a \code{"zip"} fit is the at-risk rate; the expected
 count is that rate times one minus the inflation probability. A
 \code{"negbin"} fit carries \code{overdispersion}, the K x T matrix of alpha

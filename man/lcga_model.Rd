@@ -9,6 +9,7 @@ lcga_model(
   design,
   family = "binomial",
   dispersion_structure = "occasion",
+  inflation_design = NULL,
   ...
 )
 }
@@ -25,6 +26,10 @@ or \code{"negbin"}.}
 overdispersion is one value per occasion shared by the classes
 (\code{"occasion"}) or one per class constant over occasions (\code{"class"}).
 Ignored by the other families.}
+
+\item{inflation_design}{For \code{family = "zip"}, the design of the
+zero-inflation logit, one row per occasion. \code{NULL}, the default, is a
+single constant column. Ignored by the other families.}
 
 \item{...}{Additional arguments, ignored.}
 }

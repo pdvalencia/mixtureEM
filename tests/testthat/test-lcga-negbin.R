@@ -79,3 +79,17 @@ test_that("cross-sectional NB fits, with missing cells, and reports alpha", {
   expect_equal(od$estimate[od$class == 1], od$estimate[od$class == 2])
   expect_output(measurement_summary(f), "OVERDISPERSION")
 })
+
+test_that("blrt(from_fit =) keeps the dispersion structure and inflation design", {
+  set.seed(11)
+  y <- matrix(rnbinom(150 * 4, size = 2, mu = 3), 150, 4)
+  fn <- fit_lcga(y, times = 4, n_classes = 1, family = "negbin",
+                 dispersion = "class", n_init = 1, random_state = 1, n_cores = 1)
+  expect_identical(mixtureEM:::.blrt_growth_spec(fn)$args$dispersion_structure,
+                   "class")
+  y[matrix(runif(length(y)) < 0.3, 150, 4)] <- 0
+  fz <- fit_lcga(y, times = 4, n_classes = 1, family = "zip",
+                 inflation_degree = 1, n_init = 1, random_state = 1, n_cores = 1)
+  expect_identical(ncol(mixtureEM:::.blrt_growth_spec(fz)$args$inflation_design),
+                   2L)
+})

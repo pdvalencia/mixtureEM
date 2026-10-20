@@ -1036,7 +1036,7 @@ print.gmm <- function(x, ...) {
 
   if (!is.null(g$inflation)) {
     gi <- g$inflation
-    colnames(gi) <- "intercept"
+    colnames(gi) <- colnames(g$inflation_design) %||% "intercept"
     add("ZERO-INFLATION LOGIT (structural zero)", "inflation_logit", gi)
   }
 

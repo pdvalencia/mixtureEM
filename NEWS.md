@@ -1,5 +1,23 @@
 # mixtureEM (development version)
 
+## A zero-inflation probability that changes over time
+
+`fit_lcga(family = "zip", inflation_degree = 1)` lets each class's
+probability of a structural zero rise or fall over the occasions, linearly on
+the logit scale and on the same time scores as the trajectory, so a share of
+cases that stop (or start) being at risk with age can be modelled rather than
+averaged (Nagin & Land, 1993). The default, `inflation_degree = 0`, is the
+constant probability fitted before. With the slope, `print()` shows the
+structural-zero probability by occasion, `growth_estimates()` reports the
+inflation intercept and slope with standard errors, and `blrt(from_fit =)`
+carries the inflation design into its replicates. A two-class model has nine
+free parameters: two rate and two inflation coefficients per class, and one
+class logit. Nothing changes for any existing fit.
+
+`blrt(from_fit =)` on a negative binomial growth fit with
+`dispersion = "class"` bootstrapped the model with one alpha per occasion
+instead; it now keeps the fit's dispersion structure.
+
 ## The count prior weighs events, not cases
 
 The default prior on a count item's class rates was alpha / K pseudo-cases
