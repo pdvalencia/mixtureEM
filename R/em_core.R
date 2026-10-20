@@ -318,6 +318,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
                          "multinoulli", "multinoulli_nan",
                          "ordinal", "ordinal_nan",
                          "poisson", "poisson_nan", "zip", "zip_nan",
+                         "negbin", "negbin_nan",
                          "gaussian_diag", "gaussian_diag_nan",
                          "gaussian_unit", "gaussian_unit_nan",
                          "structured_normal", "lcga")
@@ -352,6 +353,8 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
     poisson        = ,
     zip            = ,
     zip_nan        = ,
+    negbin         = ,
+    negbin_nan     = ,
     poisson_nan    = {
       m <- .em_col_marginal_valid(X, wt)
       m[!is.finite(m)] <- 0
@@ -466,7 +469,8 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
       mm_ <- matrix(m, nrow = K, ncol = length(cols), byrow = TRUE)
       val <- val + scale * (a / K) * sum(mm_ * log(p))
     }
-  } else if (fam %in% c("poisson", "poisson_nan", "zip", "zip_nan")) {
+  } else if (fam %in% c("poisson", "poisson_nan", "zip", "zip_nan",
+                        "negbin", "negbin_nan")) {
     a <- .bayes_alpha(sub, "poisson")
     if (a > 0) {
       Xi  <- X_view[, items, drop = FALSE]
@@ -511,7 +515,8 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
       m <- matrix(marginals$m, nrow = K, ncol = ncol(p), byrow = TRUE)
       val <- val + (a / K) * sum(m * log(p))
     }
-  } else if (fam %in% c("poisson", "poisson_nan", "zip", "zip_nan")) {
+  } else if (fam %in% c("poisson", "poisson_nan", "zip", "zip_nan",
+                        "negbin", "negbin_nan")) {
     a <- .bayes_alpha(mm, "poisson")
     if (a > 0) {
       lam <- pmax(mm$parameters$rates, 1e-300)
@@ -555,7 +560,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
       mu <- pmin(pmax(mu, 1e-15), 1 - 1e-15)
       sum(pr$w * (pr$y * log(mu) + (1 - pr$y) * log1p(-mu)))
     },
-    poisson = , zip = {
+    poisson = , zip = , negbin = {
       mu <- pmax(mu, 1e-15)
       sum(pr$w * (pr$y * log(mu) - mu))
     })

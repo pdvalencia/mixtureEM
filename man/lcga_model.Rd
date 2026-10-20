@@ -4,7 +4,13 @@
 \alias{lcga_model}
 \title{Constructor for latent class growth models}
 \usage{
-lcga_model(n_components, design, family = "binomial", ...)
+lcga_model(
+  n_components,
+  design,
+  family = "binomial",
+  dispersion_structure = "occasion",
+  ...
+)
 }
 \arguments{
 \item{n_components}{Integer. The number of latent classes to estimate.}
@@ -12,7 +18,13 @@ lcga_model(n_components, design, family = "binomial", ...)
 \item{design}{Numeric matrix with one row per occasion and one column per
 growth coefficient, as built by the polynomial in the time scores.}
 
-\item{family}{Character. \code{"binomial"}, \code{"gaussian"}, \code{"poisson"} or \code{"zip"}.}
+\item{family}{Character. \code{"binomial"}, \code{"gaussian"}, \code{"poisson"}, \code{"zip"}
+or \code{"negbin"}.}
+
+\item{dispersion_structure}{Character. For \code{family = "negbin"}, whether the
+overdispersion is one value per occasion shared by the classes
+(\code{"occasion"}) or one per class constant over occasions (\code{"class"}).
+Ignored by the other families.}
 
 \item{...}{Additional arguments, ignored.}
 }

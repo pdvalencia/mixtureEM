@@ -1040,6 +1040,20 @@ print.gmm <- function(x, ...) {
     add("ZERO-INFLATION LOGIT (structural zero)", "inflation_logit", gi)
   }
 
+  # NB2 alpha, repeated across the classes (or occasions) that share it.
+  if (!is.null(g$overdispersion)) {
+    od <- g$overdispersion
+    if (identical(g$dispersion, "class")) {
+      od <- od[, 1L, drop = FALSE]
+      colnames(od) <- "alpha"
+      add("OVERDISPERSION (alpha, per class)", "overdispersion", od)
+    } else {
+      colnames(od) <- g$time_labels
+      add("OVERDISPERSION (alpha, held equal across classes)",
+          "overdispersion", od)
+    }
+  }
+
   ft <- g$fitted
   colnames(ft) <- g$time_labels
   add("FITTED TRAJECTORY", "fitted", ft)

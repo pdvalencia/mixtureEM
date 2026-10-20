@@ -236,3 +236,92 @@ m_step.zip_nan <- m_step.zip
 log_likelihood.zip_nan <- log_likelihood.zip
 #' @exportS3Method n_parameters zip_nan
 n_parameters.zip_nan <- n_parameters.zip
+
+# ------------------------------------------------------------------------------
+# 4. Negative binomial (Overdispersed Count) S3 Methods
+# ------------------------------------------------------------------------------
+#
+# NB2: each item, within each class, has a mean `rates`; the item's
+# `overdispersion` alpha, variance = mean + alpha mean^2, is shared by the
+# classes (stored K x items with equal rows, so class sorting needs no special
+# case). One implementation serves `negbin` and `negbin_nan`.
+
+#' @exportS3Method
+init_params.negbin <- function(model_state, X, resp, random_state = NULL, ...) {
+  model_state <- init_params.poisson(model_state, X, resp, random_state)
+  # The item's moment estimate (var - mean) / mean^2, kept off the Poisson
+  # boundary, from which the one-dimensional search could still leave.
+  m  <- pmax(colMeans(X, na.rm = TRUE), 1e-2)
+  v  <- apply(X, 2, stats::var, na.rm = TRUE)
+  a0 <- (v - m) / m^2
+  a0[!is.finite(a0)] <- 0.05
+  a0 <- pmin(pmax(a0, 0.05), 10)
+  model_state$parameters$overdispersion <-
+    matrix(a0, nrow = model_state$n_components, ncol = ncol(X), byrow = TRUE)
+  model_state
+}
+
+# ECM. The mean of an item in a class, at fixed alpha and under the Poisson
+# model's gamma prior (prior_obs pseudo-cases at the item mean m), solves
+#   (Sx - R mu) / (mu (1 + alpha mu)) + prior_obs (m - mu) / mu = 0,
+# a quadratic with one positive root; with no prior it is the weighted mean,
+# whatever alpha. Then each item's alpha, pooled over the classes.
+#' @exportS3Method
+m_step.negbin <- function(model_state, X, resp, weights = NULL, alpha = NULL,
+                          prior_scale = 1, ...) {
+  alpha <- alpha %||% .bayes_alpha(model_state, "poisson")
+  if (!is.null(weights)) resp <- sweep(resp, 1, weights, "*")
+  K   <- model_state$n_components
+  obs <- !is.na(X)
+  X0  <- replace(X, !obs, 0)
+  marg <- colSums(X0 * (if (is.null(weights)) 1 else weights)) /
+    pmax(colSums(obs * (if (is.null(weights)) 1 else weights)), 1e-12)
+  p  <- prior_scale * alpha / K
+  od <- model_state$parameters$overdispersion
+
+  Sx <- t(resp) %*% X0                       # K x J
+  R  <- t(resp) %*% obs
+  M  <- matrix(marg, K, ncol(X), byrow = TRUE)
+  A  <- p * od
+  B  <- R + p - p * od * M
+  C  <- Sx + p * M
+  lam <- 2 * C / (B + sqrt(B^2 + 4 * A * C))
+  lam[!is.finite(lam)] <- 1e-10
+  lam <- pmax(lam, 1e-10)
+
+  for (j in seq_len(ncol(X))) {
+    o <- obs[, j]
+    od[, j] <- .nb_alpha_fit(rep(X0[o, j], K), rep(lam[, j], each = sum(o)),
+                             as.vector(resp[o, , drop = FALSE]))
+  }
+  model_state$parameters$rates          <- lam
+  model_state$parameters$overdispersion <- od
+  model_state
+}
+
+#' @exportS3Method
+log_likelihood.negbin <- function(model_state, X, ...) {
+  lam <- model_state$parameters$rates
+  od  <- model_state$parameters$overdispersion
+  obs <- !is.na(X)
+  X0  <- replace(X, !obs, 0)
+  out <- vapply(seq_len(model_state$n_components), function(k) {
+    ll <- .nb_log_dens(X0, matrix(lam[k, ], nrow(X), ncol(X), byrow = TRUE),
+                       matrix(od[k, ], nrow(X), ncol(X), byrow = TRUE))
+    rowSums(ll * obs)
+  }, numeric(nrow(X)))
+  matrix(out, nrow = nrow(X))
+}
+
+#' @exportS3Method
+n_parameters.negbin <- function(model_state, ...)
+  length(model_state$parameters$rates) + ncol(model_state$parameters$overdispersion)
+
+#' @exportS3Method init_params negbin_nan
+init_params.negbin_nan <- init_params.negbin
+#' @exportS3Method m_step negbin_nan
+m_step.negbin_nan <- m_step.negbin
+#' @exportS3Method log_likelihood negbin_nan
+log_likelihood.negbin_nan <- log_likelihood.negbin
+#' @exportS3Method n_parameters negbin_nan
+n_parameters.negbin_nan <- n_parameters.negbin

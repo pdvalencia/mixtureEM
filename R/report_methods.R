@@ -76,6 +76,7 @@
          ordinal = "ordinal",
          count = , poisson = "count",
          zip = "zero-inflated count",
+         negbin = "overdispersed count",
          continuous = , gaussian_diag = , gaussian = , gaussian_unit = ,
          structured_normal = "continuous",
          m)

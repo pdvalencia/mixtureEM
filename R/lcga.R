@@ -45,12 +45,18 @@
 #' @param n_components Integer. The number of latent classes to estimate.
 #' @param design Numeric matrix with one row per occasion and one column per
 #'   growth coefficient, as built by the polynomial in the time scores.
-#' @param family Character. `"binomial"`, `"gaussian"`, `"poisson"` or `"zip"`.
+#' @param family Character. `"binomial"`, `"gaussian"`, `"poisson"`, `"zip"`
+#'   or `"negbin"`.
+#' @param dispersion_structure Character. For `family = "negbin"`, whether the
+#'   overdispersion is one value per occasion shared by the classes
+#'   (`"occasion"`) or one per class constant over occasions (`"class"`).
+#'   Ignored by the other families.
 #' @param ... Additional arguments, ignored.
 #'
 #' @return A list object of class \code{c("lcga", "emission")}.
 #' @export
-lcga_model <- function(n_components, design, family = "binomial", ...) {
+lcga_model <- function(n_components, design, family = "binomial",
+                       dispersion_structure = "occasion", ...) {
   state <- list(
     n_components = n_components,
     design       = design,
@@ -60,6 +66,9 @@ lcga_model <- function(n_components, design, family = "binomial", ...) {
     # so each class has one probability of a structural zero at every occasion.
     inflation_design = if (identical(family, "zip"))
       matrix(1, nrow(design), 1L, dimnames = list(NULL, "intercept")),
+    # Which cells of the K x T overdispersion matrix share one free value.
+    dispersion_structure = if (identical(family, "negbin"))
+      match.arg(dispersion_structure, c("occasion", "class")),
     parameters   = list()
     # No `em_tol` here: refine_lbfgs() does not cover this emission, and
     # fit_single_init() gives every unpolished emission the tighter stopping
@@ -114,11 +123,12 @@ lcga_model <- function(n_components, design, family = "binomial", ...) {
 .lcga_prior_rows <- function(mm, cen) {
   D <- mm$design[cen$occ, , drop = FALSE]
   U <- nrow(D)
-  # A zero-inflated count carries the Poisson prior on its rate.
-  count <- mm$fam$name %in% c("poisson", "zip")
+  # A zero-inflated or overdispersed count carries the Poisson prior on its
+  # rate.
+  count <- mm$fam$name %in% c("poisson", "zip", "negbin")
   a <- switch(mm$fam$name,
               binomial = .bayes_alpha(mm, "categorical"),
-              poisson  = , zip = .bayes_alpha(mm, "poisson"),
+              poisson  = , zip = , negbin = .bayes_alpha(mm, "poisson"),
               0)
   if (a <= 0 || U == 0L || (count && cen$m <= 0))
     return(list(D = D[0L, , drop = FALSE], y = numeric(0), w = numeric(0)))
@@ -178,6 +188,16 @@ init_params.lcga <- function(model_state, X, resp, random_state = NULL, ...) {
     model_state$parameters$inflation <-
       cbind(g0 + stats::rnorm(K), matrix(0, K, q - 1L))
   }
+
+  # The overdispersion starts at the pooled moment estimate (var - mean) /
+  # mean^2, which the mixture of class means inflates; kept off the Poisson
+  # boundary, from which the one-dimensional search could still leave.
+  if (isTRUE(fam$has_overdispersion)) {
+    yo <- lng$y[lng$observed]
+    m  <- max(mean(yo), 1e-2)
+    a0 <- min(max((stats::var(yo) - m) / m^2, 0.05), 10)
+    model_state$parameters$overdispersion <- matrix(a0, K, lng$Tn)
+  }
   model_state
 }
 
@@ -207,6 +227,7 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
   coefs      <- model_state$parameters$coefs
   dispersion <- model_state$parameters$dispersion
   infl       <- model_state$parameters$inflation
+  od         <- model_state$parameters$overdispersion
   if (isTRUE(fam$has_inflation)) {
     Dz <- model_state$inflation_design[rep(seq_len(lng$Tn), each = lng$n), ,
                                        drop = FALSE]
@@ -233,6 +254,19 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
       infl[k, ] <- .wglm_fit(Dz, z, w_k, logit_fam, start = infl[k, ])$coefficients
     }
 
+    # Negative binomial: ECM. The rate at the current alpha here, then alpha
+    # at the new rates once every class has moved, below. The prior rows are
+    # Poisson rows (alpha 0), so the count prior is the Poisson family's.
+    if (isTRUE(fam$has_overdispersion)) {
+      coefs[k, ] <- .nb_rate_fit(D     = rbind(lng$D, prior$D),
+                                 y     = c(y_obs, prior$y),
+                                 w     = c(w_k,   prior$w),
+                                 alpha = c(rep(od[k, ], each = lng$n),
+                                           rep(0, length(prior$y))),
+                                 start = coefs[k, ])
+      next
+    }
+
     fit <- .wglm_fit(D     = rbind(lng$D, prior$D),
                      y     = c(y_obs,    prior$y),
                      w     = c(w_rate,   prior$w),
@@ -247,9 +281,28 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
     }
   }
 
+  # One alpha per occasion pools that occasion's records over the classes; one
+  # per class pools the class's records over the occasions.
+  if (isTRUE(fam$has_overdispersion)) {
+    occ <- rep(seq_len(lng$Tn), each = lng$n)
+    MU  <- exp(lng$D %*% t(coefs))                        # (n T) x K
+    W   <- resp[rep(seq_len(lng$n), lng$Tn), , drop = FALSE] * lng$observed
+    if (identical(model_state$dispersion_structure, "class")) {
+      for (k in seq_len(K))
+        od[k, ] <- .nb_alpha_fit(y_obs, MU[, k], W[, k])
+    } else {
+      for (t in seq_len(lng$Tn)) {
+        r <- occ == t
+        od[, t] <- .nb_alpha_fit(rep(y_obs[r], K), as.vector(MU[r, ]),
+                                 as.vector(W[r, ]))
+      }
+    }
+  }
+
   model_state$parameters$coefs      <- coefs
   model_state$parameters$dispersion <- dispersion
   model_state$parameters$inflation  <- infl
+  model_state$parameters$overdispersion <- od
   model_state
 }
 
@@ -275,10 +328,13 @@ log_likelihood.lcga <- function(model_state, X, ...) {
   for (k in seq_len(K)) {
     mu <- fam$linkinv(eta[, k])
     if (fam$name == "binomial") mu <- pmin(pmax(mu, 1e-15), 1 - 1e-15)
-    if (fam$name %in% c("poisson", "zip")) mu <- pmax(mu, 1e-15)
+    if (fam$name %in% c("poisson", "zip", "negbin")) mu <- pmax(mu, 1e-15)
     as_cells <- function(v) matrix(v, nrow = n, ncol = Tn, byrow = TRUE)
     ll <- if (isTRUE(fam$has_inflation))
       fam$log_dens(X, as_cells(mu), 1, as_cells(pi[k, ]))
+    else if (isTRUE(fam$has_overdispersion))
+      fam$log_dens(X, as_cells(mu), 1,
+                   as_cells(model_state$parameters$overdispersion[k, ]))
     else fam$log_dens(X, as_cells(mu), model_state$parameters$dispersion[k])
     # FIML: an unobserved occasion drops out of the case's sum. Also guards the
     # -Inf a saturated class would contribute at a probability pinned to 0 or 1.
@@ -293,7 +349,14 @@ n_parameters.lcga <- function(model_state, ...) {
   np <- length(model_state$parameters$coefs)
   if (isTRUE(model_state$fam$has_dispersion))
     np <- np + length(model_state$parameters$dispersion)
-  np + length(model_state$parameters$inflation)
+  np + length(model_state$parameters$inflation) + .lcga_n_overdispersion(model_state)
+}
+
+# The free overdispersion values: one per occasion or one per class.
+.lcga_n_overdispersion <- function(mm) {
+  od <- mm$parameters$overdispersion
+  if (is.null(od)) return(0L)
+  if (identical(mm$dispersion_structure, "class")) nrow(od) else ncol(od)
 }
 
 # What each family will accept as an outcome.
@@ -310,7 +373,7 @@ n_parameters.lcga <- function(model_state, ...) {
   if (family == "binomial" && !all(vals %in% c(0, 1)))
     stop('family = "binomial" requires outcome values in {0, 1}.', call. = FALSE)
 
-  if (family %in% c("poisson", "zip")) {
+  if (family %in% c("poisson", "zip", "negbin")) {
     if (any(vals < 0))
       stop(sprintf('family = "%s" requires non-negative counts, but negative ',
                    family), 'values are present.', call. = FALSE)
@@ -412,8 +475,8 @@ n_parameters.lcga <- function(model_state, ...) {
 #'     every model the package fits, and a warning is given only if every start
 #'     did.
 #'   * `"poisson"` — a count outcome, log link. The trajectory is a curve in the
-#'     event rate. Counts must be whole and non-negative; over-dispersed
-#'     counts are not yet modelled as such.
+#'     event rate. Counts must be whole and non-negative. A Poisson count's
+#'     variance equals its mean; for counts that spread more, use `"negbin"`.
 #'   * `"zip"` — a zero-inflated count, log link. A zero has two sources: a
 #'     structural zero, from a case that is not at risk of the event at that
 #'     occasion, and a Poisson zero, from a case that is at risk but had no
@@ -424,6 +487,16 @@ n_parameters.lcga <- function(model_state, ...) {
 #'     have nowhere to go but extra classes, so where zeros pile up beyond
 #'     what the rate implies, compare the two families before reading the
 #'     class count.
+#'   * `"negbin"` — an overdispersed count, log link: the negative binomial
+#'     in its NB2 form, variance mu + alpha mu^2 (Cameron & Trivedi, 2013,
+#'     ch. 3), so alpha = 0 is the Poisson. Each class has its own trajectory
+#'     in the mean count; how alpha is shared is set by `dispersion`. A
+#'     Poisson fit can only absorb extra spread by adding classes, so on
+#'     overdispersed counts compare the two families before reading the class
+#'     count.
+#' @param dispersion Character, `family = "negbin"` only. `"occasion"` (the
+#'   default) estimates one alpha per occasion, shared by the classes;
+#'   `"class"` estimates one alpha per class, constant over occasions.
 #' @param time_scores Numeric values of time used in the polynomial, one per
 #'   occasion. Defaults to `0, 1, ..., times - 1`, which makes the intercept the
 #'   fitted value at the first occasion. Supply the actual measurement times
@@ -447,7 +520,10 @@ n_parameters.lcga <- function(model_state, ...) {
 #'   `family = "zip"` — the per-class inflation logits (`inflation`) and the
 #'   probability of a structural zero they imply (`inflation_probability`).
 #'   The fitted trajectory of a `"zip"` fit is the at-risk rate; the expected
-#'   count is that rate times one minus the inflation probability.
+#'   count is that rate times one minus the inflation probability. A
+#'   `"negbin"` fit carries `overdispersion`, the K x T matrix of alpha
+#'   (repeated across the classes or the occasions it is shared by), and
+#'   `dispersion`, the structure.
 #'
 #' @seealso [`growth_estimates()`] for the coefficients with standard errors,
 #'   [`fit_rmlca()`] for unconstrained trajectory classes and
@@ -487,6 +563,10 @@ n_parameters.lcga <- function(model_state, ...) {
 #' Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
 #' \doi{10.1016/B978-0-12-818630-5.10076-4}
 #'
+#' Cameron, A. C., & Trivedi, P. K. (2013). \emph{Regression analysis of
+#' count data} (2nd ed.). Cambridge University Press.
+#' \doi{10.1017/CBO9781139013567}
+#'
 #' Lambert, D. (1992). Zero-inflated Poisson regression, with an application
 #' to defects in manufacturing. \emph{Technometrics}, \emph{34}(1), 1-14.
 #' \doi{10.2307/1269547}
@@ -505,7 +585,9 @@ fit_lcga <- function(indicator,
                      n_classes = 2,
                      times = NULL,
                      degree = 1,
-                     family = c("binomial", "gaussian", "poisson", "zip"),
+                     family = c("binomial", "gaussian", "poisson", "zip",
+                                "negbin"),
+                     dispersion = c("occasion", "class"),
                      time_scores = NULL,
                      layout = c("time_major", "item_major"),
                      id = NULL, time = NULL, item = NULL,
@@ -514,6 +596,7 @@ fit_lcga <- function(indicator,
                      ...) {
 
   family <- match.arg(family)
+  dispersion <- match.arg(dispersion)
   layout <- match.arg(layout)
 
   prep <- .prepare_longitudinal(indicator, times = times, items = item,
@@ -562,6 +645,7 @@ fit_lcga <- function(indicator,
     predictors  = predictors,
     design      = design,
     family      = family,
+    dispersion_structure = dispersion,
     ...
   )
 
@@ -584,6 +668,10 @@ fit_lcga <- function(indicator,
   if (family == "zip") {
     fit$growth$inflation <- fit$mm$parameters$inflation
     fit$growth$inflation_probability <- .lcga_inflation(fit$mm)[, 1L]
+  }
+  if (family == "negbin") {
+    fit$growth$overdispersion <- fit$mm$parameters$overdispersion
+    fit$growth$dispersion     <- dispersion
   }
   class(fit) <- c("lcga", class(fit))
   fit$call <- match.call()
@@ -633,7 +721,7 @@ plot.lcga <- function(x, observed = c("means", "cases", "none"), main = NULL,
   # say, 100, so the panel is the range of the curves with a margin.
   ylim <- switch(g$family,
                  binomial = c(0, 1),
-                 poisson  = , zip = range(c(0, ft, orng), na.rm = TRUE),
+                 poisson  = , zip = , negbin = range(c(0, ft, orng), na.rm = TRUE),
                  gaussian = {
                    r <- range(c(ft, orng), na.rm = TRUE)
                    # A single flat class gives a zero-width range, which is not
@@ -673,7 +761,7 @@ print.lcga <- function(x, ...) {
               length(g$time_scores),
               paste(format(g$time_scores, trim = TRUE), collapse = ", ")))
   cat(sprintf("Trajectory         : %s, %s link\n", shape,
-              switch(g$family, binomial = "logit", poisson = , zip = "log",
+              switch(g$family, binomial = "logit", poisson = , zip = , negbin = "log",
                      gaussian = "identity")))
   if (any(g$wave_missing))
     cat(sprintf("Wave attrition     : %d case-occasions unobserved\n",
@@ -706,6 +794,23 @@ print.lcga <- function(x, ...) {
                  dimnames = list("Probability",
                                  paste("Class", seq_along(g$inflation_probability))))
     print(round(ip, 3))
+  }
+
+  if (!is.null(g$overdispersion)) {
+    od <- g$overdispersion
+    if (identical(g$dispersion, "class")) {
+      cat("
+OVERDISPERSION (alpha, variance = mean + alpha mean^2; per class)
+")
+      od <- matrix(od[, 1L], nrow = 1,
+                   dimnames = list("Alpha", paste("Class", seq_len(nrow(od)))))
+    } else {
+      cat("
+OVERDISPERSION (alpha, variance = mean + alpha mean^2; per occasion, shared by the classes)
+")
+      od <- matrix(od[1L, ], nrow = 1, dimnames = list("Alpha", g$time_labels))
+    }
+    print(round(od, 3))
   }
 
   NextMethod()

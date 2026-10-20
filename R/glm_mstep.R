@@ -15,13 +15,14 @@
 # not know about: responsibility weights, missing cells, empty classes, and the
 # prior that keeps a class from separating.
 
-# The four families, each carrying the two things the EM loop needs outside the
+# The five families, each carrying the two things the EM loop needs outside the
 # M-step: a log density (for the E-step) and a link inverse (for reporting and
 # for the trajectory a class implies).
 #
 # `dispersion` is the residual variance for the gaussian family and is ignored
-# by the other two, which have none.
-.wglm_family <- function(family = c("gaussian", "binomial", "poisson", "zip")) {
+# by the others, which have none.
+.wglm_family <- function(family = c("gaussian", "binomial", "poisson", "zip",
+                                    "negbin")) {
   family <- match.arg(family)
   switch(
     family,
@@ -70,8 +71,83 @@
       has_dispersion = FALSE,
       has_inflation  = TRUE,
       scale_label = "Event rate"
+    ),
+    # Negative binomial (NB2): var = mu + alpha mu^2. The rate is fitted by
+    # Fisher scoring at fixed alpha (.nb_rate_fit()) and alpha by a 1-D search
+    # (.nb_alpha_fit()), both in m_step.lcga(), so `glm_family` is unused.
+    negbin = list(
+      name       = "negbin",
+      glm_family = stats::poisson(),
+      linkinv    = function(eta) exp(eta),
+      log_dens   = function(y, mu, dispersion, alpha) .nb_log_dens(y, mu, alpha),
+      has_dispersion     = FALSE,
+      has_overdispersion = TRUE,
+      scale_label = "Event rate"
     )
   )
+}
+
+# The NB2 log density, cell by cell, keeping the shape of `y`. An alpha at the
+# Poisson boundary is the Poisson density itself, not a size of 1e300.
+.nb_log_dens <- function(y, mu, alpha) {
+  alpha <- rep_len(alpha, length(y))
+  mu    <- rep_len(mu, length(y))
+  out <- y
+  po  <- alpha < 1e-12
+  out[po]  <- stats::dpois(y[po], lambda = mu[po], log = TRUE)
+  out[!po] <- stats::dnbinom(y[!po], size = 1 / alpha[!po], mu = mu[!po],
+                             log = TRUE)
+  out
+}
+
+# The NB2 rate regression at fixed alpha: Fisher scoring with step halving on
+# the weighted kernel y log mu - (y + 1/alpha) log(1 + alpha mu). A row with
+# alpha = 0 is a Poisson row, which is how the Poisson-form prior rows of
+# .lcga_prior_rows() enter. Score D'w(y - mu)/(1 + alpha mu), information
+# D' diag(w mu/(1 + alpha mu)) D.
+.nb_rate_fit <- function(D, y, w, alpha, start) {
+  ok <- is.finite(y) & is.finite(w) & w > 0
+  if (!any(ok)) return(start)
+  D <- D[ok, , drop = FALSE]; y <- y[ok]; w <- w[ok]; a <- alpha[ok]
+  po <- a <= 0
+  kern <- function(b) {
+    eta <- as.vector(D %*% b)
+    mu  <- exp(eta)
+    sum(w * ifelse(po, y * eta - mu, y * eta - (y + 1 / a) * log1p(a * mu)))
+  }
+  beta <- start
+  cur  <- kern(beta)
+  for (it in seq_len(100)) {
+    mu   <- exp(as.vector(D %*% beta))
+    v    <- 1 + a * mu
+    sc   <- crossprod(D, w * (y - mu) / v)
+    info <- crossprod(D, D * (w * mu / v))
+    step <- tryCatch(as.vector(solve(info, sc)), error = function(e) NULL)
+    if (is.null(step) || !all(is.finite(step))) break
+    for (h in 0:30) {
+      cand <- beta + step
+      new  <- kern(cand)
+      if (is.finite(new) && new >= cur - 1e-12) break
+      step <- step / 2
+    }
+    if (!is.finite(new) || new < cur - 1e-12) break
+    beta <- cand
+    done <- max(abs(step)) < 1e-10 || new - cur < 1e-12
+    cur  <- new
+    if (done) break
+  }
+  beta
+}
+
+# One alpha shared by a set of cells: the weighted NB2 log-likelihood
+# maximised on the log scale. The lower end is the Poisson boundary.
+.nb_alpha_fit <- function(y, mu, w) {
+  ok <- is.finite(y) & w > 0
+  if (!any(ok)) return(1e-8)
+  y <- y[ok]; mu <- mu[ok]; w <- w[ok]
+  f <- function(la) sum(w * stats::dnbinom(y, size = exp(-la), mu = mu, log = TRUE))
+  exp(stats::optimize(f, c(log(1e-8), log(1e4)), maximum = TRUE,
+                      tol = 1e-10)$maximum)
 }
 
 # Fit a single posterior-weighted GLM.

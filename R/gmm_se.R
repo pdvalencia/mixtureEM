@@ -148,6 +148,8 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
       g$residual_variance <- mm$parameters$dispersion
     if (identical(g$family, "zip"))
       g$inflation <- mm$parameters$inflation
+    if (identical(g$family, "negbin"))
+      g$overdispersion <- mm$parameters$overdispersion
     return(.growth_reported_table(g, K, st, logits))
   }
   g$means <- mm$parameters$alpha

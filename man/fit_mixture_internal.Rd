@@ -49,7 +49,10 @@ model type. Accepted strings: \code{"binary"} / \code{"bernoulli"},
 \code{"gaussian"} / \code{"gaussian_unit"},
 \code{"count"} / \code{"poisson"},
 \code{"zip"} (zero-inflated Poisson: per class and item, a rate for
-the cases at risk and a probability of a structural zero).
+the cases at risk and a probability of a structural zero),
+\code{"negbin"} (negative binomial, NB2: per class and item, a mean;
+per item, an overdispersion alpha shared by the classes, variance =
+mean + alpha mean^2).
 Missing values are handled automatically: any indicator column containing
 \code{NA} is estimated with a full-information (FIML) variant that masks the
 missing cells under a missing-at-random assumption, while complete columns

@@ -76,6 +76,10 @@ build_emission <- function(descriptor, n_components = 2, ...) {
       return(.construct_emission(poisson_model, c(list(type = "zip"), args_list)))
     } else if (descriptor == "zip_nan") {
       return(.construct_emission(poisson_model, c(list(type = "zip_nan"), args_list)))
+    } else if (descriptor == "negbin") {
+      return(.construct_emission(poisson_model, c(list(type = "negbin"), args_list)))
+    } else if (descriptor == "negbin_nan") {
+      return(.construct_emission(poisson_model, c(list(type = "negbin_nan"), args_list)))
     } else if (descriptor == "ordinal") {
       return(.construct_emission(ordinal_model, c(list(type = "ordinal"), args_list)))
     } else if (descriptor == "ordinal_nan") {

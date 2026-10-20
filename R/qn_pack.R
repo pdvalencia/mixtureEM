@@ -129,6 +129,7 @@
     structured_normal = .qn_pack_sn(emis),
     lcga              = .qn_pack_lcga(emis),
     zip               = .qn_pack_zip(emis),
+    negbin            = .qn_pack_negbin(emis),
     NULL)
 }
 
@@ -141,6 +142,7 @@
     structured_normal = .qn_unpack_sn(emis, par),
     lcga              = .qn_unpack_lcga(emis, par),
     zip               = .qn_unpack_zip(emis, par),
+    negbin            = .qn_unpack_negbin(emis, par),
     emis)
 }
 
@@ -282,7 +284,16 @@
   # A class with no excess zeros runs its inflation logit off to -Inf.
   if (isTRUE(ms$fam$has_inflation))
     parts <- c(parts, list(.qn_part(p$inflation, "logit")))
+  # NB2 alpha as a log, free values only; at the Poisson boundary it walls.
+  if (isTRUE(ms$fam$has_overdispersion))
+    parts <- c(parts, list(.qn_part(log(pmax(.lcga_free_overdispersion(ms),
+                                             1e-300)), "log_pos")))
   .qn_join(parts)
+}
+
+.lcga_free_overdispersion <- function(ms) {
+  od <- ms$parameters$overdispersion
+  if (identical(ms$dispersion_structure, "class")) od[, 1L] else od[1L, ]
 }
 
 .qn_unpack_lcga <- function(ms, par) {
@@ -294,8 +305,18 @@
     ms$parameters$dispersion <- exp(2 * par[n + seq_len(nd)])
     n <- n + nd
   }
-  if (isTRUE(ms$fam$has_inflation))
-    ms$parameters$inflation[] <- par[n + seq_along(ms$parameters$inflation)]
+  if (isTRUE(ms$fam$has_inflation)) {
+    ni <- length(ms$parameters$inflation)
+    ms$parameters$inflation[] <- par[n + seq_len(ni)]
+    n <- n + ni
+  }
+  if (isTRUE(ms$fam$has_overdispersion)) {
+    od <- ms$parameters$overdispersion
+    v  <- exp(par[n + seq_len(.lcga_n_overdispersion(ms))])
+    ms$parameters$overdispersion[] <-
+      if (identical(ms$dispersion_structure, "class"))
+        matrix(v, nrow(od), ncol(od)) else matrix(v, nrow(od), ncol(od), byrow = TRUE)
+  }
   ms
 }
 
@@ -307,6 +328,23 @@
   .qn_join(list(.qn_part(log(pmax(p$rates, 1e-300)), "log_pos"),
                 .qn_part(stats::qlogis(pmin(pmax(p$inflation, 1e-12), 1 - 1e-12)),
                          "logit")))
+}
+
+# Negative binomial items (R/poisson.R): rates as logs, then one log alpha per
+# item (the classes share it), walled at the Poisson boundary.
+.qn_pack_negbin <- function(ms) {
+  p <- ms$parameters
+  .qn_join(list(.qn_part(log(pmax(p$rates, 1e-300)), "log_pos"),
+                .qn_part(log(pmax(p$overdispersion[1L, ], 1e-300)), "log_pos")))
+}
+
+.qn_unpack_negbin <- function(ms, par) {
+  n  <- length(ms$parameters$rates)
+  od <- ms$parameters$overdispersion
+  ms$parameters$rates[] <- exp(par[seq_len(n)])
+  ms$parameters$overdispersion[] <-
+    matrix(exp(par[n + seq_len(ncol(od))]), nrow(od), ncol(od), byrow = TRUE)
+  ms
 }
 
 .qn_unpack_zip <- function(ms, par) {
@@ -354,7 +392,8 @@
     return(dst)
   }
   cols <- .em_item_cols(src, items)
-  for (nm in c("pis", "means", "covariances", "rates", "inflation"))
+  for (nm in c("pis", "means", "covariances", "rates", "inflation",
+              "overdispersion"))
     if (!is.null(src$parameters[[nm]]))
       dst$parameters[[nm]][, cols] <- src$parameters[[nm]][, cols, drop = FALSE]
   dst

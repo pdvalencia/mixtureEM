@@ -67,7 +67,9 @@
 #' @return A data frame with one row per parameter and class: `block` (the
 #'   sub-model for a mixed or blocked measurement model, `NA` otherwise),
 #'   `parameter` (`"probability"`, `"mean"`, `"variance"`, `"rate"`,
-#'   `"inflation"` (a zero-inflated count's structural-zero probability) or
+#'   `"inflation"` (a zero-inflated count's structural-zero probability),
+#'   `"overdispersion"` (a negative binomial item's alpha, shared by the
+#'   classes) or
 #'   `"class_logit"`), `item`, `category` (polytomous items only), `class`,
 #'   `estimate`, `se`, `z`, `p_value` and `boundary`. The covariance matrix
 #'   of the reported parameters is attached as the attribute `"vcov"`.
@@ -187,5 +189,9 @@ measurement_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
     out$rates <- rows(p$rates, "rate", names_or(p$rates, "Count_"))
   if (!is.null(p$inflation) && !is.null(p$rates))
     out$inflation <- rows(p$inflation, "inflation", names_or(p$rates, "Count_"))
+  # Shared by the classes, so repeated on each class's row.
+  if (!is.null(p$overdispersion) && !is.null(p$rates))
+    out$overdispersion <- rows(p$overdispersion, "overdispersion",
+                               names_or(p$rates, "Count_"))
   do.call(rbind, unname(out))
 }

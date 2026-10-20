@@ -9,7 +9,8 @@ fit_lcga(
   n_classes = 2,
   times = NULL,
   degree = 1,
-  family = c("binomial", "gaussian", "poisson", "zip"),
+  family = c("binomial", "gaussian", "poisson", "zip", "negbin"),
+  dispersion = c("occasion", "class"),
   time_scores = NULL,
   layout = c("time_major", "item_major"),
   id = NULL,
@@ -55,8 +56,8 @@ no residual spread left; a start that ends there is set aside, as in
 every model the package fits, and a warning is given only if every start
 did.
 \item \code{"poisson"} — a count outcome, log link. The trajectory is a curve in the
-event rate. Counts must be whole and non-negative; over-dispersed
-counts are not yet modelled as such.
+event rate. Counts must be whole and non-negative. A Poisson count's
+variance equals its mean; for counts that spread more, use \code{"negbin"}.
 \item \code{"zip"} — a zero-inflated count, log link. A zero has two sources: a
 structural zero, from a case that is not at risk of the event at that
 occasion, and a Poisson zero, from a case that is at risk but had no
@@ -67,7 +68,18 @@ estimated on the logit scale. Excess zeros fitted with \code{"poisson"}
 have nowhere to go but extra classes, so where zeros pile up beyond
 what the rate implies, compare the two families before reading the
 class count.
+\item \code{"negbin"} — an overdispersed count, log link: the negative binomial
+in its NB2 form, variance mu + alpha mu^2 (Cameron & Trivedi, 2013,
+ch. 3), so alpha = 0 is the Poisson. Each class has its own trajectory
+in the mean count; how alpha is shared is set by \code{dispersion}. A
+Poisson fit can only absorb extra spread by adding classes, so on
+overdispersed counts compare the two families before reading the class
+count.
 }}
+
+\item{dispersion}{Character, \code{family = "negbin"} only. \code{"occasion"} (the
+default) estimates one alpha per occasion, shared by the classes;
+\code{"class"} estimates one alpha per class, constant over occasions.}
 
 \item{time_scores}{Numeric values of time used in the polynomial, one per
 occasion. Defaults to \verb{0, 1, ..., times - 1}, which makes the intercept the
@@ -99,7 +111,10 @@ family, per-class coefficients, the fitted trajectories, and — for
 \code{family = "zip"} — the per-class inflation logits (\code{inflation}) and the
 probability of a structural zero they imply (\code{inflation_probability}).
 The fitted trajectory of a \code{"zip"} fit is the at-risk rate; the expected
-count is that rate times one minus the inflation probability.
+count is that rate times one minus the inflation probability. A
+\code{"negbin"} fit carries \code{overdispersion}, the K x T matrix of alpha
+(repeated across the classes or the occasions it is shared by), and
+\code{dispersion}, the structure.
 }
 \description{
 Fits class-specific growth curves to a single outcome measured repeatedly:
@@ -174,6 +189,10 @@ Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
 growth mixture models (GMM). In \emph{International Encyclopedia of
 Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
 \doi{10.1016/B978-0-12-818630-5.10076-4}
+
+Cameron, A. C., & Trivedi, P. K. (2013). \emph{Regression analysis of
+count data} (2nd ed.). Cambridge University Press.
+\doi{10.1017/CBO9781139013567}
 
 Lambert, D. (1992). Zero-inflated Poisson regression, with an application
 to defects in manufacturing. \emph{Technometrics}, \emph{34}(1), 1-14.

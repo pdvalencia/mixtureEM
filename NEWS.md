@@ -1,5 +1,23 @@
 # mixtureEM (development version)
 
+## Negative binomial counts
+
+`fit_lcga(family = "negbin")` and `fit_mixture(measurement = "negbin")` fit
+counts that spread more than a Poisson allows, with the NB2 variance
+mean + alpha mean^2 (Cameron & Trivedi, 2013), so alpha = 0 is the Poisson.
+In a growth model `dispersion = "occasion"` (the default) estimates one alpha
+per occasion shared by the classes, and `dispersion = "class"` one per class
+constant over occasions; cross-sectionally each item has one alpha shared by
+the classes. Estimation is ECM: the class means at the current alpha, then
+alpha at the new means. The Poisson family can only absorb extra spread by
+adding classes, so on one-class overdispersed data its BIC keeps falling while
+the negative binomial's picks one class.
+
+Alpha is reported by `print()`, `growth_estimates()` and
+`measurement_estimates()` (as `overdispersion`). The class means carry the
+Poisson family's prior; alpha has none. Nothing changes numerically for any
+existing family.
+
 ## Zero-inflated Poisson counts
 
 `fit_lcga(family = "zip")` and `fit_mixture(measurement = "zip")` fit counts
