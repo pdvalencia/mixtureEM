@@ -1,5 +1,16 @@
 # mixtureEM (development version)
 
+## The bootstrap likelihood-ratio test under frequency weights
+
+**`blrt()` p-values change for fits with `weight_type = "frequency"`.** The
+bootstrap drew each null sample with one case per data row rather than one
+per counted case, and re-attached the frequency weights to the synthetic
+rows, so a table of patterns with counts was bootstrapped as if it were a
+small sample of weighted people. The null samples now have `sum(weights)`
+cases and are fitted unweighted, and a frequency-weighted table gives the
+same test, draw for draw, as the same data written out case by case.
+Sampling weights and survey designs are unchanged.
+
 ## Clustered standard errors of growth and measurement parameters, and of BCH means
 
 **Standard errors change for fits with `cluster =` or `strata =`.** Two

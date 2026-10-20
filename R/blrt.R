@@ -441,6 +441,13 @@ blrt <- function(indicators, k_small, k_large, measurement,
 
   obs_diff  <- 2 * (alt_model$metrics$ll - null_model$metrics$ll)
   N         <- nrow(Xd)
+  # A frequency-weighted row stands for that many cases, so the null sample
+  # has sum(weights) of them, and a synthetic row is one case: the weights
+  # describe the observed rows and do not travel to the replicate fits.
+  if (identical(extra$weight_type, "frequency") && !is.null(extra$weights)) {
+    N <- as.integer(round(sum(extra$weights)))
+    rep_extra[c("weights", "weight_type")] <- NULL
+  }
 
   # One seed per replicate, all drawn here before any fitting starts.
   #

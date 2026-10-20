@@ -51,3 +51,25 @@ test_that("a weighted, clustered BLRT rescales its draws by the null fit's desig
                (sum(res$null_dist >= res$obs_diff) + 1) / (res$n_reps + 1))
   expect_output(print(res), "Design effect")
 })
+
+test_that("frequency weights give the BLRT of the expanded data", {
+  set.seed(7)
+  n   <- 200
+  cls <- 1L + (runif(n) > 0.5)
+  p   <- rbind(c(.85, .8, .8, .75), c(.2, .25, .15, .25))
+  X   <- t(vapply(cls, function(k) rbinom(4, 1, p[k, ]), numeric(4)))
+  key <- apply(X, 1, paste, collapse = "")
+  u   <- !duplicated(key)
+  fq  <- as.vector(table(key)[key[u]])
+  run <- function(Xd, ...) {
+    set.seed(99)
+    suppressWarnings(blrt(Xd, 1, 2, measurement = "binary", n_reps = 3,
+                          n_init_base = 3, n_init_boot = 1, verbose = FALSE,
+                          n_cores = 1, ...))
+  }
+  a <- run(X)
+  b <- run(X[u, ], weights = fq, weight_type = "frequency")
+  expect_equal(b$obs_diff, a$obs_diff, tolerance = 1e-6)
+  expect_identical(b$null_dist, a$null_dist)
+  expect_false(b$scaled)
+})
