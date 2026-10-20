@@ -89,14 +89,29 @@
 
 # The NB2 log density, cell by cell, keeping the shape of `y`. An alpha at the
 # Poisson boundary is the Poisson density itself, not a size of 1e300.
+#
+# The density is evaluated once per distinct (count, mean, alpha) cell and
+# looked up for the rest: an E-step on thousands of records has only a few
+# distinct means per class and a few dozen distinct counts, and evaluating
+# dnbinom() cell by cell was half of a fit's time.
 .nb_log_dens <- function(y, mu, alpha) {
   alpha <- rep_len(alpha, length(y))
   mu    <- rep_len(mu, length(y))
   out <- y
-  po  <- alpha < 1e-12
-  out[po]  <- stats::dpois(y[po], lambda = mu[po], log = TRUE)
-  out[!po] <- stats::dnbinom(y[!po], size = 1 / alpha[!po], mu = mu[!po],
-                             log = TRUE)
+  ok  <- !is.na(y)
+  if (!any(ok)) return(out)
+  yo  <- y[ok]; mo <- mu[ok]; ao <- alpha[ok]
+  um  <- unique(mo); ua <- unique(ao)
+  key <- ((match(mo, um) - 1) * length(ua) + match(ao, ua) - 1) *
+    (max(yo) + 1) + yo
+  u   <- !duplicated(key)
+  yu  <- yo[u]; mu_u <- mo[u]; au <- ao[u]
+  du  <- yu
+  po  <- au < 1e-12
+  du[po]  <- stats::dpois(yu[po], lambda = mu_u[po], log = TRUE)
+  du[!po] <- stats::dnbinom(yu[!po], size = 1 / au[!po], mu = mu_u[!po],
+                            log = TRUE)
+  out[ok] <- du[match(key, key[u])]
   out
 }
 
@@ -145,6 +160,16 @@
   ok <- is.finite(y) & w > 0
   if (!any(ok)) return(1e-8)
   y <- y[ok]; mu <- mu[ok]; w <- w[ok]
+  # The objective is a weighted sum over (count, mean) pairs, and without
+  # covariates a growth model has only K x T distinct means and few distinct
+  # counts, so the pairs are pooled first: the search below evaluates the
+  # density some thirty times per M-step, and on thousands of records that
+  # was most of the fit's time.
+  um  <- unique(mu)
+  key <- (match(mu, um) - 1) * (max(y) + 1) + y
+  w   <- rowsum(w, key, reorder = FALSE)[, 1]
+  u   <- !duplicated(key)
+  y   <- y[u]; mu <- mu[u]
   f <- function(la) sum(w * stats::dnbinom(y, size = exp(-la), mu = mu, log = TRUE))
   exp(stats::optimize(f, c(log(1e-8), log(1e4)), maximum = TRUE,
                       tol = 1e-10)$maximum)
