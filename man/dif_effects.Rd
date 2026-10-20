@@ -20,7 +20,10 @@ A data frame with one row per slope: \code{item}, \code{covariate},
 \description{
 Reports the slopes a model fitted with \code{predictors_items} estimates:
 the effect of a covariate on the log-odds of endorsing an item, for people
-in the same latent class. A non-zero slope is differential item
+in the same latent class. For an ordinal item the slope is a
+proportional-odds effect: it shifts the log-odds of every "this category or
+higher" comparison by the same amount, so a positive slope means higher
+categories. A non-zero slope is differential item
 functioning (DIF): the item does not measure the classes the same way for
 everyone. A \emph{uniform} slope is one number shared by every class; a
 \emph{class-specific} slope has one value per class.

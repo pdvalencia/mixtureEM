@@ -316,7 +316,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 # composite model.
 .em_prior_supported <- c("bernoulli", "bernoulli_nan", "bernoulli_dif",
                          "multinoulli", "multinoulli_nan",
-                         "ordinal", "ordinal_nan",
+                         "ordinal", "ordinal_nan", "ordinal_dif",
                          "poisson", "poisson_nan", "zip", "zip_nan",
                          "negbin", "negbin_nan",
                          "gaussian_diag", "gaussian_diag_nan",
@@ -365,7 +365,8 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
       X, one_hot(X, mm$max_val), wt,
       function(j) ((j - 1L) * mm$max_val + 1L):(j * mm$max_val))),
     ordinal      = ,
-    ordinal_nan  = list(m = .em_onehot_marginal(
+    ordinal_nan  = ,
+    ordinal_dif  = list(m = .em_onehot_marginal(
       X, one_hot_ragged(X, mm$cats), wt,
       function(j) .ordinal_item_cols(mm, j))),
     gaussian_diag     = ,
@@ -418,7 +419,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
 # width multinoulli case and is not reused here for that reason).
 .em_item_cols <- function(sub, items) {
   fam <- class(sub)[1]
-  if (fam %in% c("ordinal", "ordinal_nan"))
+  if (fam %in% c("ordinal", "ordinal_nan", "ordinal_dif"))
     return(unlist(lapply(items, function(j) .ordinal_item_cols(sub, j))))
   if (!is.null(sub$max_val)) {
     M <- sub$max_val
@@ -453,7 +454,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
       val <- val + scale * (a / K) * sum(mm_ * log(p) + (1 - mm_) * log1p(-p))
     }
   } else if (fam %in% c("multinoulli", "multinoulli_nan",
-                        "ordinal", "ordinal_nan")) {
+                        "ordinal", "ordinal_nan", "ordinal_dif")) {
     a <- .bayes_alpha(sub, "categorical")
     if (a > 0) {
       if (fam %in% c("multinoulli", "multinoulli_nan")) {
@@ -509,7 +510,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
       val <- val + (a / K) * sum(m * log(p) + (1 - m) * log1p(-p))
     }
   } else if (fam %in% c("multinoulli", "multinoulli_nan",
-                        "ordinal", "ordinal_nan")) {
+                        "ordinal", "ordinal_nan", "ordinal_dif")) {
     a <- .bayes_alpha(mm, "categorical")
     if (a > 0) {
       p <- pmax(mm$parameters$pis, 1e-300)

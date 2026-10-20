@@ -477,6 +477,7 @@
     v <- .dif_pack(mm)
     return(if (is.null(v)) NULL else .qn_part(v, "logit"))
   }
+  if (inherits(mm, "ordinal_dif")) return(.qn_part(.ordinal_dif_pack(mm), "logit"))
   if (inherits(mm, "blocks")) return(.qn_pack_blocks(mm))
   if (inherits(mm, "nested")) return(.qn_join(lapply(mm$models, .qn_pack_mm)))
   .qn_pack_flat(mm)
@@ -484,6 +485,7 @@
 
 .qn_unpack_mm <- function(mm, par) {
   if (inherits(mm, "bernoulli_dif")) return(.dif_unpack(mm, par))
+  if (inherits(mm, "ordinal_dif")) return(.ordinal_dif_unpack(mm, par))
   if (inherits(mm, "blocks")) return(.qn_unpack_blocks(mm, par))
   if (inherits(mm, "nested")) {
     at <- 0L

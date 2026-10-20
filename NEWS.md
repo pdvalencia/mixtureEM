@@ -1,5 +1,19 @@
 # mixtureEM (development version)
 
+## Direct covariate effects on ordinal indicators
+
+`fit_mixture(measurement = "ordinal", predictors_items =)` now fits
+differential item functioning on ordinal items: a covariate shifts every
+cumulative logit of the item by the same amount, for people in the same
+class (a proportional-odds slope; positive means higher categories), either
+once for all classes or, with `predictors_items_by_class`, per class. The
+item thresholds stay free in every class, so with no slopes the model is the
+ordinal latent class model, and an item with two categories is the binary
+model. `dif_effects()` reports the slopes with standard errors from the
+observed information of the one-step likelihood; the categorical prior is
+applied, as for binary items, to the category probabilities of a case whose
+item covariates are zero. Nothing changes for existing fits.
+
 ## A zero-inflation probability that changes over time
 
 `fit_lcga(family = "zip", inflation_degree = 1)` lets each class's

@@ -2,6 +2,9 @@
 # Direct covariate effects on binary indicators of a cross-sectional model
 # ==============================================================================
 #
+# (Ordinal indicators: R/ordinal_dif.R, which reuses the pattern machinery,
+# .dif_spec(), .dif_emission() and the reporting below.)
+#
 # The cross-sectional counterpart of R/lta_dif.R. There, `predictors_items`
 # lets a covariate act on an item inside each latent status of an LTA; here it
 # does the same inside each class of an LCA fitted by fit_mixture():
@@ -37,13 +40,15 @@
 # Construction
 # ------------------------------------------------------------------------------
 
-# Turn a plain binary emission into a DIF one. `dif` is what fit_mixture()
-# builds: `Z` (n x D, the union of the named covariates), `free` (J x D logical,
-# which item-covariate slopes exist) and `by_class` (length J logical).
+# Turn a plain binary or ordinal emission into a DIF one (the ordinal form is
+# R/ordinal_dif.R). `dif` is what fit_mixture() builds: `Z` (n x D, the union
+# of the named covariates), `free` (J x D logical, which item-covariate slopes
+# exist) and `by_class` (length J logical).
 .dif_emission <- function(mm, dif) {
-  if (!class(mm)[1] %in% c("bernoulli", "bernoulli_nan"))
-    stop("`predictors_items` is available for binary indicators only.",
-         call. = FALSE)
+  ordinal <- class(mm)[1] %in% c("ordinal", "ordinal_nan")
+  if (!ordinal && !class(mm)[1] %in% c("bernoulli", "bernoulli_nan"))
+    stop("`predictors_items` is available for binary and ordinal indicators ",
+         "only.", call. = FALSE)
   Z <- as.matrix(dif$Z)
   if (anyNA(Z))
     stop("`predictors_items` covariates may not be missing: the item ",
@@ -68,9 +73,11 @@
                  rows = lapply(seq_len(P), function(p) which(pat == p)),
                  free = dif$free, by_class = dif$by_class,
                  covariates = colnames(Z))
-  class(mm) <- c("bernoulli_dif", "emission")
+  class(mm) <- c(if (ordinal) "ordinal_dif" else "bernoulli_dif", "emission")
   mm
 }
+
+.is_dif <- function(mm) inherits(mm, c("bernoulli_dif", "ordinal_dif"))
 
 # Resolve fit_mixture()'s `predictors_items` (a named list, item -> one-sided
 # formula or column names) and `predictors_items_by_class` (item names) into
@@ -78,9 +85,9 @@
 # `predictors` is, by prepare_covariates().
 .dif_spec <- function(spec, by_class, data, X, measurement) {
   if (!is.character(measurement) || length(measurement) != 1L ||
-      !measurement %in% .binary_families)
-    stop("`predictors_items` is available for binary indicators only ",
-         "(`measurement = \"binary\"`).", call. = FALSE)
+      !measurement %in% c(.binary_families, "ordinal", "ordinal_nan"))
+    stop("`predictors_items` is available for binary and ordinal indicators ",
+         "only (`measurement = \"binary\"` or `\"ordinal\"`).", call. = FALSE)
   items <- colnames(X)
   if (!is.list(spec) || is.null(names(spec)) || any(names(spec) == ""))
     stop("`predictors_items` must be a named list: item name = one-sided ",
@@ -122,8 +129,8 @@
 # The K x J shift every item's logit takes for covariate pattern p.
 .dif_shift <- function(mm, p) {
   S  <- mm$parameters$dif_slopes
-  J  <- ncol(mm$parameters$pis)
   zu <- mm$dif$Zu
+  J  <- ncol(S) %/% ncol(zu)
   out <- matrix(0, nrow(S), J)
   for (d in seq_len(ncol(zu)))
     if (zu[p, d] != 0)
@@ -371,7 +378,10 @@ m_step.bernoulli_dif <- function(model_state, X, resp, weights = NULL,
 #' @description
 #' Reports the slopes a model fitted with \code{predictors_items} estimates:
 #' the effect of a covariate on the log-odds of endorsing an item, for people
-#' in the same latent class. A non-zero slope is differential item
+#' in the same latent class. For an ordinal item the slope is a
+#' proportional-odds effect: it shifts the log-odds of every "this category or
+#' higher" comparison by the same amount, so a positive slope means higher
+#' categories. A non-zero slope is differential item
 #' functioning (DIF): the item does not measure the classes the same way for
 #' everyone. A \emph{uniform} slope is one number shared by every class; a
 #' \emph{class-specific} slope has one value per class.
@@ -416,10 +426,10 @@ m_step.bernoulli_dif <- function(model_state, X, resp, weights = NULL,
 #' @export
 dif_effects <- function(fit, se = TRUE) {
   mm <- fit$mm
-  if (!inherits(mm, "bernoulli_dif"))
+  if (!.is_dif(mm))
     stop("This model has no `predictors_items`.", call. = FALSE)
   K     <- mm$n_components
-  J     <- ncol(mm$parameters$pis)
+  J     <- ncol(mm$parameters$dif_slopes) %/% ncol(mm$dif$Z)
   items <- colnames(fit$data) %||% paste0("Item", seq_len(J))
   S     <- mm$parameters$dif_slopes
 
@@ -442,7 +452,7 @@ dif_effects <- function(fit, se = TRUE) {
       ll <- function(v) sum(w * .joint_ll_case(fit, fit$data, v))
       V  <- pinv(-.step1_fd_hessian(ll, par))
       n_sl <- nrow(out)
-      at   <- K * J
+      at   <- length(.step1_pack_mm(mm)) - n_sl
       out$se <- sqrt(pmax(diag(V)[at + seq_len(n_sl)], 0))
     }
   }

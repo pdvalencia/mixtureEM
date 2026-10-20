@@ -538,6 +538,7 @@ NULL
 # Pack an emission (measurement model) — NULL when the family is unsupported.
 .step1_pack_mm <- function(mm) {
   if (inherits(mm, "bernoulli_dif")) return(.dif_pack(mm))
+  if (inherits(mm, "ordinal_dif")) return(.ordinal_dif_pack(mm))
   if (.step1_family(mm) %in% .step1_growth_families)
     return(.qn_pack_flat(mm)$par)
   if (inherits(mm, "blocks")) {
@@ -557,6 +558,7 @@ NULL
 
 .step1_unpack_mm <- function(mm, par) {
   if (inherits(mm, "bernoulli_dif")) return(.dif_unpack(mm, par))
+  if (inherits(mm, "ordinal_dif")) return(.ordinal_dif_unpack(mm, par))
   if (.step1_family(mm) %in% .step1_growth_families)
     return(.qn_unpack_flat(mm, par))
   if (inherits(mm, "blocks")) {

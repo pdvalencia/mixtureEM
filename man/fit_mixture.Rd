@@ -252,9 +252,12 @@ indicators, for testing measurement invariance (differential item
 functioning): a named list mapping an item to a one-sided formula or
 column names in \code{data}, e.g. \code{list(item3 = ~ female)}. Each named
 covariate shifts the log-odds of endorsing that item for people in the same
-class. Unlike \code{predictors}, which only changes who is in which class,
-this changes what an item means. Binary indicators and one-step fits only;
-\code{n_steps} defaults to 1 when this is given. The covariates must be
+class; for an ordinal item it shifts every cumulative log-odds by the same
+amount (a proportional-odds slope), so a positive slope moves responses
+towards the higher categories. Unlike \code{predictors}, which only changes
+who is in which class, this changes what an item means. Binary and ordinal
+indicators and one-step fits only; \code{n_steps} defaults to 1 when this
+is given. The covariates must be
 complete and take few distinct values (see
 \code{options(mixtureEM.dif_max_patterns = )}). The item probabilities the
 fit reports are those of a case with these covariates at zero. The slopes
