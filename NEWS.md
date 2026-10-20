@@ -1,5 +1,17 @@
 # mixtureEM (development version)
 
+## Multiple-group models with mixed item types reach their maximum
+
+**Estimates move slightly for multiple-group fits whose measurement differs
+by group (`group_effects = "both"` or `"measurement"`) and whose items are
+of more than one type.** Their log-prior could not be evaluated, so the
+Newton-type finish that ends every other fit was skipped and EM stopped on
+its tolerance, short of the maximum when item probabilities sit near 0 or 1:
+on a published two-group, three-class example the joint fit was 0.005 below
+the sum of the two separate group fits, which is the same model. It now
+reaches that sum to the last printed digit. The restarts are also ranked on
+the full penalised objective for these models now, as for every other.
+
 ## Class order in multiple-group models with mixed item types
 
 **A multiple-group model whose measurement differs by group and whose

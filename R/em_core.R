@@ -616,6 +616,13 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
       fam_val <- if (pooled)
         .em_flat_family_log_prior_items(mm$models[[b]], X_pool, K, free,
                                         wt_pool, scale = 1 / Bn)
+      # A block of mixed item types is a nested model, which has no
+      # item-restricted prior; with every item free its block's prior is its
+      # sub-models' own, on the block's columns.
+      else if (inherits(mm$models[[b]], "nested") && !length(inv))
+        .em_family_log_prior(mm$models[[b]],
+          .strip_block_prefix(X[, .time_block_cols(b, J), drop = FALSE]), K,
+          NULL, wt)
       else
         .em_flat_family_log_prior_items(mm$models[[b]],
           .strip_block_prefix(X[, .time_block_cols(b, J), drop = FALSE]), K,
