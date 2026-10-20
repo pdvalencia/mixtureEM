@@ -1,5 +1,24 @@
 # mixtureEM (development version)
 
+## Zero-inflated Poisson counts
+
+`fit_lcga(family = "zip")` and `fit_mixture(measurement = "zip")` fit counts
+whose zeros have two sources: a structural zero, from a case not at risk of
+the event, and a Poisson zero, from a case at risk that had none (Lambert,
+1992; Nagin & Land, 1993). In a growth model each class has its own
+trajectory in the at-risk rate and its own probability of a structural
+zero, constant over occasions; cross-sectionally each class has a rate and
+an inflation probability per item. Estimation is EM with an inner step that
+splits every observed zero between the two sources. The Poisson family can
+only absorb excess zeros by adding classes, so on one-class zero-inflated
+data its BIC keeps falling while the zero-inflated model's picks one class.
+
+The inflation is reported by `print()`, `growth_estimates()` (as
+`inflation_logit`) and `measurement_estimates()` (as `inflation`, flagged in
+`boundary` when an item has no excess zeros in a class). The count part
+carries the Poisson family's prior; the inflation has none. Nothing changes
+numerically for any existing family.
+
 ## Numerical second derivatives on a step that does not round
 
 Where a standard error needs the curvature of a log-likelihood and no

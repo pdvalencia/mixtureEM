@@ -33,6 +33,11 @@ sort_model_classes <- function(model_state) {
     model_state$mm$parameters$rates <-
       model_state$mm$parameters$rates[new_order, , drop = FALSE]
   }
+  # Zero inflation, cross-sectional (K x items) or growth (K x design columns).
+  if (!is.null(model_state$mm$parameters[["inflation"]])) {
+    model_state$mm$parameters$inflation <-
+      model_state$mm$parameters$inflation[new_order, , drop = FALSE]
+  }
   # LCGA: growth coefficients are one row per class, and the gaussian family's
   # residual variance is one entry per class.
   if (!is.null(model_state$mm$parameters[["coefs"]])) {
@@ -74,6 +79,8 @@ sort_model_classes <- function(model_state) {
           sub$parameters$covariances[new_order, , drop = FALSE]
       if (!is.null(sub$parameters[["rates"]]))
         sub$parameters$rates <- sub$parameters$rates[new_order, , drop = FALSE]
+      if (!is.null(sub$parameters[["inflation"]]))
+        sub$parameters$inflation <- sub$parameters$inflation[new_order, , drop = FALSE]
       model_state$mm$models[[name]] <- sub
     }
   }
@@ -431,6 +438,10 @@ measurement_summary.default <- function(object,
     if (!is.null(mm$parameters$rates))
       print_item_matrix(mm$parameters$rates, "COUNT RATES (lambda)", mm,
                         "rate")
+    if (!is.null(mm$parameters$inflation))
+      print_item_matrix(mm$parameters$inflation,
+                        "ZERO INFLATION (probability of a structural zero)", mm,
+                        "inflation", show_overall = FALSE)
   }
   if (any_no_overall)
     cat("\nThe Overall column, holding the observed marginal for each item, is ",
@@ -2136,7 +2147,9 @@ summary.mixture_model <- function(object, ref_class = NULL, ...) {
 #'   \code{"categorical"} / \code{"multinoulli"},
 #'   \code{"continuous"} / \code{"gaussian_diag"},
 #'   \code{"gaussian"} / \code{"gaussian_unit"},
-#'   \code{"count"} / \code{"poisson"}.
+#'   \code{"count"} / \code{"poisson"},
+#'   \code{"zip"} (zero-inflated Poisson: per class and item, a rate for
+#'   the cases at risk and a probability of a structural zero).
 #'   Missing values are handled automatically: any indicator column containing
 #'   \code{NA} is estimated with a full-information (FIML) variant that masks the
 #'   missing cells under a missing-at-random assumption, while complete columns
@@ -2475,7 +2488,8 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   # fractional values give dpois() a probability of zero for every class, so the
   # fit would fail with a log-likelihood of -Inf rather than a usable message.
   if (is.character(measurement) &&
-      measurement %in% c("count", "poisson", "count_nan", "poisson_nan")) {
+      measurement %in% c("count", "poisson", "count_nan", "poisson_nan",
+                         "zip", "zip_nan")) {
     valid_vals <- X[!is.na(X)]
     bad <- valid_vals[valid_vals < 0 | abs(valid_vals - round(valid_vals)) > 1e-8]
     if (length(bad) > 0)
@@ -2646,7 +2660,8 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   gaussian_unit = "gaussian_unit_nan",
   gaussian      = "gaussian_nan",
   poisson       = "poisson_nan",
-  count         = "count_nan"
+  count         = "count_nan",
+  zip           = "zip_nan"
 )
 
 # Resolve a measurement descriptor against its data so the estimator matches the
@@ -4624,6 +4639,7 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
     binary = , binomial = , polytomous = , ordinal = "categorical",
     continuous = "normal",
     count = "Poisson",
+    "zero-inflated count" = "zero-inflated Poisson",
     t), character(1))
   paste(sort(unique(fam)), collapse = " + ")
 }

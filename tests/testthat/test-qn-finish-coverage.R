@@ -72,6 +72,8 @@
   gaussian_diag_nan = function() list(fit = .cov_fm(.cov_cont(na = TRUE), measurement = "continuous")),
   poisson           = function() list(fit = .cov_fm(.cov_count(), measurement = "count")),
   poisson_nan       = function() list(fit = .cov_fm(.cov_count(na = TRUE), measurement = "count")),
+  zip               = function() list(fit = .cov_fm(.cov_count(), measurement = "zip")),
+  zip_nan           = function() list(fit = .cov_fm(.cov_count(na = TRUE), measurement = "zip")),
   nested            = function() list(fit = .cov_fm(cbind(.cov_bin(J = 3), .cov_cont(J = 2)),
                                         measurement = list(binary = 1:3, continuous = 4:5))),
   group_blocks      = function() {
@@ -161,6 +163,7 @@
   gaussian_diag_nan = "gaussian_diag_nan", continuous_nan = "gaussian_diag_nan",
   poisson = "poisson", count = "poisson",
   poisson_nan = "poisson_nan", count_nan = "poisson_nan",
+  zip = "zip", zip_nan = "zip_nan",
   ordinal = "lta:ordinal", ordinal_nan = "lta:ordinal",
   time_blocks = "lta:time_blocks", group_blocks = "group_blocks",
   lcga = "lcga", structured_normal = "structured_normal",

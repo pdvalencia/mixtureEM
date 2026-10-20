@@ -66,7 +66,8 @@
 #'
 #' @return A data frame with one row per parameter and class: `block` (the
 #'   sub-model for a mixed or blocked measurement model, `NA` otherwise),
-#'   `parameter` (`"probability"`, `"mean"`, `"variance"`, `"rate"` or
+#'   `parameter` (`"probability"`, `"mean"`, `"variance"`, `"rate"`,
+#'   `"inflation"` (a zero-inflated count's structural-zero probability) or
 #'   `"class_logit"`), `item`, `category` (polytomous items only), `class`,
 #'   `estimate`, `se`, `z`, `p_value` and `boundary`. The covariance matrix
 #'   of the reported parameters is attached as the attribute `"vcov"`.
@@ -113,7 +114,7 @@ measurement_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
   out$z        <- est / s
   out$p_value  <- 2 * stats::pnorm(-abs(out$z))
   # Same edge as the note measurement_summary() prints (.print_boundary_note()).
-  out$boundary <- out$parameter == "probability" &
+  out$boundary <- out$parameter %in% c("probability", "inflation") &
     (est <= 1e-3 | est >= 1 - 1e-3)
   rownames(out) <- NULL
   if (any(out$boundary))
@@ -184,5 +185,7 @@ measurement_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
   }
   if (!is.null(p$rates))
     out$rates <- rows(p$rates, "rate", names_or(p$rates, "Count_"))
+  if (!is.null(p$inflation) && !is.null(p$rates))
+    out$inflation <- rows(p$inflation, "inflation", names_or(p$rates, "Count_"))
   do.call(rbind, unname(out))
 }

@@ -143,3 +143,96 @@ log_likelihood.poisson_nan <- function(model_state, X, ...) {
   dimnames(out) <- NULL
   return(out)
 }
+
+# ------------------------------------------------------------------------------
+# 3. Zero-inflated Poisson (Count with Excess Zeros) S3 Methods
+# ------------------------------------------------------------------------------
+#
+# Each item, within each class, has a rate `rates` for the cases at risk and a
+# probability `inflation` that a case is not at risk at all and records a
+# structural zero. One implementation serves both `zip` and `zip_nan`: an
+# unobserved cell drops out of every sum, which is a no-op on complete data.
+
+#' @exportS3Method
+init_params.zip <- function(model_state, X, resp, random_state = NULL, ...) {
+  model_state <- init_params.poisson(model_state, X, resp, random_state)
+  # Seed every class at the item's excess zeros -- the observed share of
+  # zeros beyond what a Poisson at the item mean would produce -- kept off
+  # 0 and 1 and spread by the same random factor as the rates.
+  K  <- model_state$n_components
+  m  <- colMeans(X, na.rm = TRUE)
+  m[!is.finite(m)] <- 0
+  p0  <- exp(-m)
+  exc <- (colMeans(X == 0, na.rm = TRUE) - p0) / pmax(1 - p0, 1e-10)
+  exc[!is.finite(exc)] <- 0
+  exc <- pmin(pmax(exc, 0.05), 0.6)
+  model_state$parameters$inflation <-
+    matrix(runif(K * ncol(X), 0.5, 1.5), nrow = K) *
+    matrix(exc, nrow = K, ncol = ncol(X), byrow = TRUE)
+  model_state
+}
+
+# Inner E-step and closed-form M-step. z is the chance that an observed zero is
+# structural, given the class and the current parameters; the rate is a
+# weighted mean over the share 1 - z of each record that is at risk, under the
+# Poisson model's gamma prior centred on the item mean, and the inflation is
+# the posterior-weighted mean of z.
+#' @exportS3Method
+m_step.zip <- function(model_state, X, resp, weights = NULL, alpha = NULL,
+                       prior_scale = 1, ...) {
+  alpha <- alpha %||% .bayes_alpha(model_state, "poisson")
+  if (!is.null(weights)) resp <- sweep(resp, 1, weights, "*")
+  K   <- model_state$n_components
+  obs <- !is.na(X)
+  X0  <- replace(X, !obs, 0)
+  zer <- obs & X0 == 0
+  marg <- colSums(X0 * (if (is.null(weights)) 1 else weights)) /
+    pmax(colSums(obs * (if (is.null(weights)) 1 else weights)), 1e-12)
+  prior_obs <- prior_scale * alpha / K
+
+  lam <- model_state$parameters$rates
+  pz  <- model_state$parameters$inflation
+  for (k in seq_len(K)) {
+    L  <- matrix(lam[k, ], nrow(X), ncol(X), byrow = TRUE)
+    P  <- matrix(pz[k, ],  nrow(X), ncol(X), byrow = TRUE)
+    Z  <- ifelse(zer, P / (P + (1 - P) * exp(-L)), 0)
+    rk <- resp[, k]
+    at_risk  <- colSums(rk * obs * (1 - Z))
+    lam[k, ] <- (colSums(rk * X0 * (1 - Z)) + prior_obs * marg) /
+      (at_risk + prior_obs)
+    pz[k, ]  <- colSums(rk * Z) / pmax(colSums(rk * obs), 1e-300)
+  }
+  model_state$parameters$rates     <- pmax(lam, 1e-10)
+  model_state$parameters$inflation <- pmin(pmax(pz, 0), 1 - 1e-10)
+  model_state
+}
+
+#' @exportS3Method
+log_likelihood.zip <- function(model_state, X, ...) {
+  lam <- model_state$parameters$rates
+  pz  <- model_state$parameters$inflation
+  obs <- !is.na(X)
+  X0  <- replace(X, !obs, 0)
+  zer <- X0 == 0
+  out <- vapply(seq_len(model_state$n_components), function(k) {
+    L  <- matrix(lam[k, ], nrow(X), ncol(X), byrow = TRUE)
+    P  <- matrix(pz[k, ],  nrow(X), ncol(X), byrow = TRUE)
+    ll <- ifelse(zer, log(P + (1 - P) * exp(-L)),
+                 log1p(-P) + X0 * log(L) - L - lgamma(X0 + 1))
+    rowSums(ll * obs)
+  }, numeric(nrow(X)))
+  matrix(out, nrow = nrow(X))
+}
+
+#' @exportS3Method
+n_parameters.zip <- function(model_state, ...)
+  length(model_state$parameters$rates) + length(model_state$parameters$inflation)
+
+#' @exportS3Method init_params zip_nan
+init_params.zip_nan <- init_params.zip
+#' @exportS3Method m_step zip_nan
+m_step.zip_nan <- m_step.zip
+#' @exportS3Method log_likelihood zip_nan
+log_likelihood.zip_nan <- log_likelihood.zip
+#' @exportS3Method n_parameters zip_nan
+n_parameters.zip_nan <- n_parameters.zip

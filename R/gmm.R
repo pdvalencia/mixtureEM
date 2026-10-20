@@ -1034,6 +1034,12 @@ print.gmm <- function(x, ...) {
         "residual_variance", rv)
   }
 
+  if (!is.null(g$inflation)) {
+    gi <- g$inflation
+    colnames(gi) <- "intercept"
+    add("ZERO-INFLATION LOGIT (structural zero)", "inflation_logit", gi)
+  }
+
   ft <- g$fitted
   colnames(ft) <- g$time_labels
   add("FITTED TRAJECTORY", "fitted", ft)

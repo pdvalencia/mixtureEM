@@ -9,7 +9,7 @@ fit_lcga(
   n_classes = 2,
   times = NULL,
   degree = 1,
-  family = c("binomial", "gaussian", "poisson"),
+  family = c("binomial", "gaussian", "poisson", "zip"),
   time_scores = NULL,
   layout = c("time_major", "item_major"),
   id = NULL,
@@ -55,8 +55,18 @@ no residual spread left; a start that ends there is set aside, as in
 every model the package fits, and a warning is given only if every start
 did.
 \item \code{"poisson"} — a count outcome, log link. The trajectory is a curve in the
-event rate. Counts must be whole and non-negative; over-dispersed or
-zero-inflated counts are not yet modelled as such.
+event rate. Counts must be whole and non-negative; over-dispersed
+counts are not yet modelled as such.
+\item \code{"zip"} — a zero-inflated count, log link. A zero has two sources: a
+structural zero, from a case that is not at risk of the event at that
+occasion, and a Poisson zero, from a case that is at risk but had no
+event (Lambert, 1992; Nagin & Land, 1993, call the first intermittency).
+Each class has its own trajectory in the rate of the at-risk part and
+its own probability of a structural zero, constant over occasions and
+estimated on the logit scale. Excess zeros fitted with \code{"poisson"}
+have nowhere to go but extra classes, so where zeros pile up beyond
+what the rate implies, compare the two families before reading the
+class count.
 }}
 
 \item{time_scores}{Numeric values of time used in the polynomial, one per
@@ -85,7 +95,11 @@ and its companions, \code{n_init}, \code{random_state}, \code{weights}, \code{st
 An object of class \code{c("lcga", "mixture_model")}. In addition to the
 usual fields it carries \verb{$growth}, holding the design matrix, time scores,
 family, per-class coefficients, the fitted trajectories, and — for
-\code{family = "gaussian"} — the per-class residual variance.
+\code{family = "gaussian"} — the per-class residual variance, or — for
+\code{family = "zip"} — the per-class inflation logits (\code{inflation}) and the
+probability of a structural zero they imply (\code{inflation_probability}).
+The fitted trajectory of a \code{"zip"} fit is the at-risk rate; the expected
+count is that rate times one minus the inflation probability.
 }
 \description{
 Fits class-specific growth curves to a single outcome measured repeatedly:
@@ -160,6 +174,15 @@ Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction to
 growth mixture models (GMM). In \emph{International Encyclopedia of
 Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
 \doi{10.1016/B978-0-12-818630-5.10076-4}
+
+Lambert, D. (1992). Zero-inflated Poisson regression, with an application
+to defects in manufacturing. \emph{Technometrics}, \emph{34}(1), 1-14.
+\doi{10.2307/1269547}
+
+Nagin, D. S., & Land, K. C. (1993). Age, criminal careers, and population
+heterogeneity: Specification and estimation of a nonparametric, mixed
+Poisson model. \emph{Criminology}, \emph{31}(3), 327-362.
+\doi{10.1111/j.1745-9125.1993.tb01133.x}
 
 Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
 identifying differences in longitudinal change among unobserved groups.

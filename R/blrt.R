@@ -80,6 +80,7 @@ generate_synthetic_data <- function(mm, classes, N) {
   if (is_growth) {
     mu <- .lcga_fitted(mm)                    # K x T on the response scale
     Tn <- ncol(mu)
+    if (isTRUE(mm$fam$has_inflation)) pz <- .lcga_inflation(mm)
     X_gen <- matrix(0, nrow = N, ncol = Tn)
     for (i in seq_len(N)) {
       m_i <- mu[classes[i], ]
@@ -87,6 +88,7 @@ generate_synthetic_data <- function(mm, classes, N) {
         mm$fam$name,
         binomial = rbinom(Tn, 1, prob = m_i),
         poisson  = rpois(Tn, lambda = m_i),
+        zip      = rpois(Tn, lambda = m_i) * (runif(Tn) >= pz[classes[i], ]),
         gaussian = rnorm(Tn, mean = m_i,
                          sd = sqrt(mm$parameters$dispersion[classes[i]])))
     }
@@ -96,8 +98,11 @@ generate_synthetic_data <- function(mm, classes, N) {
     rates <- mm$parameters$rates
     D     <- ncol(rates)
     X_gen <- matrix(0L, nrow = N, ncol = D)
-    for (i in 1:N)
+    pz    <- mm$parameters$inflation      # zero-inflated items only
+    for (i in 1:N) {
       X_gen[i, ] <- rpois(D, lambda = rates[classes[i], ])
+      if (!is.null(pz)) X_gen[i, runif(D) < pz[classes[i], ]] <- 0L
+    }
     return(X_gen)
 
   } else if (is_cont) {

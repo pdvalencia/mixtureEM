@@ -12,7 +12,7 @@ lcga_model(n_components, design, family = "binomial", ...)
 \item{design}{Numeric matrix with one row per occasion and one column per
 growth coefficient, as built by the polynomial in the time scores.}
 
-\item{family}{Character. \code{"binomial"}, \code{"gaussian"} or \code{"poisson"}.}
+\item{family}{Character. \code{"binomial"}, \code{"gaussian"}, \code{"poisson"} or \code{"zip"}.}
 
 \item{...}{Additional arguments, ignored.}
 }

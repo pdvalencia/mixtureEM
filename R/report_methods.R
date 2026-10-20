@@ -75,6 +75,7 @@
          categorical = , multinoulli = "polytomous",
          ordinal = "ordinal",
          count = , poisson = "count",
+         zip = "zero-inflated count",
          continuous = , gaussian_diag = , gaussian = , gaussian_unit = ,
          structured_normal = "continuous",
          m)
@@ -103,7 +104,7 @@
 .prior_blocks <- function(types) {
   unique(c("latent", unlist(lapply(types, function(t) switch(t,
     binary = , binomial = , polytomous = , ordinal = "categorical",
-    count = "poisson",
+    count = , "zero-inflated count" = "poisson",
     continuous = "variances",
     NULL)))))
 }

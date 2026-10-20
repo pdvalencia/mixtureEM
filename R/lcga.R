@@ -45,7 +45,7 @@
 #' @param n_components Integer. The number of latent classes to estimate.
 #' @param design Numeric matrix with one row per occasion and one column per
 #'   growth coefficient, as built by the polynomial in the time scores.
-#' @param family Character. `"binomial"`, `"gaussian"` or `"poisson"`.
+#' @param family Character. `"binomial"`, `"gaussian"`, `"poisson"` or `"zip"`.
 #' @param ... Additional arguments, ignored.
 #'
 #' @return A list object of class \code{c("lcga", "emission")}.
@@ -56,6 +56,10 @@ lcga_model <- function(n_components, design, family = "binomial", ...) {
     design       = design,
     family       = family,
     fam          = .wglm_family(family),
+    # The zero-inflation logit's own design, one row per occasion: a constant,
+    # so each class has one probability of a structural zero at every occasion.
+    inflation_design = if (identical(family, "zip"))
+      matrix(1, nrow(design), 1L, dimnames = list(NULL, "intercept")),
     parameters   = list()
     # No `em_tol` here: refine_lbfgs() does not cover this emission, and
     # fit_single_init() gives every unpolished emission the tighter stopping
@@ -110,14 +114,16 @@ lcga_model <- function(n_components, design, family = "binomial", ...) {
 .lcga_prior_rows <- function(mm, cen) {
   D <- mm$design[cen$occ, , drop = FALSE]
   U <- nrow(D)
+  # A zero-inflated count carries the Poisson prior on its rate.
+  count <- mm$fam$name %in% c("poisson", "zip")
   a <- switch(mm$fam$name,
               binomial = .bayes_alpha(mm, "categorical"),
-              poisson  = .bayes_alpha(mm, "poisson"),
+              poisson  = , zip = .bayes_alpha(mm, "poisson"),
               0)
-  if (a <= 0 || U == 0L || (mm$fam$name == "poisson" && cen$m <= 0))
+  if (a <= 0 || U == 0L || (count && cen$m <= 0))
     return(list(D = D[0L, , drop = FALSE], y = numeric(0), w = numeric(0)))
   w <- a / (mm$n_components * U)
-  if (mm$fam$name == "poisson") w <- w / cen$m
+  if (count) w <- w / cen$m
   list(D = D, y = rep(cen$m, U), w = rep(w, U))
 }
 
@@ -159,6 +165,19 @@ init_params.lcga <- function(model_state, X, resp, random_state = NULL, ...) {
 
   model_state$parameters$coefs      <- coefs
   model_state$parameters$dispersion <- rep(pooled$dispersion, K)
+
+  # The inflation starts at the zeros the pooled Poisson cannot explain: the
+  # observed share of zeros less the Poisson's own, as a share of the cases
+  # that are not Poisson zeros, kept off 0 and 1 and perturbed per class.
+  if (isTRUE(fam$has_inflation)) {
+    yo  <- lng$y[lng$observed]
+    p0  <- exp(-mean(yo))
+    exc <- (mean(yo == 0) - p0) / (1 - p0)
+    g0  <- stats::qlogis(min(max(exc, 0.05), 0.95))
+    q   <- ncol(model_state$inflation_design)
+    model_state$parameters$inflation <-
+      cbind(g0 + stats::rnorm(K), matrix(0, K, q - 1L))
+  }
   model_state
 }
 
@@ -187,14 +206,36 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
 
   coefs      <- model_state$parameters$coefs
   dispersion <- model_state$parameters$dispersion
+  infl       <- model_state$parameters$inflation
+  if (isTRUE(fam$has_inflation)) {
+    Dz <- model_state$inflation_design[rep(seq_len(lng$Tn), each = lng$n), ,
+                                       drop = FALSE]
+    zero <- lng$observed & y_obs == 0
+    logit_fam <- .wglm_family("binomial")
+  }
 
   for (k in seq_len(K)) {
     w_k <- rep(resp[, k], lng$Tn)
     w_k[!lng$observed] <- 0     # FIML: a missing occasion informs nothing
 
+    # Zero inflation: an inner E-step splits each zero into its chance of being
+    # structural, z, given the current parameters; the rate is then fitted on
+    # the share 1 - z of each record that is Poisson, and the inflation logit
+    # on z itself. Both are exact maximisations of the complete-data
+    # likelihood, so this is still EM.
+    w_rate <- w_k
+    if (isTRUE(fam$has_inflation)) {
+      pi_k <- stats::plogis(as.vector(Dz %*% infl[k, ]))
+      mu_k <- exp(as.vector(lng$D %*% coefs[k, ]))
+      z <- numeric(length(w_k))
+      z[zero] <- pi_k[zero] / (pi_k[zero] + (1 - pi_k[zero]) * exp(-mu_k[zero]))
+      w_rate <- w_k * (1 - z)
+      infl[k, ] <- .wglm_fit(Dz, z, w_k, logit_fam, start = infl[k, ])$coefficients
+    }
+
     fit <- .wglm_fit(D     = rbind(lng$D, prior$D),
                      y     = c(y_obs,    prior$y),
-                     w     = c(w_k,      prior$w),
+                     w     = c(w_rate,   prior$w),
                      fam   = fam,
                      start = coefs[k, ])
     coefs[k, ]    <- fit$coefficients
@@ -208,8 +249,13 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
 
   model_state$parameters$coefs      <- coefs
   model_state$parameters$dispersion <- dispersion
+  model_state$parameters$inflation  <- infl
   model_state
 }
+
+# The probability of a structural zero, K x T.
+.lcga_inflation <- function(mm)
+  t(stats::plogis(mm$inflation_design %*% t(mm$parameters$inflation)))
 
 #' @exportS3Method
 log_likelihood.lcga <- function(model_state, X, ...) {
@@ -220,13 +266,20 @@ log_likelihood.lcga <- function(model_state, X, ...) {
 
   eta <- model_state$design %*% t(model_state$parameters$coefs)   # T x K
   log_eps <- matrix(0, nrow = n, ncol = K)
+  # Held off 0 and 1 for the same reason as a binomial mean: a class whose
+  # inflation reached 1 would otherwise give a positive count the -Inf that the
+  # FIML guard below zeroes, and so claim a perfect fit to data it excludes.
+  if (isTRUE(fam$has_inflation))
+    pi <- pmin(pmax(.lcga_inflation(model_state), 1e-15), 1 - 1e-15)
 
   for (k in seq_len(K)) {
     mu <- fam$linkinv(eta[, k])
     if (fam$name == "binomial") mu <- pmin(pmax(mu, 1e-15), 1 - 1e-15)
-    if (fam$name == "poisson")  mu <- pmax(mu, 1e-15)
-    ll <- fam$log_dens(X, matrix(mu, nrow = n, ncol = Tn, byrow = TRUE),
-                       model_state$parameters$dispersion[k])
+    if (fam$name %in% c("poisson", "zip")) mu <- pmax(mu, 1e-15)
+    as_cells <- function(v) matrix(v, nrow = n, ncol = Tn, byrow = TRUE)
+    ll <- if (isTRUE(fam$has_inflation))
+      fam$log_dens(X, as_cells(mu), 1, as_cells(pi[k, ]))
+    else fam$log_dens(X, as_cells(mu), model_state$parameters$dispersion[k])
     # FIML: an unobserved occasion drops out of the case's sum. Also guards the
     # -Inf a saturated class would contribute at a probability pinned to 0 or 1.
     ll[!is.finite(ll)] <- 0
@@ -240,7 +293,7 @@ n_parameters.lcga <- function(model_state, ...) {
   np <- length(model_state$parameters$coefs)
   if (isTRUE(model_state$fam$has_dispersion))
     np <- np + length(model_state$parameters$dispersion)
-  np
+  np + length(model_state$parameters$inflation)
 }
 
 # What each family will accept as an outcome.
@@ -257,14 +310,15 @@ n_parameters.lcga <- function(model_state, ...) {
   if (family == "binomial" && !all(vals %in% c(0, 1)))
     stop('family = "binomial" requires outcome values in {0, 1}.', call. = FALSE)
 
-  if (family == "poisson") {
+  if (family %in% c("poisson", "zip")) {
     if (any(vals < 0))
-      stop('family = "poisson" requires non-negative counts, but negative ',
-           'values are present.', call. = FALSE)
+      stop(sprintf('family = "%s" requires non-negative counts, but negative ',
+                   family), 'values are present.', call. = FALSE)
     # Counts read from a text file arrive as doubles, so what matters is that a
     # value is a whole number, not that it is stored as an integer.
     if (any(abs(vals - round(vals)) > 1e-8))
-      stop('family = "poisson" requires whole-number counts, but fractional ',
+      stop(sprintf('family = "%s" requires whole-number counts, but fractional ',
+                   family),
            'values are present. For a continuous outcome use ',
            'family = "gaussian".', call. = FALSE)
   }
@@ -358,8 +412,18 @@ n_parameters.lcga <- function(model_state, ...) {
 #'     every model the package fits, and a warning is given only if every start
 #'     did.
 #'   * `"poisson"` — a count outcome, log link. The trajectory is a curve in the
-#'     event rate. Counts must be whole and non-negative; over-dispersed or
-#'     zero-inflated counts are not yet modelled as such.
+#'     event rate. Counts must be whole and non-negative; over-dispersed
+#'     counts are not yet modelled as such.
+#'   * `"zip"` — a zero-inflated count, log link. A zero has two sources: a
+#'     structural zero, from a case that is not at risk of the event at that
+#'     occasion, and a Poisson zero, from a case that is at risk but had no
+#'     event (Lambert, 1992; Nagin & Land, 1993, call the first intermittency).
+#'     Each class has its own trajectory in the rate of the at-risk part and
+#'     its own probability of a structural zero, constant over occasions and
+#'     estimated on the logit scale. Excess zeros fitted with `"poisson"`
+#'     have nowhere to go but extra classes, so where zeros pile up beyond
+#'     what the rate implies, compare the two families before reading the
+#'     class count.
 #' @param time_scores Numeric values of time used in the polynomial, one per
 #'   occasion. Defaults to `0, 1, ..., times - 1`, which makes the intercept the
 #'   fitted value at the first occasion. Supply the actual measurement times
@@ -379,7 +443,11 @@ n_parameters.lcga <- function(model_state, ...) {
 #' @return An object of class `c("lcga", "mixture_model")`. In addition to the
 #'   usual fields it carries `$growth`, holding the design matrix, time scores,
 #'   family, per-class coefficients, the fitted trajectories, and — for
-#'   `family = "gaussian"` — the per-class residual variance.
+#'   `family = "gaussian"` — the per-class residual variance, or — for
+#'   `family = "zip"` — the per-class inflation logits (`inflation`) and the
+#'   probability of a structural zero they imply (`inflation_probability`).
+#'   The fitted trajectory of a `"zip"` fit is the at-risk rate; the expected
+#'   count is that rate times one minus the inflation probability.
 #'
 #' @seealso [`growth_estimates()`] for the coefficients with standard errors,
 #'   [`fit_rmlca()`] for unconstrained trajectory classes and
@@ -419,6 +487,15 @@ n_parameters.lcga <- function(model_state, ...) {
 #' Education} (4th ed., Vol. 14, pp. 646-655). Elsevier.
 #' \doi{10.1016/B978-0-12-818630-5.10076-4}
 #'
+#' Lambert, D. (1992). Zero-inflated Poisson regression, with an application
+#' to defects in manufacturing. \emph{Technometrics}, \emph{34}(1), 1-14.
+#' \doi{10.2307/1269547}
+#'
+#' Nagin, D. S., & Land, K. C. (1993). Age, criminal careers, and population
+#' heterogeneity: Specification and estimation of a nonparametric, mixed
+#' Poisson model. \emph{Criminology}, \emph{31}(3), 327-362.
+#' \doi{10.1111/j.1745-9125.1993.tb01133.x}
+#'
 #' Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
 #' identifying differences in longitudinal change among unobserved groups.
 #' \emph{International Journal of Behavioral Development}, \emph{33}(6),
@@ -428,7 +505,7 @@ fit_lcga <- function(indicator,
                      n_classes = 2,
                      times = NULL,
                      degree = 1,
-                     family = c("binomial", "gaussian", "poisson"),
+                     family = c("binomial", "gaussian", "poisson", "zip"),
                      time_scores = NULL,
                      layout = c("time_major", "item_major"),
                      id = NULL, time = NULL, item = NULL,
@@ -504,6 +581,10 @@ fit_lcga <- function(indicator,
   # as an estimate if it were reported.
   if (family == "gaussian")
     fit$growth$residual_variance <- fit$mm$parameters$dispersion
+  if (family == "zip") {
+    fit$growth$inflation <- fit$mm$parameters$inflation
+    fit$growth$inflation_probability <- .lcga_inflation(fit$mm)[, 1L]
+  }
   class(fit) <- c("lcga", class(fit))
   fit$call <- match.call()
   fit
@@ -552,7 +633,7 @@ plot.lcga <- function(x, observed = c("means", "cases", "none"), main = NULL,
   # say, 100, so the panel is the range of the curves with a margin.
   ylim <- switch(g$family,
                  binomial = c(0, 1),
-                 poisson  = range(c(0, ft, orng), na.rm = TRUE),
+                 poisson  = , zip = range(c(0, ft, orng), na.rm = TRUE),
                  gaussian = {
                    r <- range(c(ft, orng), na.rm = TRUE)
                    # A single flat class gives a zero-width range, which is not
@@ -592,7 +673,7 @@ print.lcga <- function(x, ...) {
               length(g$time_scores),
               paste(format(g$time_scores, trim = TRUE), collapse = ", ")))
   cat(sprintf("Trajectory         : %s, %s link\n", shape,
-              switch(g$family, binomial = "logit", poisson = "log",
+              switch(g$family, binomial = "logit", poisson = , zip = "log",
                      gaussian = "identity")))
   if (any(g$wave_missing))
     cat(sprintf("Wave attrition     : %d case-occasions unobserved\n",
@@ -617,6 +698,14 @@ print.lcga <- function(x, ...) {
                  dimnames = list("Variance",
                                  paste("Class", seq_along(g$residual_variance))))
     print(round(rv, 3))
+  }
+
+  if (!is.null(g$inflation_probability)) {
+    cat("\nZERO INFLATION (probability of a structural zero, constant over occasions)\n")
+    ip <- matrix(g$inflation_probability, nrow = 1,
+                 dimnames = list("Probability",
+                                 paste("Class", seq_along(g$inflation_probability))))
+    print(round(ip, 3))
   }
 
   NextMethod()

@@ -15,7 +15,8 @@ or \code{"opg"}. See Details.}
 \value{
 A data frame with one row per parameter and class: \code{block} (the
 sub-model for a mixed or blocked measurement model, \code{NA} otherwise),
-\code{parameter} (\code{"probability"}, \code{"mean"}, \code{"variance"}, \code{"rate"} or
+\code{parameter} (\code{"probability"}, \code{"mean"}, \code{"variance"}, \code{"rate"},
+\code{"inflation"} (a zero-inflated count's structural-zero probability) or
 \code{"class_logit"}), \code{item}, \code{category} (polytomous items only), \code{class},
 \code{estimate}, \code{se}, \code{z}, \code{p_value} and \code{boundary}. The covariance matrix
 of the reported parameters is attached as the attribute \code{"vcov"}.

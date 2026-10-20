@@ -15,13 +15,13 @@
 # not know about: responsibility weights, missing cells, empty classes, and the
 # prior that keeps a class from separating.
 
-# The three families, each carrying the two things the EM loop needs outside the
+# The four families, each carrying the two things the EM loop needs outside the
 # M-step: a log density (for the E-step) and a link inverse (for reporting and
 # for the trajectory a class implies).
 #
 # `dispersion` is the residual variance for the gaussian family and is ignored
 # by the other two, which have none.
-.wglm_family <- function(family = c("gaussian", "binomial", "poisson")) {
+.wglm_family <- function(family = c("gaussian", "binomial", "poisson", "zip")) {
   family <- match.arg(family)
   switch(
     family,
@@ -51,6 +51,24 @@
       log_dens   = function(y, mu, dispersion)
         stats::dpois(y, lambda = mu, log = TRUE),
       has_dispersion = FALSE,
+      scale_label = "Event rate"
+    ),
+    # Zero-inflated Poisson: a zero is either structural, with probability
+    # `pi`, or a Poisson zero. The rate is fitted by the Poisson GLM and the
+    # inflation by a logistic one (m_step.lcga()), so `glm_family` is the
+    # count part's. `mu` is the Poisson rate, not the mean (1 - pi) mu.
+    zip = list(
+      name       = "zip",
+      glm_family = stats::poisson(),
+      linkinv    = function(eta) exp(eta),
+      log_dens   = function(y, mu, dispersion, pi) {
+        out <- log1p(-pi) + stats::dpois(y, lambda = mu, log = TRUE)
+        z <- !is.na(y) & y == 0
+        out[z] <- log(pi[z] + (1 - pi[z]) * exp(-mu[z]))
+        out
+      },
+      has_dispersion = FALSE,
+      has_inflation  = TRUE,
       scale_label = "Event rate"
     )
   )

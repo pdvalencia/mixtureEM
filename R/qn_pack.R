@@ -128,6 +128,7 @@
   switch(fam,
     structured_normal = .qn_pack_sn(emis),
     lcga              = .qn_pack_lcga(emis),
+    zip               = .qn_pack_zip(emis),
     NULL)
 }
 
@@ -139,6 +140,7 @@
     ordinal           = .qn_unpack_ordinal(emis, par, items),
     structured_normal = .qn_unpack_sn(emis, par),
     lcga              = .qn_unpack_lcga(emis, par),
+    zip               = .qn_unpack_zip(emis, par),
     emis)
 }
 
@@ -277,6 +279,9 @@
   if (isTRUE(ms$fam$has_dispersion))
     parts <- c(parts, list(.qn_part(0.5 * log(pmax(p$dispersion, 1e-300)),
                                     "scale")))
+  # A class with no excess zeros runs its inflation logit off to -Inf.
+  if (isTRUE(ms$fam$has_inflation))
+    parts <- c(parts, list(.qn_part(p$inflation, "logit")))
   .qn_join(parts)
 }
 
@@ -284,8 +289,30 @@
   C <- ms$parameters$coefs
   n <- length(C)
   ms$parameters$coefs[] <- par[seq_len(n)]
-  if (isTRUE(ms$fam$has_dispersion))
-    ms$parameters$dispersion <- exp(2 * par[n + seq_along(ms$parameters$dispersion)])
+  if (isTRUE(ms$fam$has_dispersion)) {
+    nd <- length(ms$parameters$dispersion)
+    ms$parameters$dispersion <- exp(2 * par[n + seq_len(nd)])
+    n <- n + nd
+  }
+  if (isTRUE(ms$fam$has_inflation))
+    ms$parameters$inflation[] <- par[n + seq_along(ms$parameters$inflation)]
+  ms
+}
+
+# Zero-inflated Poisson items (R/poisson.R): rates as logs, the inflation as
+# logits, each kind with its wall, as for the Poisson rates and Bernoulli
+# probabilities: an item with no excess zeros in a class has its inflation at 0.
+.qn_pack_zip <- function(ms) {
+  p <- ms$parameters
+  .qn_join(list(.qn_part(log(pmax(p$rates, 1e-300)), "log_pos"),
+                .qn_part(stats::qlogis(pmin(pmax(p$inflation, 1e-12), 1 - 1e-12)),
+                         "logit")))
+}
+
+.qn_unpack_zip <- function(ms, par) {
+  n <- length(ms$parameters$rates)
+  ms$parameters$rates[]     <- exp(par[seq_len(n)])
+  ms$parameters$inflation[] <- stats::plogis(par[n + seq_len(n)])
   ms
 }
 
@@ -327,7 +354,7 @@
     return(dst)
   }
   cols <- .em_item_cols(src, items)
-  for (nm in c("pis", "means", "covariances", "rates"))
+  for (nm in c("pis", "means", "covariances", "rates", "inflation"))
     if (!is.null(src$parameters[[nm]]))
       dst$parameters[[nm]][, cols] <- src$parameters[[nm]][, cols, drop = FALSE]
   dst

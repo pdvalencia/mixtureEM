@@ -146,6 +146,8 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
     g$fitted <- .lcga_fitted(mm)
     if (identical(g$family, "gaussian"))
       g$residual_variance <- mm$parameters$dispersion
+    if (identical(g$family, "zip"))
+      g$inflation <- mm$parameters$inflation
     return(.growth_reported_table(g, K, st, logits))
   }
   g$means <- mm$parameters$alpha

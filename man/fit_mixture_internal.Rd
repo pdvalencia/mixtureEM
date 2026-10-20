@@ -47,7 +47,9 @@ model type. Accepted strings: \code{"binary"} / \code{"bernoulli"},
 \code{"categorical"} / \code{"multinoulli"},
 \code{"continuous"} / \code{"gaussian_diag"},
 \code{"gaussian"} / \code{"gaussian_unit"},
-\code{"count"} / \code{"poisson"}.
+\code{"count"} / \code{"poisson"},
+\code{"zip"} (zero-inflated Poisson: per class and item, a rate for
+the cases at risk and a probability of a structural zero).
 Missing values are handled automatically: any indicator column containing
 \code{NA} is estimated with a full-information (FIML) variant that masks the
 missing cells under a missing-at-random assumption, while complete columns
