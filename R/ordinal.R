@@ -126,8 +126,12 @@ m_step.ordinal <- function(model_state, X, resp, weights = NULL, alpha = NULL,
   sum_resp <- colSums(resp) + prior_obs
   pis <- sweep(pis, 1, sum_resp, "/")
 
+  # An item no case answered (an all-missing column, as the padding of
+  # fit_joint_classes() writes) has no counts to normalise; it is held flat,
+  # which no likelihood term reads, rather than left at 0/0.
   for (j in seq_along(cats)) {
     cols <- .ordinal_item_cols(model_state, j)
+    if (!any(!is.na(X[, j]))) { pis[, cols] <- 1 / cats[j]; next }
     pis[, cols] <- sweep(pis[, cols, drop = FALSE], 1,
                         rowSums(pis[, cols, drop = FALSE]), "/")
   }

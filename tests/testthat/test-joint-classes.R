@@ -68,3 +68,38 @@ test_that("cs_effects names covariates and is checked", {
                                  cs_effects = c(v = "by_ca")), "not in")
   expect_error(fit_joint_classes(d$A, d$S, n_ca = 2, n_cs = 3), "swap")
 })
+
+test_that("covariates on a smaller cs: the padded class has no category", {
+  d <- sim_joint(400, 3, 2, 5, 4, seed = 24)
+  z <- data.frame(w = rbinom(400, 1, 0.5))
+  f <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2, predictors_cs = z,
+                         n_init = 3, random_state = 5)
+  # (3 - 1) ca + 3 x 5 + 2 x 4 items + one cs logit on [1, 2 CA, w] = 29.
+  expect_equal(f$n_params, 29)
+  expect_equal(dim(f$tau_beta[[1]]), c(2L, 4L))
+  lt <- .lta_log_tau(f)[[1]]
+  expect_true(all(vapply(lt, function(M) all(exp(M[, 3]) < 1e-290), TRUE)))
+  expect_equal(unname(rowSums(f$conditional)), rep(1, 3))
+  a <- f$association
+  expect_equal(a$term, c("Intercept", "CA#1", "CA#2", "w"))
+  expect_true(all(is.finite(a$se) & a$se > 0))
+  # a forbidden move that is not a whole destination still has no logit form
+  forb <- matrix(FALSE, 3, 3); forb[1, 3] <- TRUE
+  expect_error(fit_lta(cbind(d$A, d$S, NA), n_statuses = 3, times = 2,
+                       forbidden_transitions = forb, predictors_transition = z,
+                       n_init = 1), "whole destinations")
+})
+
+test_that("ordinal items with unequal item counts: the padded item stays finite", {
+  # The padding is an all-missing item column; at zero priors its counts are
+  # 0/0, which once turned every start's log-likelihood into NaN.
+  d <- sim_joint(400, 3, 2, 5, 4, seed = 25)
+  d$A[, 1:2] <- d$A[, 1:2] + rbinom(400 * 2, 1, 0.3)     # three categories
+  f <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
+                         measurement_ca = "ordinal", measurement_cs = "ordinal",
+                         n_init = 2, random_state = 6, smoothing = 0,
+                         bayes_constants = list(categorical = 0),
+                         standard_errors = FALSE)
+  expect_true(is.finite(f$metrics$ll))
+  expect_false(anyNA(f$mm$models[[2]]$parameters$pis))
+})

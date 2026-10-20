@@ -108,7 +108,9 @@ a stage-sequential process where people cannot move backwards. Give a
 \eqn{K \times K} logical or 0/1 matrix, with \code{TRUE}/\code{1} marking a forbidden
 move, or a list of one matrix per pair of adjacent occasions. Forbidden
 cells are fixed at zero and do not count as estimated parameters
-(Collins & Lanza, sec. 7.10).}
+(Collins & Lanza, sec. 7.10). With \code{predictors_transition}, only whole
+destinations can be forbidden (every move into a status, from every
+origin): the transition regression then has no category for them.}
 
 \item{n_classes}{Number of latent classes \emph{above} the chain. The default of
 1 is the ordinary latent transition model. With more, each class gets its

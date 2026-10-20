@@ -92,13 +92,26 @@
     return(lapply(state$tau, function(m) log(pmax(m, 1e-300))))
 
   Tn <- state$n_times
+  K  <- state$n_statuses
+  keep <- .lta_tau_keep(state)
   lapply(seq_len(Tn - 1L), function(t) {
     m <- if (isTRUE(state$tau_homogeneous)) 1L else t
-    lapply(seq_len(state$n_statuses), function(k)
-      log(pmax(softmax_rows(.lta_tau_design(state, k, t) %*%
-                              t(.lta_tau_beta(state, m, k))), 1e-300)))
+    lapply(seq_len(K), function(k) {
+      P <- softmax_rows(.lta_tau_design(state, k, t) %*%
+                          t(.lta_tau_beta(state, m, k)))
+      if (length(keep) < K) {
+        full <- matrix(0, nrow(P), K); full[, keep] <- P; P <- full
+      }
+      log(pmax(P, 1e-300))
+    })
   })
 }
+
+# The destinations a transition regression is fitted over. A destination that
+# `forbidden_transitions` rules out from every origin is a category the
+# multinomial logit does not have: its probability is exactly zero, and the
+# reference is the last destination that remains. All of them otherwise.
+.lta_tau_keep <- function(state) state$tau_keep %||% seq_len(state$n_statuses)
 
 # Design matrix used by the transition regression for origin status k, for the
 # transition out of occasion `occasion`.
@@ -257,6 +270,8 @@
   mats <- if (isTRUE(state$tau_homogeneous)) 1L else Tn - 1L
   no_beta <- is.null(state$tau_beta)
   tau0    <- state$tau_c[[1L]] %||% state$tau
+  keep    <- .lta_tau_keep(state)
+  rep_row <- function(p, n) matrix(p[keep], n, length(keep), byrow = TRUE)
   for (m in seq_len(mats)) {
     ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else m
     if (identical(state$transition_effects, "by_origin")) {
@@ -317,6 +332,7 @@
   betas <- vector("list", mats)
   hess  <- vector("list", mats)
   a_reg <- .lta_tau_cov_alpha(state, alpha)
+  keep  <- .lta_tau_keep(state)
 
   for (m in seq_len(mats)) {
     ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else m
@@ -335,7 +351,7 @@
           wt[rows]     <- w * mass
           Zs[rows, ]   <- state$Z_tau
         }
-        f <- .fit_mnl(Zs, resp, weights = wt,
+        f <- .fit_mnl(Zs, resp[, keep, drop = FALSE], weights = wt,
                       start = state$tau_beta[[m]][[k]], augment = augment,
                       alpha = a_reg)
         bk[[k]] <- f$beta; hk[[k]] <- f$hessian
@@ -368,7 +384,8 @@
         resp[rows, ] <- pk / mass
         wt[rows]     <- w * mass
       }
-      f <- .fit_mnl(Zs, resp, weights = wt, start = state$tau_beta[[m]],
+      f <- .fit_mnl(Zs, resp[, keep, drop = FALSE], weights = wt,
+                    start = state$tau_beta[[m]],
                     augment = augment, alpha = a_reg)
       betas[[m]] <- f$beta; hess[[m]] <- f$hessian
     }
@@ -441,11 +458,13 @@
 # no curvature in that direction and the printed value is an artefact of where
 # the climb stopped.
 .lta_tau_unbounded <- function(object, m, k = NULL) {
-  K  <- object$n_statuses
+  keep <- .lta_tau_keep(object)
+  K  <- length(keep)
   lt <- .lta_log_tau(object)
   occs <- if (isTRUE(object$tau_homogeneous)) seq_along(lt) else m
   w    <- object$weights_vec
-  edge <- function(t, o) colSums(exp(lt[[t]][[o]]) * w) < 0.01
+  # In the regression's own categories, so a dropped destination is not an edge.
+  edge <- function(t, o) colSums(exp(lt[[t]][[o]][, keep, drop = FALSE]) * w) < 0.01
   if (!is.null(k)) {
     D   <- ncol(object$Z_tau)
     out <- matrix(FALSE, K - 1L, D)
@@ -455,7 +474,7 @@
     }
     return(out)
   }
-  cells <- expand.grid(o = seq_len(K), t = occs)
+  cells <- expand.grid(o = seq_len(object$n_statuses), t = occs)
   Zs    <- Map(function(o, t) .lta_tau_design(object, o, t), cells$o, cells$t)
   A     <- do.call(rbind, lapply(Zs, function(Z) Z[1L, ]))
   B     <- do.call(rbind, Map(edge, cells$t, cells$o))
@@ -475,13 +494,14 @@
 }
 
 .lta_tau_cov_n_params <- function(state) {
-  K <- state$n_statuses
+  K  <- state$n_statuses
+  Kd <- length(.lta_tau_keep(state))
   mats <- if (isTRUE(state$tau_homogeneous)) 1L else state$n_times - 1L
   D <- ncol(.lta_tau_design(state, 1L))
   if (identical(state$transition_effects, "by_origin"))
-    mats * K * (K - 1L) * D
+    mats * K * (Kd - 1L) * D
   else
-    mats * (K - 1L) * D
+    mats * (Kd - 1L) * D
 }
 
 # ------------------------------------------------------------------------------
@@ -557,7 +577,7 @@ lta_covariate_summary <- function(object, digits = 3) {
   n_unbounded <- 0L
   show_block <- function(beta, hessian, cov_names, row_lab, V = NULL,
                          unbounded = NULL) {
-    free <- K - 1L
+    free <- nrow(beta) - 1L
     D    <- ncol(beta)
     if (is.null(V))
       V  <- if (is.null(hessian)) NULL else tryCatch(pinv(-hessian),
@@ -599,6 +619,7 @@ lta_covariate_summary <- function(object, digits = 3) {
           "Intercept + occ:t. The slopes\nare shared across occasions.\n",
           sep = "")
     by_origin <- identical(object$transition_effects, "by_origin")
+    to_lab <- paste0("to Status ", utils::head(.lta_tau_keep(object), -1L))
     for (m in seq_along(object$tau_beta)) {
       tag <- if (length(object$tau_beta) == 1L) "all occasions" else
         sprintf("occasion %d -> %d", m, m + 1L)
@@ -611,14 +632,14 @@ lta_covariate_summary <- function(object, digits = 3) {
           cat(sprintf("\n    from Status %d:\n", k))
           show_block(object$tau_beta[[m]][[k]], object$tau_hessian[[m]][[k]],
                      colnames(object$Z_tau),
-                     paste0("to Status ", seq_len(K - 1L)),
+                     to_lab,
                      V = ts_block(sprintf("tau_beta%s[from %d]", occ, k)),
                      unbounded = .lta_tau_unbounded(object, m, k))
         }
       } else {
         show_block(object$tau_beta[[m]], object$tau_hessian[[m]],
                    colnames(.lta_tau_design(object, 1L)),
-                   paste0("to Status ", seq_len(K - 1L)),
+                   to_lab,
                    V = ts_block(sprintf("tau_beta%s", occ)),
                    unbounded = .lta_tau_unbounded(object, m))
       }

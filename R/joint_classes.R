@@ -42,7 +42,7 @@
 #' @param predictors_ca A data frame of covariates predicting `ca` class
 #'   membership, or `NULL`.
 #' @param predictors_cs A data frame of covariates predicting `cs` class
-#'   membership, or `NULL`. Not available yet when `n_cs < n_ca`.
+#'   membership, or `NULL`.
 #' @param cs_effects How each covariate in `predictors_cs` acts: `"common"`
 #'   (one slope per `cs` class, the default), `"by_ca"` (a slope per `ca`
 #'   class for every covariate), or a named vector such as
@@ -101,9 +101,6 @@ fit_joint_classes <- function(ca_items, cs_items,
   if (n_ca < n_cs)
     stop("`n_ca` must be at least `n_cs`; swap the roles of the two ",
          "variables.", call. = FALSE)
-  if (n_cs < n_ca && !is.null(predictors_cs))
-    stop("Covariates on `cs` with fewer `cs` than `ca` classes are not ",
-         "available yet.", call. = FALSE)
 
   ordinal <- "ordinal" %in% c(measurement_ca, measurement_cs)
   if (ordinal) {
@@ -180,7 +177,8 @@ fit_joint_classes <- function(ca_items, cs_items,
 # side, and every item of the padded `cs` classes. Each cell costs what its
 # column costs per class (one for a binary item, categories - 1 for an ordinal
 # one). The padded destination column's transition cells are forbidden, so
-# fit_lta() never counted them.
+# fit_lta() never counted them; with covariates on `cs` the regression has no
+# category for it (.lta_tau_keep()), so the same holds.
 .joint_padding_n_params <- function(fit) {
   K  <- fit$n_statuses
   Ja <- fit$n_items_ca; Js <- fit$n_items_cs; J <- max(Ja, Js)
@@ -251,6 +249,9 @@ joint_coefficients <- function(fit) {
 # coefficient is a difference of etas and its SE one quadratic form. Without
 # covariates each origin's row is a softmax anchored at its last allowed
 # destination; the block's `ref` lists the free destinations in packing order.
+# With covariates the regression's rows are its own destinations
+# (.lta_tau_keep(): the `cs` classes, the padded ones dropped), the last the
+# reference.
 .joint_eta <- function(fit) {
   K  <- fit$n_statuses
   V  <- fit$se$vcov
@@ -258,14 +259,16 @@ joint_coefficients <- function(fit) {
   if (!is.null(fit$tau_beta)) {
     B  <- fit$tau_beta[[1]]; cn <- colnames(.lta_tau_design(fit, 1L))
     blk <- Find(function(b) grepl("^tau_beta", b$name), fit$se$blocks)
+    keep <- .lta_tau_keep(fit)
     return(function(a, b, term) {
       nm <- if (term == "Intercept") c("Intercept", if (a < K) sprintf("from:%d", a))
             else c(term, intersect(sprintf("from:%d x %s", a, term), cn))
       r <- numeric(np)
-      if (b == K) return(list(v = 0, r = r))
+      d <- match(b, keep)
+      if (d == length(keep)) return(list(v = 0, r = r))
       idx <- match(nm, cn)
-      if (!is.null(blk)) r[blk$cols[(b - 1L) * length(cn) + idx]] <- 1
-      list(v = sum(B[b, idx]), r = r)
+      if (!is.null(blk)) r[blk$cols[(d - 1L) * length(cn) + idx]] <- 1
+      list(v = sum(B[d, idx]), r = r)
     })
   }
   lt <- log(pmax(fit$tau[[1]], 1e-300))

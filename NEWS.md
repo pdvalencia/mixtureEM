@@ -14,7 +14,20 @@ probabilities and the probabilities of each class of the second variable
 given the first. The parameter count, and every information criterion and
 likelihood-ratio test built on it, counts only parameters that touch the
 data. Not yet available: fewer classes on the first variable than on the
-second, and covariates on the second variable when it has fewer classes.
+second.
+
+`fit_lta()` now accepts `forbidden_transitions` together with
+`predictors_transition` when the forbidden cells are whole destinations, a
+status nobody can move into from anywhere: the transition regression is
+fitted over the remaining statuses, the last of them the reference. Any
+other forbidden pattern is still refused, since a logistic regression cannot
+hold a single probability at exactly zero. No existing fit changes.
+
+Fixed: with ordinal items and a different number of items on the two
+variables, `fit_joint_classes()` without priors failed with "Every random
+start failed". The padding's unanswered item was normalised as 0/0; an item
+no case answers is now held flat in the ordinal M-step, which changes no
+fit that ran before.
 
 ## Three-step latent transition SEs with item covariates carry step 1's uncertainty
 

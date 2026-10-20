@@ -39,7 +39,7 @@ item is the same model.}
 membership, or \code{NULL}.}
 
 \item{predictors_cs}{A data frame of covariates predicting \code{cs} class
-membership, or \code{NULL}. Not available yet when \code{n_cs < n_ca}.}
+membership, or \code{NULL}.}
 
 \item{cs_effects}{How each covariate in \code{predictors_cs} acts: \code{"common"}
 (one slope per \code{cs} class, the default), \code{"by_ca"} (a slope per \code{ca}

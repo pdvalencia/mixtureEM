@@ -78,7 +78,9 @@
 #'   \eqn{K \times K} logical or 0/1 matrix, with `TRUE`/`1` marking a forbidden
 #'   move, or a list of one matrix per pair of adjacent occasions. Forbidden
 #'   cells are fixed at zero and do not count as estimated parameters
-#'   (Collins & Lanza, sec. 7.10).
+#'   (Collins & Lanza, sec. 7.10). With `predictors_transition`, only whole
+#'   destinations can be forbidden (every move into a status, from every
+#'   origin): the transition regression then has no category for them.
 #' @param n_classes Number of latent classes *above* the chain. The default of
 #'   1 is the ordinary latent transition model. With more, each class gets its
 #'   own initial distribution and its own transition matrices while sharing the
@@ -1084,11 +1086,23 @@ fit_lta <- function(indicators,
     }
   }
   tau_cross <- .lta_tau_cross(tau_cross_spec, Z_tau)
-  if (!is.null(Z_tau) && !is.null(forbidden_transitions))
-    stop("`forbidden_transitions` cannot be combined with covariates on the ",
-         "transitions: a logistic regression has no way to hold a probability ",
-         "at exactly zero. Model the transitions with covariates, or forbid ",
-         "moves, but not both.", call. = FALSE)
+  # A destination forbidden from every origin is a category the transition
+  # regression simply does not have (.lta_tau_keep()); any other forbidden
+  # cell would need one probability held at exactly zero, which a logistic
+  # regression cannot do.
+  tau_keep <- NULL
+  if (!is.null(Z_tau) && !is.null(forbidden_transitions)) {
+    ok <- .lta_tau_allowed_1(forbidden_transitions, K, Tn)
+    cols <- colSums(ok[[1L]]) > 0L
+    whole <- all(vapply(ok, function(a) all(a == rep(cols, each = K)), TRUE))
+    if (!whole)
+      stop("`forbidden_transitions` can be combined with covariates on the ",
+           "transitions only when it rules out whole destinations (every move ",
+           "into a status): a logistic regression has no way to hold a single ",
+           "probability at exactly zero. Model those transitions with ",
+           "covariates, or forbid moves, but not both.", call. = FALSE)
+    tau_keep <- which(cols)
+  }
   if (C > 1L && (!is.null(Z_delta) || !is.null(Z_tau)))
     stop("Covariates on the initial status or the transitions are not yet ",
          "available for a mixture latent Markov model (`n_classes` > 1 or ",
@@ -1216,6 +1230,7 @@ fit_lta <- function(indicators,
     delta_c         = rep(list(rep(1 / K, K)), C),
     tau_c           = rep(list(rep(list(matrix(1 / K, K, K)), Tn - 1L)), C),
     tau_allowed_c   = allowed,
+    tau_keep        = tau_keep,
     tau_homogeneous = isTRUE(tau_homogeneous),
     tau_independent = isTRUE(tau_independent),
     tau_occasion_free_intercepts = isTRUE(tau_occasion_free_intercepts),
@@ -2903,18 +2918,20 @@ fit_lta <- function(indicators,
       # reason).
       by_origin <- identical(state$transition_effects, "by_origin")
       lt <- .lta_log_tau(state)
+      # The regression's own destinations, its last one the reference.
+      fr <- .lta_tau_keep(state); fr <- fr[-length(fr)]; Kf <- length(fr)
       for (i_mat in idx) {
         ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else i_mat
         if (by_origin) {
           for (k in seq_len(K)) {
             Zk <- state$Z_tau
-            s  <- matrix(0, n, (K - 1L) * ncol(Zk))
+            s  <- matrix(0, n, Kf * ncol(Zk))
             for (tt in ts) {
               phat_k <- exp(lt[[tt]][[k]])
               pk     <- fb$pairwise[[tt]][[k]]
-              resid  <- pk[, seq_len(K - 1L), drop = FALSE] -
-                gam[[tt]][, k] * phat_k[, seq_len(K - 1L), drop = FALSE]
-              s <- s + do.call(cbind, lapply(seq_len(K - 1L), function(d)
+              resid  <- pk[, fr, drop = FALSE] -
+                gam[[tt]][, k] * phat_k[, fr, drop = FALSE]
+              s <- s + do.call(cbind, lapply(seq_len(Kf), function(d)
                 resid[, d] * Zk))
             }
             add_block(s, NULL, NULL,
@@ -2924,14 +2941,14 @@ fit_lta <- function(indicators,
           }
         } else {
           D <- ncol(.lta_tau_design(state, 1L))
-          s <- matrix(0, n, (K - 1L) * D)
+          s <- matrix(0, n, Kf * D)
           for (tt in ts) for (k in seq_len(K)) {
             Zk     <- .lta_tau_design(state, k, tt)
             phat_k <- exp(lt[[tt]][[k]])
             pk     <- fb$pairwise[[tt]][[k]]
-            resid  <- pk[, seq_len(K - 1L), drop = FALSE] -
-              gam[[tt]][, k] * phat_k[, seq_len(K - 1L), drop = FALSE]
-            s <- s + do.call(cbind, lapply(seq_len(K - 1L), function(d)
+            resid  <- pk[, fr, drop = FALSE] -
+              gam[[tt]][, k] * phat_k[, fr, drop = FALSE]
+            s <- s + do.call(cbind, lapply(seq_len(Kf), function(d)
               resid[, d] * Zk))
           }
           add_block(s, NULL, NULL,

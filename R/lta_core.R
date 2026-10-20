@@ -790,17 +790,18 @@
 
     if (!is.null(state$tau_beta)) {
       by_origin <- identical(state$transition_effects, "by_origin")
+      Kd <- length(.lta_tau_keep(state))
       for (i_mat in idx) {
         if (by_origin) {
           D <- ncol(state$Z_tau)
           for (k in seq_len(K))
             out[[length(out) + 1L]] <- list(kind = "tau_beta", c = c,
                                             i_mat = i_mat, k = k,
-                                            len = (K - 1L) * D)
+                                            len = (Kd - 1L) * D)
         } else {
           D <- ncol(.lta_tau_design(state, 1L))
           out[[length(out) + 1L]] <- list(kind = "tau_beta", c = c,
-                                          i_mat = i_mat, len = (K - 1L) * D)
+                                          i_mat = i_mat, len = (Kd - 1L) * D)
         }
       }
     } else {
@@ -946,7 +947,7 @@
       },
       tau_beta = {
         B <- .lta_tau_beta(state, b$i_mat, b$k %||% 1L)
-        as.vector(t(B[seq_len(K - 1L), , drop = FALSE]))
+        as.vector(t(B[seq_len(nrow(B) - 1L), , drop = FALSE]))
       },
       rho = {
         p <- state$mm$models[[b$grp[1]]]$parameters$pis[, b$j]
@@ -1012,7 +1013,7 @@
     } else if (b$kind == "tau_beta") {
       by_origin <- identical(state$transition_effects, "by_origin")
       D <- if (by_origin) ncol(state$Z_tau) else ncol(.lta_tau_design(state, 1L))
-      B <- rbind(matrix(v, K - 1L, D, byrow = TRUE), 0)
+      B <- rbind(matrix(v, length(.lta_tau_keep(state)) - 1L, D, byrow = TRUE), 0)
       if (by_origin) state$tau_beta[[b$i_mat]][[b$k]] <- B
       else state$tau_beta[[b$i_mat]] <- B
     } else if (b$kind == "rho") {
@@ -1713,18 +1714,22 @@
   Tn <- state$n_times
   if (!is.null(state$Z_tau) && is.null(state$tau_beta) && Tn > 1L) {
     mats <- if (isTRUE(state$tau_homogeneous)) 1L else Tn - 1L
+    # Over the regression's own destinations (.lta_tau_keep()), the last of
+    # them the reference.
+    keep <- .lta_tau_keep(state); Kd <- length(keep)
+    lr_d <- function(p) { l <- log(pmax(p, 1e-6)); l - l[Kd] }
     state$tau_beta <- lapply(seq_len(mats), function(m) {
-      P <- state$tau_c[[1L]][[m]]
-      Lr <- t(apply(P, 1L, logratio))
+      P <- state$tau_c[[1L]][[m]][, keep, drop = FALSE]
+      Lr <- t(apply(P, 1L, lr_d))
       if (identical(state$transition_effects, "by_origin"))
         return(lapply(seq_len(K), function(k) {
-          B <- matrix(0, K, ncol(state$Z_tau))
+          B <- matrix(0, Kd, ncol(state$Z_tau))
           B[, 1L] <- Lr[k, ]
           B
         }))
-      B <- matrix(0, K, ncol(.lta_tau_design(state, 1L, m)))
+      B <- matrix(0, Kd, ncol(.lta_tau_design(state, 1L, m)))
       if (isTRUE(state$tau_independent)) {
-        B[, 1L] <- logratio(colMeans(P))
+        B[, 1L] <- lr_d(colMeans(P))
       } else {
         B[, 1L] <- Lr[K, ]
         for (k in seq_len(K - 1L)) B[, 1L + k] <- Lr[k, ] - Lr[K, ]
