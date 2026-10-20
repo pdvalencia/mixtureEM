@@ -1,5 +1,21 @@
 # mixtureEM (development version)
 
+## Two associated latent class variables in one model
+
+**New: `fit_joint_classes()`** fits two latent class variables at once, each
+measured by its own items and with its own number of classes, linked by a
+multinomial logistic regression of one on the other (Hagenaars, 1993). The
+items may be binary or ordinal; covariates may predict either variable, and
+on the second one each covariate acts in common or separately within each
+class of the first (`cs_effects`), which is how a moderated association is
+written. The fit reports the association in reference-class form
+(`joint_coefficients()`, with standard errors), the joint class
+probabilities and the probabilities of each class of the second variable
+given the first. The parameter count, and every information criterion and
+likelihood-ratio test built on it, counts only parameters that touch the
+data. Not yet available: fewer classes on the first variable than on the
+second, and covariates on the second variable when it has fewer classes.
+
 ## Three-step latent transition SEs with item covariates carry step 1's uncertainty
 
 **Standard errors grow for `fit_lta(n_steps = 3, predictors_items = )`.**
