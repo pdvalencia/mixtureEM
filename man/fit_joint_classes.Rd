@@ -14,6 +14,7 @@ fit_joint_classes(
   predictors_ca = NULL,
   predictors_cs = NULL,
   cs_effects = "common",
+  n_steps = 1,
   smoothing = 1,
   bayes_constants = NULL,
   n_init = 20,
@@ -45,6 +46,14 @@ membership, or \code{NULL}.}
 (one slope per \code{cs} class, the default), \code{"by_ca"} (a slope per \code{ca}
 class for every covariate), or a named vector such as
 \code{c(female = "by_ca")}, the unnamed covariates acting in common.}
+
+\item{n_steps}{\code{1} (the default) fits everything at once. \code{2} is the
+two-step estimator (Bakk & Kuha, 2018): step 1 fits each variable's
+measurement model on its own, as two separate latent class analyses;
+step 2 holds those item parameters fixed and estimates the association
+and the covariate effects. The classes then mean the same thing in every
+structural model compared, and the standard errors carry step 1's
+uncertainty. The fit keeps step 1 as \code{step1}.}
 
 \item{smoothing, bayes_constants, n_init, random_state, n_cores, standard_errors}{As in \code{\link[=fit_lta]{fit_lta()}}.}
 
@@ -88,5 +97,9 @@ fit
 }
 }
 \references{
+Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between latent
+classes and external variables. \emph{Psychometrika}, 83(4), 871-892.
+\doi{10.1007/s11336-017-9592-7}
+
 Hagenaars, J. A. (1993). \emph{Loglinear Models with Latent Variables}. Sage.
 }

@@ -559,7 +559,8 @@
           # the prior carries one vector's mass -- `patterns = C`, as the
           # initial-status block above uses, and not `K * C`.
           for (t in seq_len(Tn - 1L)) {
-            row <- .lta_normalise(colSums(Xi[[t]]), alpha, patterns = C)
+            row <- .lta_normalise(colSums(Xi[[t]]), alpha, allowed[[t]][1L, ],
+                                  patterns = C)
             state$tau_c[[c]][[t]] <- matrix(row, K, K, byrow = TRUE)
           }
         } else if (isTRUE(state$tau_homogeneous)) {

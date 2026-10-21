@@ -23,6 +23,15 @@ fitted over the remaining statuses, the last of them the reference. Any
 other forbidden pattern is still refused, since a logistic regression cannot
 hold a single probability at exactly zero. No existing fit changes.
 
+`fit_joint_classes(n_steps = 2)` is the two-step estimator (Bakk & Kuha,
+2018): step 1 fits each variable's measurement model on its own, as two
+separate latent class analyses, and step 2 holds those item parameters fixed
+while it estimates the association and the covariate effects. The standard
+errors carry step 1's uncertainty. Along the way, `fit_lta(n_steps = 2)`
+with a per-covariate `transition_effects` no longer stops in step 1 with
+"needs `predictors_transition`"; no number from any fit that ran before
+changes.
+
 Fixed: with ordinal items and a different number of items on the two
 variables, `fit_joint_classes()` without priors failed with "Every random
 start failed". The padding's unanswered item was normalised as 0/0; an item

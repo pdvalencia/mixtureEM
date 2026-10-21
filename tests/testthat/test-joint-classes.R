@@ -103,3 +103,28 @@ test_that("ordinal items with unequal item counts: the padded item stays finite"
   expect_true(is.finite(f$metrics$ll))
   expect_false(anyNA(f$mm$models[[2]]$parameters$pis))
 })
+
+test_that("two-step: step 1 is the two separate LCAs, step 2 keeps their items", {
+  d <- sim_joint(500, 3, 2, 5, 4, seed = 25)
+  z <- data.frame(w = rbinom(500, 1, 0.5))
+  zero <- list(categorical = 0)
+  f <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2, n_steps = 2,
+                         predictors_cs = z, cs_effects = c(w = "by_ca"),
+                         n_init = 5, random_state = 6, smoothing = 0,
+                         bayes_constants = zero)
+  # With no association the joint likelihood factorises, so step 1's is the
+  # sum of the two separate analyses'.
+  la <- fit_mixture(d$A, n_classes = 3, measurement = "binary", n_init = 5,
+                    random_state = 6, smoothing = 0, bayes_constants = zero)
+  ls <- fit_mixture(d$S, n_classes = 2, measurement = "binary", n_init = 5,
+                    random_state = 6, smoothing = 0, bayes_constants = zero)
+  expect_equal(f$step1$metrics$ll, la$metrics$ll + ls$metrics$ll,
+               tolerance = 1e-5)
+  expect_identical(f$mm$models, f$step1$mm$models)
+  expect_gte(f$metrics$ll, f$step1$metrics$ll)
+  expect_true(isTRUE(f$se$twostep))
+  idx2 <- .lta_par_split(.lta_par_layout(f))$structural
+  expect_true(all(diag(f$se$vcov)[idx2] >= diag(f$se$twostep_V2) - 1e-12))
+  expect_output(print(f), "Two-step")
+  expect_error(fit_joint_classes(d$A, d$S, n_steps = 3), "1 or 2")
+})

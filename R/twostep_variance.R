@@ -312,7 +312,12 @@
 #   .lta_standard_errors()'s robust branch declines.
 .lta_twostep_vcov <- function(state, X, step1, alpha = 0) {
   if (is.null(step1) || !inherits(step1, "lta_model")) return(NULL)
-  if (!.lta_par_packable(state) || !.lta_par_packable(step1)) return(NULL)
+  # A transition-free step 1 (the joint model's, fit_joint_classes()) ties
+  # every origin row to one prevalence vector, which the ordinary packing does
+  # not describe; it is read through the reduction .lta_threestep_vcov() uses.
+  indep <- isTRUE(step1$tau_independent)
+  if (!.lta_par_packable(state) || (!indep && !.lta_par_packable(step1)))
+    return(NULL)
 
   layout <- .lta_par_layout(state)
   par    <- .lta_par_pack(state, layout)
@@ -321,8 +326,10 @@
   idx2   <- split$structural
   if (!length(idx1) || !length(idx2)) return(NULL)
 
-  layout1 <- .lta_par_layout(step1)
-  par1    <- .lta_par_pack(step1, layout1)
+  red <- if (indep) .qn_lta_reduction(step1)
+  if (indep && is.null(red)) return(NULL)
+  layout1 <- if (indep) red$layout else .lta_par_layout(step1)
+  par1    <- if (indep) red$r0[red$src] else .lta_par_pack(step1, layout1)
   idx1_s1 <- .lta_par_split(layout1)$measurement
 
   # The freeze invariant, used here as an alignment proof. Both vectors come
@@ -340,13 +347,35 @@
   # information, not the inverse of the block. The step-one fit carries it
   # already when it was asked for standard errors; otherwise it is computed
   # here, once.
-  se1 <- step1$se
-  if (is.null(se1) || is.null(se1$vcov))
-    se1 <- tryCatch(.lta_standard_errors(step1, X, alpha = alpha),
-                    error = function(e) NULL)
-  if (is.null(se1) || is.null(se1$vcov)) return(NULL)
-  if (nrow(se1$vcov) != length(par1)) return(NULL)
-  S11 <- se1$vcov[idx1_s1, idx1_s1, drop = FALSE]
+  # The transition-free step 1 reports no standard errors, so its variance is
+  # the inverse penalised curvature on the reduced vector, taken over its
+  # response patterns (no covariates reach this step 1), with the measurement
+  # coordinates read back one-to-one.
+  if (indep) {
+    X1  <- as.matrix(step1$data)
+    pat <- .pattern_index(X1)
+    X1c <- X1[pat$rep_row, , drop = FALSE]
+    w1c <- as.vector(rowsum(step1$weights_vec, pat$idx))
+    s1  <- red$state
+    s1$weights_vec <- w1c
+    ll1 <- function(r) sum(w1c * .lta_ll_case(s1, X1c, r[red$src], layout1))
+    lp1 <- function(r)
+      .lta_log_prior(.lta_par_unpack(r[red$src], s1, layout1, average = FALSE),
+                     X1c, alpha)
+    Hp1 <- if (.lta_prior_is_zero(s1, alpha) || is.na(lp1(red$r0))) 0 else
+      .step1_fd_hessian(lp1, red$r0, .fd_hessian_step)
+    S1r <- .psd_pinv(-(.step1_fd_hessian(ll1, red$r0) + Hp1))
+    j   <- red$src[idx1_s1]
+    S11 <- ((S1r + t(S1r)) / 2)[j, j, drop = FALSE]
+  } else {
+    se1 <- step1$se
+    if (is.null(se1) || is.null(se1$vcov))
+      se1 <- tryCatch(.lta_standard_errors(step1, X, alpha = alpha),
+                      error = function(e) NULL)
+    if (is.null(se1) || is.null(se1$vcov)) return(NULL)
+    if (nrow(se1$vcov) != length(par1)) return(NULL)
+    S11 <- se1$vcov[idx1_s1, idx1_s1, drop = FALSE]
+  }
 
   info <- .lta_twostep_information(state, X, state$weights_vec, layout, par,
                                   idx1, idx2)

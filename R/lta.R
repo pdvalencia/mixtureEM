@@ -1205,14 +1205,20 @@ fit_lta <- function(indicators,
   # given the covariates (.lta_threestep_step12()).
   # Refusing is what keeps an unsupported combination from becoming an
   # accepted one.
+  # One forbidden pattern is accepted: a destination closed from every origin,
+  # which in a model with no origin dependence is a status held at zero
+  # prevalence -- the padded `cs` class of a joint model's step 1
+  # (fit_joint_classes(n_steps = 2)). The M-step reads the first row's mask.
   if (tau_independent) {
+    whole_cols <- is.null(tau_zeros) || all(vapply(allowed[[1L]], function(m)
+      all(apply(m, 2L, function(col) all(col) || !any(col))), logical(1)))
     bad <- c(
       "predictors_random_intercept" = !is.null(Z_ri),
       "random_intercept"            = random_intercept != "none",
       "group"                       = !is.null(group),
       "n_classes > 1"               = C > 1L,
       "mover_stayer"                = isTRUE(mover_stayer),
-      "forbidden_transitions"       = !is.null(tau_zeros),
+      "forbidden_transitions"       = !whole_cols,
       "tie_initial_status"          = isTRUE(tie_initial_status))
     if (any(bad))
       stop("The transition-free measurement model does not accept ",
@@ -1324,8 +1330,15 @@ fit_lta <- function(indicators,
   # its step 2 is still taken to the maximum over the structural blocks.
   finish_on <- isTRUE(refine)
   twostep_keep <- NULL
+  # `.twostep_independent` is the joint model's step 1 (fit_joint_classes()):
+  # the measurement is fitted with the occasions independent, which is the two
+  # separate LCAs, and step 2 then estimates the association itself, so a
+  # model with no covariates still has a structural block to fit. Internal,
+  # on `...` for the same reason `.transition_free` is.
+  twostep_indep <- isTRUE(list(...)[[".twostep_independent"]])
   if (n_steps == 2L) {
-    if (is.null(predictors_initial) && is.null(predictors_transition) &&
+    if (!twostep_indep &&
+        is.null(predictors_initial) && is.null(predictors_transition) &&
         is.null(predictors_random_intercept))
       stop("`n_steps = 2` holds the measurement model fixed and fits the ",
            "structural model on top of it, so it needs a structural model: ",
@@ -1357,6 +1370,13 @@ fit_lta <- function(indicators,
     cl$predictors_initial <- NULL
     cl$predictors_transition <- NULL
     cl$predictors_random_intercept <- NULL
+    # A per-covariate `transition_effects` names covariates step 1 no longer
+    # has.
+    cl$transition_effects <- NULL
+    if (twostep_indep) {
+      cl$.twostep_independent <- NULL
+      cl$.transition_free     <- TRUE
+    }
     step1 <- eval(cl, env)
 
     # A case missing a covariate step 2 reads weighs zero in step 2, so it

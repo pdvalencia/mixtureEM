@@ -47,6 +47,13 @@
 #'   (one slope per `cs` class, the default), `"by_ca"` (a slope per `ca`
 #'   class for every covariate), or a named vector such as
 #'   `c(female = "by_ca")`, the unnamed covariates acting in common.
+#' @param n_steps `1` (the default) fits everything at once. `2` is the
+#'   two-step estimator (Bakk & Kuha, 2018): step 1 fits each variable's
+#'   measurement model on its own, as two separate latent class analyses;
+#'   step 2 holds those item parameters fixed and estimates the association
+#'   and the covariate effects. The classes then mean the same thing in every
+#'   structural model compared, and the standard errors carry step 1's
+#'   uncertainty. The fit keeps step 1 as `step1`.
 #' @param smoothing,bayes_constants,n_init,random_state,n_cores,standard_errors
 #'   As in [`fit_lta()`].
 #' @param ... Further arguments passed to [`fit_lta()`], such as `weights`.
@@ -58,6 +65,10 @@
 #'   one).
 #'
 #' @references
+#' Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between latent
+#' classes and external variables. *Psychometrika*, 83(4), 871-892.
+#' \doi{10.1007/s11336-017-9592-7}
+#'
 #' Hagenaars, J. A. (1993). *Loglinear Models with Latent Variables*. Sage.
 #'
 #' @examples
@@ -80,6 +91,7 @@ fit_joint_classes <- function(ca_items, cs_items,
                               predictors_ca = NULL,
                               predictors_cs = NULL,
                               cs_effects = "common",
+                              n_steps = 1,
                               smoothing = 1.0,
                               bayes_constants = NULL,
                               n_init = 20,
@@ -89,6 +101,9 @@ fit_joint_classes <- function(ca_items, cs_items,
                               ...) {
   measurement_ca <- match.arg(measurement_ca)
   measurement_cs <- match.arg(measurement_cs)
+  n_steps <- as.integer(n_steps)[1L]
+  if (is.na(n_steps) || !(n_steps %in% 1:2))
+    stop("`n_steps` must be 1 or 2.", call. = FALSE)
   A <- as.matrix(ca_items); S <- as.matrix(cs_items)
   if (nrow(A) != nrow(S))
     stop("`ca_items` and `cs_items` must have the same number of rows.",
@@ -123,7 +138,11 @@ fit_joint_classes <- function(ca_items, cs_items,
     effects <- .joint_cs_effects(cs_effects, names(predictors_cs))
   }
 
+  # The two-step's step 1 is the two separate LCAs: with no association and
+  # no covariates the joint likelihood factorises into them, which is the
+  # transition-free fit (`.twostep_independent`, R/lta.R).
   fit <- fit_lta(X, n_statuses = K, times = 2,
+                 n_steps = n_steps, .twostep_independent = n_steps == 2L,
                  measurement = if (ordinal) "ordinal" else "binary",
                  measurement_invariance = "none",
                  forbidden_transitions = forb,
@@ -287,6 +306,8 @@ print.joint_classes <- function(x, digits = 3, ...) {
               x$n_ca, x$n_items_ca, x$n_cs, x$n_items_cs))
   cat(sprintf("Log-likelihood %.3f, %d free parameters, BIC %.3f\n\n",
               x$metrics$ll, as.integer(x$n_params), x$metrics$bic))
+  if (identical(x$n_steps, 2L))
+    cat("Two-step: item parameters fixed at the separate latent class analyses\n\n")
   cat("Association: log-odds of cs against its last class\n")
   a <- x$association
   a$ca[is.na(a$ca)] <- ""
