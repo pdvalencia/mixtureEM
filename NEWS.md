@@ -32,6 +32,19 @@ with a per-covariate `transition_effects` no longer stops in step 1 with
 "needs `predictors_transition`"; no number from any fit that ran before
 changes.
 
+`fit_joint_classes()` takes `predictors_items`: direct covariate effects on
+items of either variable (uniform differential item functioning), one
+proportional-odds slope per item, the same in every class, given as a named
+list such as `list(a3 = data.frame(female))`. With `n_steps = 2`, step 1
+regresses each variable on the item covariates beside the slopes, and step 2
+holds the slopes fixed with the rest of the measurement model.
+
+Fixed: `fit_lta(n_steps = 2)` with `predictors_items` started step 2 with the
+item slopes at zero and held them there, so its step-2 estimates, standard
+errors and log-likelihood were those of a model without the slopes. Step 2
+now keeps step 1's slopes, which changes every number such a fit reports;
+`refine_from` likewise now continues a donor's item slopes.
+
 Fixed: with ordinal items and a different number of items on the two
 variables, `fit_joint_classes()` without priors failed with "Every random
 start failed". The padding's unanswered item was normalised as 0/0; an item

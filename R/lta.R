@@ -1376,6 +1376,21 @@ fit_lta <- function(indicators,
     if (twostep_indep) {
       cl$.twostep_independent <- NULL
       cl$.transition_free     <- TRUE
+      # With item slopes, each variable is also regressed on the same
+      # covariates, as in the three-step's step 1 (R/lta_threestep.R) and for
+      # the same reason: otherwise the slope carries the whole association
+      # between the covariate and the class.
+      # The caller's own value, as step 1 sees it, not this frame's: cases
+      # may have been dropped above.
+      pi_items <- eval(cl$predictors_items, env)
+      if (!is.null(pi_items)) {
+        Zi <- if (is.list(pi_items) && !is.data.frame(pi_items))
+          .lta_dif_spec(pi_items, NULL, names(pi_items), NROW(pi_items[[1L]]))$Z
+        else pi_items
+        assign(".lta_step1_status_covariates", Zi, envir = env)
+        cl$predictors_initial    <- quote(.lta_step1_status_covariates)
+        cl$predictors_transition <- quote(.lta_step1_status_covariates)
+      }
     }
     step1 <- eval(cl, env)
 

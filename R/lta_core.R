@@ -1645,8 +1645,15 @@
   # donor that was itself a covariate fit; carry its regression coefficients
   # over directly instead, exactly as the loadings/measurement model below
   # are carried over rather than re-derived.
-  if (!is.null(donor$delta_beta)) state$delta_beta <- donor$delta_beta
-  if (!is.null(donor$tau_beta))   state$tau_beta   <- donor$tau_beta
+  # Only a regression of the same shape is carried; one this fit writes
+  # differently (the joint two-step's step 1 regresses each variable on the
+  # item covariates alone, step 2 adds the origin) is seeded from the donor's
+  # probabilities below instead.
+  if (!is.null(donor$delta_beta) &&
+      identical(colnames(donor$Z_delta), colnames(state$Z_delta)))
+    state$delta_beta <- donor$delta_beta
+  if (!is.null(donor$tau_beta) && .lta_same_tau_design(state, donor))
+    state$tau_beta <- donor$tau_beta
   if (!is.null(donor$ri_beta))    state$ri_beta    <- donor$ri_beta
   if (state$n_classes > 1L) state$class_weights <- donor$class_weights
   state <- .lta_seed_regressions(state)
@@ -1694,11 +1701,26 @@
     if (identical(state$ri$kind, "binary") &&
         length(donor$ri$mass) == length(state$ri$mass))
       state$ri$mass <- donor$ri$mass
+    # The item slopes are measurement parameters too; left at the start's
+    # zero, a two-step's step 2 held them there.
+    if (!is.null(state$dif) && !is.null(donor$dif) &&
+        identical(dim(state$dif$beta), dim(donor$dif$beta)))
+      state$dif$beta <- donor$dif$beta
     pis <- .lta_ri_integrated_pis(state$ri, state$n_statuses, state$n_items)
     for (t in seq_along(state$mm$models))
       state$mm$models[[t]]$parameters$pis <- pis
   }
   state
+}
+
+# Whether the donor's transition regression is written on the same design as
+# this fit's: the same columns from the same origin and the same destinations.
+.lta_same_tau_design <- function(state, donor) {
+  isTRUE(state$tau_independent) == isTRUE(donor$tau_independent) &&
+    identical(state$transition_effects, donor$transition_effects) &&
+    identical(.lta_tau_keep(state), .lta_tau_keep(donor)) &&
+    identical(colnames(.lta_tau_design(state, 1L, 1L)),
+              colnames(.lta_tau_design(donor, 1L, 1L)))
 }
 
 # A regression the donor has no coefficients for -- predictors added in the

@@ -47,13 +47,25 @@
 #'   (one slope per `cs` class, the default), `"by_ca"` (a slope per `ca`
 #'   class for every covariate), or a named vector such as
 #'   `c(female = "by_ca")`, the unnamed covariates acting in common.
+#' @param predictors_items Direct effects of covariates on items (uniform
+#'   differential item functioning): a named list, item name = a data frame of
+#'   the covariates acting on that item, e.g. `list(a3 = data.frame(female))`.
+#'   Each slope is one proportional-odds shift of the item's response, the same
+#'   in every class; binary items take it on the logit of the second category.
+#'   Items are named by the column names of `ca_items` and `cs_items`, which
+#'   must then be unique across the two. Covariate patterns are limited as in
+#'   [`fit_lta()`]. A DIF covariate should normally also predict the classes
+#'   (`predictors_ca`, `predictors_cs`); with `n_steps = 2` step 1 does this
+#'   itself.
 #' @param n_steps `1` (the default) fits everything at once. `2` is the
 #'   two-step estimator (Bakk & Kuha, 2018): step 1 fits each variable's
 #'   measurement model on its own, as two separate latent class analyses;
 #'   step 2 holds those item parameters fixed and estimates the association
 #'   and the covariate effects. The classes then mean the same thing in every
 #'   structural model compared, and the standard errors carry step 1's
-#'   uncertainty. The fit keeps step 1 as `step1`.
+#'   uncertainty. The fit keeps step 1 as `step1`. With `predictors_items`,
+#'   step 1 also regresses each variable on the DIF covariates, and step 2
+#'   holds the item slopes fixed with the rest of the measurement model.
 #' @param smoothing,bayes_constants,n_init,random_state,n_cores,standard_errors
 #'   As in [`fit_lta()`].
 #' @param ... Further arguments passed to [`fit_lta()`], such as `weights`.
@@ -91,6 +103,7 @@ fit_joint_classes <- function(ca_items, cs_items,
                               predictors_ca = NULL,
                               predictors_cs = NULL,
                               cs_effects = "common",
+                              predictors_items = NULL,
                               n_steps = 1,
                               smoothing = 1.0,
                               bayes_constants = NULL,
@@ -117,7 +130,20 @@ fit_joint_classes <- function(ca_items, cs_items,
     stop("`n_ca` must be at least `n_cs`; swap the roles of the two ",
          "variables.", call. = FALSE)
 
-  ordinal <- "ordinal" %in% c(measurement_ca, measurement_cs)
+  dif <- !is.null(predictors_items)
+  if (dif) {
+    if (!is.list(predictors_items) || is.data.frame(predictors_items))
+      stop("`predictors_items` must be a named list, item name = the ",
+           "covariates acting on that item, e.g. list(a3 = data.frame(female)).",
+           call. = FALSE)
+    nm <- c(colnames(A), colnames(S))
+    if (length(nm) != ncol(A) + ncol(S) || anyDuplicated(nm) || any(!nzchar(nm)))
+      stop("`predictors_items` names items, so `ca_items` and `cs_items` need ",
+           "column names, unique across the two.", call. = FALSE)
+  }
+  # A direct item effect is a proportional-odds shift, so DIF fits every item
+  # as ordinal; a binary item is the two-category case of the same model.
+  ordinal <- dif || "ordinal" %in% c(measurement_ca, measurement_cs)
   if (ordinal) {
     # The ordinal emission reads categories from 1; a 0/1 item becomes 1/2,
     # the same two-category model.
@@ -126,8 +152,19 @@ fit_joint_classes <- function(ca_items, cs_items,
     A <- up(A); S <- up(S)
   }
   Ja <- ncol(A); Js <- ncol(S); J <- max(Ja, Js); K <- n_ca
-  pad <- function(M) cbind(M, matrix(NA_real_, nrow(M), J - ncol(M)))
-  X <- cbind(pad(A), pad(S))
+  # Without DIF, occasion t carries one variable's items, padded to the longer
+  # list, measurement free by occasion. With DIF, each occasion carries every
+  # item, the other variable's all missing, and the measurement is held equal
+  # across occasions: each item is observed at one occasion only, so the
+  # equality restricts nothing, and an item is one column of one item list --
+  # which is what the item slope is defined on. Same likelihood either way.
+  if (dif) {
+    na <- function(M) matrix(NA_real_, nrow(M), ncol(M))
+    X <- cbind(A, na(S), na(A), S)
+  } else {
+    pad <- function(M) cbind(M, matrix(NA_real_, nrow(M), J - ncol(M)))
+    X <- cbind(pad(A), pad(S))
+  }
 
   forb <- NULL
   if (n_cs < K) { forb <- matrix(FALSE, K, K); forb[, (n_cs + 1L):K] <- TRUE }
@@ -144,7 +181,9 @@ fit_joint_classes <- function(ca_items, cs_items,
   fit <- fit_lta(X, n_statuses = K, times = 2,
                  n_steps = n_steps, .twostep_independent = n_steps == 2L,
                  measurement = if (ordinal) "ordinal" else "binary",
-                 measurement_invariance = "none",
+                 measurement_invariance = if (dif) "full" else "none",
+                 item_names = if (dif) nm,
+                 predictors_items = predictors_items,
                  forbidden_transitions = forb,
                  predictors_initial = predictors_ca,
                  predictors_transition = predictors_cs,
@@ -154,7 +193,7 @@ fit_joint_classes <- function(ca_items, cs_items,
                  n_cores = n_cores, standard_errors = standard_errors, ...)
 
   fit$n_ca <- n_ca; fit$n_cs <- n_cs
-  fit$n_items_ca <- Ja; fit$n_items_cs <- Js
+  fit$n_items_ca <- Ja; fit$n_items_cs <- Js; fit$joint_dif <- dif
   n_pad <- .joint_padding_n_params(fit)
   fit$n_params <- fit$n_params - n_pad
   fit$metrics$n_params <- fit$n_params
@@ -197,11 +236,14 @@ fit_joint_classes <- function(ca_items, cs_items,
 # column costs per class (one for a binary item, categories - 1 for an ordinal
 # one). The padded destination column's transition cells are forbidden, so
 # fit_lta() never counted them; with covariates on `cs` the regression has no
-# category for it (.lta_tau_keep()), so the same holds.
+# category for it (.lta_tau_keep()), so the same holds. The DIF layout has no
+# padded item positions, only the padded classes' `cs` items.
 .joint_padding_n_params <- function(fit) {
   K  <- fit$n_statuses
   Ja <- fit$n_items_ca; Js <- fit$n_items_cs; J <- max(Ja, Js)
   cats <- fit$mm$models[[1]]$cats
+  if (isTRUE(fit$joint_dif))
+    return((K - fit$n_cs) * sum(as.integer(cats[Ja + seq_len(Js)]) - 1L))
   per_item <- if (is.null(cats)) rep(1L, J) else as.integer(cats) - 1L
   pad_a <- if (Ja < J) K * sum(per_item[(Ja + 1L):J]) else 0L
   pad_s <- if (Js < J) K * sum(per_item[(Js + 1L):J]) else 0L

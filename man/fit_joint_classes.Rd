@@ -14,6 +14,7 @@ fit_joint_classes(
   predictors_ca = NULL,
   predictors_cs = NULL,
   cs_effects = "common",
+  predictors_items = NULL,
   n_steps = 1,
   smoothing = 1,
   bayes_constants = NULL,
@@ -47,13 +48,26 @@ membership, or \code{NULL}.}
 class for every covariate), or a named vector such as
 \code{c(female = "by_ca")}, the unnamed covariates acting in common.}
 
+\item{predictors_items}{Direct effects of covariates on items (uniform
+differential item functioning): a named list, item name = a data frame of
+the covariates acting on that item, e.g. \code{list(a3 = data.frame(female))}.
+Each slope is one proportional-odds shift of the item's response, the same
+in every class; binary items take it on the logit of the second category.
+Items are named by the column names of \code{ca_items} and \code{cs_items}, which
+must then be unique across the two. Covariate patterns are limited as in
+\code{\link[=fit_lta]{fit_lta()}}. A DIF covariate should normally also predict the classes
+(\code{predictors_ca}, \code{predictors_cs}); with \code{n_steps = 2} step 1 does this
+itself.}
+
 \item{n_steps}{\code{1} (the default) fits everything at once. \code{2} is the
 two-step estimator (Bakk & Kuha, 2018): step 1 fits each variable's
 measurement model on its own, as two separate latent class analyses;
 step 2 holds those item parameters fixed and estimates the association
 and the covariate effects. The classes then mean the same thing in every
 structural model compared, and the standard errors carry step 1's
-uncertainty. The fit keeps step 1 as \code{step1}.}
+uncertainty. The fit keeps step 1 as \code{step1}. With \code{predictors_items},
+step 1 also regresses each variable on the DIF covariates, and step 2
+holds the item slopes fixed with the rest of the measurement model.}
 
 \item{smoothing, bayes_constants, n_init, random_state, n_cores, standard_errors}{As in \code{\link[=fit_lta]{fit_lta()}}.}
 

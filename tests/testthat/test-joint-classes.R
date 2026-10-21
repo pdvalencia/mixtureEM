@@ -128,3 +128,50 @@ test_that("two-step: step 1 is the two separate LCAs, step 2 keeps their items",
   expect_output(print(f), "Two-step")
   expect_error(fit_joint_classes(d$A, d$S, n_steps = 3), "1 or 2")
 })
+
+test_that("item slopes: step 1 is the two separate LCAs with their DIF, step 2 keeps them", {
+  d <- sim_joint(600, 2, 2, 4, 4, seed = 27)
+  set.seed(28)
+  x <- rbinom(600, 1, 0.5)
+  # Shift one item on each side for x = 1, whatever the class.
+  d$A[, 2] <- ifelse(x == 1 & runif(600) < 0.3, 1, d$A[, 2])
+  d$S[, 3] <- ifelse(x == 1 & runif(600) < 0.3, 1, d$S[, 3])
+  colnames(d$A) <- paste0("a", 1:4); colnames(d$S) <- paste0("s", 1:4)
+  px <- data.frame(x = x)
+  zero <- list(categorical = 0)
+  pi <- list(a2 = px, s3 = px)
+  f <- fit_joint_classes(d$A, d$S, n_steps = 2, predictors_ca = px,
+                         predictors_cs = px, predictors_items = pi,
+                         n_init = 5, random_state = 3, smoothing = 0,
+                         bayes_constants = zero)
+  # Step 1 regresses each variable on x beside the item slopes, and without
+  # the association the likelihood factorises into the two LCAs.
+  lca <- function(Y, it) fit_mixture(Y + 1, n_classes = 2, measurement = "ordinal",
+                                     cats = rep(2L, 4),
+                                     predictors = ~ x, data = px,
+                                     predictors_items = setNames(list(~ x), it),
+                                     n_init = 5, random_state = 3, smoothing = 0,
+                                     bayes_constants = zero)
+  la <- lca(d$A, "a2"); ls <- lca(d$S, "s3")
+  expect_equal(f$step1$metrics$ll, la$metrics$ll + ls$metrics$ll,
+               tolerance = 1e-5)
+  expect_identical(f$dif$beta, f$step1$dif$beta)
+  expect_true(all(f$dif$beta[, c(2, 7), 1] != 0))
+  expect_true(isTRUE(f$se$twostep))
+  idx2 <- .lta_par_split(.lta_par_layout(f))$structural
+  expect_true(all(diag(f$se$vcov)[idx2] >= diag(f$se$twostep_V2) - 1e-12))
+
+  # One step: two slopes beyond the model without them.
+  g1 <- fit_joint_classes(d$A, d$S, predictors_ca = px, predictors_cs = px,
+                          predictors_items = pi, n_init = 5, random_state = 3,
+                          smoothing = 0, bayes_constants = zero)
+  g0 <- fit_joint_classes(d$A, d$S, predictors_ca = px, predictors_cs = px,
+                          n_init = 5, random_state = 3, smoothing = 0,
+                          bayes_constants = zero, standard_errors = FALSE)
+  expect_equal(g1$n_params, g0$n_params + 2)
+  expect_gte(g1$metrics$ll, f$metrics$ll - 1e-6)
+
+  expect_error(fit_joint_classes(d$A, d$S, predictors_items = px), "named list")
+  expect_error(fit_joint_classes(unname(d$A), d$S, predictors_items = pi),
+               "column names")
+})

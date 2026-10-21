@@ -348,15 +348,21 @@
   # already when it was asked for standard errors; otherwise it is computed
   # here, once.
   # The transition-free step 1 reports no standard errors, so its variance is
-  # the inverse penalised curvature on the reduced vector, taken over its
-  # response patterns (no covariates reach this step 1), with the measurement
-  # coordinates read back one-to-one.
+  # the inverse penalised curvature on the reduced vector, with the measurement
+  # coordinates read back one-to-one. It is taken over the response patterns
+  # unless step 1 reads a covariate (item slopes, and the class regressions
+  # that come with them), which makes every case its own pattern.
   if (indep) {
     X1  <- as.matrix(step1$data)
-    pat <- .pattern_index(X1)
-    X1c <- X1[pat$rep_row, , drop = FALSE]
-    w1c <- as.vector(rowsum(step1$weights_vec, pat$idx))
     s1  <- red$state
+    per_case <- !is.null(s1$Z_delta) || !is.null(s1$Z_tau) || !is.null(s1$dif)
+    if (per_case) {
+      X1c <- X1; w1c <- step1$weights_vec
+    } else {
+      pat <- .pattern_index(X1)
+      X1c <- X1[pat$rep_row, , drop = FALSE]
+      w1c <- as.vector(rowsum(step1$weights_vec, pat$idx))
+    }
     s1$weights_vec <- w1c
     ll1 <- function(r) sum(w1c * .lta_ll_case(s1, X1c, r[red$src], layout1))
     lp1 <- function(r)
