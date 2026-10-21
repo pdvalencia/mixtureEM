@@ -264,6 +264,20 @@
 #'   equal across classes (the conventional default). Set `FALSE` to let each class have its
 #'   own, which asks whether a covariate matters differently in different
 #'   trajectory groups.
+#' @param fix Optional data frame of growth-factor variances and covariances
+#'   to hold at a given value in a given class, one row per value, with
+#'   columns `parameter` (`"growth_variance"` or `"growth_covariance"`),
+#'   `item` (a growth factor such as `"linear"`, or a pair such as
+#'   `"intercept with linear"`), `class` and `value` -- the names
+#'   [`growth_estimates()`] prints. Fixing every variance of one class at zero
+#'   makes it a class with no variation around its own trajectory beside
+#'   classes that have some (a partially constrained growth mixture); a
+#'   variance fixed at zero needs its covariances fixed at zero too. Elements
+#'   not fixed follow `psi`, so under `"equal"` a free element is shared by the
+#'   classes where it is free. Classes are numbered by size after fitting, as
+#'   always, and the fixed values move with their class; `fit$growth$fix`
+#'   shows where they ended. Fixed values have no standard error, and
+#'   [`blrt()`] refuses such a fit.
 #' @param ... Further arguments passed to [`fit_mixture()`], such as `outcome`
 #'   and its companions, `n_init`, `random_state`, `weights`, `strata` or
 #'   `cluster`.
@@ -338,6 +352,7 @@ fit_gmm <- function(indicator,
                     predictors = NULL,
                     growth_predictors = NULL,
                     growth_predictors_equal = TRUE,
+                    fix = NULL,
                     ...) {
 
   growth_predictors_expr <- substitute(growth_predictors)
@@ -378,6 +393,8 @@ fit_gmm <- function(indicator,
   q <- length(structured_normal_model(1L, design,
                                       random_effects = random_effects)$r_cols)
   .gmm_check_identified(Tn, q, identical(residual, "constant"))
+  psi_fixed <- .gmm_psi_fixed(fix, colnames(design)[structured_normal_model(
+    1L, design, random_effects = random_effects)$r_cols], n_classes)
 
   if (!is.null(predictors))
     predictors <- .as_named_covariates(predictors, substitute(predictors),
@@ -398,6 +415,7 @@ fit_gmm <- function(indicator,
     residual_equal          = residual_equal,
     growth_covariates       = gx,
     growth_covariates_equal = growth_predictors_equal,
+    psi_fixed               = psi_fixed,
     ...
   )
 
@@ -426,6 +444,7 @@ fit_gmm <- function(indicator,
     residual_equal    = mm$theta_equal,
     residual_constant = mm$theta_shared_occasions,
     random_names      = colnames(design)[mm$r_cols],
+    fix               = .gmm_fix_table(mm),
     wave_missing      = prep$wave_missing
   )
   fit$growth$boundary <- .gmm_boundary(mm, fit$data, fit$sample_weights,
@@ -447,6 +466,102 @@ fit_gmm <- function(indicator,
   class(fit) <- c("gmm", class(fit))
   fit$call <- match.call()
   fit
+}
+
+# `fix` as one matrix of fixed values per class (NA where free), or NULL.
+#
+# The rows are rows of the parameter table measurement_estimates() prints --
+# `parameter`, `item`, `class` -- with the value to hold, so a user writes a
+# fixed value in the same words the fit reports it in. Only the growth-factor
+# variances and covariances can be fixed. A variance fixed at zero makes the
+# factor non-random in that class, and a covariance with something that does
+# not vary is zero by definition, so a free covariance on it is refused rather
+# than estimated as a parameter the likelihood cannot see.
+.gmm_psi_fixed <- function(fix, names, n_classes) {
+  if (is.null(fix)) return(NULL)
+  if (!is.data.frame(fix) ||
+      !all(c("parameter", "item", "class", "value") %in% names(fix)))
+    stop(paste0("`fix` must be a data frame with columns `parameter`, `item`, ",
+                "`class` and `value`, one row per fixed value, named as ",
+                "measurement_estimates() names them."), call. = FALSE)
+  if (!nrow(fix)) return(NULL)
+  if (length(n_classes) != 1L)
+    stop("`fix` names classes, so it needs a single `n_classes`.", call. = FALSE)
+  if (!length(names))
+    stop(paste0("`fix` can only fix growth-factor variances and covariances, ",
+                "and with random_effects = \"none\" there are none."),
+         call. = FALSE)
+  K <- as.integer(n_classes); q <- length(names)
+  par <- as.character(fix$parameter); item <- as.character(fix$item)
+  cls <- fix$class; val <- fix$value
+  bad <- setdiff(unique(par), c("growth_variance", "growth_covariance"))
+  if (length(bad))
+    stop(sprintf(paste0("`fix` can only hold growth_variance and ",
+                        "growth_covariance rows for now; got %s."),
+                 paste(sQuote(bad, FALSE), collapse = ", ")), call. = FALSE)
+  if (!is.numeric(cls) || anyNA(cls) || any(cls != round(cls)) ||
+      any(cls < 1 | cls > K))
+    stop(sprintf("`fix$class` must be class numbers between 1 and %d.", K),
+         call. = FALSE)
+  if (!is.numeric(val) || any(!is.finite(val)))
+    stop("`fix$value` must be finite numbers.", call. = FALSE)
+
+  out <- rep(list(matrix(NA_real_, q, q)), K)
+  for (r in seq_len(nrow(fix))) {
+    if (par[r] == "growth_variance") {
+      i <- j <- match(item[r], names)
+      if (is.na(i))
+        stop(sprintf(paste0("`fix` names a variance of %s, which is not a ",
+                            "random growth factor here (%s)."),
+                     sQuote(item[r], FALSE), paste(names, collapse = ", ")),
+             call. = FALSE)
+      if (val[r] < 0)
+        stop(sprintf("A fixed variance cannot be negative (%s in class %d).",
+                     item[r], cls[r]), call. = FALSE)
+    } else {
+      ab <- trimws(strsplit(item[r], " with ", fixed = TRUE)[[1L]])
+      ij <- match(ab, names)
+      if (length(ab) != 2L || anyNA(ij) || ij[1L] == ij[2L])
+        stop(sprintf(paste0("`fix` names a covariance %s; write it as ",
+                            "\"<factor> with <factor>\" using %s."),
+                     sQuote(item[r], FALSE), paste(names, collapse = ", ")),
+             call. = FALSE)
+      i <- ij[1L]; j <- ij[2L]
+    }
+    k <- cls[r]
+    if (!is.na(out[[k]][i, j]))
+      stop(sprintf("`fix` holds %s in class %d twice.", item[r], k),
+           call. = FALSE)
+    out[[k]][i, j] <- out[[k]][j, i] <- val[r]
+  }
+  for (k in seq_len(K)) for (i in seq_len(q)) {
+    if (!isTRUE(out[[k]][i, i] == 0)) next
+    open <- setdiff(which(is.na(out[[k]][i, ]) | out[[k]][i, ] != 0), i)
+    if (length(open))
+      stop(sprintf(paste0("The %s variance is fixed at zero in class %d, so ",
+                          "its covariance with %s must be fixed at zero too ",
+                          "(add a growth_covariance row with value 0)."),
+                   names[i], k, paste(names[open], collapse = " and ")),
+           call. = FALSE)
+  }
+  out
+}
+
+# The fixed values of a fitted state, as `fix` rows under the classes' final
+# (size-sorted) numbers; NULL when nothing is fixed.
+.gmm_fix_table <- function(mm) {
+  if (is.null(mm$psi_fixed)) return(NULL)
+  nm <- colnames(mm$design)[mm$r_cols]
+  rows <- list()
+  for (k in seq_along(mm$psi_fixed)) {
+    F <- mm$psi_fixed[[k]]
+    for (j in seq_len(ncol(F))) for (i in j:nrow(F)) if (!is.na(F[i, j]))
+      rows[[length(rows) + 1L]] <- data.frame(
+        parameter = if (i == j) "growth_variance" else "growth_covariance",
+        item = if (i == j) nm[i] else paste(nm[j], "with", nm[i]),
+        class = k, value = F[i, j], stringsAsFactors = FALSE)
+  }
+  do.call(rbind, rows)
 }
 
 # Variance parameters that have collapsed relative to the data, not merely to
@@ -512,11 +627,20 @@ fit_gmm <- function(indicator,
   }
 
   if (length(mm$r_cols)) {
-    Lr <- mm$design[, mm$r_cols, drop = FALSE]
     psi_rows <- if (isTRUE(mm$psi_equal)) 1L else length(mm$parameters$psi)
+    act <- if (is.null(mm$psi_fixed)) NULL else .sn_psi_slots(mm)$active
     for (k in seq_len(psi_rows)) {
       P <- mm$parameters$psi[[k]]
       if (is.null(P) || !length(P)) next
+      Lr <- mm$design[, mm$r_cols, drop = FALSE]
+      # A variance the user fixed at zero is a choice, not a collapse: only the
+      # factors still random in the class are judged, and a class with none
+      # left is the LCGA class it was asked to be.
+      if (!is.null(act)) {
+        if (!length(act[[k]])) next
+        P  <- P[act[[k]], act[[k]], drop = FALSE]
+        Lr <- Lr[, act[[k]], drop = FALSE]
+      }
       # A Psi outside the cone is a valid likelihood maximum, reported by
       # .gmm_inadmissible() instead; this warning's "BIC is inflated" is wrong
       # for it.
@@ -639,8 +763,7 @@ fit_gmm <- function(indicator,
   if (!length(mm$r_cols)) return(character(0))
   nm   <- colnames(mm$design)[mm$r_cols] %||%
     paste0("factor ", seq_along(mm$r_cols))
-  type <- .sn_psi_type(mm)
-  rows <- if (identical(type, "equal")) 1L else length(mm$parameters$psi)
+  rows <- if (isTRUE(mm$psi_equal)) 1L else length(mm$parameters$psi)
   out  <- character(0)
   for (k in seq_len(rows)) {
     P <- mm$parameters$psi[[k]]
@@ -874,6 +997,7 @@ print.gmm <- function(x, ...) {
 
   if (length(g$random_names)) {
     cat(sprintf("\nGROWTH FACTOR (CO)VARIANCE%s\n",
+                if (!is.null(g$fix)) " (some values fixed; see fit$growth$fix)" else
                 if (g$psi_equal) " (held equal across classes)" else
                 if (identical(g$psi_type, "variances"))
                   " (covariances held equal across classes)" else ""))

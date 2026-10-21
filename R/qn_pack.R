@@ -210,7 +210,16 @@
   if (q > 0L) {
     type <- .sn_psi_type(ms)
     U    <- .qn_sn_psi_unit(ms)
-    if (identical(type, "variances") && q > 1L) {
+    if (!is.null(ms$psi_fixed)) {
+      # Fixed elements are not parameters: one entry per free slot.
+      sl <- .sn_psi_slots(ms)
+      v  <- numeric(sl$n)
+      for (k in rev(seq_len(ms$n_components))) {
+        ok <- !is.na(sl$id[k, ])
+        v[sl$id[k, ok]] <- (p$psi[[k]][sl$li] / U[sl$li])[ok]
+      }
+      parts <- c(parts, list(.qn_part(v, "free")))
+    } else if (identical(type, "variances") && q > 1L) {
       lt <- lower.tri(diag(q))
       parts <- c(parts, list(
         .qn_part(t(vapply(p$psi, function(P) diag(P) / diag(U), numeric(q))),
@@ -249,7 +258,10 @@
     nq <- q * (q + 1L) / 2L
     type <- .sn_psi_type(ms)
     U    <- .qn_sn_psi_unit(ms)
-    if (identical(type, "variances") && q > 1L) {
+    if (!is.null(ms$psi_fixed)) {
+      sl <- .sn_psi_slots(ms)
+      ms$parameters$psi <- .sn_psi_build(sl, take(sl$n), U[sl$li])
+    } else if (identical(type, "variances") && q > 1L) {
       lt <- which(lower.tri(diag(q)), arr.ind = TRUE)
       D  <- sweep(matrix(take(K * q), K, q), 2, diag(U), "*")
       C  <- take(q * (q - 1L) / 2L) * U[lt]

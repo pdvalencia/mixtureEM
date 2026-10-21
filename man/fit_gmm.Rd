@@ -22,6 +22,7 @@ fit_gmm(
   predictors = NULL,
   growth_predictors = NULL,
   growth_predictors_equal = TRUE,
+  fix = NULL,
   ...
 )
 }
@@ -128,6 +129,21 @@ those cases first.}
 equal across classes (the conventional default). Set \code{FALSE} to let each class have its
 own, which asks whether a covariate matters differently in different
 trajectory groups.}
+
+\item{fix}{Optional data frame of growth-factor variances and covariances
+to hold at a given value in a given class, one row per value, with
+columns \code{parameter} (\code{"growth_variance"} or \code{"growth_covariance"}),
+\code{item} (a growth factor such as \code{"linear"}, or a pair such as
+\code{"intercept with linear"}), \code{class} and \code{value} -- the names
+\code{\link[=growth_estimates]{growth_estimates()}} prints. Fixing every variance of one class at zero
+makes it a class with no variation around its own trajectory beside
+classes that have some (a partially constrained growth mixture); a
+variance fixed at zero needs its covariances fixed at zero too. Elements
+not fixed follow \code{psi}, so under \code{"equal"} a free element is shared by the
+classes where it is free. Classes are numbered by size after fitting, as
+always, and the fixed values move with their class; \code{fit$growth$fix}
+shows where they ended. Fixed values have no standard error, and
+\code{\link[=blrt]{blrt()}} refuses such a fit.}
 
 \item{...}{Further arguments passed to \code{\link[=fit_mixture]{fit_mixture()}}, such as \code{outcome}
 and its companions, \code{n_init}, \code{random_state}, \code{weights}, \code{strata} or

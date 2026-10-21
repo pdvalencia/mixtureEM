@@ -13,6 +13,7 @@ structured_normal_model(
   residual_equal = TRUE,
   growth_covariates = NULL,
   growth_covariates_equal = TRUE,
+  psi_fixed = NULL,
   ...
 )
 }
@@ -42,6 +43,10 @@ the emission is fitted to, and complete.}
 
 \item{growth_covariates_equal}{Logical. Hold those regressions equal across
 classes.}
+
+\item{psi_fixed}{Optional list of one matrix per class, the size of
+\eqn{\Psi}, holding the values fixed in that class and \code{NA} where the
+element is estimated. Built by \code{\link[=fit_gmm]{fit_gmm()}} from its \code{fix} argument.}
 
 \item{...}{Additional arguments, ignored.}
 }

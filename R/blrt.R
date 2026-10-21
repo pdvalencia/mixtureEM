@@ -170,6 +170,12 @@ generate_synthetic_data <- function(mm, classes, N) {
     stop("`from_fit` needs the fitted model's data, which this object does ",
          "not carry.", call. = FALSE)
 
+  if (!is.null(g$fix))
+    stop(paste0("blrt() cannot bootstrap a growth mixture with fixed values: ",
+                "they name classes, and the model with one class fewer has no ",
+                "rule for which class keeps them. Compare the fits with ",
+                "vlmr_test() or BIC instead."), call. = FALSE)
+
   args <- if (inherits(fit, "lcga"))
     list(design = g$design, family = g$family,
          dispersion_structure = g$dispersion %||% "occasion",

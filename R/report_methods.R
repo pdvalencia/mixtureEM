@@ -732,7 +732,9 @@ grolts_report.mixture_comparison <- function(object, k = NULL, ...) {
     "6b" = if (gmm) list(YOU, sprintf(paste0(
                   "This fit holds the growth-factor covariance %s and the residual variances %s. ",
                   "Report which other structures were considered."),
-                  if (isTRUE(g$psi_equal)) "equal across classes" else "free across classes",
+                  if (!is.null(g$fix)) sprintf("%s across classes apart from %d fixed value(s)",
+                    if (identical(g$psi_type, "equal")) "equal" else "free", nrow(g$fix))
+                  else if (isTRUE(g$psi_equal)) "equal across classes" else "free across classes",
                   if (isTRUE(g$residual_equal)) "equal across classes" else "free across classes"))
            else if (f$types == "continuous") list(YOU, sprintf(paste0(
                   "This fit has no growth-factor covariance; its residual variances are %s. ",

@@ -46,6 +46,11 @@
 #                           than one per occasion
 #   gamma_equal             the growth-factor regressions held equal across
 #                           classes (the usual default)
+#   psi_fixed               NULL, or one q x q matrix per class holding the Psi
+#                           elements the user fixed (NA where free). A fixed
+#                           state sets psi_equal to FALSE, since its classes no
+#                           longer share one matrix, and keeps psi_type, which
+#                           still says how the free elements are shared
 #
 # Parameters are always stored per class, including where a constraint makes the
 # classes share a value; the constraint is imposed in the M-step and counted in
@@ -82,6 +87,9 @@
 #'   the emission is fitted to, and complete.
 #' @param growth_covariates_equal Logical. Hold those regressions equal across
 #'   classes.
+#' @param psi_fixed Optional list of one matrix per class, the size of
+#'   \eqn{\Psi}, holding the values fixed in that class and `NA` where the
+#'   element is estimated. Built by [`fit_gmm()`] from its `fix` argument.
 #' @param ... Additional arguments, ignored.
 #'
 #' @return A list object of class \code{c("structured_normal", "emission")}.
@@ -92,7 +100,8 @@ structured_normal_model <- function(n_components, design,
                                     residual = "occasion",
                                     residual_equal = TRUE,
                                     growth_covariates = NULL,
-                                    growth_covariates_equal = TRUE, ...) {
+                                    growth_covariates_equal = TRUE,
+                                    psi_fixed = NULL, ...) {
   p <- ncol(design)
   if (!psi %in% c("equal", "variances", "free"))
     stop("Unknown `psi` specification: ", psi, call. = FALSE)
@@ -121,7 +130,8 @@ structured_normal_model <- function(n_components, design,
     r_cols                 = r_cols,
     random_effects         = random_effects,
     psi_type               = psi,
-    psi_equal              = identical(psi, "equal"),
+    psi_equal              = identical(psi, "equal") && is.null(psi_fixed),
+    psi_fixed              = psi_fixed,
     theta_shared_occasions = identical(residual, "constant"),
     theta_equal            = isTRUE(residual_equal),
 
@@ -347,6 +357,130 @@ structured_normal_model <- function(n_components, design,
   build(res$par)
 }
 
+# Fixed Psi elements (fit_gmm(fix = )).
+#
+# Every class's lower triangle is laid out as a K x nl table of slots. A slot
+# either reads a free parameter -- shared across classes the way psi_type says:
+# all of them under "equal", the covariances under "variances", none under
+# "free" -- or holds the value the user fixed. Under "equal" a free element is
+# therefore shared by exactly the classes where it is free, so a class that
+# fixes its slope variance at zero keeps the intercept variance of the others.
+# A growth factor whose variance is fixed at zero (its covariances must be too;
+# fit_gmm() checks) is not random in that class at all: it drops out of the
+# class's Psi, which is the "active" block every Psi computation uses.
+.sn_psi_slots <- function(ms) {
+  K  <- ms$n_components; q <- length(ms$r_cols)
+  li <- which(lower.tri(diag(q), diag = TRUE), arr.ind = TRUE)
+  nl <- nrow(li); dg <- li[, 1L] == li[, 2L]
+  key <- t(vapply(seq_len(K), function(k) switch(.sn_psi_type(ms),
+    equal = seq_len(nl),
+    free  = (k - 1L) * nl + seq_len(nl),
+    variances = { v <- integer(nl)
+                  v[dg]  <- (k - 1L) * q + li[dg, 1L]
+                  v[!dg] <- K * q + seq_len(sum(!dg)); v }), integer(nl)))
+  key <- matrix(key, K, nl)
+  fixed <- matrix(NA_real_, K, nl)
+  if (!is.null(ms$psi_fixed))
+    for (k in seq_len(K)) fixed[k, ] <- ms$psi_fixed[[k]][li]
+  key[!is.na(fixed)] <- NA_integer_
+  # Renumbered only when something is fixed, so an ordinary state keeps the
+  # layout (and the arithmetic) it always had.
+  id <- if (all(is.na(fixed))) key else
+    matrix(match(key, unique(as.vector(t(key))[!is.na(as.vector(t(key)))])),
+           K, nl)
+  active <- lapply(seq_len(K), function(k)
+    which(!(dg & !is.na(fixed[k, ]) & fixed[k, ] == 0)[dg]))
+  list(li = li, dg = dg, id = id, fixed = fixed, n = max(0L, id, na.rm = TRUE),
+       active = active)
+}
+
+# The K matrices a vector of free values describes, `scale` multiplying each
+# slot (the finish's units; 1 on the natural scale).
+.sn_psi_build <- function(sl, v, scale = 1) {
+  q <- max(sl$li); scale <- rep_len(scale, nrow(sl$li))
+  lapply(seq_len(nrow(sl$id)), function(k) {
+    x <- v[sl$id[k, ]] * scale
+    f <- is.na(sl$id[k, ]); x[f] <- sl$fixed[k, f]
+    P <- matrix(0, q, q); P[sl$li] <- x
+    P + t(P) - diag(diag(P), q)
+  })
+}
+
+# Pin the fixed elements (starting values, and after anything that moved them).
+.sn_psi_apply_fixed <- function(ms) {
+  if (is.null(ms$psi_fixed) || !length(ms$r_cols)) return(ms)
+  for (k in seq_along(ms$parameters$psi)) {
+    P <- ms$parameters$psi[[k]]; F <- ms$psi_fixed[[k]]
+    P[!is.na(F)] <- F[!is.na(F)]
+    ms$parameters$psi[[k]] <- P
+  }
+  ms
+}
+
+# The Psi update with fixed elements: the Q of .sn_psi_variances() over each
+# class's active block, maximised in the free slots (variances on the log
+# scale) and kept only if Q rises, so EM stays monotone.
+.sn_psi_constrained <- function(psi_num, psi_den, psi_old, sl) {
+  K <- length(psi_old)
+  live <- psi_den > 1e-8
+  if (!any(live) || sl$n == 0L) return(psi_old)
+  S <- lapply(seq_len(K), function(k)
+    if (live[k]) psi_num[[k]] / psi_den[k] else psi_old[[k]])
+  li <- sl$li; dg <- sl$dg
+  is_var <- vapply(seq_len(sl$n), function(i)
+    any(dg[col(sl$id)[which(sl$id == i)]]), logical(1))
+  to_nat <- function(v) { v[is_var] <- exp(v[is_var]); v }
+
+  negQ <- function(v) {
+    P <- .sn_psi_build(sl, to_nat(v)); out <- 0
+    for (k in which(live)) {
+      a <- sl$active[[k]]; if (!length(a)) next
+      ch <- tryCatch(chol(P[[k]][a, a, drop = FALSE]), error = function(e) NULL)
+      if (is.null(ch)) return(1e100)
+      out <- out + 0.5 * psi_den[k] * (2 * sum(log(diag(ch))) +
+        sum(chol2inv(ch) * S[[k]][a, a, drop = FALSE]))
+    }
+    out
+  }
+  grad <- function(v) {
+    w <- to_nat(v); P <- .sn_psi_build(sl, w); g <- numeric(sl$n)
+    for (k in which(live)) {
+      a <- sl$active[[k]]; if (!length(a)) next
+      Pi <- tryCatch(chol2inv(chol(P[[k]][a, a, drop = FALSE])),
+                     error = function(e) NULL)
+      if (is.null(Pi)) return(rep(0, sl$n))
+      G <- matrix(0, nrow(P[[k]]), ncol(P[[k]]))
+      G[a, a] <- 0.5 * psi_den[k] *
+        (Pi %*% S[[k]][a, a, drop = FALSE] %*% Pi - Pi)
+      gk <- G[li] * ifelse(dg, 1, 2)
+      ok <- !is.na(sl$id[k, ])
+      for (j in which(ok)) g[sl$id[k, j]] <- g[sl$id[k, j]] + gk[j]
+    }
+    g[is_var] <- g[is_var] * w[is_var]
+    -g
+  }
+
+  v0 <- numeric(sl$n); cnt <- numeric(sl$n)
+  for (k in seq_len(K)) {
+    x <- ((psi_old[[k]] + t(psi_old[[k]])) / 2)[li]
+    ok <- !is.na(sl$id[k, ])
+    for (j in which(ok)) {
+      v0[sl$id[k, j]] <- v0[sl$id[k, j]] + x[j]; cnt[sl$id[k, j]] <- cnt[sl$id[k, j]] + 1
+    }
+  }
+  v0 <- v0 / pmax(cnt, 1)
+  v0[is_var] <- log(pmax(v0[is_var], 1e-8))
+  f0 <- negQ(v0)
+  res <- tryCatch(stats::optim(v0, negQ, grad, method = "BFGS",
+                               control = list(maxit = 100L, reltol = 1e-12)),
+                  error = function(e) NULL)
+  if (is.null(res) || !is.finite(res$value) || res$value >= f0 ||
+      res$value >= 1e100)
+    return(if (is.finite(f0) && f0 < 1e100) .sn_psi_build(sl, to_nat(v0))
+           else psi_old)
+  .sn_psi_build(sl, to_nat(res$par))
+}
+
 # The edge of the cone, and the M-step that crosses it.
 #
 # The Psi updates above treat each case's growth factors as missing data, and a
@@ -380,9 +514,15 @@ structured_normal_model <- function(n_components, design,
 .sn_psi_at_edge <- function(ms) {
   if (!length(ms$r_cols)) return(FALSE)
   U <- .qn_sn_psi_unit(ms)
-  any(vapply(ms$parameters$psi, function(P)
-    min(eigen(((P + t(P)) / 2) / U, symmetric = TRUE, only.values = TRUE)$values),
-    numeric(1)) < .sn_edge_ratio)
+  # A factor fixed at zero variance is not on the edge; it is not random.
+  act <- if (is.null(ms$psi_fixed)) NULL else .sn_psi_slots(ms)$active
+  any(vapply(seq_along(ms$parameters$psi), function(k) {
+    P <- ms$parameters$psi[[k]]
+    a <- if (is.null(act)) seq_len(nrow(P)) else act[[k]]
+    if (!length(a)) return(Inf)
+    min(eigen((((P + t(P)) / 2) / U)[a, a, drop = FALSE], symmetric = TRUE,
+              only.values = TRUE)$values)
+  }, numeric(1)) < .sn_edge_ratio)
 }
 
 # Solve the growth-coefficient normal equations, with the class-equality
@@ -482,16 +622,10 @@ structured_normal_model <- function(n_components, design,
   })
 
   # ---- Where each class's Psi and Theta read their values in the vector
-  ptype <- .sn_psi_type(model_state)
-  li  <- which(lower.tri(diag(q), diag = TRUE), arr.ind = TRUE)
-  nl  <- nrow(li); dg <- li[, 1L] == li[, 2L]
-  npsi <- switch(ptype, equal = nl, free = K * nl, variances = K * q + sum(!dg))
-  pid <- function(k) switch(ptype,
-    equal = seq_len(nl),
-    free  = (k - 1L) * nl + seq_len(nl),
-    variances = { v <- integer(nl)
-                  v[dg]  <- (k - 1L) * q + li[dg, 1L]
-                  v[!dg] <- K * q + seq_len(sum(!dg)); v })
+  sl  <- .sn_psi_slots(model_state)
+  li  <- sl$li; dg <- sl$dg
+  npsi <- sl$n
+  pid <- function(k) sl$id[k, ]
   te <- isTRUE(model_state$theta_equal)
   so <- isTRUE(model_state$theta_shared_occasions)
   tid <- function(k)
@@ -501,11 +635,7 @@ structured_normal_model <- function(n_components, design,
   Ul <- U[li]
 
   build <- function(v) {
-    psi <- lapply(seq_len(K), function(k) {
-      P <- matrix(0, q, q)
-      P[li] <- v[pid(k)] * Ul
-      P + t(P) - diag(diag(P), q)
-    })
+    psi <- .sn_psi_build(sl, v, Ul)
     th <- t(vapply(seq_len(K), function(k) exp(v[npsi + tid(k)]), numeric(Tn)))
     list(psi = psi, theta = matrix(th, K, Tn))
   }
@@ -545,7 +675,7 @@ structured_normal_model <- function(n_components, design,
       dP <- crossprod(Lr, e$H[[k]] %*% Lr)
       gp <- dP[li] * ifelse(dg, 1, 2) * Ul
       ip <- pid(k)
-      for (j in seq_along(ip)) g[ip[j]] <- g[ip[j]] + gp[j]
+      for (j in which(!is.na(ip))) g[ip[j]] <- g[ip[j]] + gp[j]
       it <- npsi + tid(k)
       gt <- diag(e$H[[k]]) * e$b$theta[k, ]
       for (t in seq_len(Tn)) g[it[t]] <- g[it[t]] + gt[t]
@@ -561,7 +691,8 @@ structured_normal_model <- function(n_components, design,
   for (k in seq_len(K)) {
     P  <- model_state$parameters$psi[[k]]
     ip <- pid(k); it <- npsi + tid(k)
-    v0[ip] <- v0[ip] + ((P + t(P)) / 2)[li] / Ul; cnt[ip] <- cnt[ip] + 1
+    ok <- !is.na(ip); x <- ((P + t(P)) / 2)[li] / Ul
+    v0[ip[ok]] <- v0[ip[ok]] + x[ok]; cnt[ip[ok]] <- cnt[ip[ok]] + 1
     for (t in seq_len(Tn)) {
       v0[it[t]] <- v0[it[t]] + log(max(th[k, t], .sn_theta_floor))
       cnt[it[t]] <- cnt[it[t]] + 1
@@ -739,7 +870,7 @@ init_params.structured_normal <- function(model_state, X, resp,
   model_state$parameters$gamma <- rep(list(gamma0), K)
   model_state$parameters$psi   <- rep(list(psi0), K)
   model_state$parameters$theta <- matrix(theta0, K, Tn)
-  model_state
+  .sn_psi_apply_fixed(model_state)
 }
 
 # ------------------------------------------------------------------------------
@@ -927,7 +1058,10 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
 
   # ---- Psi, with the class-equality constraint imposed by pooling ------------
   if (q) {
-    if (model_state$psi_equal) {
+    if (!is.null(model_state$psi_fixed)) {
+      psi <- .sn_psi_constrained(psi_num, psi_den, psi,
+                                 .sn_psi_slots(model_state))
+    } else if (model_state$psi_equal) {
       num <- Reduce(`+`, psi_num)
       den <- sum(psi_den)
       shared <- .sn_psi_pd(if (den > 1e-8) num / den else psi[[1L]])
@@ -1007,7 +1141,8 @@ n_parameters.structured_normal <- function(model_state, ...) {
   q  <- length(model_state$r_cols)
   m  <- .sn_m(model_state)
 
-  n_psi   <- switch(.sn_psi_type(model_state),
+  n_psi   <- if (!is.null(model_state$psi_fixed) && q)
+    .sn_psi_slots(model_state)$n else switch(.sn_psi_type(model_state),
     equal     = q * (q + 1L) / 2L,
     variances = K * q + q * (q - 1L) / 2L,
     q * (q + 1L) / 2L * K)

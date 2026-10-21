@@ -1,5 +1,15 @@
 # mixtureEM (development version)
 
+## Fixed growth-factor variances in a growth mixture
+
+`fit_gmm(fix = )` holds chosen growth-factor variances and covariances at a
+given value in a given class, written as rows of the parameter table
+(`parameter`, `item`, `class`, `value`). Its main use is a class with no
+variation around its own trajectory beside classes that have some, a
+partially constrained growth mixture. Elements left free follow `psi` as
+before, fixed values carry no standard error, and `fit$growth$fix` reports
+them under the classes' final numbers. No existing fit changes.
+
 ## Two associated latent class variables in one model
 
 **New: `fit_joint_classes()`** fits two latent class variables at once, each
