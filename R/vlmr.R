@@ -193,10 +193,15 @@
 
   lam <- Re(eigen(W, only.values = TRUE)$values)
   lam <- lam[abs(lam) > 1e-8 * max(abs(lam))]
-  # An orientation check, not an accuracy check. At a regular maximum B = -A and
-  # sum(lam) would be p1 - p0; a mixture is not regular there, so only the sign
-  # is trusted. Vermunt's own examples miss the count by several units.
-  if (sum(lam) < 0) lam <- -lam
+  # An orientation check, not an accuracy check, for Vuong's form only. At a
+  # regular maximum B = -A and sum(lam) would be p1 - p0; a mixture is not
+  # regular there, so only the sign is trusted. Vermunt's own examples miss
+  # the count by several units. The robust form has no such anchor: its
+  # orientation is fixed by the construction above (the larger model's block
+  # positive), and a negative sum is a property of the sample -- a smaller
+  # model badly misspecified, whose sandwich block then dominates (RECORDS,
+  # "Part 69 B3 answer sheet", B2 1 v 2) -- so it is left as it is.
+  if (version == "standard" && sum(lam) < 0) lam <- -lam
   lam
 }
 
@@ -323,8 +328,14 @@
 # 3. One K against K+1
 # ------------------------------------------------------------------------------
 
-# Returns a one-row list of LR, and per version the mean, sd and p-value of the
-# reference distribution; or a `reason` when the test cannot be computed.
+# Returns a one-row list of LR, its degrees of freedom and sample size, the
+# adjusted statistic, and per version the mean, sd and p-value of the
+# reference distribution with the adjusted statistic's p-value; or a `reason`
+# when the test cannot be computed.
+#
+# The adjusted statistic is Lo, Mendell & Rubin's (2001) finite-sample
+# correction, LR / (1 + 1 / (df ln n)), referred to the same distribution;
+# df is the difference in free parameters, n the number of cases.
 .vlmr_pair <- function(fit0, fit1, versions) {
   na <- function(reason) list(reason = reason)
 
@@ -344,12 +355,16 @@
                       a0$p + a1$p, .vlmr_max_params)))
 
   LR  <- 2 * (a1$ll - a0$ll)
-  out <- list(LR = LR)
+  df  <- as.integer(fit1$metrics$n_params - fit0$metrics$n_params)
+  n   <- a1$n
+  adj <- if (isTRUE(df > 0)) LR / (1 + 1 / (df * log(n))) else NA_real_
+  out <- list(LR = LR, df = df, n = n, adjusted = adj)
   for (v in versions) {
     lam <- .vlmr_eigen(a0, a1, v)
     out[[v]] <- list(mean = sum(lam),
                      sd   = sqrt(2 * sum(lam^2)),
-                     p    = .imhof(LR, lam))
+                     p    = .imhof(LR, lam),
+                     p_adjusted = if (is.na(adj)) NA_real_ else .imhof(adj, lam))
   }
   out
 }
@@ -396,4 +411,99 @@
   if ("robust" %in% versions)   tab$VLMR_p_robust <- p_rob
   attr(tab, "vlmr_detail") <- detail
   tab
+}
+
+# ------------------------------------------------------------------------------
+# 5. One pair of fits
+# ------------------------------------------------------------------------------
+
+#' Vuong-Lo-Mendell-Rubin Test of K Against K + 1 Classes
+#'
+#' @description
+#' Compares a mixture with one class fewer (`restricted`) against one with an
+#' extra class (`full`), fitted to the same data, by the likelihood-ratio
+#' statistic \eqn{2(\ell_1 - \ell_0)} referred to the weighted sum of
+#' chi-squares of Vuong (1989), as Lo, Mendell and Rubin (2001) proposed for
+#' mixtures, and by their finite-sample adjusted statistic
+#' \eqn{LR / (1 + 1 / (d \ln n))}, with \eqn{d} the difference in free
+#' parameters and \eqn{n} the number of cases, referred to the same
+#' distribution. It takes any pair of fits [`compare_mixtures()`] tests,
+#' growth mixtures from [`fit_gmm()`] included, so a growth model's number of
+#' classes can be tested on fits already in hand.
+#'
+#' Read [`compare_mixtures()`]'s section on the test before relying on it: the
+#' theorem behind the reference distribution does not hold at the point where
+#' the larger mixture reduces to the smaller one, and neither version's
+#' p-values are uniform under the null. BIC and [`blrt()`] are the better
+#' guides. Fit both models without priors (`bayes_constants` all zero) when
+#' the p-value is to be compared with a published one; the test is stated for
+#' the plain likelihood.
+#'
+#' @param restricted The model with fewer classes.
+#' @param full The model with one class more, fitted to the same data.
+#' @param version `"robust"` (the default) builds the reference distribution
+#'   from the sandwich covariance; `"standard"` from the ordinary one, Vuong's
+#'   own form (see [`compare_mixtures()`]).
+#'
+#' @return A list of class `"vlmr_test"`: `statistic` (\eqn{2 \Delta\ell}),
+#'   `df`, `mean` and `sd` of the reference distribution, `p_value`,
+#'   `adjusted` (the adjusted statistic) and `p_adjusted`, plus `version`,
+#'   `ll_restricted`, `ll_full`, `n` and `classes`.
+#'
+#' @references
+#' Lo, Y., Mendell, N. R., & Rubin, D. B. (2001). Testing the number of
+#' components in a normal mixture. *Biometrika*, *88*(3), 767-778.
+#'
+#' Vuong, Q. H. (1989). Likelihood ratio tests for model selection and
+#' non-nested hypotheses. *Econometrica*, *57*(2), 307-333.
+#'
+#' @seealso [`compare_mixtures()`], [`blrt()`].
+#'
+#' @examples
+#' \donttest{
+#' set.seed(1)
+#' n <- 400
+#' cls <- rbinom(n, 1, 0.5)
+#' y <- outer(ifelse(cls == 1, 3, 1), rep(1, 4)) +
+#'   outer(ifelse(cls == 1, 1, 0.2), 0:3) + matrix(rnorm(n * 4, 0, 0.7), n, 4)
+#' off <- list(categorical = 0, latent = 0, variances = 0)
+#' f1 <- fit_gmm(y, n_classes = 1, times = 4, random_effects = "none",
+#'               n_init = 5, random_state = 1, bayes_constants = off)
+#' f2 <- fit_gmm(y, n_classes = 2, times = 4, random_effects = "none",
+#'               n_init = 5, random_state = 1, bayes_constants = off)
+#' vlmr_test(f1, f2)
+#' }
+#' @export
+vlmr_test <- function(restricted, full, version = c("robust", "standard")) {
+  version <- match.arg(version)
+  k0 <- restricted$n_components %||% NA_integer_
+  k1 <- full$n_components %||% NA_integer_
+  if (isTRUE(k1 <= k0))
+    stop("`full` must have more classes than `restricted`; the arguments ",
+         "look reversed.", call. = FALSE)
+  res <- .vlmr_pair(restricted, full, version)
+  if (!is.null(res$reason))
+    stop("The test cannot be computed: ", res$reason, ".", call. = FALSE)
+  r <- res[[version]]
+  out <- list(statistic = res$LR, df = res$df, mean = r$mean, sd = r$sd,
+              p_value = r$p, adjusted = res$adjusted, p_adjusted = r$p_adjusted,
+              version = version, ll_restricted = restricted$metrics$ll,
+              ll_full = full$metrics$ll, n = res$n, classes = c(k0, k1))
+  class(out) <- "vlmr_test"
+  out
+}
+
+#' @export
+print.vlmr_test <- function(x, ...) {
+  cat(sprintf("\nVuong-Lo-Mendell-Rubin test, %s vs %s classes (%s)\n",
+              x$classes[1], x$classes[2], x$version))
+  cat("---------------------------------------------------------\n")
+  cat(sprintf("  LL: %.3f vs %.3f   2 x diff = %.3f   df = %d\n",
+              x$ll_restricted, x$ll_full, x$statistic, x$df))
+  cat(sprintf("  Reference distribution: mean %.3f, sd %.3f\n", x$mean, x$sd))
+  cat(sprintf("  p = %s\n", format.pval(x$p_value, digits = 4, eps = 1e-4)))
+  cat(sprintf("  Adjusted (Lo, Mendell & Rubin): %.3f, p = %s\n", x$adjusted,
+              format.pval(x$p_adjusted, digits = 4, eps = 1e-4)))
+  cat("\n")
+  invisible(x)
 }

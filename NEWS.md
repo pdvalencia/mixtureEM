@@ -90,6 +90,27 @@ delta-method standard errors: the probabilities among men and among women
 when sex moderates the association. `joint_coefficients()` keeps each row's
 gradient over the packed parameters as an attribute.
 
+**New: `vlmr_test(restricted, full)`**, the Vuong-Lo-Mendell-Rubin test of
+K against K + 1 classes on two fits already in hand, growth mixtures from
+`fit_gmm()` included, with Lo, Mendell & Rubin's (2001) adjusted statistic
+LR / (1 + 1 / (df ln n)) and its p-value beside the unadjusted one. The
+comparison tables' per-K detail (`$vlmr`) carries the adjusted statistic
+too; their columns are unchanged.
+
+Changed: the robust VLMR reference distribution keeps its orientation when
+its weights sum to a negative number, which happens when the smaller model
+is badly misspecified; it was flipped, as the standard form still is. Such a
+pair's robust mean changes sign and its p-value can change.
+
+Fixed: a one-class growth mixture (`fit_gmm(n_classes = 1)`, and an LCGA
+with Gaussian outcomes) skipped the Newton-type finish every larger model
+gets, and EM alone cannot carry the growth-factor covariance outside the
+positive semi-definite cone. Where the maximum lies there (an implied
+correlation above one), the fit stopped short of it: 0.145 below on one
+simulated set. Such fits now reach the maximum and carry the usual warning
+about the covariance; their log-likelihood, every criterion built on it, and
+every VLMR, BLRT or likelihood-ratio test against them can change.
+
 `fit_lta()` no longer stops when one random start ends with a
 log-likelihood that is not a number: that start is set aside like a start
 that failed, the fit goes on with the others, and the count is reported as

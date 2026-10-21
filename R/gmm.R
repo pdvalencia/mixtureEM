@@ -682,7 +682,7 @@ fit_gmm <- function(indicator,
       "the model without that random effect is the matching one ",
       "(random_effects = \"intercept\" keeps only the intercept's; with no ",
       "growth-factor variance left, fit_lcga())"))
-  if (!identical(.sn_psi_type(mm), "free"))
+  if (!identical(.sn_psi_type(mm), "free") && isTRUE(mm$n_components > 1L))
     fixes <- c(fixes, paste0(
       "under a covariance held equal across classes it can also mean the ",
       "classes' covariances differ and the constraint forces one value on ",

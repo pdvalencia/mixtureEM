@@ -531,7 +531,14 @@
 }
 
 .qn_mixture_supported <- function(model_state, Y) {
-  model_state$n_components >= 2L &&
+  # One class has nothing to finish where EM's M-step is the exact maximum.
+  # A growth model's is not: EM's growth-factor covariance is an average of
+  # posterior second moments and cannot leave the positive semi-definite
+  # cone, so a one-class fit whose maximum lies outside it (an implied
+  # correlation above one, a negative variance) stops short of it, while the
+  # same model with more classes is finished there.
+  (model_state$n_components >= 2L ||
+     inherits(model_state$mm, "structured_normal")) &&
     !is.null(.qn_mixture_layout(model_state, Y))
 }
 
