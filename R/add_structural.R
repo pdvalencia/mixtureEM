@@ -508,9 +508,12 @@ add_covariates <- function(fit, predictors,
 #'   model and class sizes are held fixed and the outcome model is estimated
 #'   by maximising the full likelihood, every case's class probabilities
 #'   recomputed under the joint model at each iteration. No classification
-#'   step, no correction. See `n_steps` in [fit_mixture()]; for a distal
-#'   outcome the two-step's standard errors do not yet carry the step-1
-#'   uncertainty, and the printed output says so.
+#'   step, no correction. See `n_steps` in [fit_mixture()]. Without
+#'   `covariates`, the two-step's standard errors carry step 1's
+#'   uncertainty under `se = "corrected"` (Bakk and Kuha, 2018), the class
+#'   sizes included; `"hessian"` gives step 2's observed information alone
+#'   and `"robust"` its sandwich. An outcome with `covariates` keeps the
+#'   M-step's standard errors.
 #' @param se Standard-error estimator passed on to the third step:
 #'   `"corrected"` (default), `"robust"`, or `"hessian"`. It governs the
 #'   covariate part of the third step. Under `correction = "BCH"` every

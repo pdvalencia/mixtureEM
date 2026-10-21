@@ -89,9 +89,9 @@
     #
     # The covariance is the pseudo-maximum-likelihood one of Bakk and Kuha
     # (eq. 5), R/twostep_variance.R -- not the step-3 sandwich, which is the
-    # three-step's formula. A distal-outcome structural model has no
-    # unconstrained packing there yet; confint()/vcov()/summary() fall back to
-    # the Q-function Hessian for it and say so.
+    # three-step's formula. A lone distal outcome takes the same variance with
+    # the class sizes in step 1's block; an outcome with covariates keeps the
+    # M-step's own.
     #
     # Cases listwise deleted for a missing class predictor or outcome covariate
     # (`struct_keep`) weigh zero while step 2 runs and keep their step-1

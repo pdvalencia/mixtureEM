@@ -279,6 +279,36 @@ test_that("the step-1 term is large at weak separation and vanishes at strong", 
   expect_gt(min(strong$ratio), 0.99)
 })
 
+test_that("a distal two-step takes V2 from the joint likelihood and adds step 1's term", {
+  # With a distal outcome the class sizes are step 1's, so step 2's joint
+  # log-likelihood is sum_i log sum_k pi_k P(x_i | k) f(y_i | k) with only the
+  # outcome free. Its inverse observed information, by optimHess() on the
+  # natural (mean, variance) scale, is the se = "hessian" covariance.
+  d  <- .ts_sim("binary", rho = 0.7)
+  fh <- .ts_fit(d, "binary", "outcome", n_steps = 2, se = "hessian",
+                outcome_variances = "class_specific")
+  fc <- .ts_fit(d, "binary", "outcome", n_steps = 2, se = "corrected",
+                outcome_variances = "class_specific")
+  expect_match(fh$sm$parameters$V_method, "step 2 only")
+  expect_match(fc$sm$parameters$V_method, "Two-step pseudo-ML")
+  A   <- sweep(log_likelihood(fh$mm, d$X), 2, log(fh$weights), "+")
+  nll <- function(t) -sum(logsumexp(A + cbind(
+    dnorm(d$y, t[1], sqrt(t[3]), log = TRUE),
+    dnorm(d$y, t[2], sqrt(t[4]), log = TRUE)), MARGIN = 1))
+  p   <- fh$sm$parameters
+  ref <- solve(optimHess(c(p$means, p$covariances), nll))
+  # V_pmv is (sizes, means, variances); step 1 known leaves the size block zero.
+  expect_equal(p$V_pmv[3:6, 3:6], ref, tolerance = 1e-3, ignore_attr = TRUE)
+  expect_equal(p$Sigma_mu, ref[1:2, 1:2], tolerance = 1e-3, ignore_attr = TRUE)
+  # V = V2 + G S11 G' dominates V2, and at this separation visibly.
+  Vc <- fc$sm$parameters$V_pmv[3:6, 3:6]
+  ev <- eigen(Vc - p$V_pmv[3:6, 3:6], symmetric = TRUE, only.values = TRUE)$values
+  expect_gte(min(ev), -1e-8 * max(abs(ev)))
+  expect_lt(min(sqrt(diag(ref)) / sqrt(diag(Vc))), 0.95)
+  # The sizes now carry step 1's variance into the effect-size matrix.
+  expect_gt(fc$sm$parameters$V_pmv[1, 1], 0)
+})
+
 test_that("the three se values give three estimators that confint() reads", {
   d  <- .ts_sim("binary", rho = 0.8)
   fr <- .ts_fit(d, "binary", "predictors", n_steps = 2, se = "robust")

@@ -35,7 +35,10 @@
 # are discarded and re-estimated as the intercepts of the predictor model
 # (Bakk & Kuha, sec. 2.3) -- and the variance of that block is the
 # corresponding block of the inverse step-1 information, not the inverse of
-# the block.
+# the block. With a distal outcome the class sizes are not re-estimated: they
+# enter P(k) in place of P(k | z_i), so theta1 is the item parameters plus the
+# K-1 size logits, S11 is the whole of .step1_variance()'s matrix, and theta2
+# is the outcome model on the packing the finish uses (.qn_pack_sm()).
 #
 # References
 #   Bakk, Z., & Kuha, J. (2018). Two-step estimation of models between latent
@@ -48,16 +51,26 @@
 # (the scores share its perturbed densities). Returns H22 (p2 x p2) and H12
 # (p1 x p2), both as second derivatives of the log-likelihood (negate for
 # information), and the n x p2 matrix of case-level scores in theta2. H12 is
-# NULL when the measurement model has no unconstrained packing.
-.twostep_information <- function(model_state, X, Y, w) {
+# NULL when the measurement model has no unconstrained packing. `pack` and
+# `unpack` give theta2; on a structural model that does not supply the class
+# probabilities (a distal outcome) the measurement side carries the step-1
+# class sizes and theta1 is .step1_pack()'s vector, sizes included.
+.twostep_information <- function(model_state, X, Y, w, pack = .step1_pack_sm,
+                                 unpack = .step1_unpack_sm) {
   mm <- model_state$mm
   sm <- model_state$sm
-  th2 <- .step1_pack_sm(sm)
+  th2 <- pack(sm)
   p2  <- length(th2)
   h2  <- .fd_hessian_step * pmax(1, abs(th2))
 
-  A0   <- log_likelihood(mm, X)
-  B_at <- function(v) log_likelihood(.step1_unpack_sm(sm, v), Y)
+  sizes <- !.supplies_class_probs(sm)
+  A_of  <- function(ms) {
+    A <- log_likelihood(ms$mm, X)
+    if (sizes) A <- sweep(A, 2, log(pmax(ms$weights, 1e-300)), "+")
+    A
+  }
+  A0   <- A_of(model_state)
+  B_at <- function(v) log_likelihood(unpack(sm, v), Y)
   ll   <- function(A, B) sum(w * logsumexp(A + B, MARGIN = 1))
 
   # One pair of perturbed structural densities per theta2 coordinate; the
@@ -85,9 +98,11 @@
     }
   }
 
-  th1 <- .step1_pack_mm(mm)
+  th1 <- if (sizes) .step1_pack(model_state) else .step1_pack_mm(mm)
   if (is.null(th1) || !length(th1))
     return(list(H22 = H22, H12 = NULL, S2 = S2))
+  un1 <- if (sizes) function(v) .step1_unpack(model_state, v) else
+    function(v) list(mm = .step1_unpack_mm(mm, v))
 
   p1  <- length(th1)
   h1  <- .fd_hessian_step * pmax(1, abs(th1))
@@ -95,8 +110,8 @@
   for (a in seq_len(p1)) {
     va <- th1; va[a] <- va[a] + h1[a]
     vb <- th1; vb[a] <- vb[a] - h1[a]
-    Ap <- log_likelihood(.step1_unpack_mm(mm, va), X)
-    Am <- log_likelihood(.step1_unpack_mm(mm, vb), X)
+    Ap <- A_of(un1(va))
+    Am <- A_of(un1(vb))
     for (b in seq_len(p2)) {
       H12[a, b] <- (ll(Ap, Bp[[b]]) - ll(Ap, Bm[[b]]) -
                       ll(Am, Bp[[b]]) + ll(Am, Bm[[b]])) / (4 * h1[a] * h2[b])
@@ -195,14 +210,149 @@
                           "; step-1 Hessian was not positive definite" else ""))
 }
 
-# Compute and attach the two-step variance to a covariate sub-model, the way
-# .attach_step3_covariate_vcov() does for the third step. A structural model
-# that is not a class-prediction one (a distal outcome) has no unconstrained
-# packing here and keeps the Q-function Hessian its readers already label.
+# The outcome models the distal two-step variance covers: a lone continuous
+# outcome (class means and variances) and a lone categorical one (class
+# logits). Outcomes with covariates keep the estimator their M-step attaches.
+.twostep_distal_ok <- function(sm, Y) {
+  if (inherits(sm, "distal_continuous")) return(TRUE)
+  inherits(sm, "distal_categorical") && NCOL(Y) == 1L
+}
+
+# Variance-covariance matrix of a two-step distal outcome, on .qn_pack_sm()'s
+# vector theta2, with the same three `se` choices as the covariate case. Step
+# 2 maximises the joint likelihood plus the outcome's own prior
+# (.qn_sm_prior(), zero for a continuous outcome), so its curvature joins H22.
+# Under "corrected", G = V2 I12' is d theta2_hat / d theta1 (the implicit
+# function of step 2's score equations), V = V2 + G S11 G', and `Vq` is the
+# joint covariance of (size logits, theta2): the sizes are step 1's, so their
+# block is S11's and their covariance with theta2 is G S11. Under "hessian" and
+# "robust" step 1 is taken as known and the size block is zero.
+.twostep_distal_vcov <- function(model_state, X, Y, w, se = "corrected", w1 = w) {
+  K   <- model_state$n_components
+  sm  <- model_state$sm
+  pk  <- function(s) .qn_pack_sm(s)$par
+  th2 <- pk(sm)
+  p2  <- length(th2)
+  info <- .twostep_information(model_state, X, Y, w, pk, .qn_unpack_sm)
+  lp   <- .qn_sm_prior(sm, Y, w)
+  Hp   <- .step1_fd_hessian(function(v) lp(.qn_unpack_sm(sm, v)), th2,
+                            .fd_hessian_step)
+  V2 <- pinv(-(info$H22 + Hp))
+  V2 <- (V2 + t(V2)) / 2
+  q  <- seq_len(K - 1L)
+  joint <- function(V, Sqq = matrix(0, K - 1L, K - 1L),
+                    C = matrix(0, p2, K - 1L))
+    rbind(cbind(Sqq, t(C)), cbind(C, V))
+
+  if (identical(se, "hessian"))
+    return(list(V = V2, Vq = joint(V2),
+                method = "Two-step observed information (step 2 only)"))
+
+  if (identical(se, "robust")) {
+    survey <- isTRUE(sm$has_survey_design) && length(sm$strata) == nrow(X) &&
+      length(sm$cluster) == nrow(X)
+    wtype <- model_state$weight_type %||% "sampling"
+    S2 <- info$S2 * (.meat_weights(w, wtype) / pmax(w, 1e-300))
+    D2 <- V2 %*% (.score_meat(S2, sm$strata, sm$cluster, survey,
+                              n = .meat_n(w, wtype)) - Hp) %*% V2
+    D2 <- (D2 + t(D2)) / 2
+    return(list(V = D2, Vq = joint(D2),
+                method = sprintf("Two-step sandwich (%s)",
+                                 if (isTRUE(sm$has_survey_design))
+                                   "survey-linearized" else "robust")))
+  }
+
+  th1 <- .step1_pack(model_state)
+  if (is.null(info$H12) || is.null(th1) || !length(th1))
+    return(list(V = V2, Vq = joint(V2),
+                method = paste("Two-step observed information (step 2 only);",
+                               "step-1 term unavailable for this measurement model"),
+                step1_unavailable = TRUE))
+
+  p1 <- length(th1)
+  d1_method <- if (p1 <= .step1_hessian_max) "hessian" else "outer"
+  if (d1_method == "outer")
+    message(sprintf(paste("Step-1 variance for the two-step standard errors",
+                          "uses the outer-product estimator: the measurement",
+                          "model has %d parameters (limit %d for the numerical",
+                          "Hessian)."), p1, .step1_hessian_max))
+  S1  <- .step1_case_scores(model_state, X, th1, w1)
+  d1  <- .step1_variance(model_state, X, th1, S1, w1, d1_method)
+  S11 <- d1$V
+  G   <- V2 %*% t(info$H12)
+  V   <- V2 + G %*% S11 %*% t(G)
+  V   <- (V + t(V)) / 2
+  iq  <- p1 - (K - 1L) + q
+  list(V = V,
+       Vq = joint(V, S11[iq, iq, drop = FALSE], G %*% S11[, iq, drop = FALSE]),
+       method = sprintf("Two-step pseudo-ML (Bakk and Kuha, 2018; %s step 1)%s",
+                        d1$method,
+                        if (isTRUE(d1$fallback))
+                          "; step-1 Hessian was not positive definite" else ""))
+}
+
+# Write a two-step distal variance where the step-3 readers look for one
+# (.attach_step3_distal_vcov(), R/corrections.R): a continuous outcome's
+# `Sigma_mu`, `ses` and the (sizes, means, variances) matrix `V_pmv` that
+# outcome_contrasts() takes its effect sizes from; a categorical outcome's
+# `hessian`, on the same as.vector(beta_pooled) layout.
+.store_twostep_distal <- function(sm, res, weights) {
+  K <- sm$n_components
+  V <- res$V
+  if (inherits(sm, "distal_continuous")) {
+    m <- seq_len(K)
+    sm$parameters$Sigma_mu <- V[m, m, drop = FALSE]
+    sm$parameters$ses      <- matrix(sqrt(pmax(diag(V)[m], 0)), ncol = 1)
+    pk  <- pmax(weights, 1e-12)
+    par <- c(log(pk[-K] / pk[K]), .qn_pack_sm(sm)$par)
+    ia  <- seq_len(K - 1L)
+    to_pmv <- function(th) {
+      a <- c(th[ia], 0); p <- exp(a - max(a)); p <- p / sum(p)
+      u <- .qn_unpack_sm(sm, th[-ia])$parameters
+      c(p, u$means[, 1L], rep_len(u$covariances[, 1L], K))
+    }
+    h <- 1e-4 * pmax(1, abs(par))
+    J <- vapply(seq_along(par), function(j) {
+      a <- par; a[j] <- a[j] + h[j]
+      b <- par; b[j] <- b[j] - h[j]
+      (to_pmv(a) - to_pmv(b)) / (2 * h[j])
+    }, numeric(3L * K))
+    sm$parameters$V_pmv    <- J %*% res$Vq %*% t(J)
+    sm$parameters$pk_step3 <- to_pmv(par)[seq_len(K)]
+  } else {
+    sm$parameters$hessian <- -pinv(V)
+  }
+  sm$parameters$V_method <- res$method
+  sm
+}
+
+# Compute and attach the two-step variance to the structural sub-model, the
+# way .attach_step3_covariate_vcov() does for the third step: a class
+# regression's on `V_robust`, a lone distal outcome's through
+# .store_twostep_distal(). Any other structural model keeps the variance its
+# M-step attached.
 .attach_twostep_covariate_vcov <- function(model_state, X, Y, w, se = "corrected",
                                            w1 = w) {
-  if (!inherits(model_state$sm, "covariate")) return(model_state)
   if (identical(se, "none")) return(model_state)
+  if (.twostep_distal_ok(model_state$sm, Y)) {
+    res <- tryCatch(
+      .twostep_distal_vcov(model_state, X, Y, w, se = se, w1 = w1),
+      error = function(e) {
+        warning(sprintf(
+          "Two-step outcome standard errors fell back to the M-step's: %s",
+          conditionMessage(e)), call. = FALSE)
+        NULL
+      })
+    if (is.null(res)) return(model_state)
+    if (identical(se, "corrected") && isTRUE(res$step1_unavailable))
+      .warn_step1_unavailable(model_state$mm,
+                              reported = "step 2's observed information",
+                              instead  = "hessian")
+    model_state$sm <- .store_twostep_distal(model_state$sm, res,
+                                            model_state$weights)
+    return(model_state)
+  }
+  if (!inherits(model_state$sm, "covariate")) return(model_state)
 
   res <- tryCatch(
     .twostep_covariate_vcov(model_state, X, Y, w, se = se, w1 = w1),

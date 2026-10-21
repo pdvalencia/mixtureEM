@@ -1,5 +1,20 @@
 # mixtureEM (development version)
 
+## Two-step standard errors for a distal outcome
+
+A two-step distal outcome without covariates (`add_outcome(steps = 2)`, or
+`fit_mixture(n_steps = 2, outcome = )`) now reports the pseudo-ML standard
+errors of Bakk & Kuha (2018). Under `se = "corrected"` they carry step 1's
+uncertainty, the class sizes included, and `"hessian"` and `"robust"` give
+step 2's observed information and its sandwich. Before, these fits kept the
+M-step's own standard errors, which treat every case's class probabilities
+as known and miss both parts. **Numbers move**: on one simulated two-class growth
+set the old SEs sat 2 to 4% below step 2's observed information.
+With weakly separated classes the step-1 term adds the most: the step-2-only
+SE was 0.63 to 1.00 of the corrected one. The class covariance now reaches
+`outcome_contrasts()`, effect sizes included. Estimates do not change, and
+outcomes with covariates are unchanged.
+
 ## Two-step standard errors and weighted likelihood-ratio tests on a growth step 1
 
 A two-step class-predictor model (`add_covariates(steps = 2)`) on a
