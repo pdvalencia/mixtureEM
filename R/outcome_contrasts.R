@@ -180,9 +180,13 @@
 #' covariance of the class sizes, means and variances, so the uncertainty in
 #' the sizes and the variances is carried along with that of the means. That
 #' covariance is stored by a one-step [fit_gmm()] or [fit_lcga()] outcome
-#' (the robust sandwich of [growth_estimates()]) and by
-#' `add_outcome(correction = "ML")`; for other outcome models, including the
-#' BCH correction, `effect_size = TRUE` is an error. No thresholds such as
+#' (the robust sandwich of [growth_estimates()]), by
+#' `add_outcome(correction = "ML")` and by `add_outcome(correction = "BCH")`
+#' for an outcome without covariates. Under both corrections it treats step
+#' 1's estimates as known, whatever `se` the outcome was fitted with; under
+#' BCH it is the sandwich of the BCH-weighted sizes, means and variances,
+#' and it is not formed under sampling weights. For other outcome models
+#' `effect_size = TRUE` is an error. No thresholds such as
 #' "small" or "large" are attached: what size of difference matters depends on
 #' the outcome and the field.
 #'
@@ -595,9 +599,10 @@ outcome_contrasts <- function(fit, ref = NULL,
                 V = p$V_pmv))
   }
   stop("Effect sizes need the joint covariance of the class sizes, means and ",
-       "variances of a continuous outcome, which only a one-step fit_gmm() or ",
-       "fit_lcga() outcome and an add_outcome(correction = \"ML\") outcome ",
-       "carry. They are not available for this outcome model.", call. = FALSE)
+       "variances of a continuous outcome, which a one-step fit_gmm() or ",
+       "fit_lcga() outcome and an add_outcome() outcome without covariates ",
+       "carry (under BCH, only without sampling weights). They are not ",
+       "available for this outcome model.", call. = FALSE)
 }
 
 # A one-step fit_gmm() / fit_lcga() model's growth_estimates(se = "robust")

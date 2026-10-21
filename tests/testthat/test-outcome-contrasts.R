@@ -266,8 +266,36 @@ test_that("an ML step-3 outcome reports d and omega; BCH says it cannot", {
   expect_equal(sum(p$pk_step3), 1)
   expect_output(print(oc), "Standardized LTB-omega")
   expect_null(attr(outcome_contrasts(fm), "omega"))
-  fb <- suppressMessages(add_outcome(fit, y))
-  expect_error(outcome_contrasts(fb, effect_size = TRUE), "not available")
+  # BCH: the sandwich of the weighted sizes, means and variances, its means
+  # block the means' own covariance.
+  fb <- suppressMessages(add_outcome(fit, y, correction = "BCH", se = "robust"))
+  ob <- outcome_contrasts(fb, effect_size = TRUE)
+  q  <- fb$sm$parameters
+  expect_equal(ob$d, (q$means[2, 1] - q$means[1, 1]) /
+                 sqrt(mean(q$covariances[, 1])), tolerance = 1e-8)
+  expect_equal(q$V_pmv[3:4, 3:4], q$Sigma_mu, tolerance = 1e-10)
+  expect_equal(sum(q$pk_step3), 1)
+  expect_true(ob$d_se > 0)
+})
+
+test_that("BCH variances are the signed-weight maximum", {
+  # With negative BCH weights an absolute-weight variance is not where the
+  # weighted log-likelihood peaks; the signed one is.
+  set.seed(8)
+  n <- 300; z <- rbinom(n, 1, 0.5)
+  items <- matrix(rbinom(n * 3, 1, ifelse(z == 1, 0.7, 0.3)), nrow = n)
+  y <- rnorm(n, mean = 2 * z, sd = ifelse(z == 1, 1.5, 1))
+  fit <- fit_mixture(items, n_classes = 2, measurement = "binary", n_init = 3,
+                     random_state = 1)
+  fb <- suppressMessages(add_outcome(fit, y, correction = "BCH",
+                                     variances = "class_specific", se = "robust"))
+  r <- exp(e_step(fit, fit$data, NULL)$log_resp)
+  a <- .bch_weights(r, r, rep(1, n))
+  expect_lt(min(a), 0)
+  mu <- colSums(a * y) / colSums(a)
+  v  <- colSums(a * outer(y, mu, "-")^2) / colSums(a)
+  p  <- fb$sm$parameters
+  expect_equal(sort(as.vector(p$covariances)), sort(v), tolerance = 1e-8)
 })
 
 test_that("a one-step growth outcome contrasts from the joint sandwich", {

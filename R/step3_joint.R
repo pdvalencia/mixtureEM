@@ -265,12 +265,9 @@
       m$parameters$Sigma_mu <- Vj[seq_len(K), seq_len(K), drop = FALSE]
       m$parameters$ses      <- matrix(sqrt(pmax(diag(Vj)[seq_len(K)], 0)),
                                       ncol = 1)
-      # A lone block's M-step takes its variances with absolute BCH weights, so
-      # they are not where the weighted log-likelihood peaks and their rows of
-      # V mean nothing. The means' rows do not depend on them: the mean-variance
-      # cross derivatives vanish at the weighted means.
-      if (!lone)
-        m$parameters$var_ses <- rep_len(sqrt(pmax(diag(Vj)[-seq_len(K)], 0)), K)
+      # The variances are taken with the signed weights, where the weighted
+      # log-likelihood peaks, so their rows of V are their variance too.
+      m$parameters$var_ses <- rep_len(sqrt(pmax(diag(Vj)[-seq_len(K)], 0)), K)
     } else {
       m$parameters$hessian <- -pinv(Vj)
     }

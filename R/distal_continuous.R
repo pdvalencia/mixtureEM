@@ -42,15 +42,19 @@ m_step.distal_continuous <- function(model_state, X, resp, weights = NULL, ...) 
   for (k in 1:K) {
     W_k <- resp_v[, k]
     Nk <- sum(W_k)
-    Nk_abs <- sum(abs(W_k))
 
     if (Nk > 1e-5) {
       # Point Estimate
       mu_k <- sum(W_k * Y_v) / Nk
       resids <- Y_v - mu_k
 
-      # Log-Likelihood Variance (Absolute weights)
-      var_k <- sum(abs(W_k) * resids^2) / Nk_abs
+      # The weighted log-likelihood's maximum, signed weights: the same
+      # estimator as the mean above and as the regression forms'
+      # (R/distal_continuous_pooled.R). Absolute weights inflate it under BCH,
+      # whose weights can be negative, and leave it off the maximum the
+      # step-3 likelihood and its sandwich are taken at. The floor below holds
+      # a signed estimate that comes out at or below zero.
+      var_k <- sum(W_k * resids^2) / Nk
 
       # Robust Sandwich SE (Meat / Bread^2)
       meat <- sum((W_k * resids)^2)
@@ -69,9 +73,9 @@ m_step.distal_continuous <- function(model_state, X, resp, weights = NULL, ...) 
 
   # One shared variance: the class sums of squares pooled over the classes,
   #   sigma^2 = sum_k sum_i w_ik (y_i - mu_k)^2 / sum_k sum_i w_ik,
-  # with the same absolute weights as the class-specific form.
+  # with the same signed weights as the class-specific form.
   if (identical(model_state$variances, "equal")) {
-    A <- abs(resp_v)
+    A <- resp_v
     den <- sum(A)
     pooled <- if (den > 1e-5) sum(A * outer(Y_v, means, "-")^2) / den else 1e-5
     vars[] <- max(pooled, 1e-5)

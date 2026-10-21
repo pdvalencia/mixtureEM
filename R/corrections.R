@@ -237,6 +237,8 @@ fit_bch <- function(model_state, X, Y, assignment = "proportional",
         }
       }
       model_state$sm$parameters$Sigma_mu <- Sigma_mu
+      model_state$sm <- .attach_bch_distal_pmv(model_state$sm, Y_vec,
+                                               bch_resp, obs, weights)
     }
   }
 
@@ -609,6 +611,49 @@ fit_ml <- function(model_state, X, Y, max_iter = 1000, abs_tol = 1e-10,
   model_state$lower_bound <- ll_case
 
   return(model_state)
+}
+
+# The BCH counterpart of the ML step 3's V_pmv: the joint covariance of the
+# class sizes, means and variances of a lone continuous outcome, for the
+# effect sizes in outcome_contrasts(). Under BCH each is a weighted moment of
+# the BCH weights a_ik, so the estimating equations per case are
+#   pi:  a_ik - pi_k                        (every case in step 3)
+#   mu:  o_i a_ik (y_i - mu_k)              (o_i: the outcome observed)
+#   v:   o_i a_ik ((y_i - mu_k)^2 - v_k)    (class-specific), or the sum over
+#        k of the same with one v           (equal variances)
+# and the covariance is the sandwich A^-1 B A^-1 with the weights treated as
+# known, as Sigma_mu above is: A is diagonal at the solution (N_k, the summed
+# weights), B the cross-products of the equations. Its means block is Sigma_mu
+# exactly. Left unset under sampling weights, whose meat Sigma_mu does not
+# carry either, so effect sizes are refused there rather than mixed.
+.attach_bch_distal_pmv <- function(sm, y, a, obs, weights = NULL) {
+  K <- ncol(a)
+  if (!is.null(weights) && any(abs(weights - 1) > 1e-12)) return(sm)
+  p <- sm$parameters
+  mu <- as.vector(p$means[, 1L])
+  v  <- as.vector(p$covariances[, 1L])
+  # A shared variance is stored once per class; the model says which it is.
+  eq <- identical(sm$variances, "equal") || length(v) == 1L
+  inc <- rowSums(abs(a)) > 0
+  a   <- a[inc, , drop = FALSE]; o <- obs[inc]; yo <- ifelse(o, y[inc], 0)
+  n   <- nrow(a)
+  pk  <- colSums(a) / n
+  R   <- outer(yo, mu, "-")                         # n x K, y_i - mu_k
+  ao  <- a * o
+  Pp  <- sweep(a, 2, pk, "-")
+  Pm  <- ao * R
+  Pv  <- if (eq) matrix(rowSums(ao * R^2) - o * v[1L], ncol = 1L)
+         else ao * sweep(R^2, 2, v, "-")
+  Nk  <- colSums(ao)
+  Ad  <- c(rep(n, K), Nk, if (eq) sum(Nk) else Nk)
+  Psi <- cbind(Pp, Pm, Pv)
+  V   <- crossprod(Psi) / outer(Ad, Ad)
+  # The (sizes, means, variances) layout, a shared variance repeated per class.
+  iv  <- if (eq) rep(2L * K + 1L, K) else 2L * K + seq_len(K)
+  idx <- c(seq_len(2L * K), iv)
+  sm$parameters$V_pmv    <- V[idx, idx, drop = FALSE]
+  sm$parameters$pk_step3 <- pk
+  sm
 }
 
 # The ML step-3 covariance of a lone continuous outcome's parameters: the class

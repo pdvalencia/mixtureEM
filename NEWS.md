@@ -111,6 +111,22 @@ simulated set. Such fits now reach the maximum and carry the usual warning
 about the covariance; their log-likelihood, every criterion built on it, and
 every VLMR, BLRT or likelihood-ratio test against them can change.
 
+`outcome_contrasts(effect_size = TRUE)` now works under the BCH correction
+for a continuous outcome without covariates: Cohen's d for every contrast
+and the LTB-omega, with delta-method standard errors from the sandwich of
+the BCH-weighted class sizes, means and variances. As under ML, step 1's
+estimates are treated as known in these standard errors. Not available
+under sampling weights.
+
+Fixed: under the BCH correction, the class variances of a continuous outcome
+without covariates were taken with the absolute values of the BCH weights,
+which inflates them wherever weights are negative and leaves them off the
+maximum of the weighted log-likelihood the correction is defined by (one
+simulated three-class set: .901 for a variance of .824). They now take the
+signed weights, as the outcome models with covariates already did. Every
+such fit with negative weights reports different variances and step-3
+log-likelihood; the class means and their standard errors do not change.
+
 `fit_lta()` no longer stops when one random start ends with a
 log-likelihood that is not a number: that start is set aside like a start
 that failed, the fit goes on with the others, and the count is reported as

@@ -111,9 +111,13 @@ Standard errors and intervals are by the delta method from the joint
 covariance of the class sizes, means and variances, so the uncertainty in
 the sizes and the variances is carried along with that of the means. That
 covariance is stored by a one-step \code{\link[=fit_gmm]{fit_gmm()}} or \code{\link[=fit_lcga]{fit_lcga()}} outcome
-(the robust sandwich of \code{\link[=growth_estimates]{growth_estimates()}}) and by
-\code{add_outcome(correction = "ML")}; for other outcome models, including the
-BCH correction, \code{effect_size = TRUE} is an error. No thresholds such as
+(the robust sandwich of \code{\link[=growth_estimates]{growth_estimates()}}), by
+\code{add_outcome(correction = "ML")} and by \code{add_outcome(correction = "BCH")}
+for an outcome without covariates. Under both corrections it treats step
+1's estimates as known, whatever \code{se} the outcome was fitted with; under
+BCH it is the sandwich of the BCH-weighted sizes, means and variances,
+and it is not formed under sampling weights. For other outcome models
+\code{effect_size = TRUE} is an error. No thresholds such as
 "small" or "large" are attached: what size of difference matters depends on
 the outcome and the field.
 }
