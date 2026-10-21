@@ -1,5 +1,14 @@
 # mixtureEM (development version)
 
+## Class enumeration with covariates in the model
+
+`compare_mixtures()` gains `predictors`. With it, every model with two or
+more classes is fitted in one step with a regression of class membership on
+the covariates, the one-class model is the measurement model, and cases
+missing a predictor are dropped once so that every row, and every VLMR test
+between rows, describes the same sample. It requires `n_steps = 1`. Without
+`predictors` the sweep is unchanged, and remains the recommended first step.
+
 ## The VLMR test on latent transition models
 
 `vlmr_test()` now takes two `fit_lta()` fits that differ by one status,

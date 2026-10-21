@@ -4301,9 +4301,10 @@ print.mixture_model <- function(x, ...) {
 #' Compare Mixture Models Across a Range of Class Numbers
 #'
 #' @description
-#' Fits a sequence of measurement-only mixture models, one for each value of
-#' \code{k} in \code{k_range}, and returns a table of fit indices to guide
-#' class enumeration. The best model according to BIC is identified
+#' Fits a sequence of mixture models, one for each value of \code{k} in
+#' \code{k_range}, and returns a table of fit indices to guide class
+#' enumeration. The models are measurement-only unless \code{predictors} is
+#' given. The best model according to BIC is identified
 #' automatically.
 #'
 #' @details
@@ -4376,6 +4377,20 @@ print.mixture_model <- function(x, ...) {
 #' @param measurement Character string or named list specifying the measurement
 #'   model type. Required; see \code{\link{fit_mixture}} for the accepted values
 #'   and for why there is no default.
+#' @param predictors Optional covariates of class membership: a matrix, data
+#'   frame or vector with one row per row of `X`. Every model with two or more
+#'   classes is then fitted in one step with a multinomial-logit regression of
+#'   class on them, which is a different sweep from the default: each K's
+#'   classes are estimated together with the covariates' effects, so the
+#'   covariates help define them. The one-class model has no regression, since
+#'   there is no second class to predict. Cases missing a predictor are dropped
+#'   once, before any K is fitted, so every row of the table describes the same
+#'   sample (`missing_predictors = "mean"`, passed through `...`, completes them
+#'   instead). Requires `n_steps = 1`. The default sweep without covariates is
+#'   the usual first step (Masyn, 2013): with direct effects of a covariate on
+#'   the items left out of the model, enumeration with covariates suggested
+#'   too many classes when those effects were strong and the sample large
+#'   (Arch & Nylund-Gibson, 2026). Default `NULL`.
 #' @param n_init Positive integer. Number of random restarts per model.
 #'   Default is \code{10}.
 #' @param n_steps Integer. Estimation method: \code{1}, \code{2}, or \code{3}.
@@ -4518,6 +4533,7 @@ print.mixture_model <- function(x, ...) {
 #'
 #' @export
 compare_mixtures <- function(X, k_range = 1:5, measurement,
+                             predictors = NULL,
                              n_init = 10, n_steps = 1,
                              vlmr = c("none", "standard", "robust", "both"),
                              n_cores = .default_n_cores(),
@@ -4533,6 +4549,10 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
       "All values in k_range must be >= 1. Got invalid values: %s",
       paste(sort(unique(k_range[k_range < 1L])), collapse = ", ")
     ))
+  if (!is.null(predictors) && n_steps != 1)
+    stop("`predictors` enters the classes only in a one-step fit: a ",
+         "stepwise step 1 is fitted without them, so the table would be ",
+         "the one without `predictors`. Use `n_steps = 1`.", call. = FALSE)
   cat(sprintf("Running Model Selection across K = %d to %d...\n\n",
               min(k_range), max(k_range)))
 
@@ -4554,12 +4574,34 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
       measurement %in% c("continuous", "continuous_nan",
                          "gaussian_diag", "gaussian_diag_nan")
 
+  # A class-membership regression at every K above one. The cases missing a
+  # predictor are dropped here, once, rather than by each fit: the one-class
+  # model has no regression, so left to itself it would keep them, and its
+  # LL, BIC and VLMR row would describe a different sample from the rest.
+  if (!is.null(predictors)) {
+    predictors <- prepare_covariates(predictors)
+    if (nrow(predictors) != nrow(X))
+      stop(sprintf("`predictors` must have one row per case (expected %d, got %d).",
+                   nrow(X), nrow(predictors)), call. = FALSE)
+    keep <- .predictor_keep(predictors, dots$missing_predictors %||% "listwise",
+                            whole_case = TRUE)
+    if (!is.null(keep)) {
+      X          <- X[keep, , drop = FALSE]
+      predictors <- predictors[keep, , drop = FALSE]
+      for (a in intersect(c("weights", "strata", "cluster"), names(dots)))
+        if (length(dots[[a]]) == length(keep)) dots[[a]] <- dots[[a]][keep]
+    }
+  }
+
   results <- list()
   models  <- list()
   for (k in k_range) {
     cat(sprintf("Fitting %d-class model...\n", k))
+    regress <- !is.null(predictors) && k > 1L
     fit <- do.call(fit_mixture_internal,
-                   c(list(X = X, Y = NULL, n_components = k,
+                   c(list(X = X, Y = if (regress) predictors,
+                          structural = if (regress) "covariate",
+                          n_components = k,
                           measurement = measurement,
                           n_steps = n_steps, n_init = n_init,
                           n_cores = n_cores), dots))

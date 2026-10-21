@@ -8,6 +8,7 @@ compare_mixtures(
   X,
   k_range = 1:5,
   measurement,
+  predictors = NULL,
   n_init = 10,
   n_steps = 1,
   vlmr = c("none", "standard", "robust", "both"),
@@ -24,6 +25,21 @@ compare_mixtures(
 \item{measurement}{Character string or named list specifying the measurement
 model type. Required; see \code{\link{fit_mixture}} for the accepted values
 and for why there is no default.}
+
+\item{predictors}{Optional covariates of class membership: a matrix, data
+frame or vector with one row per row of \code{X}. Every model with two or more
+classes is then fitted in one step with a multinomial-logit regression of
+class on them, which is a different sweep from the default: each K's
+classes are estimated together with the covariates' effects, so the
+covariates help define them. The one-class model has no regression, since
+there is no second class to predict. Cases missing a predictor are dropped
+once, before any K is fitted, so every row of the table describes the same
+sample (\code{missing_predictors = "mean"}, passed through \code{...}, completes them
+instead). Requires \code{n_steps = 1}. The default sweep without covariates is
+the usual first step (Masyn, 2013): with direct effects of a covariate on
+the items left out of the model, enumeration with covariates suggested
+too many classes when those effects were strong and the sample large
+(Arch & Nylund-Gibson, 2026). Default \code{NULL}.}
 
 \item{n_init}{Positive integer. Number of random restarts per model.
 Default is \code{10}.}
@@ -104,9 +120,10 @@ view by default, \code{columns = "all"} for every column), and
 \code{\link[=plot.mixture_comparison]{plot()}} draws the criteria against K.
 }
 \description{
-Fits a sequence of measurement-only mixture models, one for each value of
-\code{k} in \code{k_range}, and returns a table of fit indices to guide
-class enumeration. The best model according to BIC is identified
+Fits a sequence of mixture models, one for each value of \code{k} in
+\code{k_range}, and returns a table of fit indices to guide class
+enumeration. The models are measurement-only unless \code{predictors} is
+given. The best model according to BIC is identified
 automatically.
 }
 \details{

@@ -60,6 +60,36 @@ test_that("VLMR is off by default", {
   expect_null(fit$vlmr)
 })
 
+test_that("compare_mixtures() with predictors sweeps one sample", {
+  set.seed(6)
+  n <- 200
+  z <- rnorm(n)
+  cls <- rbinom(n, 1, plogis(z))
+  X <- vapply(1:5, function(j) rbinom(n, 1, ifelse(cls == 1, 0.8, 0.2)),
+              numeric(n))
+  z[c(3, 50, 77)] <- NA
+
+  res <- suppressMessages(capture.output(
+    fit <- compare_mixtures(X, k_range = 1:3, measurement = "binary",
+                            predictors = data.frame(z = z),
+                            n_init = 2, vlmr = "standard")))
+  m <- fit$models
+
+  # The one-class model has no regression but loses the same three cases.
+  expect_true(all(vapply(m, function(f) nrow(f$data), 1) == n - 3))
+  expect_null(m$K1$sm)
+  expect_true(inherits(m$K2$sm, "covariate"))
+  expect_true(inherits(m$K3$sm, "covariate"))
+  res <- capture.output(k1 <- compare_mixtures(X[-c(3, 50, 77), ], k_range = 1,
+                                               measurement = "binary"))
+  expect_lt(abs(fit$fit_table$LL[1] - k1$fit_table$LL[1]), 1e-6)
+  expect_true(all(is.finite(fit$fit_table$VLMR_LR[1:2])))
+
+  expect_error(compare_mixtures(X, k_range = 1:2, measurement = "binary",
+                                predictors = data.frame(z = z), n_steps = 3),
+               "one-step")
+})
+
 test_that("vlmr_test() on two growth fits: the adjusted statistic and its p-value", {
   set.seed(51)
   n <- 300
