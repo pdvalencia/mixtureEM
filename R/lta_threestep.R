@@ -709,9 +709,11 @@
   # unflagged copy prices the transition-free model correctly. A family whose
   # prior has no closed form gives NA, and the plain likelihood is used.
   lp1 <- function(r)
-    .lta_log_prior(.lta_par_unpack(r[src], s1, lay1), X1c, alpha)
-  if (is.na(lp1(r0))) lp1 <- function(r) 0
-  Hp1 <- .step1_fd_hessian(lp1, r0, .fd_hessian_step)
+    .lta_log_prior(.lta_par_unpack(r[src], s1, lay1, average = FALSE), X1c,
+                   alpha)
+  Hp1 <- if (.lta_prior_is_zero(s1, alpha) || is.na(lp1(r0)))
+    matrix(0, length(r0), length(r0)) else
+    .step1_fd_hessian(lp1, r0, .fd_hessian_step)
   S11 <- .psd_pinv(-(.step1_fd_hessian(ll1, r0) + Hp1))
   S11 <- (S11 + t(S11)) / 2
 

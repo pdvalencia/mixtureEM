@@ -2686,9 +2686,13 @@ fit_lta <- function(indicators,
 
   marg <- if (is.null(state$ri))
     tryCatch(.lta_prior_marginals(state, X), error = function(e) NULL)
-  lp <- function(p) .lta_log_prior(.lta_par_unpack(p, state, layout), X, alpha,
-                                   marg)
-  Hp <- if (is.na(lp(par))) matrix(0, length(par), length(par)) else
+  lp <- function(p) .lta_log_prior(.lta_par_unpack(p, state, layout,
+                                                   average = FALSE),
+                                   X, alpha, marg)
+  # A prior that is zero everywhere has zero curvature; differencing it costs
+  # 2p(p + 1) evaluations for nothing.
+  no_prior <- .lta_prior_is_zero(state, alpha) || is.na(lp(par))
+  Hp <- if (no_prior) matrix(0, length(par), length(par)) else
     .step1_fd_hessian(lp, par, .fd_hessian_step)
 
   # Hn, the prior's curvature as the sandwich's meat takes it: on each
@@ -2698,7 +2702,7 @@ fit_lta <- function(indicators,
   # carried back linearly. On the log-sd packing that is Hp plus twice the
   # prior's gradient on each log-sd coordinate.
   Hn  <- Hp
-  if (!is.na(lp(par))) {
+  if (!no_prior) {
     end <- cumsum(vapply(layout, function(b) as.numeric(b$len), numeric(1)))
     for (i in which(vapply(layout, `[[`, "", "kind") == "log_sd")) {
       for (j in end[i] - layout[[i]]$len + seq_len(layout[[i]]$len)) {

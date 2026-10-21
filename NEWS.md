@@ -29,6 +29,11 @@ start failed". The padding's unanswered item was normalised as 0/0; an item
 no case answers is now held flat in the ordinal M-step, which changes no
 fit that ran before.
 
+Standard errors of `fit_lta()` and `fit_joint_classes()` with covariates
+are computed faster: about three times faster without priors, a third
+faster with the default priors. Every estimate and standard error is
+unchanged.
+
 ## Three-step latent transition SEs with item covariates carry step 1's uncertainty
 
 **Standard errors grow for `fit_lta(n_steps = 3, predictors_items = )`.**

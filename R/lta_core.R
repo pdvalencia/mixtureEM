@@ -981,8 +981,12 @@
 }
 
 # vector -> state. The inverse of .lta_par_pack(), writing an invariant item's
-# one parameter block to every occasion that shares it.
-.lta_par_unpack <- function(par, state, layout) {
+# one parameter block to every occasion that shares it. `average = FALSE` skips
+# re-averaging a covariate model's delta/tau tables over the cases: they are a
+# report, and neither the likelihood nor .lta_log_prior() reads them once the
+# coefficients exist, so a caller differencing the prior thousands of times
+# (the SE Hessians) gets the same numbers without paying for them.
+.lta_par_unpack <- function(par, state, layout, average = TRUE) {
   K  <- state$n_statuses
   Tn <- state$n_times
   C  <- state$n_classes %||% 1L
@@ -1064,12 +1068,12 @@
   # implied by the just-unpacked coefficients, the same tail
   # .lta_mstep_delta_cov()/.lta_mstep_tau_cov() run after every M-step
   # (R/lta_covariates.R:110-118, :186-195).
-  if (!is.null(state$delta_beta)) {
+  if (average && !is.null(state$delta_beta)) {
     w <- state$weights_vec
     state$delta <- colSums(exp(.lta_log_delta(state)) * w) / sum(w)
     state$delta_c[[1L]] <- state$delta
   }
-  if (!is.null(state$tau_beta)) {
+  if (average && !is.null(state$tau_beta)) {
     state$tau <- .lta_cov_average_tau(state)
     state$tau_c[[1L]] <- state$tau
   }
@@ -1242,6 +1246,18 @@
     for (pc in .lta_cov_prior_pieces(state, alpha))
       val <- val + .lta_cov_prior_value(pc)
   val
+}
+
+# TRUE when .lta_log_prior() is zero at every parameter value, so a caller can
+# skip differencing it. Mirrors that function's arms; anything it prices
+# through another route (RI, the `blocks` families) answers FALSE.
+.lta_prior_is_zero <- function(state, alpha) {
+  if (!is.null(state$ri) || alpha > 0) return(FALSE)
+  if (isTRUE(state$mm_fixed)) return(TRUE)
+  fam <- class(state$mm$models[[1]])[1]
+  if (fam %in% c("gaussian_unit", "gaussian_unit_nan")) return(TRUE)
+  fam %in% c("bernoulli", "bernoulli_nan", "ordinal", "ordinal_nan") &&
+    .bayes_alpha(state$mm$models[[1]], "categorical") <= 0
 }
 
 .lta_log_prior <- function(state, X, alpha, marginals = NULL) {

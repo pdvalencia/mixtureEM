@@ -359,9 +359,10 @@
     tryCatch(.lta_prior_marginals(state, X), error = function(e) NULL)
   lp2 <- function(v) {
     p <- par; p[idx2] <- v
-    .lta_log_prior(.lta_par_unpack(p, state, layout), X, alpha, marg)
+    .lta_log_prior(.lta_par_unpack(p, state, layout, average = FALSE), X,
+                   alpha, marg)
   }
-  Hp22 <- if (is.na(lp2(par[idx2]))) 0 else
+  Hp22 <- if (.lta_prior_is_zero(state, alpha) || is.na(lp2(par[idx2]))) 0 else
     .step1_fd_hessian(lp2, par[idx2], .fd_hessian_step)
   V2 <- .psd_pinv(-(info$H22 + Hp22))
   V2 <- (V2 + t(V2)) / 2
