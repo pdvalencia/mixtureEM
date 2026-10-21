@@ -222,10 +222,10 @@
 # has no unconstrained packing (`group_prevalence`), a fit that was not a
 # genuine one-step joint EM (`n_steps != 1`, so `mm` and `sm` were never
 # estimated under one shared E-step), or a measurement model with no
-# unconstrained packing at all. Restricted to `mixture_model` fits for the same
-# reason `.vlmr_pair()` is: an `lta_model`'s state does not share
-# `.joint_pack()`'s field names (`n_components`, `weights`), so calling it in
-# would go straight to malformed output, never a clean NULL.
+# unconstrained packing at all. Restricted to `mixture_model` fits: an
+# `lta_model`'s state does not share `.joint_pack()`'s field names
+# (`n_components`, `weights`), so calling it in would go straight to malformed
+# output, never a clean NULL. LTAs go through `.lta_scaling_pieces()` below.
 .scaling_pieces <- function(info) {
   if (!inherits(info$fit, "mixture_model")) return(NULL)
   pieces <- .vlmr_pieces(info$fit)
@@ -258,34 +258,66 @@
 # whose count stops matching. A wrong number silently returned is worse than
 # none.
 .lta_scaling_pieces <- function(info) {
-  fit <- info$fit
-  if (!inherits(fit, "lta_model")) return(NULL)
-  if (!.lta_par_packable(fit)) return(NULL)
+  if (!inherits(info$fit, "lta_model")) return(NULL)
+  pieces <- .vlmr_lta_pieces(info$fit)
+  if (is.null(pieces)) return(NULL)
+  A <- -pieces$A
+  B <- if (isTRUE(info$has_survey_design))
+    compute_survey_B(pieces$s, info$strata, info$cluster)
+  else
+    crossprod(pieces$s)
+  list(c = sum(diag(.psd_pinv(A) %*% B)) / pieces$p, p = pieces$p)
+}
+
+# `.vlmr_pieces()` for an `lta_model`: weighted case scores `s`, the Hessian
+# `A` of the summed plain log-likelihood, `ll`, `p` and `n`, on the packing of
+# `.lta_par_layout()`. Shared by the VLMR test and the scaling factor above.
+#
+# A chain with one status has no status posterior to score, so
+# `.lta_score_matrix()` refuses it; its scores are taken here by central
+# differences of `.lta_ll_case()`, as `.vlmr_pieces()` takes every mixture
+# model's. The packing itself needs no change at one status: the initial-status
+# block is empty and there are no transition rows. Without this the most common
+# comparison, one status against two, could not be tested.
+.vlmr_lta_pieces <- function(fit) {
   X <- fit$data
   if (is.null(X)) return(NULL)
+  one_status <- fit$n_statuses == 1L && (fit$n_classes %||% 1L) == 1L &&
+    is.null(fit$ri) && is.null(fit$delta_beta) && is.null(fit$tau_beta) &&
+    class(fit$mm$models[[1]])[1] %in%
+      c("bernoulli", "bernoulli_nan", "gaussian_diag", "gaussian_diag_nan",
+        "gaussian_unit", "gaussian_unit_nan", "ordinal", "ordinal_nan")
+  if (!one_status && !.lta_par_packable(fit)) return(NULL)
 
-  sc <- .lta_score_matrix(fit, X)
-  if (is.null(sc) || isTRUE(sc$conditional)) return(NULL)
+  layout  <- .lta_par_layout(fit)
+  par     <- .lta_par_pack(fit, layout)
+  p       <- length(par)
+  if (!p || p != fit$n_params) return(NULL)
+  n       <- nrow(X)
+  w       <- fit$weights_vec %||% rep(1, n)
+  case_ll <- function(v) .lta_ll_case(fit, X, v, layout)
 
-  layout <- .lta_par_layout(fit)
-  par    <- .lta_par_pack(fit, layout)
-  p      <- length(par)
-  if (!p || p != fit$n_params || p != ncol(sc$S)) return(NULL)
+  if (one_status) {
+    h <- .step1_fd_step * pmax(1, abs(par))
+    s <- vapply(seq_len(p), function(m) {
+      a <- par; a[m] <- a[m] + h[m]
+      b <- par; b[m] <- b[m] - h[m]
+      w * (case_ll(a) - case_ll(b)) / (2 * h[m])
+    }, numeric(n))
+    dim(s) <- c(n, p)
+  } else {
+    # The analytic scores, checked against central differences to 1e-5
+    # relative in tests/testthat/test-lta-refine.R.
+    sc <- .lta_score_matrix(fit, X)
+    if (is.null(sc) || isTRUE(sc$conditional) || ncol(sc$S) != p) return(NULL)
+    s <- sweep(sc$S, 1, w, "*")
+  }
 
-  w <- fit$weights_vec %||% rep(1, nrow(X))
-  s <- sweep(sc$S, 1, w, "*")
-  A <- -.step1_fd_hessian(
-    function(v) sum(w * .lta_ll_case(fit, X, v, layout)), par)
-  B <- if (isTRUE(info$has_survey_design))
-    compute_survey_B(s, info$strata, info$cluster)
-  else
-    crossprod(s)
-  list(c = sum(diag(.psd_pinv(A) %*% B)) / p, p = p)
+  ll <- function(v) sum(w * case_ll(v))
+  list(s = s, A = .step1_fd_hessian(ll, par), ll = ll(par), p = p, n = n)
 }
 
 # Which scaling-factor implementation a nested-model comparison needs.
-# `vlmr_test()` carries the identical dispatch gap and will want this seam;
-# leaving it here is the whole of the preparation for it.
 .pieces_for <- function(info) {
   if (inherits(info$fit, "lta_model")) .lta_scaling_pieces(info)
   else .scaling_pieces(info)
@@ -336,15 +368,21 @@
 .vlmr_pair <- function(fit0, fit1, versions) {
   na <- function(reason) list(reason = reason)
 
-  if (!inherits(fit0, "mixture_model") || !inherits(fit1, "mixture_model"))
-    return(na("the test is available for mixture models only"))
+  lta <- c(inherits(fit0, "lta_model"), inherits(fit1, "lta_model"))
+  if (any(lta) && !all(lta))
+    return(na("an LTA can only be tested against another LTA"))
+  if (!all(lta) &&
+      (!inherits(fit0, "mixture_model") || !inherits(fit1, "mixture_model")))
+    return(na("the test is available for mixture models and LTAs only"))
   if (is.null(fit0$data) || is.null(fit1$data) ||
       !identical(dim(fit0$data), dim(fit1$data)) ||
       !isTRUE(all.equal(fit0$data, fit1$data, check.attributes = FALSE)))
     return(na("the two models were not fit on the same data"))
 
-  a0 <- .vlmr_pieces(fit0, finish_packing = TRUE)
-  a1 <- .vlmr_pieces(fit1, finish_packing = TRUE)
+  pieces <- if (all(lta)) function(f) .vlmr_lta_pieces(f)
+            else function(f) .vlmr_pieces(f, finish_packing = TRUE)
+  a0 <- pieces(fit0)
+  a1 <- pieces(fit1)
   if (is.null(a0) || is.null(a1))
     return(na("this measurement model has no packable parameter vector"))
   if (a0$p + a1$p > .vlmr_max_params)
@@ -426,7 +464,11 @@
 #' parameters and \eqn{n} the number of cases, referred to the same
 #' distribution. It takes any pair of fits [`compare_mixtures()`] tests,
 #' growth mixtures from [`fit_gmm()`] included, so a growth model's number of
-#' classes can be tested on fits already in hand.
+#' classes can be tested on fits already in hand. It also takes two latent
+#' transition models from [`fit_lta()`] that differ by one status, one status
+#' against two included, with the same items, occasions and options otherwise
+#' (`smoothing = 0` and `bayes_constants` all zero for a published
+#' comparison).
 #'
 #' Read [`compare_mixtures()`]'s section on the test before relying on it: the
 #' theorem behind the reference distribution does not hold at the point where
@@ -436,8 +478,9 @@
 #' the p-value is to be compared with a published one; the test is stated for
 #' the plain likelihood.
 #'
-#' @param restricted The model with fewer classes.
-#' @param full The model with one class more, fitted to the same data.
+#' @param restricted The model with fewer classes (statuses, for an LTA).
+#' @param full The model with one class (status) more, fitted to the same
+#'   data.
 #' @param version `"robust"` (the default) builds the reference distribution
 #'   from the sandwich covariance; `"standard"` from the ordinary one, Vuong's
 #'   own form (see [`compare_mixtures()`]).
@@ -445,7 +488,8 @@
 #' @return A list of class `"vlmr_test"`: `statistic` (\eqn{2 \Delta\ell}),
 #'   `df`, `mean` and `sd` of the reference distribution, `p_value`,
 #'   `adjusted` (the adjusted statistic) and `p_adjusted`, plus `version`,
-#'   `ll_restricted`, `ll_full`, `n` and `classes`.
+#'   `ll_restricted`, `ll_full`, `n` and `classes` (the two numbers of
+#'   statuses, for an LTA).
 #'
 #' @references
 #' Lo, Y., Mendell, N. R., & Rubin, D. B. (2001). Testing the number of
@@ -473,8 +517,8 @@
 #' @export
 vlmr_test <- function(restricted, full, version = c("robust", "standard")) {
   version <- match.arg(version)
-  k0 <- restricted$n_components %||% NA_integer_
-  k1 <- full$n_components %||% NA_integer_
+  k0 <- restricted$n_components %||% restricted$n_statuses %||% NA_integer_
+  k1 <- full$n_components %||% full$n_statuses %||% NA_integer_
   if (isTRUE(k1 <= k0))
     stop("`full` must have more classes than `restricted`; the arguments ",
          "look reversed.", call. = FALSE)
@@ -485,15 +529,16 @@ vlmr_test <- function(restricted, full, version = c("robust", "standard")) {
   out <- list(statistic = res$LR, df = res$df, mean = r$mean, sd = r$sd,
               p_value = r$p, adjusted = res$adjusted, p_adjusted = r$p_adjusted,
               version = version, ll_restricted = restricted$metrics$ll,
-              ll_full = full$metrics$ll, n = res$n, classes = c(k0, k1))
+              ll_full = full$metrics$ll, n = res$n, classes = c(k0, k1),
+              unit = if (inherits(full, "lta_model")) "statuses" else "classes")
   class(out) <- "vlmr_test"
   out
 }
 
 #' @export
 print.vlmr_test <- function(x, ...) {
-  cat(sprintf("\nVuong-Lo-Mendell-Rubin test, %s vs %s classes (%s)\n",
-              x$classes[1], x$classes[2], x$version))
+  cat(sprintf("\nVuong-Lo-Mendell-Rubin test, %s vs %s %s (%s)\n",
+              x$classes[1], x$classes[2], x$unit %||% "classes", x$version))
   cat("---------------------------------------------------------\n")
   cat(sprintf("  LL: %.3f vs %.3f   2 x diff = %.3f   df = %d\n",
               x$ll_restricted, x$ll_full, x$statistic, x$df))

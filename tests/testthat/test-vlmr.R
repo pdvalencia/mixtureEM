@@ -95,3 +95,35 @@ test_that("a one-class growth model is finished like a larger one", {
                n_cores = 1)
   expect_false(is.null(f$qn_finish))
 })
+
+test_that("vlmr_test() on two LTAs, one status against two included", {
+  set.seed(9)
+  n <- 300
+  s1 <- rbinom(n, 1, 0.4) + 1
+  s2 <- ifelse(runif(n) < 0.85, s1, 3 - s1)
+  pr <- rbind(c(.8, .8, .75, .7), c(.2, .25, .2, .3))
+  gen <- function(s) t(vapply(s, function(k) rbinom(4, 1, pr[k, ]), numeric(4)))
+  y <- cbind(gen(s1), gen(s2))
+  f <- lapply(1:3, function(k) fit_lta(y, n_statuses = k, times = 2,
+    n_init = 5, random_state = 1, smoothing = 0,
+    bayes_constants = list(categorical = 0), n_cores = 1,
+    standard_errors = FALSE))
+  # One status has no status posterior to score, so its scores are central
+  # differences; at the maximum they still sum to zero.
+  a <- .vlmr_lta_pieces(f[[1]])
+  expect_equal(a$p, f[[1]]$n_params)
+  expect_lt(max(abs(colSums(a$s))), 1e-4)
+  for (k in 1:2) for (v in c("standard", "robust")) {
+    r <- vlmr_test(f[[k]], f[[k + 1]], v)
+    expect_equal(r$statistic, 2 * (f[[k + 1]]$metrics$ll - f[[k]]$metrics$ll),
+                 tolerance = 1e-6)
+    expect_equal(r$df, f[[k + 1]]$n_params - f[[k]]$n_params)
+    expect_true(is.finite(r$mean) && r$sd > 0 && r$p_value >= 0 &&
+                  r$p_value <= 1)
+  }
+  expect_output(print(r), "statuses")
+  g <- fit_mixture(y[, 1:4], n_classes = 2, measurement = "binary",
+                   n_init = 2, random_state = 1,
+                   n_cores = 1)
+  expect_error(vlmr_test(g, f[[3]]), "another LTA")
+})

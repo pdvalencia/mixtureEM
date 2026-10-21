@@ -7,9 +7,10 @@
 vlmr_test(restricted, full, version = c("robust", "standard"))
 }
 \arguments{
-\item{restricted}{The model with fewer classes.}
+\item{restricted}{The model with fewer classes (statuses, for an LTA).}
 
-\item{full}{The model with one class more, fitted to the same data.}
+\item{full}{The model with one class (status) more, fitted to the same
+data.}
 
 \item{version}{\code{"robust"} (the default) builds the reference distribution
 from the sandwich covariance; \code{"standard"} from the ordinary one, Vuong's
@@ -19,7 +20,8 @@ own form (see \code{\link[=compare_mixtures]{compare_mixtures()}}).}
 A list of class \code{"vlmr_test"}: \code{statistic} (\eqn{2 \Delta\ell}),
 \code{df}, \code{mean} and \code{sd} of the reference distribution, \code{p_value},
 \code{adjusted} (the adjusted statistic) and \code{p_adjusted}, plus \code{version},
-\code{ll_restricted}, \code{ll_full}, \code{n} and \code{classes}.
+\code{ll_restricted}, \code{ll_full}, \code{n} and \code{classes} (the two numbers of
+statuses, for an LTA).
 }
 \description{
 Compares a mixture with one class fewer (\code{restricted}) against one with an
@@ -31,7 +33,11 @@ mixtures, and by their finite-sample adjusted statistic
 parameters and \eqn{n} the number of cases, referred to the same
 distribution. It takes any pair of fits \code{\link[=compare_mixtures]{compare_mixtures()}} tests,
 growth mixtures from \code{\link[=fit_gmm]{fit_gmm()}} included, so a growth model's number of
-classes can be tested on fits already in hand.
+classes can be tested on fits already in hand. It also takes two latent
+transition models from \code{\link[=fit_lta]{fit_lta()}} that differ by one status, one status
+against two included, with the same items, occasions and options otherwise
+(\code{smoothing = 0} and \code{bayes_constants} all zero for a published
+comparison).
 
 Read \code{\link[=compare_mixtures]{compare_mixtures()}}'s section on the test before relying on it: the
 theorem behind the reference distribution does not hold at the point where

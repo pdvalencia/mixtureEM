@@ -1,5 +1,15 @@
 # mixtureEM (development version)
 
+## The VLMR test on latent transition models
+
+`vlmr_test()` now takes two `fit_lta()` fits that differ by one status,
+one status against two included, in both its versions. Before, it refused
+every LTA. The scores of a one-status chain, which has no status posterior,
+are taken by central differences; every other LTA uses the analytic scores
+the standard errors already use. Fit both models with `smoothing = 0` and
+`bayes_constants = list(categorical = 0)` for a plain maximum-likelihood
+test. No existing result changes.
+
 ## Two-step standard errors for a distal outcome
 
 A two-step distal outcome without covariates (`add_outcome(steps = 2)`, or
