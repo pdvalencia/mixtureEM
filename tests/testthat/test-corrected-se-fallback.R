@@ -1,7 +1,7 @@
 # se = "corrected" on a measurement model with no step-1 packing reports the
 # uncorrected estimator. That substitution is warned about at fit time, and an
 # explicit request for the estimator actually reported is not. A growth step 1
-# carries the three-step correction; its two-step term is not built yet.
+# carries the three-step correction and the two-step one.
 
 .fallback_sim <- function(n = 300, seed = 1) {
   set.seed(seed)
@@ -48,19 +48,16 @@ test_that("the growth step-1 term does not depend on how step 1 is packed", {
   expect_equal(.se_of(f2), .se_of(f1), tolerance = 1e-4)
 })
 
-test_that("a growth step 1 still warns under a two-step se = 'corrected'", {
+test_that("a growth step 1 carries the two-step step-1 term, and widens the SEs", {
   s   <- .fallback_sim()
   fit <- suppressMessages(suppressWarnings(
     fit_gmm(s$Y, times = 5, n_classes = 2, n_init = 2, random_state = 1)))
-  expect_warning(f2 <- suppressMessages(add_covariates(fit, s$x, steps = 2)),
-                 "step 2's observed information")
-  expect_match(f2$sm$parameters$V_method, "unavailable")
-
-  f2_cor <- suppressWarnings(suppressMessages(
-    add_covariates(fit, s$x, steps = 2)))
-  expect_no_warning(f2_hes <- suppressMessages(
-    add_covariates(fit, s$x, steps = 2, se = "hessian")))
-  expect_equal(f2_hes$sm$parameters$V_robust, f2_cor$sm$parameters$V_robust)
+  expect_no_warning(f2 <- suppressMessages(add_covariates(fit, s$x, steps = 2)))
+  expect_match(f2$sm$parameters$V_method, "Two-step pseudo-ML")
+  f2_hes <- suppressMessages(add_covariates(fit, s$x, steps = 2, se = "hessian"))
+  expect_true(all(is.finite(.se_of(f2))))
+  expect_true(all(.se_of(f2) >= .se_of(f2_hes) - 1e-10))
+  expect_gt(max(.se_of(f2) / .se_of(f2_hes)), 1.0001)
 })
 
 test_that("a binary step 1 carries the correction and does not warn", {

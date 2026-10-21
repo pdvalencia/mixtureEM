@@ -1,5 +1,20 @@
 # mixtureEM (development version)
 
+## Two-step standard errors and weighted likelihood-ratio tests on a growth step 1
+
+A two-step class-predictor model (`add_covariates(steps = 2)`) on a
+`fit_gmm()` or `fit_lcga()` step 1 now carries step 1's uncertainty in its
+corrected standard errors (Bakk & Kuha, 2018), as it already did on every
+other measurement model. Before, these fits reported step 2's observed
+information alone and warned. **Numbers move**: on simulated two-class
+growth data the uncorrected intercept SE was 0.37 to 0.96 of the corrected
+one, the slope SE 0.71 to 1.00; the lower ends are weakly separated classes.
+`se = "hessian"` still gives the step-2-only figure, unchanged.
+
+`lr_test()` now computes the scaling correction for growth mixtures fitted
+under sampling weights or a survey design, where it refused before. No
+existing result changes.
+
 ## Fixed growth-factor variances in a growth mixture
 
 `fit_gmm(fix = )` holds chosen growth-factor variances and covariances at a

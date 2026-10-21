@@ -64,6 +64,23 @@ test_that("sampling weights trigger the scaled statistic, and unweighted c is ne
   expect_lt(abs(pieces_unweighted$c - 1), 0.2)
 })
 
+test_that("a weighted growth pair returns the scaled statistic", {
+  set.seed(2)
+  n   <- 300
+  cls <- sample(1:2, n, TRUE)
+  Y   <- sapply(0:4, function(t)
+    rnorm(n, ifelse(cls == 1, 1 + 0.2 * t, 3 - 0.3 * t)))
+  w   <- runif(n, 0.3, 3)
+  fits <- lapply(c("equal", "variances"), function(p)
+    suppressMessages(suppressWarnings(fit_gmm(
+      Y, times = 5, n_classes = 2, psi = p, weights = w, n_init = 2,
+      random_state = 1))))
+  t <- lr_test(fits[[1]], fits[[2]])
+  expect_true(isTRUE(t$scaled))
+  expect_true(is.finite(t$scaling_factor))
+  expect_equal(t$statistic, t$statistic_raw / t$scaling_factor)
+})
+
 test_that("a survey design changes the scaling factor, not just the weights", {
   d <- .lrw_sim()
   w <- runif(d$n, 0.3, 3)

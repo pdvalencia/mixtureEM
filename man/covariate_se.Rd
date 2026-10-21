@@ -163,9 +163,8 @@ whose structural model is a distal outcome rather than class predictors.
 The step-1 term additionally requires a measurement model whose parameters
 this package can put on an unconstrained scale — binary, polytomous,
 Gaussian, count, mixed, and repeated-measures models qualify, and growth
-models (\code{fit_gmm()}, \code{fit_lcga()}) qualify for the three-step
-term. A two-step fit on a growth step 1 does not carry it yet: there
-\eqn{V_2} is reported instead, with a warning.
+models (\code{fit_gmm()}, \code{fit_lcga()}) qualify for both the
+three-step and the two-step term.
 }
 
 \references{

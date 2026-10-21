@@ -311,7 +311,7 @@ generate_synthetic_data <- function(mm, classes, N) {
 #' unscaled one was about 35\% short; the corrected test is therefore still
 #' slightly liberal. Frequency weights (\code{weight_type = "frequency"}) are
 #' not rescaled. A model for which the design effect cannot be computed (a
-#' growth measurement model, among others) is refused.
+#' structural model with no unconstrained packing, among others) is refused.
 #'
 #' @examples
 #' \dontrun{
