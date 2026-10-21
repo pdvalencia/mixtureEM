@@ -97,6 +97,17 @@ LR / (1 + 1 / (df ln n)) and its p-value beside the unadjusted one. The
 comparison tables' per-K detail (`$vlmr`) carries the adjusted statistic
 too; their columns are unchanged.
 
+**New: `skew_kurtosis_test(fit)`**, a check of whether a mixture of normal
+outcomes reproduces the skewness and kurtosis of the data (Muthén, 2003):
+each outcome's skewness and excess kurtosis, and Mardia's (1970)
+multivariate skewness and kurtosis of every pair of outcomes and of all of
+them, set against their distribution in data simulated from the fit, with
+two-sided p-values. Each simulated data set is generated from its own draw
+of the parameters from their estimated sampling distribution, so the
+reference distribution carries the uncertainty of the estimates as well as
+that of a new sample; holding the parameters fixed makes the skewness
+statistics' distribution markedly too narrow.
+
 Changed: the robust VLMR reference distribution keeps its orientation when
 its weights sum to a negative number, which happens when the smaller model
 is badly misspecified; it was flipped, as the standard form still is. Such a
