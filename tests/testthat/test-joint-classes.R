@@ -95,6 +95,7 @@ test_that("ordinal items with unequal item counts: the padded item stays finite"
   # 0/0, which once turned every start's log-likelihood into NaN.
   d <- sim_joint(400, 3, 2, 5, 4, seed = 25)
   d$A[, 1:2] <- d$A[, 1:2] + rbinom(400 * 2, 1, 0.3)     # three categories
+  d$S[, 1:2] <- d$S[, 1:2] + rbinom(400 * 2, 1, 0.3)     # paired alike
   f <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
                          measurement_ca = "ordinal", measurement_cs = "ordinal",
                          n_init = 2, random_state = 6, smoothing = 0,
@@ -174,4 +175,76 @@ test_that("item slopes: step 1 is the two separate LCAs with their DIF, step 2 k
   expect_error(fit_joint_classes(d$A, d$S, predictors_items = px), "named list")
   expect_error(fit_joint_classes(unname(d$A), d$S, predictors_items = pi),
                "column names")
+})
+
+test_that("a binary item paired with a three-category one: no empty category", {
+  # Paired by position, the binary `cs` items would inherit the third
+  # category of the `ca` items beside them; the stacked layout gives each
+  # item its own.
+  d <- sim_joint(400, 3, 2, 5, 4, seed = 30)
+  d$A[, 1:2] <- d$A[, 1:2] + rbinom(400 * 2, 1, 0.3)
+  f <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
+                         measurement_ca = "ordinal", measurement_cs = "binary",
+                         n_init = 2, random_state = 7, smoothing = 0,
+                         bayes_constants = list(categorical = 0),
+                         standard_errors = FALSE)
+  expect_true(f$joint_stacked)
+  # (3 - 1) ca + 3 x (2 - 1) association + 3 x (2 x 2 + 3) + 2 x 4 items.
+  expect_equal(f$n_params, 34)
+})
+
+test_that("no association: the two separate LCAs, tested on (K1 - 1)(K2 - 1) df", {
+  d <- sim_joint(500, 3, 2, 5, 4, seed = 29)
+  zero <- list(categorical = 0)
+  f0 <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2, association = "none",
+                          n_init = 5, random_state = 8, smoothing = 0,
+                          bayes_constants = zero)
+  f1 <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2, n_init = 5,
+                          random_state = 8, smoothing = 0,
+                          bayes_constants = zero)
+  la <- fit_mixture(d$A, n_classes = 3, measurement = "binary", n_init = 5,
+                    random_state = 8, smoothing = 0, bayes_constants = zero)
+  ls <- fit_mixture(d$S, n_classes = 2, measurement = "binary", n_init = 5,
+                    random_state = 8, smoothing = 0, bayes_constants = zero)
+  expect_equal(f0$metrics$ll, la$metrics$ll + ls$metrics$ll, tolerance = 1e-5)
+  # (3 - 1) ca + (2 - 1) cs + 3 x 5 + 2 x 4 items.
+  expect_equal(f0$n_params, 26)
+  lt <- lr_test(f0, f1)
+  expect_equal(lt$df, 2)
+  expect_equal(lt$statistic, 2 * (f1$metrics$ll - f0$metrics$ll))
+  # The cs share is one logit, its SE the observed information's.
+  expect_equal(f0$association$term, "Intercept")
+  expect_equal(f0$association$estimate,
+               log(f0$conditional[1, 1] / f0$conditional[1, 2]), tolerance = 1e-8)
+  expect_true(is.finite(f0$association$se) && f0$association$se > 0)
+  expect_equal(unname(f0$conditional[1, ]), unname(f0$conditional[3, ]))
+  expect_output(print(f0), "No association")
+  z <- data.frame(w = rbinom(500, 1, 0.5))
+  expect_error(fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
+                                 predictors_cs = z, cs_effects = "by_ca",
+                                 association = "none"),
+               "needs the association")
+})
+
+test_that("no association, two-step: tested against the association on one step 1", {
+  d <- sim_joint(500, 3, 2, 5, 4, seed = 31)
+  z <- data.frame(w = rbinom(500, 1, 0.5))
+  zero <- list(categorical = 0)
+  fit <- function(...) fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
+                                         n_steps = 2, n_init = 5,
+                                         random_state = 9, smoothing = 0,
+                                         bayes_constants = zero, ...)
+  f1 <- fit(predictors_cs = z)
+  f0 <- fit(predictors_cs = z, association = "none")
+  expect_identical(f0$mm$models, f1$mm$models)
+  expect_true(isTRUE(f0$se$twostep))
+  expect_setequal(f0$association$term, c("Intercept", "w"))
+  expect_equal(lr_test(f0, f1)$df, 2)
+  # Step 1 is the model with every structural parameter at zero, counted
+  # without the padding: the association and w's slope.
+  expect_equal(lr_test(f1$step1, f1)$df, 3)
+  # Without covariates the no-association model is step 1 itself.
+  g0 <- fit(association = "none")
+  expect_equal(g0$metrics$ll, f1$step1$metrics$ll, tolerance = 1e-8)
+  expect_equal(lr_test(g0, f1)$df, 3)
 })

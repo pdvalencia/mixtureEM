@@ -54,7 +54,8 @@
 #' class with very few cases. A likelihood-ratio test of the constrained model
 #' against the free one settles those cases.
 #'
-#' @param fit A model from [`fit_gmm()`] or [`fit_lcga()`], or a
+#' @param fit A model from [`fit_gmm()`], [`fit_lcga()`] or
+#'   [`fit_joint_classes()`] (labels as in [`joint_coefficients()`]), or a
 #'   `mixture_model` with a covariate structural model.
 #' @param constraints A list or matrix of constraints. See Details.
 #' @param rhs Numeric, the right-hand side \eqn{r}: one value per constraint,
@@ -140,6 +141,21 @@ wald_test <- function(fit, constraints, rhs = 0,
                 opg = "Outer product of scores")[[se]]
     return(list(estimate = est, vcov = V, method = method))
   }
+  # The association rows of a two-latent-variable model: each is a linear
+  # function of the packed parameters, so their covariance is G V G'.
+  if (inherits(fit, "joint_classes")) {
+    a <- joint_coefficients(fit)
+    V <- fit$se$vcov
+    if (is.null(V))
+      stop("This model was fitted without standard errors.", call. = FALSE)
+    G   <- attr(a, "gradient")
+    lab <- .joint_labels(a)
+    Vr  <- G %*% V %*% t(G)
+    Vr  <- (Vr + t(Vr)) / 2
+    dimnames(Vr) <- list(lab, lab)
+    return(list(estimate = stats::setNames(a$estimate, lab), vcov = Vr,
+                method = fit$se$method %||% "Observed information"))
+  }
   if (!is.null(fit$sm) && inherits(fit$sm, "covariate")) {
     V   <- stats::vcov(fit)
     ref <- attr(V, "ref_class")
@@ -151,8 +167,9 @@ wald_test <- function(fit, constraints, rhs = 0,
     return(list(estimate = est, vcov = V,
                 method = attr(V, "method") %||% "Covariate model"))
   }
-  stop(paste0("wald_test() needs a growth model from fit_gmm() or fit_lcga(), ",
-              "or a mixture model with a covariate structural model."),
+  stop(paste0("This needs a growth model from fit_gmm() or fit_lcga(), a ",
+              "fit_joint_classes() model, or a mixture model with a covariate ",
+              "structural model."),
        call. = FALSE)
 }
 

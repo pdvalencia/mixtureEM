@@ -14,6 +14,7 @@ fit_joint_classes(
   predictors_ca = NULL,
   predictors_cs = NULL,
   cs_effects = "common",
+  association = c("free", "none"),
   predictors_items = NULL,
   n_steps = 1,
   smoothing = 1,
@@ -48,6 +49,10 @@ membership, or \code{NULL}.}
 class for every covariate), or a named vector such as
 \code{c(female = "by_ca")}, the unnamed covariates acting in common.}
 
+\item{association}{\code{"free"} (the default) estimates the association;
+\code{"none"} holds the two variables independent given the covariates, so
+\code{cs_effects} cannot name \code{"by_ca"}.}
+
 \item{predictors_items}{Direct effects of covariates on items (uniform
 differential item functioning): a named list, item name = a data frame of
 the covariates acting on that item, e.g. \code{list(a3 = data.frame(female))}.
@@ -65,7 +70,10 @@ measurement model on its own, as two separate latent class analyses;
 step 2 holds those item parameters fixed and estimates the association
 and the covariate effects. The classes then mean the same thing in every
 structural model compared, and the standard errors carry step 1's
-uncertainty. The fit keeps step 1 as \code{step1}. With \code{predictors_items},
+uncertainty. The fit keeps step 1 as \code{step1}, which is the restricted
+model of a test of every structural parameter at once. Two two-step fits
+are compared by \code{\link[=lr_test]{lr_test()}} only when they share step 1, so fit them
+with the same \code{random_state}. With \code{predictors_items},
 step 1 also regresses each variable on the DIF covariates, and step 2
 holds the item slopes fixed with the rest of the measurement model.}
 
@@ -96,6 +104,15 @@ Covariates can predict either variable. On \code{cs} each covariate acts in
 common across the \code{ca} classes or separately within each, set per
 covariate by \code{cs_effects}; the second form is a covariate whose effect on
 \code{cs} is moderated by \code{ca}.
+
+\code{association = "none"} fits the same model with the association removed:
+the two variables are independent given the covariates. It is the
+restricted model of the test of association, so
+\code{lr_test(fit_none, fit_free)} asks whether the two class variables are
+related at all, on \eqn{(K_{ca} - 1)(K_{cs} - 1)} degrees of freedom; a
+covariate acting on \code{cs} by \code{ca} class against in common is the next test
+in the same sequence. Without covariates the model is the two separate
+latent class analyses.
 }
 \examples{
 \donttest{

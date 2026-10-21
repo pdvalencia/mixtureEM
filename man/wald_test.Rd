@@ -7,7 +7,8 @@
 wald_test(fit, constraints, rhs = 0, se = c("robust", "hessian", "opg"))
 }
 \arguments{
-\item{fit}{A model from \code{\link[=fit_gmm]{fit_gmm()}} or \code{\link[=fit_lcga]{fit_lcga()}}, or a
+\item{fit}{A model from \code{\link[=fit_gmm]{fit_gmm()}}, \code{\link[=fit_lcga]{fit_lcga()}} or
+\code{\link[=fit_joint_classes]{fit_joint_classes()}} (labels as in \code{\link[=joint_coefficients]{joint_coefficients()}}), or a
 \code{mixture_model} with a covariate structural model.}
 
 \item{constraints}{A list or matrix of constraints. See Details.}

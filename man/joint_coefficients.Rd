@@ -11,7 +11,10 @@ joint_coefficients(fit)
 }
 \value{
 A data frame with columns \code{cs}, \code{term}, \code{ca}, \code{estimate}, \code{se},
-\code{z}, \code{p}.
+\code{z}, \code{p}. Each row is also a parameter of \code{\link[=wald_test]{wald_test()}} and
+\code{\link[=derived_estimates]{derived_estimates()}}, under the label \code{"CS#j Intercept"},
+\code{"CS#j ON CA#k"}, \code{"CS#j ON x"} or, for the difference of a covariate's
+slope in \code{ca} class k from the last class's, \code{"CS#j ON x | CA#k"}.
 }
 \description{
 The multinomial logit of \code{cs} on \code{ca} from \code{\link[=fit_joint_classes]{fit_joint_classes()}}, in the

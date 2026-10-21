@@ -1376,6 +1376,9 @@ fit_lta <- function(indicators,
     if (twostep_indep) {
       cl$.twostep_independent <- NULL
       cl$.transition_free     <- TRUE
+      # Step 1's own variance is computed where it is used
+      # (.lta_twostep_vcov()), on the reduced vector.
+      cl$standard_errors      <- FALSE
       # With item slopes, each variable is also regressed on the same
       # covariates, as in the three-step's step 1 (R/lta_threestep.R) and for
       # the same reason: otherwise the slope carries the whole association
@@ -1730,11 +1733,17 @@ fit_lta <- function(indicators,
 
   best_score <- -Inf
   survivors  <- NULL
+  # A restart whose score is not a number (NaN or infinite: a 0/0 somewhere in
+  # its likelihood) is a failed restart, not a candidate. Ranked, it stops the
+  # whole fit, because `s > best_score` has no answer; skipped and counted, the
+  # fit goes on with the restarts that worked and says how many did not.
+  n_nonfinite <- 0L
   for (cand in cands) {
     if (inherits(cand, "try-error")) next
     if (staged) stage1[[length(stage1) + 1L]] <- cand
     else {
       s <- score_of(cand)
+      if (!is.finite(s)) { n_nonfinite <- n_nonfinite + 1L; next }
       final_lls <- c(final_lls, s)
       deg <- degenerate_of(cand)
       final_kdels <- c(final_kdels, kdel_of(cand, s))
@@ -1763,6 +1772,7 @@ fit_lta <- function(indicators,
     }, n_cores = n_cores)
     for (cand in survivors) {
       s <- score_of(cand)
+      if (!is.finite(s)) { n_nonfinite <- n_nonfinite + 1L; next }
       final_lls <- c(final_lls, s)
       deg <- degenerate_of(cand)
       final_kdels <- c(final_kdels, kdel_of(cand, s))
@@ -1930,6 +1940,7 @@ fit_lta <- function(indicators,
     best$metrics$kdel_disagrees <- is.finite(kdel_ll) && is.finite(kdel_best) &&
       kdel_best - kdel_ll > 1e-2
   }
+  if (n_nonfinite > 0L) best$metrics$n_nonfinite_starts <- n_nonfinite
   # One start, and it was not a random one. Recorded rather than left at
   # `n_init` so .check_replication() cannot advise raising a restart budget on
   # a fit that never ran a pool; at n_requested = 1 its own rule (>= 10) already
@@ -1947,10 +1958,25 @@ fit_lta <- function(indicators,
   # errors of the structural block have to carry that (Bakk & Kuha, 2018,
   # eq. 5). `step1` exists only on the n_steps = 2 path, so every other fit
   # passes NULL and is untouched.
-  if (!identical(standard_errors, FALSE))
-    best$se <- .lta_standard_errors(
-      best, X, robust = identical(standard_errors, "robust"),
-      step1 = if (n_steps == 2L) step1 else NULL, alpha = alpha)
+  # A transition-free fit is the joint model with no association
+  # (fit_joint_classes()); the internal step-1 fits of that shape ask for no
+  # standard errors. With a transition regression its origin-free design packs
+  # as it is; without one the shared prevalence vector is read through the
+  # reduction (.lta_shared_standard_errors(), R/twostep_variance.R), which has
+  # no two-step form.
+  if (!identical(standard_errors, FALSE)) {
+    robust_se <- identical(standard_errors, "robust")
+    best$se <- if (isTRUE(best$tau_independent) && is.null(best$tau_beta)) {
+      if (n_steps == 2L) NULL
+      else .lta_shared_standard_errors(best, X, robust = robust_se, alpha = alpha)
+    } else {
+      se_state <- best
+      if (isTRUE(best$tau_independent)) se_state$tau_regression_se <- TRUE
+      .lta_standard_errors(
+        se_state, X, robust = robust_se,
+        step1 = if (n_steps == 2L) step1 else NULL, alpha = alpha)
+    }
+  }
 
   # Recorded on the object as well as warned about: a warning is transient, and
   # someone reading a saved fit months later should still be able to see it.
@@ -2175,8 +2201,12 @@ fit_lta <- function(indicators,
       # Every row of an occasion's matrix is the same (K-1)-vector, so the
       # occasion contributes one free prevalence vector and not K rows of
       # them. This is the difference between 35 parameters and 23 on the
-      # four-occasion, three-status reading panel.
-      n_tau <- (Tn - 1L) * (K - 1L) * C
+      # four-occasion, three-status reading panel. A destination closed from
+      # every origin (the padded `cs` class of a joint model) is a status held
+      # at zero prevalence, not a free share, so the vector is one shorter.
+      n_open <- vapply(seq_len(Tn - 1L), function(i)
+        sum(state$tau_allowed_c[[1L]][[i]][1L, ]), numeric(1))
+      n_tau <- as.integer(sum(n_open - 1L)) * C
     } else {
       idx <- if (isTRUE(state$tau_homogeneous)) 1L else seq_len(Tn - 1L)
       for (c in seq_len(C)) for (i in idx)
@@ -2815,7 +2845,12 @@ fit_lta <- function(indicators,
   # per-row scores only to fold them. With a transition regression the
   # origin-free design has one row per occasion to begin with. Both were
   # checked against central differences of .lta_ll_case() to 4e-8.
-  if (isTRUE(state$tau_independent) && !shared_ok) return(FALSE)
+  # `tau_regression_se` is that second case asked for by the standard errors
+  # alone (fit_lta(), the joint model with no association): set on the copy
+  # the variance is computed from, so the polish and the search never see it.
+  if (isTRUE(state$tau_independent) && !shared_ok &&
+      !(isTRUE(state$tau_regression_se) && !is.null(state$tau_beta)))
+    return(FALSE)
   # The multi-class branch of `.lta_score_matrix()` now runs
   # `.lta_ri_e_step()` per the RI arm above, populating `ri_G` / `ri_pq` for
   # the measurement blocks, so a multi-class RI fit needs no guard here.

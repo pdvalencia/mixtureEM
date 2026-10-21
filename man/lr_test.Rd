@@ -49,6 +49,11 @@ item probabilities are shared, so the degrees of freedom are the item
 parameters freed at every occasion after the first.
 \item \strong{A time-homogeneous transition matrix} (sec. 7.14): fit
 \code{\link[=fit_lta]{fit_lta()}} with \code{transition_invariance = "full"} and \code{"none"}.
+\item \strong{Whether two latent class variables are associated} (Hagenaars,
+1993): fit \code{\link[=fit_joint_classes]{fit_joint_classes()}} with \code{association = "none"} and
+\code{"free"}. Whether a covariate moderates that association: the same
+model with the covariate acting on \code{cs} in common and by \code{ca} class
+(\code{cs_effects}).
 }
 
 The models must be nested and fitted to the same data. That is not checked
@@ -79,6 +84,9 @@ case; refitting \code{full} with a larger \code{n_init} is the usual fix.
 Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
 Transition Analysis: With Applications in the Social, Behavioral, and Health
 Sciences}. Wiley.
+
+Hagenaars, J. A. (1993). \emph{Loglinear Models with Latent Variables}.
+Sage.
 
 Nylund-Gibson, K., Arch, D. A. N., & Carter, D. (2026). Latent transition
 analysis with auxiliary variables: A demonstration of the ML 3-step and BCH

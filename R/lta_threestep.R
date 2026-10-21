@@ -105,6 +105,8 @@
   cl1$distal                      <- NULL
   cl1$zero_floor                  <- NULL
   cl1$.transition_free            <- TRUE
+  # Its variance is computed where it is used, on the reduced vector.
+  cl1$standard_errors             <- FALSE
 
   # With `predictors_items`, step 1 also regresses the status at every occasion
   # on the same covariates, and step 3 fits whatever structural predictors the

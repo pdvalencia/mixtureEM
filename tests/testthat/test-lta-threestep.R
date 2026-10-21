@@ -246,15 +246,21 @@ test_that("the transition-free model refuses what it has not been graded in", {
   expect_error(base(forbidden_transitions = matrix(c(0, 0, 0, 1, 0, 0, 0, 0, 0), 3, 3, byrow = TRUE)), "does not accept")
 })
 
-test_that("the transition-free fit reports no standard errors", {
-  # The packed parameter vector still describes K free transition rows, so a
-  # Jacobian read off it would describe a model that was not fitted. The fit
-  # reports nothing rather than something wrong; carrying step-1 uncertainty
-  # into the three-step's standard errors is a separate piece of work.
+test_that("the transition-free fit's standard errors are read on its shared rows", {
+  # The packed parameter vector still describes K free transition rows, so
+  # the variance is taken on the reduced vector (one prevalence vector per
+  # occasion) and expanded back: every origin row of an occasion carries the
+  # same variance, and the rows are perfectly correlated.
   fit <- fit_lta(.ts3_sim(), n_statuses = 3, times = 4, measurement = "binary",
                  measurement_invariance = "full", n_init = 2, random_state = 1,
                  n_cores = 1, .transition_free = TRUE, standard_errors = TRUE)
-  expect_null(fit$se)
+  expect_false(is.null(fit$se$vcov))
+  blk <- function(k) Find(function(b) b$name == sprintf("tau(1)[from %d]", k),
+                          fit$se$blocks)$cols
+  V <- fit$se$vcov
+  expect_true(all(is.finite(diag(V))) && all(diag(V) >= 0))
+  expect_equal(V[blk(1), blk(1)], V[blk(2), blk(2)])
+  expect_equal(V[blk(1), blk(3)], V[blk(1), blk(1)])
 })
 
 test_that("nothing changes for an ordinary fit", {

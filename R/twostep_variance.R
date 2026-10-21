@@ -296,6 +296,73 @@
   list(H22 = H22, H12 = H12)
 }
 
+# The curvature of a transition-free fit's objective on the vector it actually
+# has. That model ties every origin row of an occasion to one prevalence
+# vector, which the ordinary packing does not describe, so it is read through
+# .qn_lta_reduction(): the log-likelihood and the prior are differenced on the
+# reduced vector `red$r0`, and `V` is the inverse of that penalised curvature.
+# Taken over the response patterns unless the fit reads a covariate (class
+# regressions or item slopes), which makes every case its own pattern. `Hp` is
+# the prior's share, kept for a sandwich's meat. Used for the step-1 variance
+# of the joint model's two-step and for the standard errors of the joint
+# model with no association.
+.lta_shared_curvature <- function(state, X, alpha, red = .qn_lta_reduction(state)) {
+  if (is.null(red)) return(NULL)
+  layout <- red$layout
+  s1 <- red$state
+  per_case <- !is.null(s1$Z_delta) || !is.null(s1$Z_tau) || !is.null(s1$dif)
+  if (per_case) {
+    Xc <- X; wc <- state$weights_vec
+  } else {
+    pat <- .pattern_index(X)
+    Xc <- X[pat$rep_row, , drop = FALSE]
+    wc <- as.vector(rowsum(state$weights_vec, pat$idx))
+  }
+  s1$weights_vec <- wc
+  ll <- function(r) sum(wc * .lta_ll_case(s1, Xc, r[red$src], layout))
+  lp <- function(r)
+    .lta_log_prior(.lta_par_unpack(r[red$src], s1, layout, average = FALSE),
+                   Xc, alpha)
+  Hp <- if (.lta_prior_is_zero(s1, alpha) || is.na(lp(red$r0))) 0 else
+    .step1_fd_hessian(lp, red$r0, .fd_hessian_step)
+  V <- .psd_pinv(-(.step1_fd_hessian(ll, red$r0) + Hp))
+  list(V = (V + t(V)) / 2, Hp = Hp, red = red)
+}
+
+# Standard errors of a transition-free fit with no transition regression: the
+# joint model with no association (fit_joint_classes(association = "none")).
+# The variance on the reduced vector is expanded back onto the ordinary
+# packing, `V[src, src]`, so every origin row of the shared prevalence vector
+# carries the same variance and every block the score matrix names reads the
+# columns it always reads. `robust` is the sandwich on the case scores folded
+# onto the reduced vector, the prior's curvature taken out of the meat as in
+# .lta_standard_errors(). With a transition regression the origin-free design
+# packs as it is and .lta_standard_errors() serves the fit directly.
+.lta_shared_standard_errors <- function(state, X, robust = FALSE, alpha = 0) {
+  cv <- tryCatch(.lta_shared_curvature(state, X, alpha),
+                 error = function(e) NULL)
+  if (is.null(cv) || !all(is.finite(cv$V))) return(NULL)
+  red <- cv$red
+  sc  <- .lta_score_matrix(red$state, X, shared_ok = TRUE)
+  if (is.null(sc) || ncol(sc$S) != length(red$src)) return(NULL)
+  Vr <- cv$V
+  if (isTRUE(robust)) {
+    w  <- state$weights_vec
+    Sr <- t(rowsum(t(sc$S), red$src))
+    n  <- state$n_eff %||% length(w)
+    B  <- (n / max(n - 1, 1)) * (t(Sr) %*% sweep(Sr, 1, w, "*"))
+    Vr <- Vr %*% (B - cv$Hp) %*% Vr
+    Vr <- (Vr + t(Vr)) / 2
+  }
+  V <- Vr[red$src, red$src, drop = FALSE]
+  list(vcov = V, blocks = sc$blocks, prob_se = .lta_prob_se(sc$blocks, V),
+       loading_se = NULL, conditional = sc$conditional, design_based = FALSE,
+       robust = isTRUE(robust), twostep = FALSE, twostep_V2 = NULL,
+       method = if (isTRUE(robust))
+         "Robust sandwich around the observed information"
+       else "Observed information")
+}
+
 # Pseudo-maximum-likelihood variance of a two-step latent transition fit.
 #
 # @param state The step-two fit: measurement block at its step-one values,
@@ -353,26 +420,9 @@
   # unless step 1 reads a covariate (item slopes, and the class regressions
   # that come with them), which makes every case its own pattern.
   if (indep) {
-    X1  <- as.matrix(step1$data)
-    s1  <- red$state
-    per_case <- !is.null(s1$Z_delta) || !is.null(s1$Z_tau) || !is.null(s1$dif)
-    if (per_case) {
-      X1c <- X1; w1c <- step1$weights_vec
-    } else {
-      pat <- .pattern_index(X1)
-      X1c <- X1[pat$rep_row, , drop = FALSE]
-      w1c <- as.vector(rowsum(step1$weights_vec, pat$idx))
-    }
-    s1$weights_vec <- w1c
-    ll1 <- function(r) sum(w1c * .lta_ll_case(s1, X1c, r[red$src], layout1))
-    lp1 <- function(r)
-      .lta_log_prior(.lta_par_unpack(r[red$src], s1, layout1, average = FALSE),
-                     X1c, alpha)
-    Hp1 <- if (.lta_prior_is_zero(s1, alpha) || is.na(lp1(red$r0))) 0 else
-      .step1_fd_hessian(lp1, red$r0, .fd_hessian_step)
-    S1r <- .psd_pinv(-(.step1_fd_hessian(ll1, red$r0) + Hp1))
+    S1r <- .lta_shared_curvature(step1, as.matrix(step1$data), alpha, red)$V
     j   <- red$src[idx1_s1]
-    S11 <- ((S1r + t(S1r)) / 2)[j, j, drop = FALSE]
+    S11 <- S1r[j, j, drop = FALSE]
   } else {
     se1 <- step1$se
     if (is.null(se1) || is.null(se1$vcov))

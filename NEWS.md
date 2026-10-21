@@ -56,6 +56,45 @@ are computed faster: about three times faster without priors, a third
 faster with the default priors. Every estimate and standard error is
 unchanged.
 
+`fit_joint_classes(association = "none")` fits the model with the
+association removed: the two class variables are independent given the
+covariates, which still act on both. It is the restricted model of the
+test of association, so `lr_test(fit_none, fit_free)` asks whether the two
+variables are related at all, on (K1 - 1)(K2 - 1) degrees of freedom, and
+`cs_effects = "by_ca"` against `"common"` asks whether a covariate moderates
+the association. Both forms work one-step and two-step; two two-step fits
+are compared when they share step 1, which they do when fitted with the
+same `random_state`. Without covariates the model is the two separate
+latent class analyses, and its two-step form is step 1 itself. The fit's
+`step1` now counts its parameters without the padding too, so it can serve
+as the restricted model of a test of every structural parameter at once.
+
+Fixed: `fit_joint_classes()` with ordinal items paired, item by item, with
+items that have fewer categories gave the smaller items an empty extra
+category. Its thresholds were counted as parameters (149 instead of 133 on
+a 5 x 4 model with three-category items on one side only) and, under the
+default priors, priced by the item prior. Each item now keeps its own
+number of categories. The log-likelihood without priors is unchanged; the
+parameter count, every information criterion, and the estimates under the
+default priors change for such fits.
+
+**New: `derived_estimates()`** estimates functions of a fit's parameters,
+each with a standard error, a z test and a confidence interval: a weighted
+sum given as a named vector of weights (its variance exact), or any smooth
+function of the named estimates (delta method). It takes the parameter
+labels of `wald_test()`, which now also accepts a `fit_joint_classes()` fit,
+labelling its association rows `"CS#j Intercept"`, `"CS#j ON CA#k"`, `"CS#j
+ON x"` and `"CS#j ON x | CA#k"`. **New: `joint_probabilities()`**, the
+conditional class probabilities P(cs | ca) at given covariate values, with
+delta-method standard errors: the probabilities among men and among women
+when sex moderates the association. `joint_coefficients()` keeps each row's
+gradient over the packed parameters as an attribute.
+
+`fit_lta()` no longer stops when one random start ends with a
+log-likelihood that is not a number: that start is set aside like a start
+that failed, the fit goes on with the others, and the count is reported as
+`metrics$n_nonfinite_starts`. No fit that ran before changes.
+
 ## Three-step latent transition SEs with item covariates carry step 1's uncertainty
 
 **Standard errors grow for `fit_lta(n_steps = 3, predictors_items = )`.**

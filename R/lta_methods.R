@@ -770,6 +770,11 @@ compare_longitudinal <- function(indicators, k_range = NULL,
 #'     parameters freed at every occasion after the first.
 #'   \item **A time-homogeneous transition matrix** (sec. 7.14): fit
 #'     [`fit_lta()`] with `transition_invariance = "full"` and `"none"`.
+#'   \item **Whether two latent class variables are associated** (Hagenaars,
+#'     1993): fit [`fit_joint_classes()`] with `association = "none"` and
+#'     `"free"`. Whether a covariate moderates that association: the same
+#'     model with the covariate acting on `cs` in common and by `ca` class
+#'     (`cs_effects`).
 #' }
 #'
 #' The models must be nested and fitted to the same data. That is not checked
@@ -810,6 +815,9 @@ compare_longitudinal <- function(indicators, k_range = NULL,
 #' Collins, L. M., & Lanza, S. T. (2010). \emph{Latent Class and Latent
 #' Transition Analysis: With Applications in the Social, Behavioral, and Health
 #' Sciences}. Wiley.
+#'
+#' Hagenaars, J. A. (1993). \emph{Loglinear Models with Latent Variables}.
+#' Sage.
 #'
 #' Nylund-Gibson, K., Arch, D. A. N., & Carter, D. (2026). Latent transition
 #' analysis with auxiliary variables: A demonstration of the ML 3-step and BCH

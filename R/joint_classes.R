@@ -31,6 +31,15 @@
 #' covariate by `cs_effects`; the second form is a covariate whose effect on
 #' `cs` is moderated by `ca`.
 #'
+#' `association = "none"` fits the same model with the association removed:
+#' the two variables are independent given the covariates. It is the
+#' restricted model of the test of association, so
+#' `lr_test(fit_none, fit_free)` asks whether the two class variables are
+#' related at all, on \eqn{(K_{ca} - 1)(K_{cs} - 1)} degrees of freedom; a
+#' covariate acting on `cs` by `ca` class against in common is the next test
+#' in the same sequence. Without covariates the model is the two separate
+#' latent class analyses.
+#'
 #' @param ca_items,cs_items The items measuring each latent variable, one row
 #'   per case, the same cases in the same order. Missing values are allowed.
 #' @param n_ca,n_cs Integer. Number of classes of each variable. `n_ca` must be
@@ -47,6 +56,9 @@
 #'   (one slope per `cs` class, the default), `"by_ca"` (a slope per `ca`
 #'   class for every covariate), or a named vector such as
 #'   `c(female = "by_ca")`, the unnamed covariates acting in common.
+#' @param association `"free"` (the default) estimates the association;
+#'   `"none"` holds the two variables independent given the covariates, so
+#'   `cs_effects` cannot name `"by_ca"`.
 #' @param predictors_items Direct effects of covariates on items (uniform
 #'   differential item functioning): a named list, item name = a data frame of
 #'   the covariates acting on that item, e.g. `list(a3 = data.frame(female))`.
@@ -63,7 +75,10 @@
 #'   step 2 holds those item parameters fixed and estimates the association
 #'   and the covariate effects. The classes then mean the same thing in every
 #'   structural model compared, and the standard errors carry step 1's
-#'   uncertainty. The fit keeps step 1 as `step1`. With `predictors_items`,
+#'   uncertainty. The fit keeps step 1 as `step1`, which is the restricted
+#'   model of a test of every structural parameter at once. Two two-step fits
+#'   are compared by [`lr_test()`] only when they share step 1, so fit them
+#'   with the same `random_state`. With `predictors_items`,
 #'   step 1 also regresses each variable on the DIF covariates, and step 2
 #'   holds the item slopes fixed with the rest of the measurement model.
 #' @param smoothing,bayes_constants,n_init,random_state,n_cores,standard_errors
@@ -103,6 +118,7 @@ fit_joint_classes <- function(ca_items, cs_items,
                               predictors_ca = NULL,
                               predictors_cs = NULL,
                               cs_effects = "common",
+                              association = c("free", "none"),
                               predictors_items = NULL,
                               n_steps = 1,
                               smoothing = 1.0,
@@ -114,6 +130,7 @@ fit_joint_classes <- function(ca_items, cs_items,
                               ...) {
   measurement_ca <- match.arg(measurement_ca)
   measurement_cs <- match.arg(measurement_cs)
+  association <- match.arg(association)
   n_steps <- as.integer(n_steps)[1L]
   if (is.na(n_steps) || !(n_steps %in% 1:2))
     stop("`n_steps` must be 1 or 2.", call. = FALSE)
@@ -152,13 +169,23 @@ fit_joint_classes <- function(ca_items, cs_items,
     A <- up(A); S <- up(S)
   }
   Ja <- ncol(A); Js <- ncol(S); J <- max(Ja, Js); K <- n_ca
-  # Without DIF, occasion t carries one variable's items, padded to the longer
-  # list, measurement free by occasion. With DIF, each occasion carries every
+  # Paired: occasion t carries one variable's items, padded to the longer
+  # list, measurement free by occasion. Stacked: each occasion carries every
   # item, the other variable's all missing, and the measurement is held equal
   # across occasions: each item is observed at one occasion only, so the
   # equality restricts nothing, and an item is one column of one item list --
-  # which is what the item slope is defined on. Same likelihood either way.
-  if (dif) {
+  # which is what an item slope is defined on. Same likelihood either way.
+  # Stacked is needed with DIF, and wherever two paired items differ in their
+  # number of categories: the ordinal emission gives each column position one
+  # category count, so a binary item paired with a three-category one would
+  # carry an empty third category, its thresholds counted as parameters and
+  # priced by the prior.
+  n_cat <- function(M) apply(M, 2, function(x)
+    if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE))
+  m <- min(Ja, Js)
+  stacked <- dif || (ordinal &&
+    any(n_cat(A)[seq_len(m)] != n_cat(S)[seq_len(m)], na.rm = TRUE))
+  if (stacked) {
     na <- function(M) matrix(NA_real_, nrow(M), ncol(M))
     X <- cbind(A, na(S), na(A), S)
   } else {
@@ -174,14 +201,32 @@ fit_joint_classes <- function(ca_items, cs_items,
     predictors_cs <- as.data.frame(predictors_cs)
     effects <- .joint_cs_effects(cs_effects, names(predictors_cs))
   }
+  # With no association there is no `ca` class for a covariate's effect on
+  # `cs` to differ by: the model is the transition-free fit, whose design for
+  # `cs` has no origin in it (.lta_tau_design()).
+  none <- association == "none"
+  if (none && !identical(effects, "common"))
+    stop("`cs_effects = \"by_ca\"` lets a covariate's effect on `cs` differ ",
+         "by `ca` class, which needs the association; with `association = ",
+         "\"none\"` every covariate acts in common.", call. = FALSE)
+  # Without any covariate the no-association model is exactly the two-step's
+  # step 1, the two separate latent class analyses, and step 2 has nothing to
+  # estimate that step 1 did not: the one-step fit is the two-step estimate.
+  # It is fitted once, with the search a two-step's step 1 runs, so its
+  # measurement block is the one a two-step fit with the same `random_state`
+  # holds fixed.
+  structural <- !is.null(predictors_ca) || !is.null(predictors_cs) || dif
+  redirect <- none && n_steps == 2L && !structural
 
   # The two-step's step 1 is the two separate LCAs: with no association and
   # no covariates the joint likelihood factorises into them, which is the
   # transition-free fit (`.twostep_independent`, R/lta.R).
   fit <- fit_lta(X, n_statuses = K, times = 2,
-                 n_steps = n_steps, .twostep_independent = n_steps == 2L,
+                 n_steps = if (redirect) 1L else n_steps,
+                 .twostep_independent = n_steps == 2L && !redirect,
+                 .transition_free = none,
                  measurement = if (ordinal) "ordinal" else "binary",
-                 measurement_invariance = if (dif) "full" else "none",
+                 measurement_invariance = if (stacked) "full" else "none",
                  item_names = if (dif) nm,
                  predictors_items = predictors_items,
                  forbidden_transitions = forb,
@@ -192,17 +237,35 @@ fit_joint_classes <- function(ca_items, cs_items,
                  n_init = n_init, random_state = random_state,
                  n_cores = n_cores, standard_errors = standard_errors, ...)
 
-  fit$n_ca <- n_ca; fit$n_cs <- n_cs
-  fit$n_items_ca <- Ja; fit$n_items_cs <- Js; fit$joint_dif <- dif
-  n_pad <- .joint_padding_n_params(fit)
-  fit$n_params <- fit$n_params - n_pad
-  fit$metrics$n_params <- fit$n_params
-  fresh <- .lta_metrics(fit)
-  for (nm in intersect(c("aic", "bic", "caic", "awe", "aic3", "icl", "sabic"),
-                       names(fresh)))
-    fit$metrics[[nm]] <- fresh[[nm]]
+  # The padding's parameters come out of the count, and every criterion built
+  # on it, on the fit and on its step 1 alike: step 1 is a model a two-step fit
+  # can be tested against.
+  uncount <- function(f) {
+    f$n_ca <- n_ca; f$n_cs <- n_cs
+    f$n_items_ca <- Ja; f$n_items_cs <- Js; f$joint_stacked <- stacked
+    f$n_params <- f$n_params - .joint_padding_n_params(f)
+    f$metrics$n_params <- f$n_params
+    fresh <- .lta_metrics(f)
+    for (nm in intersect(c("aic", "bic", "caic", "awe", "aic3", "icl", "sabic"),
+                         names(fresh)))
+      f$metrics[[nm]] <- fresh[[nm]]
+    f
+  }
+  fit <- uncount(fit)
+  if (inherits(fit$step1, "lta_model")) fit$step1 <- uncount(fit$step1)
+  if (redirect) fit$n_steps <- 2L
+  fit$association_free <- !none
 
-  P <- fit$delta * fit$tau[[1]][, seq_len(n_cs), drop = FALSE]
+  # P(ca, cs), averaged over the cases. With covariates on both variables and
+  # no association the reported `tau` is the plain average of cs's
+  # distribution, not weighted by who is in each ca class, so the product of
+  # the two averages is not the joint table; it is summed case by case.
+  P <- if (none && !is.null(fit$delta_beta) && !is.null(fit$tau_beta)) {
+    w  <- fit$weights_vec
+    Pa <- exp(.lta_log_delta(fit))
+    Pb <- exp(.lta_log_tau(fit)[[1]][[1]])
+    crossprod(Pa * w, Pb)[, seq_len(n_cs), drop = FALSE] / sum(w)
+  } else fit$delta * fit$tau[[1]][, seq_len(n_cs), drop = FALSE]
   dimnames(P) <- list(paste0("CA#", seq_len(n_ca)), paste0("CS#", seq_len(n_cs)))
   fit$joint <- P
   fit$conditional <- P / rowSums(P)
@@ -236,13 +299,13 @@ fit_joint_classes <- function(ca_items, cs_items,
 # column costs per class (one for a binary item, categories - 1 for an ordinal
 # one). The padded destination column's transition cells are forbidden, so
 # fit_lta() never counted them; with covariates on `cs` the regression has no
-# category for it (.lta_tau_keep()), so the same holds. The DIF layout has no
-# padded item positions, only the padded classes' `cs` items.
+# category for it (.lta_tau_keep()), so the same holds. The stacked layout has
+# no padded item positions, only the padded classes' `cs` items.
 .joint_padding_n_params <- function(fit) {
   K  <- fit$n_statuses
   Ja <- fit$n_items_ca; Js <- fit$n_items_cs; J <- max(Ja, Js)
   cats <- fit$mm$models[[1]]$cats
-  if (isTRUE(fit$joint_dif))
+  if (isTRUE(fit$joint_stacked))
     return((K - fit$n_cs) * sum(as.integer(cats[Ja + seq_len(Js)]) - 1L))
   per_item <- if (is.null(cats)) rep(1L, J) else as.integer(cats) - 1L
   pad_a <- if (Ja < J) K * sum(per_item[(Ja + 1L):J]) else 0L
@@ -263,7 +326,10 @@ fit_joint_classes <- function(ca_items, cs_items,
 #'
 #' @param fit A `joint_classes` fit.
 #' @return A data frame with columns `cs`, `term`, `ca`, `estimate`, `se`,
-#'   `z`, `p`.
+#'   `z`, `p`. Each row is also a parameter of [`wald_test()`] and
+#'   [`derived_estimates()`], under the label `"CS#j Intercept"`,
+#'   `"CS#j ON CA#k"`, `"CS#j ON x"` or, for the difference of a covariate's
+#'   slope in `ca` class k from the last class's, `"CS#j ON x | CA#k"`.
 #' @export
 joint_coefficients <- function(fit) {
   stopifnot(inherits(fit, "joint_classes"))
@@ -281,15 +347,20 @@ joint_coefficients <- function(fit) {
   }
   minus <- function(x, y) list(v = x$v - y$v, r = x$r - y$r)
 
-  rows <- list()
-  add <- function(j, term, ca, x)
+  rows <- list(); grad <- list()
+  add <- function(j, term, ca, x) {
+    grad[[length(grad) + 1L]] <<- x$r
     rows[[length(rows) + 1L]] <<- data.frame(
       cs = sprintf("CS#%d", j), term = term, ca = ca, estimate = x$v,
       se = if (np) sqrt(max(drop(crossprod(x$r, V %*% x$r)), 0)) else NA_real_)
+  }
   covs <- if (cov) cn[!grepl("^(Intercept$|from:)", cn)] else character()
+  # With no association the `ca` rows are zero by construction, not
+  # estimates, so they are left out rather than printed with a zero SE.
+  free <- !isFALSE(fit$association_free)
   for (j in seq_len(K2 - 1L)) {
     add(j, "Intercept", NA_character_, lo(K1, j, "Intercept"))
-    for (k in seq_len(K1 - 1L))
+    if (free) for (k in seq_len(K1 - 1L))
       add(j, sprintf("CA#%d", k), sprintf("CA#%d", k),
           minus(lo(k, j, "Intercept"), lo(K1, j, "Intercept")))
     for (v in covs) {
@@ -302,7 +373,19 @@ joint_coefficients <- function(fit) {
   out <- do.call(rbind, rows)
   out$z <- out$estimate / out$se
   out$p <- 2 * stats::pnorm(-abs(out$z))
+  # Each row is a linear function of the packed parameters; the gradient rows
+  # give the rows' joint covariance (.wald_parameters(), derived_estimates()).
+  attr(out, "gradient") <- do.call(rbind, grad)
   out
+}
+
+# The labels .wald_parameters() gives joint_coefficients()'s rows.
+.joint_labels <- function(a) {
+  is_ca <- grepl("^CA#", a$term)
+  ifelse(a$term == "Intercept", paste(a$cs, "Intercept"),
+         ifelse(is_ca, paste(a$cs, "ON", a$term),
+                paste0(a$cs, " ON ", a$term,
+                       ifelse(is.na(a$ca), "", paste0(" | ", a$ca)))))
 }
 
 # eta(a, b, term): the linear predictor of destination b for origin a, as a
@@ -327,7 +410,9 @@ joint_coefficients <- function(fit) {
       r <- numeric(np)
       d <- match(b, keep)
       if (d == length(keep)) return(list(v = 0, r = r))
-      idx <- match(nm, cn)
+      # No association: the design has no origin columns, so every origin
+      # reads the same coefficients.
+      idx <- match(intersect(nm, cn), cn)
       if (!is.null(blk)) r[blk$cols[(d - 1L) * length(cn) + idx]] <- 1
       list(v = sum(B[d, idx]), r = r)
     })
@@ -350,6 +435,8 @@ print.joint_classes <- function(x, digits = 3, ...) {
               x$metrics$ll, as.integer(x$n_params), x$metrics$bic))
   if (identical(x$n_steps, 2L))
     cat("Two-step: item parameters fixed at the separate latent class analyses\n\n")
+  if (isFALSE(x$association_free))
+    cat("No association: ca and cs independent given the covariates\n")
   cat("Association: log-odds of cs against its last class\n")
   a <- x$association
   a$ca[is.na(a$ca)] <- ""
