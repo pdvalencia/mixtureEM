@@ -510,6 +510,12 @@
 #'   two-step fit report the step-1 fit's own standard errors, since that is
 #'   the fit that estimated them.
 #'
+#'   With `predictors_items`, step 1 also regresses the initial status and the
+#'   transitions on the item covariates (one slope per covariate shared across
+#'   origins), so the item slopes measure the direct effect on the item alone
+#'   and do not absorb the covariate's association with the status. Step 2
+#'   then replaces that regression with the caller's structural model.
+#'
 #'   Two costs come with it. The information matrices are differenced
 #'   numerically, which is a few thousand likelihood evaluations and can take
 #'   minutes on a large model; pass `standard_errors = FALSE` to skip it.
@@ -1425,21 +1431,23 @@ fit_lta <- function(indicators,
       # Step 1's own variance is computed where it is used
       # (.lta_twostep_vcov()), on the reduced vector.
       cl$standard_errors      <- FALSE
-      # With item slopes, each variable is also regressed on the same
-      # covariates, as in the three-step's step 1 (R/lta_threestep.R) and for
-      # the same reason: otherwise the slope carries the whole association
-      # between the covariate and the class.
-      # The caller's own value, as step 1 sees it, not this frame's: cases
-      # may have been dropped above.
-      pi_items <- eval(cl$predictors_items, env)
-      if (!is.null(pi_items)) {
-        Zi <- if (is.list(pi_items) && !is.data.frame(pi_items))
-          .lta_dif_spec(pi_items, NULL, names(pi_items), NROW(pi_items[[1L]]))$Z
-        else pi_items
-        assign(".lta_step1_status_covariates", Zi, envir = env)
-        cl$predictors_initial    <- quote(.lta_step1_status_covariates)
-        cl$predictors_transition <- quote(.lta_step1_status_covariates)
-      }
+    }
+    # With item slopes, the status at every occasion is also regressed on the
+    # same covariates, as in the three-step's step 1 (R/lta_threestep.R) and
+    # for the same reason: otherwise the slope carries the whole association
+    # between the covariate and the status. On the joint path the regression
+    # is origin-free (.lta_tau_design()); otherwise it sits beside the
+    # transitions, with one slope shared across origins.
+    # The caller's own value, as step 1 sees it, not this frame's: cases may
+    # have been dropped above.
+    pi_items <- eval(cl$predictors_items, env)
+    if (!is.null(pi_items)) {
+      Zi <- if (is.list(pi_items) && !is.data.frame(pi_items))
+        .lta_dif_spec(pi_items, NULL, names(pi_items), NROW(pi_items[[1L]]))$Z
+      else pi_items
+      assign(".lta_step1_status_covariates", Zi, envir = env)
+      cl$predictors_initial    <- quote(.lta_step1_status_covariates)
+      cl$predictors_transition <- quote(.lta_step1_status_covariates)
     }
     step1 <- eval(cl, env)
 

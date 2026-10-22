@@ -323,3 +323,26 @@ test_that("an ordinary fit reports no two-step variance", {
   # ordinary standard errors on the way past the new branch.
   expect_true(length(plain$se$prob_se) > 0L)
 })
+
+# With item slopes, step 1 also regresses the statuses on the item
+# covariates; otherwise the slope has to carry the covariate's association
+# with the status. Step 1 is then exactly the one-step fit of that model.
+test_that("with item slopes, step 1 regresses the statuses on their covariates", {
+  sim <- .lta_dif_sim(n = 300, dif = matrix(0.8, 2, 3) * c(1, 1) %o% c(1, 0, 0))
+  colnames(sim$X) <- paste0("u", rep(1:3, each = 3), 1:3)
+  args <- list(sim$X, n_statuses = 2, times = 3, measurement = "ordinal",
+               predictors_items = list(u11 = sim$Z), n_init = 2,
+               n_cores = 1, random_state = 5, order_by_size = FALSE)
+  run <- function(...) suppressMessages(suppressWarnings(
+    do.call(fit_lta, utils::modifyList(args, list(...)))))
+  two <- run(predictors_initial = sim$Z, predictors_transition = sim$Z,
+             n_steps = 2, standard_errors = FALSE)
+  one <- run(predictors_initial = sim$Z, predictors_transition = sim$Z,
+             standard_errors = FALSE)
+
+  expect_identical(ncol(two$step1$delta_beta), 2L)
+  expect_false(is.null(two$step1$tau_beta))
+  expect_equal(two$step1$metrics$ll, one$metrics$ll, tolerance = 1e-6)
+  # The slopes are measurement parameters, so step 2 holds them.
+  expect_equal(two$dif$beta, two$step1$dif$beta, tolerance = 1e-12)
+})

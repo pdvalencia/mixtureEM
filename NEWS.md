@@ -1,5 +1,18 @@
 # mixtureEM (development version)
 
+## Two-step latent transition models: step 1 regresses the statuses beside the item slopes
+
+`fit_lta(n_steps = 2, predictors_items = )` fitted step 1 with the direct
+covariate effects on the items but without letting the same covariates
+predict the statuses. Any association between a covariate and the statuses
+then had nowhere to go but the item slopes, which were inflated, and step 2
+inherited that measurement model. Step 1 now also regresses the initial
+status and the transitions on the item covariates, as the three-step's
+step 1 and `fit_joint_classes()`'s two-step already did. Every two-step
+latent transition fit with `predictors_items` changes: its item slopes,
+thresholds, step-2 estimates and standard errors. Fits without
+`predictors_items`, one-step and three-step fits are unchanged.
+
 ## Joint latent classes: the default prior covers each variable's own classes
 
 When the two variables of `fit_joint_classes()` have different numbers of

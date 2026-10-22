@@ -604,6 +604,12 @@ that governs the attenuation above. The measurement parameters of a
 two-step fit report the step-1 fit's own standard errors, since that is
 the fit that estimated them.
 
+With \code{predictors_items}, step 1 also regresses the initial status and the
+transitions on the item covariates (one slope per covariate shared across
+origins), so the item slopes measure the direct effect on the item alone
+and do not absorb the covariate's association with the status. Step 2
+then replaces that regression with the caller's structural model.
+
 Two costs come with it. The information matrices are differenced
 numerically, which is a few thousand likelihood evaluations and can take
 minutes on a large model; pass \code{standard_errors = FALSE} to skip it.
