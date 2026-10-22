@@ -70,11 +70,25 @@
 # ------------------------------------------------------------------------------
 
 # Log initial-status probabilities: a length-K vector, or an n x K matrix when a
-# covariate predicts the initial status.
+# covariate predicts the initial status. The regression is fitted over the
+# statuses a case can start in (.lta_delta_keep()); the others are held at
+# zero.
 .lta_log_delta <- function(state) {
   if (is.null(state$delta_beta)) return(log(pmax(state$delta, 1e-300)))
-  log(pmax(softmax_rows(state$Z_delta %*% t(state$delta_beta)), 1e-300))
+  P <- softmax_rows(state$Z_delta %*% t(state$delta_beta))
+  keep <- .lta_delta_keep(state)
+  if (length(keep) < state$n_statuses) {
+    full <- matrix(0, nrow(P), state$n_statuses); full[, keep] <- P; P <- full
+  }
+  log(pmax(P, 1e-300))
 }
+
+# The statuses a case can start in. A status no case starts in is the padded
+# `ca` class of a joint model whose `ca` has fewer classes than `cs`
+# (fit_joint_classes()): its initial probability is exactly zero, it is no
+# category of the initial-status regression, and no origin of the transition
+# regression's design. All of them otherwise.
+.lta_delta_keep <- function(state) state$delta_keep %||% seq_len(state$n_statuses)
 
 # Coefficient matrix governing transitions out of origin status k for the m-th
 # estimated transition matrix. Under "by_origin" each origin has its own fit;
@@ -139,9 +153,12 @@
   # posteriors sum to them.
   if (isTRUE(state$tau_independent)) return(Z)
   occ <- .lta_tau_occasion_contrasts(state, nrow(Z), occasion)
-  dummies <- matrix(0, nrow(Z), K - 1L)
-  if (k < K) dummies[, k] <- 1
-  colnames(dummies) <- paste0("from:", seq_len(K - 1L))
+  # Origins no case starts in (.lta_delta_keep()) have no data and no dummy:
+  # the last real origin is the reference.
+  Ko <- length(.lta_delta_keep(state))
+  dummies <- matrix(0, nrow(Z), Ko - 1L)
+  if (k < Ko) dummies[, k] <- 1
+  colnames(dummies) <- paste0("from:", seq_len(Ko - 1L))
   cbind(Z[, 1L, drop = FALSE], dummies, Z[, -1L, drop = FALSE],
         .lta_tau_cross_block(state, Z, dummies), occ)
 }
@@ -256,10 +273,12 @@
   out <- list()
   if (!is.null(state$Z_delta)) {
     Zu <- unique(state$Z_delta)
+    dk <- .lta_delta_keep(state)
     out[[1L]] <- list(kind = "delta_beta", beta = state$delta_beta, Zu = Zu,
                       a = alpha,
                       P = if (is.null(state$delta_beta))
-                        rep_row(state$delta_c[[1L]] %||% state$delta, nrow(Zu)))
+                        rep_row(state$delta_c[[1L]] %||% state$delta,
+                                nrow(Zu))[, dk, drop = FALSE])
   }
   if (is.null(state$Z_tau) || Tn < 2L) return(out)
   su  <- state
@@ -281,7 +300,7 @@
           beta = if (!no_beta) state$tau_beta[[m]][[k]], Zu = su$Z_tau, a = a,
           P = if (no_beta) rep_row(tau0[[ts[1L]]][k, ], U))
     } else {
-      ks  <- if (isTRUE(state$tau_independent)) 1L else seq_len(K)
+      ks  <- if (isTRUE(state$tau_independent)) 1L else .lta_delta_keep(state)
       tts <- if (occ) ts else ts[1L]
       Zu  <- do.call(rbind, lapply(tts, function(t) do.call(rbind,
         lapply(ks, function(k) .lta_tau_design(su, k, t)))))
@@ -307,11 +326,14 @@
 # Initial status: an ordinary weighted multinomial logit on the Time 1
 # posteriors, which already sum to one across statuses.
 .lta_mstep_delta_cov <- function(state, gamma1, augment = TRUE, alpha = 0) {
-  fit <- .fit_mnl(state$Z_delta, gamma1, weights = state$weights_vec,
+  keep <- .lta_delta_keep(state)
+  fit <- .fit_mnl(state$Z_delta, gamma1[, keep, drop = FALSE],
+                  weights = state$weights_vec,
                   start = state$delta_beta, augment = augment, alpha = alpha)
   state$delta_beta    <- fit$beta
   state$delta_hessian <- fit$hessian
-  state$delta         <- colSums(fit$prob * state$weights_vec) /
+  state$delta         <- numeric(state$n_statuses)
+  state$delta[keep]   <- colSums(fit$prob * state$weights_vec) /
     sum(state$weights_vec)
   state
 }
@@ -333,6 +355,9 @@
   hess  <- vector("list", mats)
   a_reg <- .lta_tau_cov_alpha(state, alpha)
   keep  <- .lta_tau_keep(state)
+  # An origin no case starts in has no pairwise mass, and no row of its own in
+  # the design (.lta_tau_design()); it is left out of the stack.
+  origins <- .lta_delta_keep(state)
 
   for (m in seq_len(mats)) {
     ts <- if (isTRUE(state$tau_homogeneous)) seq_len(Tn - 1L) else m
@@ -367,17 +392,17 @@
       key <- paste(ts, collapse = "-")
       if (is.null(state$.tau_design_cache[[key]])) {
         blocks <- list()
-        for (i_t in seq_along(ts)) for (k in seq_len(K))
+        for (i_t in seq_along(ts)) for (k in origins)
           blocks[[length(blocks) + 1L]] <- .lta_tau_design(state, k, ts[i_t])
         state$.tau_design_cache[[key]] <- do.call(rbind, blocks)
       }
       Zs <- state$.tau_design_cache[[key]]
 
-      n_rows <- n * K * length(ts)
+      n_rows <- n * length(origins) * length(ts)
       resp <- matrix(0, n_rows, K)
       wt   <- numeric(n_rows)
       r0 <- 0L
-      for (i_t in seq_along(ts)) for (k in seq_len(K)) {
+      for (i_t in seq_along(ts)) for (k in origins) {
         rows <- r0 + seq_len(n); r0 <- r0 + n
         pk   <- fb$pairwise[[ts[i_t]]][[k]]
         mass <- pmax(rowSums(pk), 1e-12)

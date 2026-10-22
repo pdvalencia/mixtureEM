@@ -7,9 +7,10 @@
 # association written as a multinomial logit of `cs` on `ca`. That regression
 # is exactly a two-occasion LTA's by-origin transition regression, so the fit
 # rides fit_lta(): occasion 1 carries ca's items, occasion 2 cs's, each padded
-# with all-NA columns to the longer list, measurement free by occasion, and a
+# with all-NA columns to the longer list, measurement free by occasion, a
 # smaller `cs` written as a padded status whose destination column is
-# forbidden. The padding is bookkeeping only and must not reach the user: its
+# forbidden, and a smaller `ca` as a padded status no case starts in. The
+# padding is bookkeeping only and must not reach the user: its
 # parameters touch no data, so they are taken out of the count (and every
 # criterion built on it), and the report speaks of `ca` and `cs`, never of
 # occasions or transitions.
@@ -42,8 +43,7 @@
 #'
 #' @param ca_items,cs_items The items measuring each latent variable, one row
 #'   per case, the same cases in the same order. Missing values are allowed.
-#' @param n_ca,n_cs Integer. Number of classes of each variable. `n_ca` must be
-#'   at least `n_cs`; when it is smaller, swap the roles of the two variables.
+#' @param n_ca,n_cs Integer. Number of classes of each variable.
 #' @param measurement_ca,measurement_cs `"binary"` (items coded 0/1) or
 #'   `"ordinal"` (ordered categories coded from 0 or from 1). A binary and an
 #'   ordinal side are fitted together as ordinal items, which for a two-category
@@ -141,11 +141,6 @@ fit_joint_classes <- function(ca_items, cs_items,
   n_ca <- as.integer(n_ca); n_cs <- as.integer(n_cs)
   if (n_ca < 2L || n_cs < 2L)
     stop("`n_ca` and `n_cs` must each be at least 2.", call. = FALSE)
-  # A smaller `ca` would need a padded class that nobody starts in, and the
-  # initial-status probabilities have no zero to hold it at.
-  if (n_ca < n_cs)
-    stop("`n_ca` must be at least `n_cs`; swap the roles of the two ",
-         "variables.", call. = FALSE)
 
   dif <- !is.null(predictors_items)
   if (dif) {
@@ -168,7 +163,7 @@ fit_joint_classes <- function(ca_items, cs_items,
       if (isTRUE(min(x, na.rm = TRUE) == 0)) x + 1 else x)
     A <- up(A); S <- up(S)
   }
-  Ja <- ncol(A); Js <- ncol(S); J <- max(Ja, Js); K <- n_ca
+  Ja <- ncol(A); Js <- ncol(S); J <- max(Ja, Js); K <- max(n_ca, n_cs)
   # Paired: occasion t carries one variable's items, padded to the longer
   # list, measurement free by occasion. Stacked: each occasion carries every
   # item, the other variable's all missing, and the measurement is held equal
@@ -193,8 +188,17 @@ fit_joint_classes <- function(ca_items, cs_items,
     X <- cbind(pad(A), pad(S))
   }
 
+  # A smaller `cs`: its padded classes are destinations no origin may move
+  # into. A smaller `ca`: its padded classes are statuses no case starts in
+  # (`.initial_statuses`), so the moves out of them are never read; without
+  # a transition regression each such row is closed to every destination but
+  # one, which leaves it no free parameter. With a regression, or with no
+  # association (one row for every origin), the engine leaves them out itself.
   forb <- NULL
   if (n_cs < K) { forb <- matrix(FALSE, K, K); forb[, (n_cs + 1L):K] <- TRUE }
+  if (n_ca < K && is.null(predictors_cs) && association == "free") {
+    forb <- matrix(FALSE, K, K); forb[(n_ca + 1L):K, -K] <- TRUE
+  }
 
   effects <- "common"
   if (!is.null(predictors_cs)) {
@@ -230,6 +234,7 @@ fit_joint_classes <- function(ca_items, cs_items,
                  item_names = if (dif) nm,
                  predictors_items = predictors_items,
                  forbidden_transitions = forb,
+                 .initial_statuses = if (n_ca < K) n_ca,
                  predictors_initial = predictors_ca,
                  predictors_transition = predictors_cs,
                  transition_effects = effects,
@@ -264,8 +269,8 @@ fit_joint_classes <- function(ca_items, cs_items,
     w  <- fit$weights_vec
     Pa <- exp(.lta_log_delta(fit))
     Pb <- exp(.lta_log_tau(fit)[[1]][[1]])
-    crossprod(Pa * w, Pb)[, seq_len(n_cs), drop = FALSE] / sum(w)
-  } else fit$delta * fit$tau[[1]][, seq_len(n_cs), drop = FALSE]
+    crossprod(Pa * w, Pb)[seq_len(n_ca), seq_len(n_cs), drop = FALSE] / sum(w)
+  } else (fit$delta * fit$tau[[1]])[seq_len(n_ca), seq_len(n_cs), drop = FALSE]
   dimnames(P) <- list(paste0("CA#", seq_len(n_ca)), paste0("CS#", seq_len(n_cs)))
   fit$joint <- P
   fit$conditional <- P / rowSums(P)
@@ -295,7 +300,8 @@ fit_joint_classes <- function(ca_items, cs_items,
 }
 
 # Free item parameters the padding added: the padded item positions on each
-# side, and every item of the padded `cs` classes. Each cell costs what its
+# side, and every item of the padded classes (`cs` items of a padded `cs`
+# class, `ca` items of a padded `ca` class). Each cell costs what its
 # column costs per class (one for a binary item, categories - 1 for an ordinal
 # one). The padded destination column's transition cells are forbidden, so
 # fit_lta() never counted them; with covariates on `cs` the regression has no
@@ -306,11 +312,13 @@ fit_joint_classes <- function(ca_items, cs_items,
   Ja <- fit$n_items_ca; Js <- fit$n_items_cs; J <- max(Ja, Js)
   cats <- fit$mm$models[[1]]$cats
   if (isTRUE(fit$joint_stacked))
-    return((K - fit$n_cs) * sum(as.integer(cats[Ja + seq_len(Js)]) - 1L))
+    return((K - fit$n_cs) * sum(as.integer(cats[Ja + seq_len(Js)]) - 1L) +
+             (K - fit$n_ca) * sum(as.integer(cats[seq_len(Ja)]) - 1L))
   per_item <- if (is.null(cats)) rep(1L, J) else as.integer(cats) - 1L
   pad_a <- if (Ja < J) K * sum(per_item[(Ja + 1L):J]) else 0L
   pad_s <- if (Js < J) K * sum(per_item[(Js + 1L):J]) else 0L
-  pad_k <- (K - fit$n_cs) * sum(per_item[seq_len(Js)])
+  pad_k <- (K - fit$n_cs) * sum(per_item[seq_len(Js)]) +
+    (K - fit$n_ca) * sum(per_item[seq_len(Ja)])
   pad_a + pad_s + pad_k
 }
 
@@ -405,7 +413,7 @@ joint_coefficients <- function(fit) {
     blk <- Find(function(b) grepl("^tau_beta", b$name), fit$se$blocks)
     keep <- .lta_tau_keep(fit)
     return(function(a, b, term) {
-      nm <- if (term == "Intercept") c("Intercept", if (a < K) sprintf("from:%d", a))
+      nm <- if (term == "Intercept") c("Intercept", if (a < fit$n_ca) sprintf("from:%d", a))
             else c(term, intersect(sprintf("from:%d x %s", a, term), cn))
       r <- numeric(np)
       d <- match(b, keep)

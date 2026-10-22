@@ -1,5 +1,14 @@
 # mixtureEM (development version)
 
+## Joint latent classes: `ca` may have fewer classes than `cs`
+
+`fit_joint_classes()` no longer refuses `n_ca < n_cs`. Before, it asked for
+the two variables to be swapped, which is the same model only without
+covariates: with covariates on `cs` the regression of `cs` on `ca` is not
+the regression of `ca` on `cs`. A smaller `ca` is now fitted as it is
+written, one-step and two-step, with covariates on either variable and with
+or without the association. No fit that was allowed before changes.
+
 ## Class enumeration with covariates in the model
 
 `compare_mixtures()` gains `predictors`. With it, every model with two or

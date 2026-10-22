@@ -719,6 +719,11 @@ fit_lta <- function(indicators,
   # has been reasoned about in are the ones .lta_threestep_step12() asks for.
   # Everything else is refused below rather than silently accepted.
   tau_independent <- isTRUE(list(...)[[".transition_free"]])
+  # Only the first `.initial_statuses` statuses can be occupied at occasion 1;
+  # the rest start with probability exactly zero. The joint model's padded
+  # `ca` classes when `ca` has fewer classes than `cs` (fit_joint_classes()),
+  # on `...` for the same reason `.transition_free` is.
+  n_initial <- list(...)[[".initial_statuses"]]
 
   # The step-3 model of the bias-adjusted three-step estimator: one assigned-
   # status indicator per occasion whose response probabilities are KNOWN rather
@@ -1093,8 +1098,13 @@ fit_lta <- function(indicators,
   tau_keep <- NULL
   if (!is.null(Z_tau) && !is.null(forbidden_transitions)) {
     ok <- .lta_tau_allowed_1(forbidden_transitions, K, Tn)
+    # Rows out of a status no case starts in (`.initial_statuses`) are never
+    # read, so their pattern does not matter.
+    rows <- seq_len(if (is.null(n_initial)) K else n_initial)
+    ok <- lapply(ok, function(a) a[rows, , drop = FALSE])
     cols <- colSums(ok[[1L]]) > 0L
-    whole <- all(vapply(ok, function(a) all(a == rep(cols, each = K)), TRUE))
+    whole <- all(vapply(ok, function(a) all(a == rep(cols, each = length(rows))),
+                        TRUE))
     if (!whole)
       stop("`forbidden_transitions` can be combined with covariates on the ",
            "transitions only when it rules out whole destinations (every move ",
@@ -1194,6 +1204,22 @@ fit_lta <- function(indicators,
   }
 
   allowed <- .lta_tau_allowed(tau_zeros, K, Tn, C, mover_stayer)
+  delta_keep <- NULL
+  if (!is.null(n_initial)) {
+    n_initial <- as.integer(n_initial)
+    bad <- c(
+      "random_intercept"            = random_intercept != "none",
+      "n_classes > 1"               = C > 1L,
+      "mover_stayer"                = isTRUE(mover_stayer),
+      "group"                       = !is.null(group),
+      "transition_effects = \"by_origin\"" =
+        identical(transition_effects, "by_origin") && !is.null(Z_tau))
+    if (any(bad) || n_initial < 2L || n_initial >= K)
+      stop("A status no case starts in is not available with ",
+           paste(c(names(bad)[bad], if (!any(bad)) "this many statuses"),
+                 collapse = ", "), ".", call. = FALSE)
+    delta_keep <- seq_len(n_initial)
+  }
   # The transition-free model exists for one caller and is graded in one
   # configuration. Every combination below either has no meaning once the
   # transition rows are tied together (`forbidden_transitions`,
@@ -1210,8 +1236,11 @@ fit_lta <- function(indicators,
   # prevalence -- the padded `cs` class of a joint model's step 1
   # (fit_joint_classes(n_steps = 2)). The M-step reads the first row's mask.
   if (tau_independent) {
+    # Rows out of a status no case starts in are never read.
+    rows <- delta_keep %||% seq_len(K)
     whole_cols <- is.null(tau_zeros) || all(vapply(allowed[[1L]], function(m)
-      all(apply(m, 2L, function(col) all(col) || !any(col))), logical(1)))
+      all(apply(m[rows, , drop = FALSE], 2L, function(col)
+        all(col) || !any(col))), logical(1)))
     bad <- c(
       "predictors_random_intercept" = !is.null(Z_ri),
       "random_intercept"            = random_intercept != "none",
@@ -1237,6 +1266,8 @@ fit_lta <- function(indicators,
     tau_c           = rep(list(rep(list(matrix(1 / K, K, K)), Tn - 1L)), C),
     tau_allowed_c   = allowed,
     tau_keep        = tau_keep,
+    delta_keep      = delta_keep,
+    delta_allowed   = if (!is.null(delta_keep)) seq_len(K) %in% delta_keep,
     tau_homogeneous = isTRUE(tau_homogeneous),
     tau_independent = isTRUE(tau_independent),
     tau_occasion_free_intercepts = isTRUE(tau_occasion_free_intercepts),
@@ -2187,11 +2218,13 @@ fit_lta <- function(indicators,
   Tn <- state$n_times
   C  <- state$n_classes %||% 1L
 
+  # A status no case starts in (.lta_delta_keep()) carries no parameter.
+  Kr <- length(.lta_delta_keep(state))
   n_delta <- if (!is.null(state$delta_beta))
-    (K - 1L) * ncol(state$delta_beta)
+    (Kr - 1L) * ncol(state$delta_beta)
   else if (isTRUE(state$tie_initial_status))
     (K - 1L)
-  else (K - 1L) * C
+  else (Kr - 1L) * C
 
   n_tau <- 0L
   if (Tn > 1L) {
@@ -2961,6 +2994,7 @@ fit_lta <- function(indicators,
       ll  <- fb$ll
     }
 
+    fd <- .lta_delta_keep(state); fd <- fd[-length(fd)]
     if (!is.null(state$delta_beta)) {
       # Ordinary multinomial-logit score, covariate-weighted: the same
       # (observed - predicted) residual as the plain "delta" block below,
@@ -2968,16 +3002,17 @@ fit_lta <- function(indicators,
       # (R/covariate.R) kept at the case level instead of summed. Column
       # order is status k (1..K-1) slow, covariate d fast, matching
       # .lta_par_pack()'s `as.vector(t(B[1:(K-1), ]))`.
+      # Over the statuses a case can start in (.lta_delta_keep()), the last
+      # of them anchored.
       phat <- exp(.lta_log_delta(state))
-      s <- do.call(cbind, lapply(seq_len(K - 1L), function(k)
+      s <- do.call(cbind, lapply(fd, function(k)
         (gam[[1]][, k] - phat[, k]) * state$Z_delta))
       add_block(s, NULL, NULL, "delta_beta")
     } else {
       # delta: the score of the multinomial logit is gamma_1[i, k] - delta_k,
       # with the last status anchored.
-      add_block(sweep(gam[[1]][, seq_len(K - 1L), drop = FALSE], 2,
-                      state$delta[seq_len(K - 1L)], "-"),
-                state$delta, seq_len(K - 1L), "delta")
+      add_block(sweep(gam[[1]][, fd, drop = FALSE], 2, state$delta[fd], "-"),
+                state$delta, fd, "delta")
     }
 
     idx <- if (isTRUE(state$tau_homogeneous)) 1L else seq_len(Tn - 1L)
@@ -3016,7 +3051,7 @@ fit_lta <- function(indicators,
         } else {
           D <- ncol(.lta_tau_design(state, 1L))
           s <- matrix(0, n, Kf * D)
-          for (tt in ts) for (k in seq_len(K)) {
+          for (tt in ts) for (k in .lta_delta_keep(state)) {
             Zk     <- .lta_tau_design(state, k, tt)
             phat_k <- exp(lt[[tt]][[k]])
             pk     <- fb$pairwise[[tt]][[k]]

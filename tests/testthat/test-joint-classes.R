@@ -66,7 +66,41 @@ test_that("cs_effects names covariates and is checked", {
   expect_equal(sum(a$term == "w"), 2)          # base and the CA#1 difference
   expect_error(fit_joint_classes(d$A, d$S, predictors_cs = z,
                                  cs_effects = c(v = "by_ca")), "not in")
-  expect_error(fit_joint_classes(d$A, d$S, n_ca = 2, n_cs = 3), "swap")
+})
+
+test_that("a smaller ca: without covariates, the same model as the swap", {
+  d <- sim_joint(500, 2, 3, 4, 5, seed = 25)
+  args <- list(n_init = 5, random_state = 2, smoothing = 0,
+               bayes_constants = list(categorical = 0), standard_errors = FALSE)
+  f <- do.call(fit_joint_classes, c(list(d$A, d$S, n_ca = 2, n_cs = 3), args))
+  g <- do.call(fit_joint_classes, c(list(d$S, d$A, n_ca = 3, n_cs = 2), args))
+  expect_lt(abs(f$metrics$ll - g$metrics$ll), 1e-4)
+  # (2 - 1) ca + 2 x (3 - 1) association + 2 x 4 + 3 x 5 items = 28, and the
+  # swap counts the same model the other way round.
+  expect_equal(f$n_params, 28)
+  expect_equal(g$n_params, 28)
+  expect_equal(f$delta[3], 0)
+  expect_equal(dim(f$joint), c(2L, 3L))
+  expect_equal(sort(as.vector(f$joint)), sort(as.vector(g$joint)),
+               tolerance = 1e-3)
+})
+
+test_that("a smaller ca with covariates on both: the padded class is no category", {
+  d <- sim_joint(400, 2, 3, 4, 5, seed = 26)
+  z <- data.frame(w = rbinom(400, 1, 0.5))
+  f <- fit_joint_classes(d$A, d$S, n_ca = 2, n_cs = 3, predictors_ca = z,
+                         predictors_cs = z, cs_effects = c(w = "by_ca"),
+                         n_init = 3, random_state = 5)
+  # ca logit on [1, w] = 2; items 2 x 4 + 3 x 5 = 23; two cs logits on
+  # [1, CA#1, w, w x CA#1] = 8. 33 in all.
+  expect_equal(f$n_params, 33)
+  expect_equal(dim(f$delta_beta), c(2L, 2L))
+  expect_equal(dim(f$tau_beta[[1]]), c(3L, 4L))
+  expect_true(all(exp(.lta_log_delta(f))[, 3] < 1e-290))
+  expect_equal(unname(rowSums(f$conditional)), rep(1, 2))
+  a <- f$association
+  expect_equal(nrow(a), 8)
+  expect_true(all(is.finite(a$se) & a$se > 0))
 })
 
 test_that("covariates on a smaller cs: the padded class has no category", {

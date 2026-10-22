@@ -30,8 +30,7 @@ fit_joint_classes(
 \item{ca_items, cs_items}{The items measuring each latent variable, one row
 per case, the same cases in the same order. Missing values are allowed.}
 
-\item{n_ca, n_cs}{Integer. Number of classes of each variable. \code{n_ca} must be
-at least \code{n_cs}; when it is smaller, swap the roles of the two variables.}
+\item{n_ca, n_cs}{Integer. Number of classes of each variable.}
 
 \item{measurement_ca, measurement_cs}{\code{"binary"} (items coded 0/1) or
 \code{"ordinal"} (ordered categories coded from 0 or from 1). A binary and an

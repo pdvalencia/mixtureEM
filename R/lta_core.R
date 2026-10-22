@@ -535,6 +535,7 @@
         # C patterns. With one class this is the marginal case and `patterns` is
         # 1, which is what it has always been.
         state$delta_c[[c]] <- .lta_normalise(colSums(es$gamma[[1]] * wc), alpha,
+                                             allowed = state$delta_allowed,
                                              patterns = C)
       }
 
@@ -779,13 +780,15 @@
   # with C > 1 in fit_lta(), so they never reach this.
   tied <- isTRUE(state$tie_initial_status) && C > 1L &&
     is.null(state$delta_beta)
+  # Statuses no case starts in carry no initial-status parameter.
+  Kr <- length(.lta_delta_keep(state))
   for (c in seq_len(C)) {
     if (!is.null(state$delta_beta)) {
       D <- ncol(state$Z_delta)
       out[[length(out) + 1L]] <- list(kind = "delta_beta", c = c,
-                                      len = (K - 1L) * D)
+                                      len = (Kr - 1L) * D)
     } else if (!tied || c == 1L) {
-      out[[length(out) + 1L]] <- list(kind = "delta", c = c, len = K - 1L,
+      out[[length(out) + 1L]] <- list(kind = "delta", c = c, len = Kr - 1L,
                                       tied = tied)
     }
 
@@ -938,10 +941,14 @@
         log(p[seq_len(C - 1L)]) - log(p[C])
       },
       delta = {
-        p <- pmax(state$delta_c[[b$c]], 1e-12)
-        log(p[seq_len(K - 1L)]) - log(p[K])
+        p  <- pmax(state$delta_c[[b$c]][.lta_delta_keep(state)], 1e-12)
+        Kr <- length(p)
+        log(p[seq_len(Kr - 1L)]) - log(p[Kr])
       },
-      delta_beta = as.vector(t(state$delta_beta[seq_len(K - 1L), , drop = FALSE])),
+      delta_beta = {
+        B <- state$delta_beta
+        as.vector(t(B[seq_len(nrow(B) - 1L), , drop = FALSE]))
+      },
       tau = {
         p <- pmax(state$tau_c[[b$c]][[b$i_mat]][b$k, b$allowed], 1e-12)
         log(p[-length(p)]) - log(p[length(p)])
@@ -1001,6 +1008,10 @@
     } else if (b$kind == "delta") {
       p <- exp(c(v, 0) - max(c(v, 0)))
       p <- p / sum(p)
+      # A status no case starts in stays at zero.
+      if (b$len < K - 1L) {
+        full <- numeric(K); full[.lta_delta_keep(state)] <- p; p <- full
+      }
       # Tied: one free vector, written to every class -- the vector->state
       # inverse of the M-step's own "normalise once, broadcast back" (the
       # `delta_tied` block in .lta_em(), R/lta_core.R).
@@ -1014,7 +1025,7 @@
       state$tau_c[[b$c]][[b$i_mat]][b$k, ] <- row
     } else if (b$kind == "delta_beta") {
       D <- ncol(state$Z_delta)
-      state$delta_beta <- rbind(matrix(v, K - 1L, D, byrow = TRUE), 0)
+      state$delta_beta <- rbind(matrix(v, b$len / D, D, byrow = TRUE), 0)
     } else if (b$kind == "tau_beta") {
       by_origin <- identical(state$transition_effects, "by_origin")
       D <- if (by_origin) ncol(state$Z_tau) else ncol(.lta_tau_design(state, 1L))
@@ -1220,10 +1231,13 @@
 
   if (C > 1L)
     val <- val + (alpha / C) * sum(log(pmax(state$class_weights, 1e-300)))
-  if (is.null(state$Z_delta))
+  if (is.null(state$Z_delta)) {
+    # Over the statuses a case can start in, as .lta_normalise() spreads it.
+    dk <- .lta_delta_keep(state)
     for (c in seq_len(C))
-      val <- val + (alpha / (C * K)) *
-        sum(log(pmax(state$delta_c[[c]], 1e-300)))
+      val <- val + (alpha / (C * length(dk))) *
+        sum(log(pmax(state$delta_c[[c]][dk], 1e-300)))
+  }
   if (Tn > 1L && is.null(state$Z_tau)) {
     n_pat <- K * C
     for (c in seq_len(C)) {
@@ -1364,7 +1378,7 @@
       g <- (alpha / C) * (1 - C * p[seq_len(C - 1L)])
       h <- -alpha * p[seq_len(C - 1L)] * (1 - p[seq_len(C - 1L)])
     } else if (b$kind == "delta" && alpha > 0) {
-      p <- pmax(state$delta_c[[b$c]], 1e-300)
+      p <- pmax(state$delta_c[[b$c]][.lta_delta_keep(state)], 1e-300)
       # Tied: one shared table, so it carries the whole alpha/K rather than a
       # C-th of it -- matching .lta_normalise(patterns = 1L) in the tied M-step,
       # and .lta_log_prior_dt(), which adds the C-th C times over identical
@@ -1373,10 +1387,12 @@
       # shared C ways, matching .lta_normalise(patterns = C) in the M-step and
       # .lta_log_prior()'s (alpha / (C * K)) term. At C == 1 this is (alpha / K)
       # either way.
-      a_d <- if (isTRUE(b$tied)) alpha / K else alpha / (C * K)
+      # Over the statuses a case can start in (all K but in a joint model).
+      Kr  <- length(p)
+      a_d <- if (isTRUE(b$tied)) alpha / Kr else alpha / (C * Kr)
       val <- val + a_d * sum(log(p))
-      g <- a_d * (1 - K * p[seq_len(K - 1L)])
-      h <- -a_d * K * p[seq_len(K - 1L)] * (1 - p[seq_len(K - 1L)])
+      g <- a_d * (1 - Kr * p[seq_len(Kr - 1L)])
+      h <- -a_d * Kr * p[seq_len(Kr - 1L)] * (1 - p[seq_len(Kr - 1L)])
     } else if (b$kind == "tau" && alpha > 0) {
       p  <- pmax(state$tau_c[[b$c]][[b$i_mat]][b$k, b$allowed], 1e-300)
       m  <- length(p)
@@ -1745,9 +1761,11 @@
     l <- log(pmax(p, 1e-6))
     l - l[K]
   }
+  dk <- .lta_delta_keep(state); Kr <- length(dk)
   if (!is.null(state$Z_delta) && is.null(state$delta_beta)) {
-    B <- matrix(0, K, ncol(state$Z_delta))
-    B[, 1L] <- logratio(state$delta_c[[1L]])
+    B <- matrix(0, Kr, ncol(state$Z_delta))
+    l <- log(pmax(state$delta_c[[1L]][dk], 1e-6))
+    B[, 1L] <- l - l[Kr]
     state$delta_beta <- B
   }
   Tn <- state$n_times
@@ -1770,8 +1788,9 @@
       if (isTRUE(state$tau_independent)) {
         B[, 1L] <- lr_d(colMeans(P))
       } else {
-        B[, 1L] <- Lr[K, ]
-        for (k in seq_len(K - 1L)) B[, 1L + k] <- Lr[k, ] - Lr[K, ]
+        # The last origin a case can start in is the design's reference.
+        B[, 1L] <- Lr[Kr, ]
+        for (k in seq_len(Kr - 1L)) B[, 1L + k] <- Lr[k, ] - Lr[Kr, ]
       }
       B
     })
@@ -1792,7 +1811,8 @@
   if (C > 1L) state$class_weights <- .lta_normalise(.rdirichlet1(C, 5) * 10, 0)
 
   for (c in seq_len(C)) {
-    state$delta_c[[c]] <- .lta_normalise(.rdirichlet1(K, 5) * 10, 0)
+    state$delta_c[[c]] <- .lta_normalise(.rdirichlet1(K, 5) * 10, 0,
+                                         allowed = state$delta_allowed)
 
     for (t in seq_len(max(Tn - 1L, 0L))) {
       m <- matrix(0, K, K)
