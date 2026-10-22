@@ -1,5 +1,20 @@
 # mixtureEM (development version)
 
+## Joint latent classes: the default prior covers each variable's own classes
+
+When the two variables of `fit_joint_classes()` have different numbers of
+classes, or different numbers of items, the model is fitted with the smaller
+one padded to the larger one's shape. The default prior on the item
+probabilities, and on the regression of `cs` on `ca`, was spread over the
+padding too, so each real class received a smaller share than in a latent
+class analysis of that variable alone, and the reported log-prior included
+terms for cells no case could reach. Each variable's prior is now spread
+over its own classes and its own items only. Under the default priors the
+log-prior and the restart ranking change, and the estimates move in their
+fourth decimal or less. Fits with `smoothing = 0` and
+`bayes_constants = list(categorical = 0)`, joint fits whose two variables
+have the same shape, and every other model are unchanged.
+
 ## Joint latent classes: `ca` may have fewer classes than `cs`
 
 `fit_joint_classes()` no longer refuses `n_ca < n_cs`. Before, it asked for

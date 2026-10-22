@@ -240,6 +240,12 @@ m_step.blocks <- function(model_state, X, resp, weights = NULL, ...) {
         r_b[rowSums(!is.na(X_sub)) == 0L, ] <- 0
         m_step(model_state$models[[b]], X_all, r_b, weights = weights,
                prior_scale = 1 / Bn, ...)
+      } else if (!is.null(model_state$prior_statuses)) {
+        # A joint model's occasion with fewer real classes than the block has
+        # rows: its prior is spread over the real ones (fit_lta()).
+        m_step(model_state$models[[b]], X_sub, resp_at(b), weights = weights,
+               prior_scale = model_state$models[[b]]$n_components /
+                 model_state$prior_statuses[b], ...)
       } else
         m_step(model_state$models[[b]], X_sub, resp_at(b), weights = weights, ...)
     }

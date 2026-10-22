@@ -282,3 +282,45 @@ test_that("no association, two-step: tested against the association on one step 
   expect_equal(g0$metrics$ll, f1$step1$metrics$ll, tolerance = 1e-8)
   expect_equal(lr_test(g0, f1)$df, 3)
 })
+
+test_that("the default prior is spread over each variable's own classes, never the padding", {
+  # Both directions: a smaller `cs` (padded destination) with fewer `cs`
+  # items, and a smaller `ca` (padded origin) with fewer `ca` items. The
+  # penalty's value and gradient must be the log-prior's, the fit must be
+  # stationary on the penalised objective, and moving a padded cell -- a
+  # padded class's item probabilities or a padded item column -- must leave
+  # the log-prior where it was.
+  cases <- list(list(K1 = 3, K2 = 2, Ja = 5, Js = 4),
+                list(K1 = 2, K2 = 3, Ja = 4, Js = 5))
+  for (cc in cases) {
+    d   <- sim_joint(400, cc$K1, cc$K2, cc$Ja, cc$Js, seed = 31)
+    fit <- fit_joint_classes(d$A, d$S, n_ca = cc$K1, n_cs = cc$K2, n_init = 3,
+                             random_state = 1, standard_errors = FALSE)
+    X   <- as.matrix(fit$data)
+    w   <- fit$weights_vec
+    lay <- .lta_par_layout(fit)
+    par <- .lta_par_pack(fit, lay)
+    lp  <- function(p) .lta_log_prior(.lta_par_unpack(p, fit, lay), X, 1)
+    obj <- function(p) sum(w * .lta_ll_case(fit, X, p, lay)) + lp(p)
+    fd  <- function(f) vapply(seq_along(par), function(j) {
+      e <- numeric(length(par)); e[j] <- 1e-6
+      (f(par + e) - f(par - e)) / 2e-6 }, 0)
+    info <- paste(cc$K1, "x", cc$K2)
+    expect_lt(max(abs(fd(obj))), 1e-3, label = info)
+    pen <- .lta_penalty(fit, X, lay, 1)
+    expect_equal(pen$value, lp(par), tolerance = 1e-10, info = info)
+    expect_lt(max(abs(pen$gradient - fd(lp))), 1e-6, label = info)
+
+    # The smaller variable also has the shorter item list here, so one
+    # occasion holds both kinds of padding: its last status and last item.
+    K  <- fit$n_statuses
+    t_pad <- if (cc$K1 < K) 1L else 2L
+    moved <- fit
+    pis <- moved$mm$models[[t_pad]]$parameters$pis
+    pis[K, ] <- 0.37
+    pis[, max(cc$Ja, cc$Js)] <- 0.21
+    moved$mm$models[[t_pad]]$parameters$pis <- pis
+    expect_equal(.lta_log_prior(moved, X, 1), .lta_log_prior(fit, X, 1),
+                 tolerance = 1e-12, info = info)
+  }
+})

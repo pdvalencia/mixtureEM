@@ -724,6 +724,10 @@ fit_lta <- function(indicators,
   # `ca` classes when `ca` has fewer classes than `cs` (fit_joint_classes()),
   # on `...` for the same reason `.transition_free` is.
   n_initial <- list(...)[[".initial_statuses"]]
+  # How many statuses are real at each occasion: the joint model's two class
+  # variables differ in their number of classes, and the measurement prior of
+  # each is spread over its own classes, never over the padding.
+  n_prior <- list(...)[[".prior_statuses"]]
 
   # The step-3 model of the bias-adjusted three-step estimator: one assigned-
   # status indicator per occasion whose response probabilities are KNOWN rather
@@ -1297,6 +1301,17 @@ fit_lta <- function(indicators,
       .lta_dif_init(predictors_items, n, K, prep$n_items, "predictors_items",
                     mode = dif_mode)
   )
+  # The padding the prior leaves out: statuses past `prior_statuses[t]` at
+  # occasion t, and an item column no case answers at that occasion (the
+  # shorter item list's padding). The M-step reads the count off `mm`.
+  if (!is.null(n_prior)) {
+    state$prior_statuses    <- as.integer(n_prior)
+    state$mm$prior_statuses <- state$prior_statuses
+    state$prior_observed    <- matrix(vapply(seq_len(Tn), function(tt)
+      colSums(!is.na(prep$X[, .time_block_cols(tt, prep$n_items),
+                            drop = FALSE])) > 0L, logical(prep$n_items)),
+      nrow = Tn, byrow = TRUE)
+  }
 
   # A DIF slope only means something in the cumulative-logit parameterisation,
   # and in this package that parameterisation lives only on the random-
@@ -2394,7 +2409,9 @@ fit_lta <- function(indicators,
   # `alpha / (K * C)` of it -- .lta_normalise(patterns = K * C). Reporting the
   # pull as though the row carried all of `alpha` overstates it K-fold, which is
   # what this diagnostic did before 2026-08-31.
-  a_row <- alpha / (K * C)
+  # The origins are the statuses a case can start in (all K but in a joint
+  # model).
+  a_row <- alpha / (length(.lta_delta_keep(state)) * C)
 
   rows <- list()
   for (c in seq_len(C)) {

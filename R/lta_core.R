@@ -549,8 +549,10 @@
         allowed <- state$tau_allowed_c[[c]]
         # A transition matrix is one conditional table over K origin patterns
         # (times C, when a latent class conditions it too), so `alpha` is its
-        # mass in total rather than each row's. See .lta_normalise().
-        n_pat <- K * C
+        # mass in total rather than each row's. See .lta_normalise(). The
+        # origins are the statuses a case can start in (all K but in a joint
+        # model, whose padded `ca` rows are closed and carry no prior).
+        n_pat <- length(.lta_delta_keep(state)) * C
         if (isTRUE(state$tau_independent)) {
           # No transition structure: the status at t+1 does not depend on the
           # status at t, so every origin row of an occasion is the same
@@ -1239,7 +1241,7 @@
         sum(log(pmax(state$delta_c[[c]][dk], 1e-300)))
   }
   if (Tn > 1L && is.null(state$Z_tau)) {
-    n_pat <- K * C
+    n_pat <- length(.lta_delta_keep(state)) * C
     for (c in seq_len(C)) {
       mats <- state$tau_c[[c]]
       # Under `transition_invariance = "full"` one matrix is estimated and
@@ -1273,6 +1275,18 @@
   if (fam %in% c("gaussian_unit", "gaussian_unit_nan")) return(TRUE)
   fam %in% c("bernoulli", "bernoulli_nan", "ordinal", "ordinal_nan") &&
     .bayes_alpha(state$mm$models[[1]], "categorical") <= 0
+}
+
+# The statuses whose item-j parameters at occasion t carry the measurement
+# prior: every status, except in a joint model (fit_joint_classes()), whose
+# smaller class variable is padded to the larger one's K. There only that
+# occasion's real classes count, and none at all for an item column no case
+# answers at that occasion (the shorter item list's padding).
+.lta_prior_rows <- function(state, t, j) {
+  ps <- state$prior_statuses
+  if (is.null(ps)) return(seq_len(state$n_statuses))
+  if (!state$prior_observed[t, j]) return(integer(0))
+  seq_len(ps[t])
 }
 
 .lta_log_prior <- function(state, X, alpha, marginals = NULL) {
@@ -1319,10 +1333,12 @@
     for (j in seq_len(state$n_items)) {
       grps <- if (j %in% inv) list(seq_len(Tn)) else lapply(seq_len(Tn), identity)
       for (g in grps) {
-        p  <- pmin(pmax(state$mm$models[[g[1]]]$parameters$pis[, j], 1e-300),
-                   1 - 1e-300)
+        rows <- .lta_prior_rows(state, g[1], j)
+        if (!length(rows)) next
+        p  <- pmin(pmax(state$mm$models[[g[1]]]$parameters$pis[rows, j],
+                        1e-300), 1 - 1e-300)
         mj <- marginals[g[1], j]
-        val <- val + length(g) * (a_cat / K) *
+        val <- val + length(g) * (a_cat / length(rows)) *
           sum(mj * log(p) + (1 - mj) * log1p(-p))
       }
     }
@@ -1339,10 +1355,13 @@
                                             state$n_items, Tn, j, Sj)
       grps <- if (j %in% inv) list(seq_len(Tn)) else lapply(seq_len(Tn), identity)
       for (g in grps) {
-        p <- pmin(pmax(state$mm$models[[g[1]]]$parameters$pis[, cols,
+        rows <- .lta_prior_rows(state, g[1], j)
+        if (!length(rows)) next
+        p <- pmin(pmax(state$mm$models[[g[1]]]$parameters$pis[rows, cols,
                                                               drop = FALSE],
                        1e-300), 1 - 1e-300)
-        val <- val + length(g) * (a_cat / K) * sum(sweep(log(p), 2, mj, "*"))
+        val <- val + length(g) * (a_cat / length(rows)) *
+          sum(sweep(log(p), 2, mj, "*"))
       }
     }
   }
@@ -1398,8 +1417,9 @@
       m  <- length(p)
       # `alpha` is the whole transition table's mass, spread over its K origin
       # patterns -- times C, when a latent class conditions the table too --
-      # matching .lta_normalise(patterns = K * C) in the M-step.
-      a_tau <- alpha / (K * C * m)
+      # matching .lta_normalise(patterns = K * C) in the M-step, over the
+      # origins a case can start in.
+      a_tau <- alpha / (length(.lta_delta_keep(state)) * C * m)
       val <- val + a_tau * sum(log(p))
       g <- a_tau * (1 - m * p[-m])
       h <- -a_tau * m * p[-m] * (1 - p[-m])
@@ -1426,11 +1446,14 @@
       # over the occasions in `grp` carries that mass once per occasion, not
       # once in total. m_step.blocks() applies the same multiplier when it
       # pools the occasions.
-      a_rho <- length(b$grp) * a_cat / K
-      val <- val + a_rho * sum(mj * log(p) + (1 - mj) * log1p(-p))
+      # Over the statuses .lta_prior_rows() names (all K but in a joint
+      # model); the padding's cells carry no prior and get a zero gradient.
+      rows  <- .lta_prior_rows(state, b$grp[1], b$j)
+      a_rho <- length(b$grp) * a_cat / max(length(rows), 1L)
+      val <- val + a_rho * sum((mj * log(p) + (1 - mj) * log1p(-p))[rows])
       # On the logit scale the derivative collapses to a_rho * (m_j - rho).
-      g <- a_rho * (mj - p)
-      h <- -a_rho * p * (1 - p)
+      g[rows] <- (a_rho * (mj - p))[rows]
+      h[rows] <- (-a_rho * p * (1 - p))[rows]
     } else if (b$kind == "log_sd" && a_var > 0) {
       v  <- state$mm$models[[b$grp[1]]]$parameters$covariances[, b$j]
       s2 <- .lta_var_prior_marginal(state, X, b)
@@ -1524,11 +1547,17 @@
                                                                   drop = FALSE]
       mj  <- .lta_ri_item_marginal_ordinal(X, state$weights_vec,
                                            state$n_items, state$n_times, b$j, Sj)
-      a_rho <- length(b$grp) * a_cat / K
-      term  <- .ordinal_theta_prior_term(theta_j, 0, mj, Sj)
-      val   <- val + a_rho * term$value
-      g     <- a_rho * term$grad
+      rows  <- .lta_prior_rows(state, b$grp[1], b$j)
       h     <- rep(NA_real_, b$len)
+      if (length(rows)) {
+        a_rho <- length(b$grp) * a_cat / length(rows)
+        term  <- .ordinal_theta_prior_term(theta_j[rows, , drop = FALSE], 0,
+                                           mj, Sj)
+        val   <- val + a_rho * term$value
+        gm    <- matrix(0, K, Sj - 1L)
+        gm[rows, ] <- a_rho * term$grad
+        g     <- as.vector(gm)
+      }
     } else if (b$kind == "ri_mass" && alpha > 0) {
       # Mirrors the "class" branch above with Q in place of C, matching the
       # implicit Dirichlet(alpha/Q, ...) prior .lta_normalise() applies at

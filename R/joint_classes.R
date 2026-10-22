@@ -235,6 +235,8 @@ fit_joint_classes <- function(ca_items, cs_items,
                  predictors_items = predictors_items,
                  forbidden_transitions = forb,
                  .initial_statuses = if (n_ca < K) n_ca,
+                 .prior_statuses = if (!stacked && (n_ca != n_cs || Ja != Js))
+                   c(n_ca, n_cs),
                  predictors_initial = predictors_ca,
                  predictors_transition = predictors_cs,
                  transition_effects = effects,
