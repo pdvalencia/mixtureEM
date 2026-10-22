@@ -1125,8 +1125,11 @@
 # forward-backward pass with `keep_pairwise = TRUE` and builds the whole score
 # matrix, and the finite-difference Hessian that calls this does so thousands of
 # times and wants neither.
-.lta_ll_case <- function(state, X, par, layout) {
-  st <- .lta_par_unpack(par, state, layout)
+.lta_ll_case <- function(state, X, par, layout)
+  .lta_ll_case_state(.lta_par_unpack(par, state, layout), X)
+
+# The same, at an unpacked state.
+.lta_ll_case_state <- function(st, X) {
   if (!is.null(st$ri)) return(.lta_ri_ll_case(st, X))
   C  <- st$n_classes %||% 1L
   logB <- .lta_emission_loglik(st$mm, X)

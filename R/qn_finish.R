@@ -869,21 +869,28 @@
     keep(st)
   }
   if (analytic) {
-    # Per-row log-likelihood and analytic scores come from one forward-backward
-    # pass; the finish asks for both at the same point, so it is cached.
-    cache <- NULL
-    at <- function(r) {
-      if (!is.null(cache) && identical(cache$r, r)) return(cache)
-      st <- keep(.lta_par_unpack(r[red$src], red$state, red$layout))
-      sc <- .lta_score_matrix(st, X, shared_ok = TRUE)
-      cache <<- if (is.null(sc)) list(r = r, ll = rep(NA_real_, nrow(X)), S = NULL)
-                else list(r = r, ll = sc$ll,
-                          # Shared rows fold onto their one free vector.
-                          S = t(rowsum(t(sc$S), red$src)))
-      cache
+    # The scores are asked for once an iteration, at the accepted point; the
+    # per-row log-likelihood at every point the line search tries, five a
+    # step on a flat ridge, where a forward pass costs 0.06 s against the
+    # score pass's 0.16 (RECORDS.md, "The LTA finish on a flat ridge"). So
+    # each is computed on its own, and the last of each is cached. Every
+    # log-likelihood the finish compares comes from the forward pass alone,
+    # so a step's gain never differences two routes to the same number.
+    at_st <- function(r) keep(.lta_par_unpack(r[red$src], red$state, red$layout))
+    cache <- NULL; ll_cache <- NULL
+    case_ll <- function(r) {
+      if (!is.null(ll_cache) && identical(ll_cache$r, r)) return(ll_cache$ll)
+      ll_cache <<- list(r = r, ll = .lta_ll_case_state(at_st(r), X))
+      ll_cache$ll
     }
-    case_ll <- function(r) at(r)$ll
-    scores  <- function(r, idx) at(r)$S[, idx, drop = FALSE]
+    scores <- function(r, idx) {
+      if (is.null(cache) || !identical(cache$r, r)) {
+        sc <- .lta_score_matrix(at_st(r), X, shared_ok = TRUE)
+        # Shared rows fold onto their one free vector.
+        cache <<- list(r = r, S = if (!is.null(sc)) t(rowsum(t(sc$S), red$src)))
+      }
+      cache$S[, idx, drop = FALSE]
+    }
     gtol    <- .qn_gtol_stop
   } else {
     case_ll <- function(r)

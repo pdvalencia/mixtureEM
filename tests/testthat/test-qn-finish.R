@@ -77,6 +77,9 @@ test_that("a freely loading random intercept on binary items is finished to the 
   f <- suppressWarnings(do.call(fit_lta, args))
   expect_false(is.null(f$qn_finish))
   expect_true(f$qn_finish$converged)
+  X <- as.matrix(f$data)
+  expect_identical(.lta_ll_case_state(f, X),
+                   .lta_score_matrix(f, X, shared_ok = TRUE)$ll)
   # EM from the same fit on a strict rule reaches the same maximum.
   long <- .lta_em(f, f$data, max_iter = 200000L, tol = 1e-15, alpha = 0)
   expect_true(long$converged)
@@ -101,6 +104,9 @@ test_that("the shared-row scores fold to the gradient of the reduced vector", {
   gn <- .qn_fd_grad(function(r)
     sum(w * .lta_ll_case(red$state, X, r[red$src], red$layout)), red$r0)
   expect_lt(max(abs(ga - gn)), 1e-5)
+  # The finish's line search reads the forward pass alone; it must be the
+  # score pass's log-likelihood to the last bit.
+  expect_identical(.lta_ll_case_state(red$state, X), sc$ll)
   # The gate is unchanged for every other caller.
   expect_null(.lta_score_matrix(f, X))
 })

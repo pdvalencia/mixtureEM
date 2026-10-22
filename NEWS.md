@@ -31,6 +31,18 @@ differenced. The finish reaches the same point; a five-class model of ten
 ordinal items on 61,000 cases went from 24 to 12.5 minutes. No estimate
 changes.
 
+## Faster finish for latent transition and joint latent class models
+
+The Newton-type finish of `fit_lta()` and `fit_joint_classes()` computed
+the case scores at every point its line search tried, though only the
+log-likelihood is needed there. It now runs the likelihood's forward pass
+alone for those trials and computes the scores once per iteration, at the
+point accepted. The log-likelihood is the same to the last bit, so the
+finish takes the same steps to the same point; a one-step joint model with
+ordinal DIF items, whose finish runs some 400 iterations along a nearly
+flat ridge, finished in 226 seconds instead of 318 on 3,000 cases. No
+estimate changes.
+
 ## Two-step latent transition models: step 1 regresses the statuses beside the item slopes
 
 `fit_lta(n_steps = 2, predictors_items = )` fitted step 1 with the direct
