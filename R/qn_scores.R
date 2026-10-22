@@ -176,9 +176,64 @@
   do.call(cbind, c(list(G), sl))
 }
 
+# Ordinal items with covariate effects (R/ordinal_dif.R), in
+# .ordinal_dif_pack()'s order: every threshold in increment form (class
+# fastest, item by item), then the slopes. With F_s = P(x > s) = plogis(eta_s)
+# and P_c = F_{c-1} - F_c, a case in category c has d log P_c / d eta_s =
+# F_s (1 - F_s) (1[c = s + 1] - 1[c = s]) / P_c. The first threshold moves
+# every eta_s, the log gap of threshold s moves eta_s and those above it by
+# -exp(gap), and a slope moves every eta_s by the case's covariate value.
+.qn_ordinal_dif_scores <- function(mm, X, R) {
+  K    <- mm$n_components
+  cats <- mm$cats
+  J    <- length(cats)
+  dif  <- mm$dif
+  X    <- as.matrix(X)
+  n    <- nrow(X)
+  th   <- .ordinal_theta_from_pis(mm$parameters$pis, cats)
+  St   <- matrix(0, n, K * ncol(th))
+  sl   <- list()
+  for (j in seq_len(J)) {
+    m  <- cats[j] - 1L
+    tc <- .ordinal_theta_cols(cats, j)
+    u  <- th[, tc, drop = FALSE]
+    x  <- X[, j]
+    G  <- array(0, c(n, K, m))
+    for (q in seq_len(dif$P)) {
+      r <- dif$rows[[q]]
+      r <- r[!is.na(x[r])]
+      if (!length(r)) next
+      eta <- u
+      if (m > 1L) for (s in 2:m) eta[, s] <- eta[, s - 1L] - exp(u[, s])
+      eta <- eta + .dif_shift(mm, q)[, j]
+      Fm  <- plogis(eta)
+      P   <- pmax(cbind(1, Fm) - cbind(Fm, 0), 1e-300)
+      xc  <- x[r]
+      iP  <- 1 / t(P[, xc, drop = FALSE])
+      for (s in seq_len(m))
+        G[r, , s] <- sweep(iP, 2, Fm[, s] * (1 - Fm[, s]), "*") *
+          ((xc == s + 1L) - (xc == s))
+    }
+    # cum[[s]]: the case's derivative summed over eta_s and every eta above.
+    cum <- lapply(seq_len(m), function(s) matrix(G[, , s], n, K))
+    if (m > 1L) for (s in (m - 1L):1L) cum[[s]] <- cum[[s]] + cum[[s + 1L]]
+    tot <- cum[[1L]]
+    for (s in seq_len(m)) {
+      Ts <- if (s == 1L) tot else -sweep(cum[[s]], 2, exp(u[, s]), "*")
+      St[, (tc[s] - 1L) * K + seq_len(K)] <- R * Ts
+    }
+    for (d in which(dif$free[j, ])) {
+      Gj <- R * tot * dif$Z[, d]
+      sl[[length(sl) + 1L]] <- if (dif$by_class[j]) Gj else rowSums(Gj)
+    }
+  }
+  do.call(cbind, c(list(St), sl))
+}
+
 # Any measurement model, in .qn_pack_mm()'s order.
 .qn_mm_scores <- function(mm, X, R) {
   if (inherits(mm, "bernoulli_dif")) return(.qn_dif_scores(mm, X, R))
+  if (inherits(mm, "ordinal_dif")) return(.qn_ordinal_dif_scores(mm, X, R))
   if (inherits(mm, "blocks")) return(.qn_blocks_scores(mm, X, R))
   if (inherits(mm, "nested")) {
     out <- .qn_items_scores(mm, X, R)

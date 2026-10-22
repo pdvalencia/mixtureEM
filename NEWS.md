@@ -1,5 +1,16 @@
 # mixtureEM (development version)
 
+## Faster finish for ordinal items with item covariates
+
+The Newton-type finish of `fit_mixture()` took each case's score by central
+differences when ordinal items had direct covariate effects
+(`predictors_items`), at two passes over the data per parameter and
+iteration. Those scores are now computed from one E-step, as for every
+other family, and a prior that is zero everywhere is no longer
+differenced. The finish reaches the same point; a five-class model of ten
+ordinal items on 61,000 cases went from 24 to 12.5 minutes. No estimate
+changes.
+
 ## Two-step latent transition models: step 1 regresses the statuses beside the item slopes
 
 `fit_lta(n_steps = 2, predictors_items = )` fitted step 1 with the direct

@@ -47,7 +47,10 @@
 .sc_grp <- function(n = 300) factor(rep(1:3, length.out = n))
 
 # Analytic against central differences, over the coordinates the finish moves.
-.sc_check <- function(fit, label) {
+# `prior = FALSE`: a family whose prior gradient is not written out, so the
+# finish differences the prior; its builder must then say so (NULL, now or
+# when evaluated, which is what .qn_finish_mixture() checks).
+.sc_check <- function(fit, label, prior = TRUE) {
   Y  <- fit$Y
   pr <- .qn_mixture_problem(fit, fit$data, Y)
   expect_false(is.null(pr), label = label)
@@ -67,6 +70,10 @@
     # The prior's gradient and diagonal curvature. Second differences of a
     # prior of size ~100 are good to ~1e-4, so the curvature is held to 1e-3.
     pg <- .qn_mixture_prior_grad(fit, pr$lay, fit$data, Y, pr$wt)
+    if (!prior) {
+      expect_true(is.null(pg) || is.null(pg(pr$unpack(par))), label = lab)
+      next
+    }
     # A model whose prior is not priced (mixed items across groups) is never
     # finished, and has no prior gradient either.
     if (is.na(pr$prior(par))) { expect_null(pg, label = lab); next }
@@ -107,6 +114,18 @@ test_that("measurement-model scores equal central differences", {
                    predictors_items = list(u1 = ~ z, u3 = ~ z + w),
                    predictors_items_by_class = "u3"),
             label = "binary with item covariates")
+  # Ordinal items with item covariates: a uniform slope, a slope by class and
+  # a ragged three-category item, with and without missing cells.
+  for (na in c(FALSE, TRUE)) {
+    X <- .sc_cat(na = na); d <- data.frame(z = rbinom(nrow(X), 1, .5))
+    colnames(X) <- paste0("o", 1:3)
+    .sc_check(.sc_fm(X, measurement = "ordinal", cats = c(4L, 4L, 3L),
+                     predictors = ~ z, data = d,
+                     predictors_items = list(o1 = ~ z, o3 = ~ z),
+                     predictors_items_by_class = "o3"),
+              label = paste("ordinal with item covariates", if (na) "NA"),
+              prior = FALSE)
+  }
 })
 
 test_that("multiple-group measurement scores equal central differences", {

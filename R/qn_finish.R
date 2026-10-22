@@ -627,6 +627,16 @@
   pg <- .qn_mixture_prior_grad(model_state, lay, X, Y, wt)
   if (!is.null(pg) && is.null(pg(pr$unpack(par0)))) pg <- NULL
   prior_grad <- if (!is.null(pg)) function(p) pg(pr$unpack(p))
+  # A prior that is zero everywhere (every constant at zero: plain maximum
+  # likelihood) has nothing to difference. Zero at the start and at two
+  # points off it is that case; any prior with a positive constant is a sum
+  # of pseudo-counts times log-probabilities and is never zero.
+  if (is.null(prior_grad) &&
+      all(vapply(list(par0, par0 + 0.3, par0 - 0.2), function(p)
+        isTRUE(pr$prior(p) == 0), logical(1)))) {
+    zero <- numeric(length(par0))
+    prior_grad <- function(p) list(g = zero, h = zero)
+  }
   # The stopping rule stays the differenced route's, which is the rule every
   # mixture target was graded at (RECORDS.md, "Part 53 graded"): the tighter
   # analytic rule took m_free (group prevalence, p = 76) from 33 iterations to
