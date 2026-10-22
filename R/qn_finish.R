@@ -279,6 +279,7 @@
   g  <- NULL
   best_g <- Inf
   stale  <- 0L
+  a_last <- 1
   repeat {
     it <- it + 1L
     S  <- scores(x, free)
@@ -360,18 +361,37 @@
     lx <- case_ll(x)
     px <- prior(x)
     noise <- 4 * .Machine$double.eps * (sum(w * abs(lx)) + abs(px))
-    a <- 1
-    repeat {
+    # The step taken is the longest of 1, 1/2, 1/4, ... that is accepted. A
+    # BHHH step's search starts from twice the last accepted length and climbs
+    # while it is accepted, or halves until it is: the same length the search
+    # down from 1 finds wherever every length below an accepted one is accepted
+    # too, in two or three trials rather than the six or eight it takes from 1
+    # along a curved ridge, where the accepted length sits at 1/64 to 1/256 for
+    # hundreds of iterations (RECORDS.md, "The LTA finish on a flat ridge"). A
+    # Newton step is tried whole first, as before.
+    try_at <- function(a) {
       xn <- x
       xn[free] <- x[free] + a * d
       ln <- case_ll(xn)
       pn <- prior(xn)
-      gain <- sum(w * (ln - lx)) + (pn - px)
-      fn <- sum(w * ln) + pn
-      if (is.finite(fn) && is.finite(gain) && gain >= -noise) break
-      a <- a / 2
-      if (a < 1e-10) break
+      list(a = a, xn = xn, gain = sum(w * (ln - lx)) + (pn - px),
+           fn = sum(w * ln) + pn)
     }
+    ok <- function(s) is.finite(s$fn) && is.finite(s$gain) && s$gain >= -noise
+    s <- try_at(if (newton) 1 else min(1, 2 * a_last))
+    if (ok(s)) {
+      while (s$a < 1) {
+        u <- try_at(2 * s$a)
+        if (!ok(u)) break
+        s <- u
+      }
+    } else repeat {
+      if (s$a / 2 < 1e-10) { s$a <- s$a / 2; break }
+      s <- try_at(s$a / 2)
+      if (ok(s)) break
+    }
+    a <- s$a; xn <- s$xn; gain <- s$gain; fn <- s$fn
+    a_last <- if (a < 1e-10) 1 else a
     if (is.finite(gain) && gain > noise) stale <- 0L
     # The exact curvature is kept while its steps are taken whole and gain
     # what its quadratic model says they should.
@@ -830,6 +850,48 @@
   pg
 }
 
+# The finish's two passes over the data -- the per-row log-likelihood at every
+# point the line search tries, the score matrix once an iteration -- on one row
+# per distinct (responses, covariates) pattern, carrying the summed weights.
+# Both are sums over cases that merely repeat for identical rows, so the
+# objective, its gradient and the BHHH curvature are those of the full sample:
+# the path is the same, to the rounding of the sums. The search itself never
+# collapses these fits (.lta_collapse() refuses covariates, DIF and ordinal
+# items, to keep their starts where they are); the finish has no starts, so it
+# can. The ENPOL joint models have 15,347 such rows in 60,785 (RECORDS.md, "The
+# LTA finish on a flat ridge"). The key is the responses plus every per-case
+# design column; the posteriors (`gamma`, `ri$pq`) are functions of that key,
+# so taking the representative row's is exact. NULL where the rows are
+# per-case for a reason the key does not see (a survey design, groups), or
+# where too few rows repeat to repay the bookkeeping.
+.qn_lta_pattern_rows <- function(state, X) {
+  if (isTRUE(state$has_survey_design) || !is.null(state$group_info) ||
+      !is.null(state$mm$distal)) return(NULL)
+  pat  <- .pattern_index(X, cbind(state$Z_delta, state$Z_tau, state$Z_ri,
+                                  state$dif$Z))
+  rows <- which(pat$rep_row)
+  if (length(rows) > 0.9 * nrow(X)) return(NULL)
+  w   <- as.vector(rowsum(state$weights_vec, pat$idx))
+  # Only a field still on the full sample is cut, so a state shrunk once comes
+  # through a second time unchanged.
+  n   <- nrow(X)
+  sub <- function(m) if (NROW(m) != n) m else if (is.null(dim(m))) m[rows] else
+    m[rows, , drop = FALSE]
+  list(X = X[rows, , drop = FALSE], w = w, shrink = function(st) {
+    st$weights_vec <- w
+    for (nm in c("Z_delta", "Z_tau", "Z_ri", "strata", "cluster", "ll_case"))
+      if (!is.null(st[[nm]])) st[[nm]] <- sub(st[[nm]])
+    if (!is.null(st$gamma)) st$gamma <- lapply(st$gamma, sub)
+    if (!is.null(st$ri$pq)) st$ri$pq <- sub(st$ri$pq)
+    if (!is.null(st$dif)) {
+      st$dif$Z   <- sub(st$dif$Z)
+      st$dif$pat <- sub(st$dif$pat)
+      st$dif$rows <- lapply(seq_len(st$dif$P), function(p) which(st$dif$pat == p))
+    }
+    st
+  })
+}
+
 .qn_finish_lta <- function(state, X, alpha, marginals) {
   frozen <- "mm" %in% state$frozen
   red <- if (.qn_lta_analytic(state)) .qn_lta_reduction(state) else NULL
@@ -868,6 +930,7 @@
     if (red$shared) st$tau_independent <- TRUE
     keep(st)
   }
+  X_prior <- X; unpack_prior <- unpack
   if (analytic) {
     # The scores are asked for once an iteration, at the accepted point; the
     # per-row log-likelihood at every point the line search tries, five a
@@ -877,15 +940,40 @@
     # log-likelihood the finish compares comes from the forward pass alone,
     # so a step's gain never differences two routes to the same number.
     at_st <- function(r) keep(.lta_par_unpack(r[red$src], red$state, red$layout))
+    # Every pass of the finish -- log-likelihood, scores, prior -- runs on the
+    # pattern table, unpacking straight onto it (a covariate model's per-case
+    # transition tables are most of an unpack's cost). The prior reads the data
+    # only through weighted sums, so it is the same there. Kept only if the
+    # table reproduces the full sample's log-likelihood and prior at the start;
+    # the fit handed back is rebuilt on the full sample below.
+    pr <- .qn_lta_pattern_rows(state, X)
+    if (!is.null(pr)) {
+      red_rows <- pr$shrink(red$state)
+      at_rows  <- function(r) pr$shrink(keep(.lta_par_unpack(r[red$src], red_rows,
+                                                             red$layout)))
+      unpack_rows <- function(r) {
+        st <- .lta_par_unpack(r[red$src], red_rows, red$layout)
+        if (red$shared) st$tau_independent <- TRUE
+        pr$shrink(keep(st))
+      }
+      same <- function(a, b) isTRUE(abs(a - b) <= 1e-8 * (1 + abs(a)))
+      if (same(sum(w * .lta_ll_case_state(at_st(r0), X)),
+               sum(pr$w * .lta_ll_case_state(at_rows(r0), pr$X))) &&
+          same(.qn_lta_prior(unpack(r0), X, alpha, marginals),
+               .qn_lta_prior(unpack_rows(r0), pr$X, alpha, marginals))) {
+        w <- pr$w; X_prior <- pr$X; unpack_prior <- unpack_rows; at_st <- at_rows
+      } else pr <- NULL
+    }
+    X_rows <- if (is.null(pr)) X else pr$X
     cache <- NULL; ll_cache <- NULL
     case_ll <- function(r) {
       if (!is.null(ll_cache) && identical(ll_cache$r, r)) return(ll_cache$ll)
-      ll_cache <<- list(r = r, ll = .lta_ll_case_state(at_st(r), X))
+      ll_cache <<- list(r = r, ll = .lta_ll_case_state(at_st(r), X_rows))
       ll_cache$ll
     }
     scores <- function(r, idx) {
       if (is.null(cache) || !identical(cache$r, r)) {
-        sc <- .lta_score_matrix(at_st(r), X, shared_ok = TRUE)
+        sc <- .lta_score_matrix(at_st(r), X_rows, shared_ok = TRUE)
         # Shared rows fold onto their one free vector.
         cache <<- list(r = r, S = if (!is.null(sc)) t(rowsum(t(sc$S), red$src)))
       }
@@ -898,12 +986,12 @@
     scores  <- NULL
     gtol    <- .qn_gtol_stop_fd
   }
-  prior <- function(r) .qn_lta_prior(unpack(r), X, alpha, marginals)
+  prior <- function(r) .qn_lta_prior(unpack_prior(r), X_prior, alpha, marginals)
   if (is.na(prior(r0))) return(NULL)
   start <- sum(w * case_ll(r0)) + prior(r0)
   if (!is.finite(start)) return(NULL)
-  prior_grad <- if (analytic) .qn_lta_prior_grad(red, unpack, X, alpha, r0, prior,
-                                                  fixed)
+  prior_grad <- if (analytic) .qn_lta_prior_grad(red, unpack_prior, X_prior, alpha,
+                                                  r0, prior, fixed)
   res <- .qn_finish(case_ll, w, r0, prior, scores, gtol_stop = gtol, kind = kind,
                     fixed = fixed, prior_grad = prior_grad)
   if (is.null(res) || res$value <= start) return(NULL)

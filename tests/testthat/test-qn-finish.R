@@ -111,6 +111,44 @@ test_that("the shared-row scores fold to the gradient of the reduced vector", {
   expect_null(.lta_score_matrix(f, X))
 })
 
+test_that("the finish runs a covariate and DIF fit on its pattern table, to the same point", {
+  # The search never collapses this fit (covariates, DIF, ordinal items); the
+  # finish does, keyed on the responses and every covariate column.
+  d <- .lta_dif_sim(n = 1000, Tn = 2, seed = 5)
+  z <- as.data.frame(d$Z)
+  f0 <- suppressWarnings(suppressMessages(fit_lta(d$X, n_statuses = 2, times = 2,
+          measurement = "ordinal", predictors_initial = z, predictors_transition = z,
+          predictors_items = z,
+          n_init = 2, n_cores = 1, random_state = 11, refine = FALSE,
+          standard_errors = FALSE)))
+  X  <- as.matrix(f0$data)
+  pr <- .qn_lta_pattern_rows(f0, X)
+  expect_false(is.null(pr))
+  expect_lt(nrow(pr$X), nrow(X) / 2)
+  expect_equal(sum(pr$w), sum(f0$weights_vec))
+  # A state shrunk twice is the state shrunk once.
+  s1 <- pr$shrink(f0)
+  expect_identical(pr$shrink(s1)$dif, s1$dif)
+  # Log-likelihood, prior and gradient are the full sample's.
+  w <- f0$weights_vec
+  expect_equal(sum(pr$w * .lta_ll_case_state(s1, pr$X)),
+               sum(w * .lta_ll_case_state(f0, X)), tolerance = 1e-12)
+  marg <- .lta_prior_marginals(f0, X)
+  expect_equal(.qn_lta_prior(s1, pr$X, 1, marg), .qn_lta_prior(f0, X, 1, marg),
+               tolerance = 1e-12)
+  sf <- .lta_score_matrix(f0, X, shared_ok = TRUE)$S
+  sc <- .lta_score_matrix(s1, pr$X, shared_ok = TRUE)$S
+  expect_lt(max(abs(colSums(sc * pr$w) - colSums(sf * w))), 1e-9)
+  # The finish lands where it lands on the full sample.
+  a <- .qn_finish_lta(f0, X, alpha = 1, marginals = marg)
+  local_mocked_bindings(.qn_lta_pattern_rows = function(state, X) NULL)
+  b <- .qn_finish_lta(f0, X, alpha = 1, marginals = marg)
+  expect_false(is.null(a))
+  expect_equal(a$loglik, b$loglik, tolerance = 1e-10)
+  expect_identical(a$qn_finish$iterations, b$qn_finish$iterations)
+  expect_identical(length(a$ll_case), nrow(X))
+})
+
 test_that("candidate selection keeps distinct solutions within the band", {
   w   <- rep(1, 4)
   sig <- list(c(0, 0, 0, 0), c(0, 0, 0, 0.004), c(1, 1, 1, 1), c(2, 2, 2, 2))

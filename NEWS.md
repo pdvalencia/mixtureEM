@@ -43,6 +43,18 @@ ordinal DIF items, whose finish runs some 400 iterations along a nearly
 flat ridge, finished in 226 seconds instead of 318 on 3,000 cases. No
 estimate changes.
 
+The same finish now also runs on one row per distinct combination of
+responses and covariate values, each carrying its count, where the search
+before it cannot (covariates on the statuses, item covariates, ordinal
+items); the log-likelihood, its gradient and its curvature are sums over
+cases, so they are unchanged. And the line search of every finish,
+`fit_mixture()`'s included, starts from twice the last accepted step length
+and lengthens it while it is accepted, rather than starting from a full
+step each time; it settles on the same length in fewer trials. On the same
+3,000 cases the finish took the same 409 steps to the same point in 110
+seconds rather than 226, and on 20,000 cases in 8 minutes rather than 38.
+No estimate changes.
+
 ## Two-step latent transition models: step 1 regresses the statuses beside the item slopes
 
 `fit_lta(n_steps = 2, predictors_items = )` fitted step 1 with the direct
