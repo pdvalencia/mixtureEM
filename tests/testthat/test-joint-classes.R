@@ -283,6 +283,50 @@ test_that("no association, two-step: tested against the association on one step 
   expect_equal(lr_test(g0, f1)$df, 3)
 })
 
+test_that("two-step: a step 1 handed over is reused, or continued from the two LCAs", {
+  d <- sim_joint(500, 3, 2, 5, 4, seed = 33)
+  z <- data.frame(w = rbinom(500, 1, 0.5))
+  zero <- list(categorical = 0)
+  fit <- function(...) fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
+                                         n_steps = 2, n_init = 3,
+                                         random_state = 4, smoothing = 0,
+                                         bayes_constants = zero, ...)
+  f1 <- fit(predictors_cs = z)
+  # Step 1 searched as the two LCAs is still the joint step-1 model at their
+  # solution, and an EM run from it moves nothing.
+  la <- fit_mixture(d$A, n_classes = 3, measurement = "binary", n_init = 3,
+                    random_state = 4, smoothing = 0,
+                    bayes_constants = list(categorical = 0, latent = 0))
+  ls <- fit_mixture(d$S, n_classes = 2, measurement = "binary", n_init = 3,
+                    random_state = 4, smoothing = 0,
+                    bayes_constants = list(categorical = 0, latent = 0))
+  expect_equal(f1$step1$metrics$ll, la$metrics$ll + ls$metrics$ll,
+               tolerance = 1e-6)
+  expect_lte(f1$step1$n_iter, 5)
+
+  # A previous fit's step 1, reused: the same fit as one searching its own.
+  f2  <- fit(predictors_cs = z, cs_effects = c(w = "by_ca"))
+  f2r <- fit(predictors_cs = z, cs_effects = c(w = "by_ca"), step1 = f1)
+  expect_identical(f2r$step1$mm$models, f2$step1$mm$models)
+  expect_equal(f2r$metrics$ll, f2$metrics$ll, tolerance = 1e-10)
+  expect_equal(f2r$n_params, f2$n_params)
+  expect_equal(f2r$step1$n_params, f1$step1$n_params)
+  expect_equal(lr_test(f1, f2r)$df, lr_test(f1, f2)$df)
+
+  # The two LCAs, handed over.
+  f3 <- fit(predictors_cs = z, step1 = list(ca = la, cs = ls))
+  expect_equal(f3$metrics$ll, f1$metrics$ll, tolerance = 1e-6)
+  # The redirected no-association fit is step 1 itself.
+  g0 <- fit(association = "none", step1 = f1)
+  expect_equal(g0$metrics$ll, f1$step1$metrics$ll, tolerance = 1e-6)
+
+  expect_error(fit(predictors_cs = z, step1 = list(ca = ls, cs = la)), "n_ca")
+  expect_error(fit_joint_classes(d$A[, -1], d$S, n_ca = 3, n_cs = 2,
+                                 n_steps = 2, step1 = f1), "other items")
+  expect_error(fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2, step1 = f1),
+               "n_steps = 2")
+})
+
 test_that("the default prior is spread over each variable's own classes, never the padding", {
   # Both directions: a smaller `cs` (padded destination) with fewer `cs`
   # items, and a smaller `ca` (padded origin) with fewer `ca` items. The

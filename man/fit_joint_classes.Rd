@@ -17,6 +17,7 @@ fit_joint_classes(
   association = c("free", "none"),
   predictors_items = NULL,
   n_steps = 1,
+  step1 = NULL,
   smoothing = 1,
   bayes_constants = NULL,
   n_init = 20,
@@ -72,9 +73,23 @@ structural model compared, and the standard errors carry step 1's
 uncertainty. The fit keeps step 1 as \code{step1}, which is the restricted
 model of a test of every structural parameter at once. Two two-step fits
 are compared by \code{\link[=lr_test]{lr_test()}} only when they share step 1, so fit them
-with the same \code{random_state}. With \code{predictors_items},
-step 1 also regresses each variable on the DIF covariates, and step 2
-holds the item slopes fixed with the rest of the measurement model.}
+with the same \code{random_state} or hand them the same \code{step1}. With
+\code{predictors_items}, step 1 also regresses each variable on the DIF
+covariates, and step 2
+holds the item slopes fixed with the rest of the measurement model.
+Step 1 is searched as the two latent class analyses it factorises into,
+each with its own \code{n_init} restarts through \code{\link[=fit_mixture]{fit_mixture()}}, and then
+continued as one model from their solution; arguments passed in \code{...}
+(such as \code{weights}) search it as one model instead.}
+
+\item{step1}{With \code{n_steps = 2}, a step 1 already fitted, so that a
+sequence of structural models shares one measurement model and fits it
+once: either a previous two-step fit of the same items with the same
+numbers of classes and item slopes, whose step 1 is reused as it stands,
+or \code{list(ca = , cs = )}, the two latent class analyses as
+\code{\link[=fit_mixture]{fit_mixture()}} fits (classes on the item-slope covariates, with the
+same item slopes), from which step 1 is continued. \code{NULL} (the default)
+fits step 1.}
 
 \item{smoothing, bayes_constants, n_init, random_state, n_cores, standard_errors}{As in \code{\link[=fit_lta]{fit_lta()}}.}
 

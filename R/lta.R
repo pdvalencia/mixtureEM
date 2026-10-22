@@ -750,6 +750,12 @@ fit_lta <- function(indicators,
   # the winner can only improve. Internal, for the three-step's pattern start
   # (.lta_threestep_pattern_start()).
   extra_starts <- list(...)[[".extra_starts"]]
+  # A function that writes a known solution into a freshly drawn start, which
+  # then replaces the whole pool: one run, unstaged, from that point. Internal,
+  # for the joint model's step 1 started from its two separate LCAs
+  # (.joint_lca_writer(), R/joint_classes.R), whose parameters are not an
+  # lta_model a `refine_from` could carry.
+  start_writer <- list(...)[[".start_writer"]]
   # The distal outcome as step 3 receives it, already prepared and aligned
   # with step 3's rows by .lta_threestep_step3(). The user's `distal` is read
   # only on the three-step path below.
@@ -1449,7 +1455,20 @@ fit_lta <- function(indicators,
       cl$predictors_initial    <- quote(.lta_step1_status_covariates)
       cl$predictors_transition <- quote(.lta_step1_status_covariates)
     }
-    step1 <- eval(cl, env)
+    # The joint model can hand step 1 over finished (`.twostep_step1`, a
+    # previous fit's), or as the solution of its two separate LCAs
+    # (`.twostep_writer`), which step 1 continues from in one run instead of
+    # searching. Either way step 1 is still a fit of this frame's step-1
+    # model on this frame's data; fit_joint_classes() checks the data.
+    step1 <- list(...)[[".twostep_step1"]]
+    writer <- list(...)[[".twostep_writer"]]
+    cl$.twostep_step1 <- NULL
+    cl$.twostep_writer <- NULL
+    if (!is.null(writer)) {
+      cl$.start_writer <- writer
+      cl$n_init <- 1L
+    }
+    if (is.null(step1)) step1 <- eval(cl, env)
 
     # A case missing a covariate step 2 reads weighs zero in step 2, so it
     # shapes the measurement model and nothing else, and keeps its step-1
@@ -1569,7 +1588,7 @@ fit_lta <- function(indicators,
   # stopping rule. The tightened `tol`/`max_iter` defaults just above still
   # apply: they are about how slowly a chain mixture converges, not about how
   # the search is organised.
-  if (!is.null(refine_from)) staged <- FALSE
+  if (!is.null(refine_from) || !is.null(start_writer)) staged <- FALSE
   # A tenth of the pool, rounded up, is a common staged-search convention.
   # The floor of 3 means every fit at
   # `n_init <= 30` promotes exactly as many survivors as before (bit-for-bit
@@ -1721,6 +1740,9 @@ fit_lta <- function(indicators,
     # case depends on it.
     if (!is.null(random_state)) set.seed(random_state)
     list(.lta_refine_start(state, X_fit, refine_from))
+  } else if (!is.null(start_writer)) {
+    if (!is.null(random_state)) set.seed(random_state + 1L)
+    list(start_writer(.lta_random_start(state_rank, X_fit), X_fit))
   } else {
     lapply(seq_len(max(1L, n_init)), function(i) {
       if (!is.null(random_state)) set.seed(random_state + i)
@@ -1760,7 +1782,7 @@ fit_lta <- function(indicators,
   }
   # Built after every random start has drawn, so none of them moves; seeded so
   # the draw .lta_refine_start() makes before overwriting it is reproducible.
-  if (!is.null(extra_starts) && is.null(refine_from)) {
+  if (!is.null(extra_starts) && is.null(refine_from) && is.null(start_writer)) {
     if (!is.null(random_state)) set.seed(random_state)
     starts <- c(starts, lapply(extra_starts, function(d) {
       s <- .lta_refine_start(state_rank, X_fit, d)
@@ -1877,7 +1899,12 @@ fit_lta <- function(indicators,
   # The converged restarts are `cands` on the unstaged search and the promoted
   # `survivors` on the staged one (a mixture over chains, a mover-stayer
   # model); a step-3 or two-step fit finishes its structural blocks only.
-  if (finish_on && .qn_lta_supported(best)) {
+  # A run continued from a solution already finished elsewhere -- the joint
+  # step 1 from its two LCAs, each taken to the maximum by fit_mixture()'s own
+  # finish -- is not finished again: EM continues it under this fit's
+  # objective, and the finish only crawled along a ridge flat to 1e-3, 400
+  # iterations for 0.0015 at n = 3000 (RECORDS.md, Part 71).
+  if (finish_on && is.null(start_writer) && .qn_lta_supported(best)) {
     pool <- Filter(function(cd) !inherits(cd, "try-error") &&
                      identical(!is.null(.categorical_boundary(cd, X_fit)),
                                best_degenerate),

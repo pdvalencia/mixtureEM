@@ -78,9 +78,22 @@
 #'   uncertainty. The fit keeps step 1 as `step1`, which is the restricted
 #'   model of a test of every structural parameter at once. Two two-step fits
 #'   are compared by [`lr_test()`] only when they share step 1, so fit them
-#'   with the same `random_state`. With `predictors_items`,
-#'   step 1 also regresses each variable on the DIF covariates, and step 2
+#'   with the same `random_state` or hand them the same `step1`. With
+#'   `predictors_items`, step 1 also regresses each variable on the DIF
+#'   covariates, and step 2
 #'   holds the item slopes fixed with the rest of the measurement model.
+#'   Step 1 is searched as the two latent class analyses it factorises into,
+#'   each with its own `n_init` restarts through [`fit_mixture()`], and then
+#'   continued as one model from their solution; arguments passed in `...`
+#'   (such as `weights`) search it as one model instead.
+#' @param step1 With `n_steps = 2`, a step 1 already fitted, so that a
+#'   sequence of structural models shares one measurement model and fits it
+#'   once: either a previous two-step fit of the same items with the same
+#'   numbers of classes and item slopes, whose step 1 is reused as it stands,
+#'   or `list(ca = , cs = )`, the two latent class analyses as
+#'   [`fit_mixture()`] fits (classes on the item-slope covariates, with the
+#'   same item slopes), from which step 1 is continued. `NULL` (the default)
+#'   fits step 1.
 #' @param smoothing,bayes_constants,n_init,random_state,n_cores,standard_errors
 #'   As in [`fit_lta()`].
 #' @param ... Further arguments passed to [`fit_lta()`], such as `weights`.
@@ -121,6 +134,7 @@ fit_joint_classes <- function(ca_items, cs_items,
                               association = c("free", "none"),
                               predictors_items = NULL,
                               n_steps = 1,
+                              step1 = NULL,
                               smoothing = 1.0,
                               bayes_constants = NULL,
                               n_init = 20,
@@ -222,6 +236,42 @@ fit_joint_classes <- function(ca_items, cs_items,
   structural <- !is.null(predictors_ca) || !is.null(predictors_cs) || dif
   redirect <- none && n_steps == 2L && !structural
 
+  # Step 1, as two LCAs or handed over (.joint_fit_lcas(), .joint_step1_arg()).
+  # Arguments for fit_lta() that the LCAs would not see (`weights` and the
+  # rest of `...`) keep the joint search.
+  if (!is.null(step1) && n_steps != 2L)
+    stop("`step1` is the measurement model a two-step fit holds fixed; it ",
+         "needs `n_steps = 2`.", call. = FALSE)
+  s1_fit <- NULL; writer <- NULL
+  Zi <- if (dif) .lta_dif_spec(predictors_items, NULL, names(predictors_items),
+                               nrow(A))$Z
+  # What step 1 is a fit of: the items, and the item slopes it carries.
+  key <- list(items = c(.joint_item_key(A), .joint_item_key(S)),
+              dif = if (dif) list(sort(names(predictors_items)),
+                                  colSums(Zi, na.rm = TRUE)))
+  if (n_steps == 2L) {
+    lcas <- NULL
+    if (!is.null(step1)) {
+      got <- .joint_step1_arg(step1, A, S, n_ca, n_cs, ordinal, key)
+      s1_fit <- got$fit; lcas <- got$lcas
+    } else if (!length(list(...))) {
+      lcas <- .joint_fit_lcas(A, S, n_ca, n_cs, ordinal, Zi, predictors_items,
+                              smoothing, bayes_constants, n_init, random_state,
+                              n_cores)
+    }
+    if (!is.null(lcas)) writer <- .joint_lca_writer(lcas, Ja, Js, stacked)
+    # The redirected fit is step 1 itself.
+    if (redirect && !is.null(s1_fit)) {
+      donor <- s1_fit
+      writer <- function(state, X) .lta_refine_start(state, X, donor)
+    }
+  }
+  # A redirected fit started from the LCAs runs once from them; a two-step
+  # carries them to its step 1 (fit_lta(), "the two-step estimator").
+  start_w <- if (redirect) writer
+  if (!redirect) s1_writer <- writer else s1_writer <- NULL
+  n_init_lta <- if (!is.null(start_w)) 1L else n_init
+
   # The two-step's step 1 is the two separate LCAs: with no association and
   # no covariates the joint likelihood factorises into them, which is the
   # transition-free fit (`.twostep_independent`, R/lta.R).
@@ -241,15 +291,20 @@ fit_joint_classes <- function(ca_items, cs_items,
                  predictors_transition = predictors_cs,
                  transition_effects = effects,
                  smoothing = smoothing, bayes_constants = bayes_constants,
-                 n_init = n_init, random_state = random_state,
-                 n_cores = n_cores, standard_errors = standard_errors, ...)
+                 n_init = n_init_lta, random_state = random_state,
+                 n_cores = n_cores, standard_errors = standard_errors,
+                 .start_writer = start_w, .twostep_step1 = s1_fit,
+                 .twostep_writer = s1_writer, ...)
 
   # The padding's parameters come out of the count, and every criterion built
   # on it, on the fit and on its step 1 alike: step 1 is a model a two-step fit
   # can be tested against.
+  # A step 1 handed over has been through this already.
   uncount <- function(f) {
+    if (!is.null(f$joint_key)) return(f)
     f$n_ca <- n_ca; f$n_cs <- n_cs
     f$n_items_ca <- Ja; f$n_items_cs <- Js; f$joint_stacked <- stacked
+    f$joint_key <- key
     f$n_params <- f$n_params - .joint_padding_n_params(f)
     f$metrics$n_params <- f$n_params
     fresh <- .lta_metrics(f)
@@ -279,6 +334,173 @@ fit_joint_classes <- function(ca_items, cs_items,
   class(fit) <- c("joint_classes", class(fit))
   fit$association <- joint_coefficients(fit)
   fit
+}
+
+# ------------------------------------------------------------------------------
+# The two-step's step 1 from the two separate LCAs
+# ------------------------------------------------------------------------------
+#
+# Step 1 is the model with no association, whose likelihood factorises into
+# one latent class analysis per variable. So it is searched as two LCAs, each
+# with its own restarts, rather than as one stacked model over pairs of
+# starts: two small searches instead of one large one, and the best solution
+# of each found independently of the other's. The joint step 1 then runs once
+# from their solution (.joint_lca_writer()) under its own objective, so what
+# it holds fixed in step 2 is still a maximum of the step-1 model as fitted
+# here, prior included; the LCAs only decide where it starts.
+
+# The data a step 1 was fitted on, in a form that survives a recoding: item
+# by item, the count and the sum of the observed values.
+.joint_item_key <- function(M) {
+  M <- as.matrix(M)
+  c(ncol(M), colSums(!is.na(M)), colSums(M, na.rm = TRUE))
+}
+
+# Fit the two LCAs of step 1. `Z` is the design step 1 regresses each
+# variable on (the item-slope covariates, or none), `dif` the joint call's
+# `predictors_items`.
+.joint_fit_lcas <- function(A, S, n_ca, n_cs, ordinal, Z, dif,
+                            smoothing, bayes_constants, n_init, random_state,
+                            n_cores) {
+  bc <- bayes_constants %||% list()
+  if (is.null(bc$latent)) bc$latent <- smoothing
+  one <- function(Y, K) {
+    args <- list(Y, n_classes = K,
+                 measurement = if (ordinal) "ordinal" else "binary",
+                 smoothing = smoothing, bayes_constants = bc,
+                 n_init = n_init, random_state = random_state,
+                 n_cores = n_cores, standard_errors = FALSE)
+    if (ordinal)
+      args$cats <- as.integer(apply(Y, 2, max, na.rm = TRUE))
+    if (!is.null(Z)) {
+      Zd <- as.data.frame(Z)
+      args$data <- Zd
+      args$predictors <- stats::reformulate(colnames(Zd))
+      mine <- intersect(names(dif), colnames(Y))
+      if (length(mine))
+        args$predictors_items <- stats::setNames(lapply(mine, function(it)
+          stats::reformulate(colnames(as.data.frame(dif[[it]])))), mine)
+    }
+    do.call(fit_mixture, args)
+  }
+  list(ca = one(A, n_ca), cs = one(S, n_cs))
+}
+
+# A start writer for fit_lta(`.start_writer`): the two LCAs' solution written
+# into the joint step 1's freshly drawn state. `ca` fills the statuses at
+# occasion 1 and the `ca` items, `cs` the destinations and the `cs` items;
+# a padded status keeps its draw, which no case reads. A block the LCAs do
+# not carry in the same terms (a regression on other covariates, a missing
+# item slope) keeps its draw too, and step 1's own EM fits it.
+.joint_lca_writer <- function(lcas, Ja, Js, stacked) {
+  force(lcas)
+  function(state, X) {
+    K <- state$n_statuses
+    put_items <- function(state, f, v) {
+      Jv <- if (v == 1L) Ja else Js
+      Kv <- f$n_components
+      cols <- if (stacked && v == 2L) Ja + seq_len(Jv) else seq_len(Jv)
+      mods <- if (stacked) seq_along(state$mm$models) else v
+      p <- f$mm$parameters$pis
+      fc <- f$mm$cats
+      if (!is.null(state$ri)) {
+        th <- .ordinal_theta_from_pis(p, fc)
+        for (j in seq_len(Jv))
+          state$ri$theta[seq_len(Kv), .ordinal_theta_cols(state$ri$cats, cols[j])] <-
+            th[, .ordinal_theta_cols(fc, j), drop = FALSE]
+      } else {
+        for (t in mods) {
+          m <- state$mm$models[[t]]
+          for (j in seq_len(Jv)) {
+            if (is.null(m$cats)) {
+              m$parameters$pis[seq_len(Kv), cols[j]] <- p[, j]
+            } else {
+              m$parameters$pis[seq_len(Kv), .ordinal_pis_cols(m$cats, cols[j])] <-
+                p[, .ordinal_pis_cols(fc, j), drop = FALSE]
+            }
+          }
+          state$mm$models[[t]] <- m
+        }
+      }
+      sl <- f$mm$parameters$dif_slopes
+      if (!is.null(state$dif) && !is.null(sl)) {
+        for (d in seq_along(f$mm$dif$covariates)) {
+          dl <- match(f$mm$dif$covariates[d], state$dif$names)
+          if (is.na(dl)) next
+          for (j in seq_len(Jv))
+            state$dif$beta[seq_len(Kv), cols[j], dl] <- sl[, .dif_col(Jv, j, d)]
+        }
+      }
+      state
+    }
+    fa <- lcas$ca; fs <- lcas$cs
+    state <- put_items(state, fa, 1L)
+    state <- put_items(state, fs, 2L)
+    if (!is.null(state$ri))
+      for (t in seq_along(state$mm$models))
+        state$mm$models[[t]]$parameters$pis <-
+          .lta_ri_integrated_pis(state$ri, K, state$n_items)
+
+    pad <- function(w) c(w, numeric(K - length(w)))
+    state$delta_c[[1L]] <- pad(fa$weights)
+    for (m in seq_along(state$tau_c[[1L]])) {
+      P <- matrix(pad(fs$weights), K, K, byrow = TRUE) *
+        state$tau_allowed_c[[1L]][[m]]
+      ok <- rowSums(P) > 0
+      state$tau_c[[1L]][[m]][ok, ] <- P[ok, , drop = FALSE] / rowSums(P)[ok]
+    }
+    beta_of <- function(f, cn, rows) {
+      B <- f$sm$parameters$beta
+      if (is.null(B) || is.null(cn) || !all(cn %in% colnames(B)) ||
+          nrow(B) != rows) return(NULL)
+      B[, cn, drop = FALSE]
+    }
+    if (!is.null(state$Z_delta))
+      state$delta_beta <- beta_of(fa, colnames(state$Z_delta),
+                                  length(.lta_delta_keep(state)))
+    if (!is.null(state$Z_tau) && isTRUE(state$tau_independent)) {
+      B <- beta_of(fs, colnames(.lta_tau_design(state, 1L)),
+                   length(.lta_tau_keep(state)))
+      if (!is.null(B)) state$tau_beta <- rep(list(B), length(state$tau_c[[1L]]))
+    }
+    .lta_seed_regressions(state)
+  }
+}
+
+# `step1` as fit_joint_classes() takes it: a previous two-step fit (its step
+# 1 is reused as it stands), or the two LCAs. Checked against this call's
+# items and class counts; returns list(fit = <lta step 1> or NULL, lcas =
+# <the pair> or NULL).
+.joint_step1_arg <- function(step1, A, S, n_ca, n_cs, ordinal, key) {
+  if (inherits(step1, "joint_classes")) {
+    s1 <- if (inherits(step1$step1, "lta_model")) step1$step1 else
+      if (identical(step1$n_steps, 2L) && !isTRUE(step1$association_free)) step1
+    if (is.null(s1))
+      stop("`step1` is a one-step fit, which has no step 1 to hand over; give ",
+           "a two-step fit (`n_steps = 2`) or the two LCAs.", call. = FALSE)
+    if (!identical(c(step1$n_ca, step1$n_cs), c(n_ca, n_cs)) ||
+        !isTRUE(all.equal(step1$joint_key, key)))
+      stop("`step1` was fitted to other items, other item slopes or other ",
+           "numbers of classes than this call's.", call. = FALSE)
+    return(list(fit = s1, lcas = NULL))
+  }
+  if (is.list(step1) && !is.null(step1$ca) && !is.null(step1$cs) &&
+      inherits(step1$ca, "mixture_model") && inherits(step1$cs, "mixture_model")) {
+    # The joint fit reads a 0/1 item from 1 when it is fitted as ordinal, so
+    # an LCA of the same items may be one off in either direction.
+    same <- function(Y, M) any(vapply(-1:1, function(s)
+      isTRUE(all.equal(.joint_item_key(Y), .joint_item_key(M + s))), TRUE))
+    ok <- function(f, M, K) identical(as.integer(f$n_components), K) &&
+      same(f$data, M) && (!is.null(f$mm$cats)) == ordinal
+    if (!ok(step1$ca, A, n_ca) || !ok(step1$cs, S, n_cs))
+      stop("`step1$ca` and `step1$cs` must be fit_mixture() fits of `ca_items` ",
+           "with `n_ca` classes and of `cs_items` with `n_cs` classes, ",
+           if (ordinal) "ordinal" else "binary", " as this fit is.",
+           call. = FALSE)
+    return(list(fit = NULL, lcas = step1[c("ca", "cs")]))
+  }
+  stop("`step1` must be a two-step fit_joint_classes() fit or ",
+       "list(ca = , cs = ) of two fit_mixture() fits.", call. = FALSE)
 }
 
 # `cs_effects` in fit_lta()'s terms: "by_ca" for every covariate is the named

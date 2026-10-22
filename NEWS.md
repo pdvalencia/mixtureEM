@@ -1,5 +1,25 @@
 # mixtureEM (development version)
 
+## Joint latent classes: step 1 of the two-step fitted once, as two LCAs
+
+`fit_joint_classes(n_steps = 2)` searched step 1 as one model over pairs of
+starts for both variables, and every structural model compared searched it
+again. Step 1 has no association, so its likelihood is the sum of one
+latent class analysis per variable: it is now searched as those two
+analyses, each with its own `n_init` restarts through `fit_mixture()`, and
+continued as one model from their solution. The new argument `step1` hands
+a step 1 over instead: a previous two-step fit of the same items, whose
+step 1 is reused as it stands, or `list(ca = , cs = )`, the two analyses
+already fitted. A sequence of structural models then fits the measurement
+model once. On data of 61,000 cases with item slopes, a two-step model
+given its step 1 now takes one to eight minutes, where the first such model
+had not finished in seventy-five. Step 1 reaches the
+same maximum as before; the log-likelihoods of every graded two-step fit
+are unchanged to the fourth decimal, though the classes of a fit may come
+out numbered differently, which changes which class is the reference of
+the association coefficients. Fits with
+arguments passed in `...`, such as `weights`, search step 1 as before.
+
 ## Faster finish for ordinal items with item covariates
 
 The Newton-type finish of `fit_mixture()` took each case's score by central
