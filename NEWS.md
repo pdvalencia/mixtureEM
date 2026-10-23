@@ -1,5 +1,22 @@
 # mixtureEM (development version)
 
+## Faster latent transition models with covariates and item covariates
+
+`fit_lta()` already searched a plain categorical model on one row per
+distinct response pattern. A model with covariates on the statuses, item
+covariates (`predictors_items`) or ordinal items searched every case. It now
+searches one row per distinct combination of responses and covariate values,
+weighted by how many cases share it, once the random starts have been drawn
+on the full sample, so the starts are those of before. The log-likelihood is
+a weighted sum over cases either way. When more than one restart is taken on
+to the Newton-type finish, the finishes run on the worker processes side by
+side. On a one-step joint model of 60,784 cases (`fit_joint_classes(n_steps =
+1)`, 20 restarts on four cores) a fit takes 31 minutes where it took 82, at
+the same log-likelihood. Results can differ in the last digits, from the order
+in which the sums are added; on a surface that the finish cannot climb to
+convergence within its iteration cap, the point reported can move along
+that flat stretch.
+
 ## Joint latent classes: step 1 of the two-step fitted once, as two LCAs
 
 `fit_joint_classes(n_steps = 2)` searched step 1 as one model over pairs of

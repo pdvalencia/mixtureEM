@@ -149,3 +149,44 @@ test_that("everything per case comes back on the full sample", {
   expect_false(is.null(fit$se))
   expect_true(all(is.finite(unlist(fit$se$delta))))
 })
+
+test_that("a covariate and DIF fit searches on the pattern table and lands where the full sample does", {
+  # Two ordinal items, two occasions, one binary covariate: few enough distinct
+  # (answers, covariate) rows that the table is used. .lta_collapse() refuses
+  # this fit; .lta_pattern_search() takes it, with the starts drawn first.
+  d  <- .lta_dif_sim(n = 1500, Tn = 2, cats = c(3L, 2L), seed = 8)
+  z  <- as.data.frame(d$Z)
+  run <- function(on) {
+    old <- options(mixtureEM.lta_pattern_search = on)
+    on.exit(options(old))
+    suppressWarnings(suppressMessages(
+      fit_lta(d$X, n_statuses = 2, times = 2, measurement = "ordinal",
+              predictors_initial = z,
+              predictors_items = list(t1 = z),
+              n_init = 3, n_cores = 1, random_state = 4,
+              standard_errors = FALSE)))
+  }
+  ctr <- new.env(); ctr$hits <- 0L
+  trace(".lta_pattern_search", where = asNamespace("mixtureEM"), print = FALSE,
+        exit = bquote(if (!is.null(returnValue()))
+          assign("hits", get("hits", .(ctr)) + 1L, envir = .(ctr))))
+  on.exit(untrace(".lta_pattern_search", where = asNamespace("mixtureEM")))
+  tab  <- run(TRUE)
+  expect_identical(ctr$hits, 1L)
+  full <- run(FALSE)
+  expect_identical(ctr$hits, 1L)
+
+  # The same sums added in a different order: equal to rounding, not to the bit.
+  expect_equal(tab$loglik, full$loglik, tolerance = 1e-8)
+  expect_equal(tab$n_params, full$n_params)
+  expect_equal(tab$dif$beta, full$dif$beta, tolerance = 1e-6)
+  expect_false(is.null(tab$delta_beta))
+  expect_equal(tab$delta_beta, full$delta_beta, tolerance = 1e-6)
+  expect_equal(tab$tau_c, full$tau_c, tolerance = 1e-6)
+  # Back on the people, not the patterns.
+  expect_length(tab$ll_case, nrow(d$X))
+  expect_identical(nrow(tab$gamma[[1]]), nrow(d$X))
+  expect_equal(tab$gamma, full$gamma, tolerance = 1e-6)
+  expect_equal(tab$dif$Z, full$dif$Z)
+  expect_equal(tab$loglik, sum(tab$weights_vec * tab$ll_case))
+})

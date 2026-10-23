@@ -1791,6 +1791,21 @@ fit_lta <- function(indicators,
       s
     }))
   }
+  # The fits .lta_collapse() keeps per case -- covariates, DIF, ordinal items --
+  # still run their restarts on the pattern table, keyed on the responses and
+  # every per-case design column. The starts above were drawn on the full sample,
+  # so none of them moves; only the sums EM then forms over them are shortened.
+  # See .lta_pattern_search().
+  if (is.null(coll) && !isFALSE(getOption("mixtureEM.lta_pattern_search", TRUE))) {
+    coll <- .lta_pattern_search(state, X, starts, alpha)
+    if (!is.null(coll)) {
+      starts <- coll$starts; coll$starts <- NULL
+      X_fit  <- coll$X
+      state$weights_vec <- coll$w
+      rank_marg <- tryCatch(.lta_prior_marginals(starts[[1L]], X_fit),
+                            error = function(e) NULL)
+    }
+  }
   # The polish belongs after a run that was allowed to converge, never after
   # the staged ranking pass: that pass stops at 250 iterations and its
   # log-likelihoods are, as the comment above says, not the maxima of anything.
@@ -1912,8 +1927,11 @@ fit_lta <- function(indicators,
     if (!length(pool)) pool <- list(best)
     pick <- .qn_pick(vapply(pool, score_of, numeric(1)),
                      lapply(pool, `[[`, "ll_case"), best$weights_vec)
-    for (i in pick) {
-      fin <- .qn_finish_lta(pool[[i]], X_fit, alpha, rank_marg)
+    # The finishes are independent and draw no random numbers, so they run side
+    # by side; the results come back in `pick` order and are compared in it.
+    fins <- .par_lapply(pool[pick], function(cd)
+      .qn_finish_lta(cd, X_fit, alpha, rank_marg), n_cores = n_cores)
+    for (fin in fins) {
       if (!is.null(fin) && score_of(fin) > best_score) {
         best <- fin; best_score <- score_of(fin)
       }
@@ -2180,6 +2198,62 @@ fit_lta <- function(indicators,
        w_orig = state$weights_vec, n_patterns = nrow(Xc))
 }
 
+# The pattern table for the fits .lta_collapse() refuses, built after the
+# starts have been drawn so that none of them moves.
+#
+# Its reasons for refusing are about where the starts come from and what a row
+# is. The second is answered by keying the table on the responses plus every
+# per-case design column (.qn_lta_pattern_rows(), the table the finish already
+# runs on): two people with the same answers and the same covariates have the
+# same likelihood under every parameter value, so one weighted row stands for
+# both. The first is answered by drawing on the full sample and shrinking the
+# draws. The one-step ENPOL joint models have 15,347 such rows in 60,785
+# (RECORDS.md, "The LTA finish on a flat ridge").
+#
+# NULL -- the search runs on the full sample, as before -- where the table does
+# not repay itself, where the state carries a per-case field the table does not
+# know how to cut, or where the first start's log-likelihood or prior differs
+# between the two. Otherwise a .lta_collapse()-shaped list whose `full` keeps
+# the per-case columns for .lta_expand(), and the shrunk `starts`.
+.lta_pattern_search <- function(state, X, starts, alpha) {
+  if (!length(starts)) return(NULL)
+  pr <- .qn_lta_pattern_rows(state, X)
+  if (is.null(pr)) return(NULL)
+  n <- nrow(X)
+  per_case <- function(v) !is.null(v) && !is.list(v) && NROW(v) == n
+  cut <- list(.top = c("Z_delta", "Z_tau", "Z_ri", "strata", "cluster",
+                       "ll_case", "weights_vec", "gamma"),
+              dif = c("Z", "pat", "rows"), ri = "pq")
+  for (nm in setdiff(names(state), cut$.top)) {
+    v <- state[[nm]]
+    if (per_case(v)) return(NULL)
+    if (is.list(v) && !is.data.frame(v) &&
+        any(vapply(setdiff(names(v), cut[[nm]]),
+                   function(m) per_case(v[[m]]), logical(1))))
+      return(NULL)
+  }
+  shrink <- function(s) {
+    s <- pr$shrink(s)
+    s$.tau_design_cache <- NULL
+    s
+  }
+  s1 <- starts[[1L]]; r1 <- shrink(s1)
+  same <- function(a, b) isTRUE(abs(a - b) <= 1e-8 * (1 + abs(a)))
+  # Compared after one E-step each (`max_iter = 0`), which builds whatever a
+  # raw start leaves to the first iteration, such as a covariate model's
+  # per-case transition tables.
+  score <- function(s, x) tryCatch({
+    e  <- .lta_em(s, x, max_iter = 0L, alpha = alpha)
+    lp <- .lta_log_prior(e, x, alpha, .lta_prior_marginals(e, x))
+    c(e$loglik, if (is.na(lp)) 0 else lp)
+  }, error = function(e) c(NA_real_, NA_real_))
+  a <- score(s1, X); b <- score(r1, pr$X)
+  if (anyNA(a) || anyNA(b) || !same(a[1L], b[1L]) || !same(a[2L], b[2L]))
+    return(NULL)
+  list(X = pr$X, w = pr$w, w_orig = state$weights_vec, n_patterns = nrow(pr$X),
+       full = state, starts = c(list(r1), lapply(starts[-1L], shrink)))
+}
+
 # Put the winning fit back on the full sample after the search ran on the
 # pattern table.
 #
@@ -2193,6 +2267,14 @@ fit_lta <- function(indicators,
 .lta_expand <- function(best, coll, X, alpha) {
   if (is.null(coll)) return(best)
   best$weights_vec <- coll$w_orig
+  # A table from .lta_pattern_search() also cut the per-case design columns.
+  if (!is.null(coll$full)) {
+    for (nm in c("Z_delta", "Z_tau", "Z_ri", "strata", "cluster"))
+      best[nm] <- list(coll$full[[nm]])
+    if (!is.null(best$dif))
+      for (nm in c("Z", "pat", "rows")) best$dif[[nm]] <- coll$full$dif[[nm]]
+    best$.tau_design_cache <- NULL
+  }
   out <- .lta_em(best, X, max_iter = 0L, alpha = alpha)
   # No iteration ran, so .lta_em() hands these back re-initialised rather than
   # as the search left them. See the same restoration in .lta_refine_lbfgs().
