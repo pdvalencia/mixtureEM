@@ -34,6 +34,12 @@
 #' scored from the same wide layout. A missing occasion drops out of the case's
 #' likelihood, as in the fit. Models with `growth_predictors` are not covered.
 #'
+#' **Repeated-measures models.** A [`fit_rmlca()`] fit is scored the same way:
+#' one column per item and occasion, in the order of the wide matrix it was
+#' fitted on (time by time, item by item within a time), plus any predictors
+#' by name. The columns are numeric codes, as the model read them; a binary
+#' item the fit recoded to 0/1 (say from 1/2) is recoded the same way.
+#'
 #' **Multiple-group models.** For a model fitted with `group`, each new case
 #' is scored with its own group's parameters: its group's class sizes when
 #' the prevalences differ by group, and its group's item parameters when the
@@ -64,14 +70,14 @@
 #' no step-1 assignment. On a one-step model the two agree exactly.
 #'
 #' **Not covered.** Latent transition models (scoring a sequence of statuses
-#' needs a choice between filtered and smoothed probabilities),
-#' [`fit_rmlca()`] fits, growth models with `growth_predictors`, models with
+#' needs a choice between filtered and smoothed probabilities), growth models
+#' with `growth_predictors`, models with
 #' direct effects of covariates on items (`predictors_items`), and models
 #' combining predictors with a distal outcome in one structural model are
 #' refused with an error.
 #'
-#' @param object A fitted model from [`fit_mixture()`], [`fit_gmm()`] or
-#'   [`fit_lcga()`].
+#' @param object A fitted model from [`fit_mixture()`], [`fit_gmm()`],
+#'   [`fit_lcga()`] or [`fit_rmlca()`].
 #' @param newdata A data frame or matrix holding the indicators (and the
 #'   predictors, for a model that has them) of the cases to classify; for a
 #'   growth model, one column per occasion (see Details).
@@ -115,8 +121,10 @@ predict.mixture_model <- function(object, newdata,
   .predict_refuse(object)
 
   gfac <- .predict_group(object, newdata, group)
-  X  <- if (inherits(object, c("gmm", "lcga"))) .predict_occasions(object, newdata)
+  X  <- if (inherits(object, c("gmm", "lcga", "rmlca")))
+          .predict_occasions(object, newdata)
         else .predict_indicators(object, newdata, .predict_item_names(object))
+  if (inherits(object, "rmlca")) X <- .predict_rmlca_recode(object, X)
   # Counted before the padding below, which leaves a case with no group no
   # items either and would hide why it is not scored.
   ok <- rowSums(!is.na(X)) > 0L
@@ -181,9 +189,6 @@ predict.lta_model <- function(object, ...)
 
 # The fits whose new-data scoring is not built, each with what is missing.
 .predict_refuse <- function(object, what = "predict()") {
-  if (inherits(object, "rmlca"))
-    stop(what, " does not cover repeated-measures latent class models ",
-         "(fit_rmlca()) yet.", call. = FALSE)
   if (inherits(object, "gmm") && length(object$growth$covariate_names))
     stop(what, " does not cover growth models with `growth_predictors` yet.",
          call. = FALSE)
@@ -307,25 +312,48 @@ predict.lta_model <- function(object, ...)
   X
 }
 
+# A repeated-measures model recodes a two-valued binary item to 0/1 once
+# across its occasions (.recode_binary_blocks()); new cases get the same map.
+.predict_rmlca_recode <- function(object, X) {
+  J   <- object$longitudinal$n_items
+  Tn  <- object$longitudinal$n_times
+  map <- object$longitudinal$binary_recode
+  for (nm in names(map)) {
+    j    <- match(nm, object$longitudinal$item_names)
+    if (is.na(j)) j <- as.integer(sub("^column ", "", nm))  # unnamed items
+    cols <- j + (seq_len(Tn) - 1L) * J
+    v    <- X[, cols, drop = FALSE]
+    if (any(!is.na(v) & !v %in% map[[nm]]))
+      stop(sprintf("Binary indicator '%s' has values other than its two.", nm),
+           call. = FALSE)
+    X[, cols] <- ifelse(is.na(v), NA_real_, as.numeric(v == map[[nm]][2L]))
+  }
+  X
+}
+
 # The new cases' predictors in the fitted regression's columns. A factor
 # predictor was dummy-coded at fit time as `<name>.<level>`, which
 # `covariate_terms` lets us rebuild from the factor itself.
-# A growth model's indicators: the wide matrix it was fitted on, read by
-# position, since its columns carry the fit's internal occasion labels. The
-# columns named as predictors are set aside first.
+# A growth or repeated-measures model's indicators: the wide matrix it was
+# fitted on, read by position, since its columns carry the fit's internal
+# occasion labels. The columns named as predictors are set aside first.
 .predict_occasions <- function(object, newdata) {
+  unit <- if (inherits(object, "rmlca")) "item-by-occasion" else "occasion"
+  per  <- if (inherits(object, "rmlca")) "item and occasion" else "occasion"
   nd <- as.data.frame(newdata, stringsAsFactors = FALSE)
   pn <- if (inherits(object$sm, "covariate"))
     attr(object$Y, "covariate_terms") %||% colnames(object$sm$parameters$beta)[-1L]
   occ <- nd[, setdiff(names(nd), pn), drop = FALSE]
   p   <- ncol(object$data)
   if (ncol(occ) != p)
-    stop(sprintf(paste0("`newdata` has %d occasion column%s; the model was ",
-                        "fitted on %d. Give one column per occasion in the ",
+    stop(sprintf(paste0("`newdata` has %d %s column%s; the model was ",
+                        "fitted on %d. Give one column per %s in the ",
                         "order of the fitted data, plus any predictors by name."),
-                 ncol(occ), if (ncol(occ) == 1L) "" else "s", p), call. = FALSE)
+                 ncol(occ), unit, if (ncol(occ) == 1L) "" else "s", p, per),
+         call. = FALSE)
   if (!all(vapply(occ, function(v) is.numeric(v) || all(is.na(v)), logical(1))))
-    stop("The occasion columns of `newdata` must be numeric.", call. = FALSE)
+    stop(sprintf("The %s columns of `newdata` must be numeric.", unit),
+         call. = FALSE)
   X <- as.matrix(occ)
   storage.mode(X) <- "double"
   dimnames(X) <- list(NULL, colnames(object$data))

@@ -13,8 +13,8 @@
 )
 }
 \arguments{
-\item{object}{A fitted model from \code{\link[=fit_mixture]{fit_mixture()}}, \code{\link[=fit_gmm]{fit_gmm()}} or
-\code{\link[=fit_lcga]{fit_lcga()}}.}
+\item{object}{A fitted model from \code{\link[=fit_mixture]{fit_mixture()}}, \code{\link[=fit_gmm]{fit_gmm()}},
+\code{\link[=fit_lcga]{fit_lcga()}} or \code{\link[=fit_rmlca]{fit_rmlca()}}.}
 
 \item{newdata}{A data frame or matrix holding the indicators (and the
 predictors, for a model that has them) of the cases to classify; for a
@@ -65,6 +65,12 @@ number must equal the fitted model's. A model fitted from long data is
 scored from the same wide layout. A missing occasion drops out of the case's
 likelihood, as in the fit. Models with \code{growth_predictors} are not covered.
 
+\strong{Repeated-measures models.} A \code{\link[=fit_rmlca]{fit_rmlca()}} fit is scored the same way:
+one column per item and occasion, in the order of the wide matrix it was
+fitted on (time by time, item by item within a time), plus any predictors
+by name. The columns are numeric codes, as the model read them; a binary
+item the fit recoded to 0/1 (say from 1/2) is recoded the same way.
+
 \strong{Multiple-group models.} For a model fitted with \code{group}, each new case
 is scored with its own group's parameters: its group's class sizes when
 the prevalences differ by group, and its group's item parameters when the
@@ -94,8 +100,8 @@ posterior, which conditions on the step-1 class assignment, while
 no step-1 assignment. On a one-step model the two agree exactly.
 
 \strong{Not covered.} Latent transition models (scoring a sequence of statuses
-needs a choice between filtered and smoothed probabilities),
-\code{\link[=fit_rmlca]{fit_rmlca()}} fits, growth models with \code{growth_predictors}, models with
+needs a choice between filtered and smoothed probabilities), growth models
+with \code{growth_predictors}, models with
 direct effects of covariates on items (\code{predictors_items}), and models
 combining predictors with a distal outcome in one structural model are
 refused with an error.

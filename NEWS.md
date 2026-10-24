@@ -11,6 +11,11 @@ column; a group the model was not fitted with is an error and a missing one
 gives `NA`. On a one-step fit's estimation sample the posteriors equal
 `class_assignments()`. No fitted value changes.
 
+`fit_rmlca()` fits are scored too, from one column per item and occasion in
+the order of the wide data the model was fitted on, plus any `predictors`
+by name; a binary item the fit recoded to 0/1 is recoded the same way in
+the new data, for which the fit now keeps the mapping.
+
 ## Status separation and step-3 moves for latent transition models
 
 `compare_longitudinal()` now carries `Separation` for an LTA whose

@@ -131,7 +131,8 @@ fit_rmlca <- function(indicators,
     time_invariance = time_invariance,
     invariant_items = spec$invariant_items,
     wave_missing    = prep$wave_missing,
-    measurement     = measurement
+    measurement     = measurement,
+    binary_recode   = engine$recode
   )
   class(fit) <- c("rmlca", class(fit))
   fit$call <- match.call()
@@ -289,8 +290,11 @@ fit_rmlca <- function(indicators,
     d %in% c("categorical", "multinoulli", "categorical_nan", "multinoulli_nan")
   is_ordinal <- function(d) is.character(d) && d %in% c("ordinal", "ordinal_nan")
 
+  recode <- NULL
   if (is_binary(sub_model)) {
-    X <- .recode_binary_blocks(X, n_items, n_times)$X
+    rec    <- .recode_binary_blocks(X, n_items, n_times)
+    X      <- rec$X
+    recode <- rec$map
     vals <- X[!is.na(X)]
     if (length(vals) && !all(vals %in% c(0, 1)))
       stop('measurement = "binary" requires indicator values in {0, 1}, or a ',
@@ -360,8 +364,10 @@ fit_rmlca <- function(indicators,
     }
   }
 
+  # `recode` is the 0/1 mapping of each recoded binary item, by item name,
+  # which predict() applies to new cases.
   list(sub_model = sub_model, max_val = max_val, cats = cats, X = X,
-       empty = empty)
+       empty = empty, recode = recode)
 }
 
 # Class-by-time-by-item array of the quantity that characterises each class at

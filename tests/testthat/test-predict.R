@@ -311,3 +311,20 @@ test_that("a factor predictor's unseen level is refused, not read as the referen
   nd$g[3] <- "zzz"
   expect_error(predict(fit, nd), "level 'zzz'")
 })
+
+test_that("repeated-measures fits are scored by item and occasion", {
+  set.seed(25)
+  n <- 300
+  z <- sample(2, n, TRUE)
+  X <- matrix(rbinom(n * 6, 1, rep(c(.2, .8)[z], 6)), n) + 1L  # coded 1/2
+  f <- suppressMessages(fit_rmlca(X, n_classes = 2, times = 2,
+                                  measurement = "binary", n_init = 3,
+                                  random_state = 1, n_cores = 1))
+  expect_equal(predict(f, X, type = "posterior"),
+               class_assignments(f, type = "posterior"),
+               tolerance = 1e-8, ignore_attr = TRUE)
+  expect_error(predict(f, X[, 1:5]), "5 item-by-occasion columns")
+  bad <- X[1:2, ]
+  bad[1, 1] <- 3L
+  expect_error(predict(f, bad), "values other than its two")
+})
