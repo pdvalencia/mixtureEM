@@ -197,6 +197,33 @@ test_that("models predict() does not cover are refused", {
   expect_error(predict(g, b$X), "multiple-group")
 })
 
+test_that("growth models are scored from one column per occasion", {
+  set.seed(23)
+  n  <- 300
+  z  <- sample(2, n, TRUE)
+  x  <- rnorm(n)
+  y  <- outer(c(1, 3)[z] + rnorm(n, 0, .5), rep(1, 4)) + outer(c(.1, .7)[z], 0:3) +
+    matrix(rnorm(n * 4, 0, .5), n, 4)
+  y[sample(length(y), 40)] <- NA
+  u  <- matrix(rbinom(n * 4, 1, plogis(c(-1, 1)[z] + outer(c(.2, -.3)[z], 0:3))), n, 4)
+  fits <- suppressWarnings(list(
+    gmm  = fit_gmm(y, times = 4, n_classes = 2, n_init = 3, random_state = 1),
+    pred = fit_gmm(y, times = 4, n_classes = 2, n_init = 3, random_state = 1,
+                   predictors = data.frame(x = x), n_steps = 1),
+    lcga = fit_lcga(u, times = 4, n_classes = 2, n_init = 3, random_state = 1)))
+  nd <- list(gmm = y, pred = data.frame(y, x = x), lcga = u)
+  for (nm in names(fits))
+    expect_equal(predict(fits[[nm]], nd[[nm]], "posterior"),
+                 class_assignments(fits[[nm]], "posterior"), tolerance = 1e-10,
+                 label = nm)
+  # The predictor is found by name wherever it sits.
+  expect_equal(predict(fits$pred, data.frame(x = x, y)), class_assignments(fits$pred))
+  expect_error(predict(fits$gmm, y[, 1:3]), "3 occasion columns")
+  gp <- suppressWarnings(fit_gmm(y, times = 4, n_classes = 2, n_init = 2,
+                                 random_state = 1, growth_predictors = data.frame(x = x)))
+  expect_error(predict(gp, y), "growth_predictors")
+})
+
 test_that("a factor predictor's unseen level is refused, not read as the reference", {
   set.seed(3)
   n <- 300

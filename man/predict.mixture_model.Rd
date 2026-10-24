@@ -7,10 +7,12 @@
 \method{predict}{mixture_model}(object, newdata, type = c("modal", "posterior", "both"), ...)
 }
 \arguments{
-\item{object}{A fitted model from \code{\link[=fit_mixture]{fit_mixture()}}.}
+\item{object}{A fitted model from \code{\link[=fit_mixture]{fit_mixture()}}, \code{\link[=fit_gmm]{fit_gmm()}} or
+\code{\link[=fit_lcga]{fit_lcga()}}.}
 
 \item{newdata}{A data frame or matrix holding the indicators (and the
-predictors, for a model that has them) of the cases to classify.}
+predictors, for a model that has them) of the cases to classify; for a
+growth model, one column per occasion (see Details).}
 
 \item{type}{What to return, as in \code{\link[=class_assignments]{class_assignments()}}: \code{"modal"} the
 most probable class, \code{"posterior"} the matrix of posterior probabilities,
@@ -44,6 +46,15 @@ recoded the same way. The same holds for a factor or character predictor:
 a level the model was not fitted with is an error, where scoring it would
 silently treat the case as belonging to the reference level.
 
+\strong{Growth models.} For a \code{\link[=fit_gmm]{fit_gmm()}} or \code{\link[=fit_lcga]{fit_lcga()}} fit, \code{newdata}
+holds one row per case and one column per occasion, in the order of the
+wide matrix the model was fitted on (time by time, and within a time item by
+item for several items). Columns named as the model's \code{predictors} are
+taken as the predictors and every other column as an occasion, so their
+number must equal the fitted model's. A model fitted from long data is
+scored from the same wide layout. A missing occasion drops out of the case's
+likelihood, as in the fit. Models with \code{growth_predictors} are not covered.
+
 \strong{Missing values.} A missing answer simply drops out of that case's
 likelihood (full-information scoring), whether or not the estimation sample
 had any. A case missing every indicator has no information to classify on
@@ -65,8 +76,8 @@ posterior, which conditions on the step-1 class assignment, while
 no step-1 assignment. On a one-step model the two agree exactly.
 
 \strong{Not covered.} Latent transition models (scoring a sequence of statuses
-needs a choice between filtered and smoothed probabilities), growth models
-fitted from long data (\code{fit_lcga()}, \code{fit_gmm()}, \code{fit_rmlca()}),
+needs a choice between filtered and smoothed probabilities),
+\code{\link[=fit_rmlca]{fit_rmlca()}} fits, growth models with \code{growth_predictors},
 multiple-group models, models with direct effects of covariates on items
 (\code{predictors_items}), and models combining predictors with a distal outcome
 in one structural model are refused with an error.

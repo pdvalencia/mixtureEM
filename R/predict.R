@@ -25,6 +25,15 @@
 #' a level the model was not fitted with is an error, where scoring it would
 #' silently treat the case as belonging to the reference level.
 #'
+#' **Growth models.** For a [`fit_gmm()`] or [`fit_lcga()`] fit, `newdata`
+#' holds one row per case and one column per occasion, in the order of the
+#' wide matrix the model was fitted on (time by time, and within a time item by
+#' item for several items). Columns named as the model's `predictors` are
+#' taken as the predictors and every other column as an occasion, so their
+#' number must equal the fitted model's. A model fitted from long data is
+#' scored from the same wide layout. A missing occasion drops out of the case's
+#' likelihood, as in the fit. Models with `growth_predictors` are not covered.
+#'
 #' **Missing values.** A missing answer simply drops out of that case's
 #' likelihood (full-information scoring), whether or not the estimation sample
 #' had any. A case missing every indicator has no information to classify on
@@ -46,15 +55,17 @@
 #' no step-1 assignment. On a one-step model the two agree exactly.
 #'
 #' **Not covered.** Latent transition models (scoring a sequence of statuses
-#' needs a choice between filtered and smoothed probabilities), growth models
-#' fitted from long data (`fit_lcga()`, `fit_gmm()`, `fit_rmlca()`),
+#' needs a choice between filtered and smoothed probabilities),
+#' [`fit_rmlca()`] fits, growth models with `growth_predictors`,
 #' multiple-group models, models with direct effects of covariates on items
 #' (`predictors_items`), and models combining predictors with a distal outcome
 #' in one structural model are refused with an error.
 #'
-#' @param object A fitted model from [`fit_mixture()`].
+#' @param object A fitted model from [`fit_mixture()`], [`fit_gmm()`] or
+#'   [`fit_lcga()`].
 #' @param newdata A data frame or matrix holding the indicators (and the
-#'   predictors, for a model that has them) of the cases to classify.
+#'   predictors, for a model that has them) of the cases to classify; for a
+#'   growth model, one column per occasion (see Details).
 #' @param type What to return, as in [`class_assignments()`]: `"modal"` the
 #'   most probable class, `"posterior"` the matrix of posterior probabilities,
 #'   `"both"` a data frame of the two.
@@ -90,7 +101,8 @@ predict.mixture_model <- function(object, newdata,
          "class_assignments().", call. = FALSE)
   .predict_refuse(object)
 
-  X  <- .predict_indicators(object, newdata)
+  X  <- if (inherits(object, c("gmm", "lcga"))) .predict_occasions(object, newdata)
+        else .predict_indicators(object, newdata)
   ms <- object
   if (anyNA(X)) ms$mm <- .with_missing_emission(ms$mm)
 
@@ -139,8 +151,11 @@ predict.lta_model <- function(object, ...)
 
 # The fits whose new-data scoring is not built, each with what is missing.
 .predict_refuse <- function(object, what = "predict()") {
-  if (inherits(object, c("lcga", "gmm", "rmlca")))
-    stop(what, " does not cover growth models fitted from long data yet.",
+  if (inherits(object, "rmlca"))
+    stop(what, " does not cover repeated-measures latent class models ",
+         "(fit_rmlca()) yet.", call. = FALSE)
+  if (inherits(object, "gmm") && length(object$growth$covariate_names))
+    stop(what, " does not cover growth models with `growth_predictors` yet.",
          call. = FALSE)
   if (!is.null(object$group_info) || inherits(object$mm, "group_blocks") ||
       inherits(object$sm, "group_prevalence"))
@@ -231,6 +246,28 @@ predict.lta_model <- function(object, ...)
 # The new cases' predictors in the fitted regression's columns. A factor
 # predictor was dummy-coded at fit time as `<name>.<level>`, which
 # `covariate_terms` lets us rebuild from the factor itself.
+# A growth model's indicators: the wide matrix it was fitted on, read by
+# position, since its columns carry the fit's internal occasion labels. The
+# columns named as predictors are set aside first.
+.predict_occasions <- function(object, newdata) {
+  nd <- as.data.frame(newdata, stringsAsFactors = FALSE)
+  pn <- if (inherits(object$sm, "covariate"))
+    attr(object$Y, "covariate_terms") %||% colnames(object$sm$parameters$beta)[-1L]
+  occ <- nd[, setdiff(names(nd), pn), drop = FALSE]
+  p   <- ncol(object$data)
+  if (ncol(occ) != p)
+    stop(sprintf(paste0("`newdata` has %d occasion column%s; the model was ",
+                        "fitted on %d. Give one column per occasion in the ",
+                        "order of the fitted data, plus any predictors by name."),
+                 ncol(occ), if (ncol(occ) == 1L) "" else "s", p), call. = FALSE)
+  if (!all(vapply(occ, function(v) is.numeric(v) || all(is.na(v)), logical(1))))
+    stop("The occasion columns of `newdata` must be numeric.", call. = FALSE)
+  X <- as.matrix(occ)
+  storage.mode(X) <- "double"
+  dimnames(X) <- list(NULL, colnames(object$data))
+  X
+}
+
 .predict_covariates <- function(object, newdata) {
   cn    <- colnames(object$sm$parameters$beta)[-1L]
   terms <- attr(object$Y, "covariate_terms") %||% cn

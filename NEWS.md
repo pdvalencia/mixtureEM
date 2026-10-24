@@ -1,5 +1,14 @@
 # mixtureEM (development version)
 
+## `predict()` scores new cases from growth models
+
+`predict()` now classifies new cases from a `fit_gmm()` or `fit_lcga()` fit,
+holding every parameter fixed. `newdata` has one column per occasion, in the
+order of the wide data the model was fitted on, plus any `predictors` by
+name; a missing occasion drops out of the case's likelihood as it did in the
+fit. On the estimation sample it equals `class_assignments()`. Growth models
+with `growth_predictors` and `fit_rmlca()` fits are still refused.
+
 ## `growth_estimates()` reports one-step class regressions and categorical outcomes
 
 A `fit_gmm()` or `fit_lcga()` fit with `predictors` estimated in one step
