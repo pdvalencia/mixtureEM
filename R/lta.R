@@ -1969,7 +1969,8 @@ fit_lta <- function(indicators,
     time_invariance = time_invariance,
     invariant_items = spec$invariant_items,
     wave_missing    = prep$wave_missing,
-    measurement     = measurement
+    measurement     = measurement,
+    binary_recode   = engine$recode
   )
   # Cases deleted for having no observed indicator at any occasion, recorded so
   # the analysed sample size can be reconciled with the input data.

@@ -18,6 +18,12 @@ the new data, for which the fit now keeps the mapping. A `fit_gmm()` fit
 with `growth_predictors` is scored from the new cases' own covariate
 values, which shift each case's class means as they did in the fit.
 
+`fit_lta()` fits without predictors, groups or a random intercept are scored
+too, mover-stayer and other mixtures of chains included: one column per item
+and occasion, and a status per occasion in `class_assignments()`'s formats.
+Each occasion's posterior conditions on every occasion the case was observed
+at, which is what `class_assignments()` reports for the estimation sample.
+
 ## Status separation and step-3 moves for latent transition models
 
 `compare_longitudinal()` now carries `Separation` for an LTA whose

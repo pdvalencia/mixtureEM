@@ -2,6 +2,7 @@
 % Please edit documentation in R/predict.R
 \name{predict.mixture_model}
 \alias{predict.mixture_model}
+\alias{predict.lta_model}
 \title{Classify new cases from a fitted model}
 \usage{
 \method{predict}{mixture_model}(
@@ -11,10 +12,18 @@
   group = NULL,
   ...
 )
+
+\method{predict}{lta_model}(
+  object,
+  newdata,
+  type = c("modal", "posterior", "both"),
+  occasion = NULL,
+  ...
+)
 }
 \arguments{
 \item{object}{A fitted model from \code{\link[=fit_mixture]{fit_mixture()}}, \code{\link[=fit_gmm]{fit_gmm()}},
-\code{\link[=fit_lcga]{fit_lcga()}} or \code{\link[=fit_rmlca]{fit_rmlca()}}.}
+\code{\link[=fit_lcga]{fit_lcga()}}, \code{\link[=fit_rmlca]{fit_rmlca()}} or \code{\link[=fit_lta]{fit_lta()}}.}
 
 \item{newdata}{A data frame or matrix holding the indicators (and the
 predictors, for a model that has them) of the cases to classify; for a
@@ -29,6 +38,9 @@ with one entry per row of \code{newdata}, or the name of a column of
 \code{newdata}. Ignored otherwise.}
 
 \item{...}{Unused.}
+
+\item{occasion}{For a latent transition model, the index of a single
+occasion to return, as in \code{\link[=class_assignments]{class_assignments()}}.}
 }
 \value{
 One row (or element) per row of \code{newdata}, in the format
@@ -101,11 +113,20 @@ posterior, which conditions on the step-1 class assignment, while
 \code{predict()} conditions on the indicators themselves, since a new case has
 no step-1 assignment. On a one-step model the two agree exactly.
 
-\strong{Not covered.} Latent transition models (scoring a sequence of statuses
-needs a choice between filtered and smoothed probabilities), models with
-direct effects of covariates on items (\code{predictors_items}), and models
-combining predictors with a distal outcome in one structural model are
-refused with an error.
+\strong{Latent transition models.} A \code{\link[=fit_lta]{fit_lta()}} fit is scored from one
+column per item and occasion, as a repeated-measures model is, and returns
+a status per occasion in \code{\link[=class_assignments]{class_assignments()}}'s formats (\code{occasion}
+picks one). Each occasion's posterior conditions on every occasion the
+case was observed at, earlier and later alike (the smoothed probability of
+the forward-backward recursion), which is what \code{\link[=class_assignments]{class_assignments()}}
+reports for the estimation sample; a mixture of chains, such as a
+mover-stayer model, is mixed over its classes the same way. Fits with
+predictors, groups, a random intercept, direct effects on items, or three
+steps are not covered yet.
+
+\strong{Not covered.} Models with direct effects of covariates on items
+(\code{predictors_items}) and models combining predictors with a distal outcome
+in one structural model are refused with an error.
 }
 \examples{
 set.seed(1)

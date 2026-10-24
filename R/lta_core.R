@@ -703,6 +703,29 @@
       E$es[[c]]$gamma[[t]] * E$post[, c])))
 }
 
+# Each occasion's status posterior P(S_t = k | y_i) at fixed parameters, for
+# rows the fit never saw: the E-step of .lta_em() without its M-step, mixed
+# over the latent classes as .lta_mixed_gamma() does. The posterior is the
+# smoothed one, conditioning on every observed occasion, as the fit's own
+# $gamma does. For a state with no row-aligned covariates or random intercept;
+# predict.lta_model() refuses the others.
+.lta_posterior_at <- function(state, X) {
+  C    <- state$n_classes %||% 1L
+  w    <- rep(1, nrow(X))
+  logB <- .lta_emission_loglik(state$mm, X)
+  es   <- lapply(seq_len(C), function(c) {
+    sub <- .lta_class_state(state, c)
+    .lta_forward_backward(logB, .lta_log_delta(sub), .lta_log_tau(sub), w)
+  })
+  E <- list(es = es)
+  if (C > 1L) {
+    lp <- matrix(vapply(es, function(e) e$ll, numeric(nrow(X))), nrow(X))
+    lp <- sweep(lp, 2, log(pmax(state$class_weights, 1e-300)), "+")
+    E$post <- exp(lp - logsumexp(lp, MARGIN = 1))
+  }
+  .lta_mixed_gamma(E, state$n_times, C)
+}
+
 # ------------------------------------------------------------------------------
 # Random starts
 # ------------------------------------------------------------------------------

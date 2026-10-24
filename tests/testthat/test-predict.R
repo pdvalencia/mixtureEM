@@ -188,7 +188,12 @@ test_that("models predict() does not cover are refused", {
   lta <- suppressWarnings(
     fit_lta(X, n_statuses = 2, times = 3, measurement = "binary", n_init = 2,
             random_state = 2, standard_errors = FALSE))
-  expect_error(predict(lta, X), "latent transition")
+  expect_error(predict(lta, X[, 1:2]), "2 item-by-occasion columns")
+  cov <- suppressWarnings(
+    fit_lta(X, n_statuses = 2, times = 3, measurement = "binary", n_init = 2,
+            random_state = 2, standard_errors = FALSE,
+            predictors_initial = rnorm(150)))
+  expect_error(predict(cov, X), "fits with predictors")
 
   b <- .p_bin_fit()
   expect_error(predict(b$fit), "newdata")
@@ -359,4 +364,35 @@ test_that("growth models with growth predictors score each case's own means", {
   nd$x[2] <- NA
   expect_warning(out <- predict(f, nd), "missing predictor")
   expect_true(is.na(out[2]))
+})
+
+test_that("latent transition fits are scored occasion by occasion", {
+  set.seed(27)
+  n  <- 300
+  s1 <- sample(2, n, TRUE)
+  s2 <- ifelse(runif(n) < .8, s1, 3L - s1)
+  s3 <- ifelse(runif(n) < .8, s2, 3L - s2)
+  it <- function(s) matrix(rbinom(4 * n, 1, c(.85, .15)[s]), n)
+  X  <- cbind(it(s1), it(s2), it(s3)) + 1L                    # coded 1/2
+  for (ms in c(FALSE, TRUE)) {
+    f <- suppressMessages(suppressWarnings(
+      fit_lta(X, n_statuses = 2, times = 3, measurement = "binary",
+              mover_stayer = ms, n_init = 3, random_state = 1, n_cores = 1,
+              standard_errors = FALSE)))
+    p <- predict(f, X, type = "posterior")
+    for (t in 1:3)
+      expect_equal(p[[t]], class_assignments(f, type = "posterior")[[t]],
+                   tolerance = 1e-10, ignore_attr = TRUE)
+    expect_identical(predict(f, X), class_assignments(f))
+    expect_identical(predict(f, X, occasion = 2),
+                     class_assignments(f, occasion = 2))
+  }
+  # Smoothed, not filtered: a later occasion moves an earlier one.
+  one <- X[1:2, ]
+  one[2, 9:12] <- 3L - one[2, 9:12]
+  pr <- predict(f, one, type = "posterior")
+  expect_false(isTRUE(all.equal(pr[[1]][1, ], pr[[1]][2, ])))
+  nd <- X[1:2, ]
+  nd[1, ] <- NA
+  expect_true(all(is.na(predict(f, nd)[1, ])))
 })

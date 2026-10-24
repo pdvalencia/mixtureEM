@@ -71,14 +71,23 @@
 #' `predict()` conditions on the indicators themselves, since a new case has
 #' no step-1 assignment. On a one-step model the two agree exactly.
 #'
-#' **Not covered.** Latent transition models (scoring a sequence of statuses
-#' needs a choice between filtered and smoothed probabilities), models with
-#' direct effects of covariates on items (`predictors_items`), and models
-#' combining predictors with a distal outcome in one structural model are
-#' refused with an error.
+#' **Latent transition models.** A [`fit_lta()`] fit is scored from one
+#' column per item and occasion, as a repeated-measures model is, and returns
+#' a status per occasion in [`class_assignments()`]'s formats (`occasion`
+#' picks one). Each occasion's posterior conditions on every occasion the
+#' case was observed at, earlier and later alike (the smoothed probability of
+#' the forward-backward recursion), which is what [`class_assignments()`]
+#' reports for the estimation sample; a mixture of chains, such as a
+#' mover-stayer model, is mixed over its classes the same way. Fits with
+#' predictors, groups, a random intercept, direct effects on items, or three
+#' steps are not covered yet.
+#'
+#' **Not covered.** Models with direct effects of covariates on items
+#' (`predictors_items`) and models combining predictors with a distal outcome
+#' in one structural model are refused with an error.
 #'
 #' @param object A fitted model from [`fit_mixture()`], [`fit_gmm()`],
-#'   [`fit_lcga()`] or [`fit_rmlca()`].
+#'   [`fit_lcga()`], [`fit_rmlca()`] or [`fit_lta()`].
 #' @param newdata A data frame or matrix holding the indicators (and the
 #'   predictors, for a model that has them) of the cases to classify; for a
 #'   growth model, one column per occasion (see Details).
@@ -125,7 +134,7 @@ predict.mixture_model <- function(object, newdata,
   X  <- if (inherits(object, c("gmm", "lcga", "rmlca")))
           .predict_occasions(object, newdata)
         else .predict_indicators(object, newdata, .predict_item_names(object))
-  if (inherits(object, "rmlca")) X <- .predict_rmlca_recode(object, X)
+  if (inherits(object, "rmlca")) X <- .predict_block_recode(object, X)
   # Counted before the padding below, which leaves a case with no group no
   # items either and would hide why it is not scored.
   ok <- rowSums(!is.na(X)) > 0L
@@ -187,12 +196,54 @@ predict.mixture_model <- function(object, newdata,
              check.names = FALSE)
 }
 
+#' @rdname predict.mixture_model
+#' @param occasion For a latent transition model, the index of a single
+#'   occasion to return, as in [`class_assignments()`].
 #' @export
-predict.lta_model <- function(object, ...)
-  stop("predict() does not cover latent transition models yet: scoring a new ",
-       "case's sequence of statuses needs a choice between filtered and ",
-       "smoothed probabilities. Use class_assignments() for the estimation ",
-       "sample.", call. = FALSE)
+predict.lta_model <- function(object, newdata,
+                              type = c("modal", "posterior", "both"),
+                              occasion = NULL, ...) {
+  type <- match.arg(type)
+  if (missing(newdata) || is.null(newdata))
+    stop("`newdata` is required; for the estimation sample use ",
+         "class_assignments().", call. = FALSE)
+  .predict_refuse_lta(object)
+
+  X  <- .predict_block_recode(object, .predict_occasions(object, newdata))
+  ok <- rowSums(!is.na(X)) > 0L
+  K  <- object$n_statuses
+  gam <- rep(list(matrix(NA_real_, nrow(X), K)), object$n_times)
+  if (any(ok)) {
+    st <- object
+    if (anyNA(X)) st$mm <- .with_missing_emission(st$mm)
+    g <- .lta_posterior_at(st, X[ok, , drop = FALSE])
+    for (t in seq_along(gam)) gam[[t]][ok, ] <- g[[t]]
+  }
+  # The formats are class_assignments()'s, read off the new posteriors.
+  shell <- object
+  shell$gamma <- gam
+  class_assignments(shell, type = type, occasion = occasion)
+}
+
+# The latent transition fits whose scoring is not built: each carries a
+# per-case quantity besides the items (a covariate, a group, a random
+# intercept) or, for three steps, a structural model fitted to assigned
+# statuses rather than to the items.
+.predict_refuse_lta <- function(object) {
+  what <- if (isTRUE(object$n_steps == 3L)) "three-step fits"
+    else if (!is.null(object$group_info)) "multiple-group fits"
+    else if (!is.null(object$Z_delta) || !is.null(object$Z_tau))
+      "fits with predictors"
+    else if (!is.null(object$ri)) "random-intercept fits"
+    else if (!is.null(object$dif)) "fits with direct effects on items"
+  if (!is.null(what))
+    stop("predict() does not cover latent transition ", what, " yet. Use ",
+         "class_assignments() for the estimation sample.", call. = FALSE)
+  if (is.null(object$data))
+    stop("`object` carries no estimation data to match new cases against.",
+         call. = FALSE)
+  invisible(TRUE)
+}
 
 # The fits whose new-data scoring is not built, each with what is missing.
 .predict_refuse <- function(object, what = "predict()") {
@@ -316,9 +367,10 @@ predict.lta_model <- function(object, ...)
   X
 }
 
-# A repeated-measures model recodes a two-valued binary item to 0/1 once
-# across its occasions (.recode_binary_blocks()); new cases get the same map.
-.predict_rmlca_recode <- function(object, X) {
+# A repeated-measures or latent transition model recodes a two-valued binary
+# item to 0/1 once across its occasions (.recode_binary_blocks()); new cases
+# get the same map.
+.predict_block_recode <- function(object, X) {
   J   <- object$longitudinal$n_items
   Tn  <- object$longitudinal$n_times
   map <- object$longitudinal$binary_recode
@@ -342,8 +394,9 @@ predict.lta_model <- function(object, ...)
 # fitted on, read by position, since its columns carry the fit's internal
 # occasion labels. The columns named as predictors are set aside first.
 .predict_occasions <- function(object, newdata) {
-  unit <- if (inherits(object, "rmlca")) "item-by-occasion" else "occasion"
-  per  <- if (inherits(object, "rmlca")) "item and occasion" else "occasion"
+  blocks <- inherits(object, c("rmlca", "lta_model"))
+  unit <- if (blocks) "item-by-occasion" else "occasion"
+  per  <- if (blocks) "item and occasion" else "occasion"
   nd <- as.data.frame(newdata, stringsAsFactors = FALSE)
   pn <- if (inherits(object$sm, "covariate"))
     attr(object$Y, "covariate_terms") %||% colnames(object$sm$parameters$beta)[-1L]
