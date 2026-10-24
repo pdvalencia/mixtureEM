@@ -79,8 +79,16 @@
       .abbreviate_indices(bad)), call. = FALSE)
   }
 
+  # Subsetting drops the terms and levels prepare_covariates() recorded,
+  # which predict() reads to rebuild a factor's dummies from new data.
   drop <- .empty_rows(X, retain)
-  if (length(drop)) gx <- gx[-drop, , drop = FALSE]
+  if (length(drop)) {
+    terms  <- attr(gx, "covariate_terms")
+    levels <- attr(gx, "covariate_levels")
+    gx <- gx[-drop, , drop = FALSE]
+    attr(gx, "covariate_terms")  <- terms
+    attr(gx, "covariate_levels") <- levels
+  }
   gx
 }
 

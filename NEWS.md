@@ -14,7 +14,9 @@ gives `NA`. On a one-step fit's estimation sample the posteriors equal
 `fit_rmlca()` fits are scored too, from one column per item and occasion in
 the order of the wide data the model was fitted on, plus any `predictors`
 by name; a binary item the fit recoded to 0/1 is recoded the same way in
-the new data, for which the fit now keeps the mapping.
+the new data, for which the fit now keeps the mapping. A `fit_gmm()` fit
+with `growth_predictors` is scored from the new cases' own covariate
+values, which shift each case's class means as they did in the fit.
 
 ## Status separation and step-3 moves for latent transition models
 

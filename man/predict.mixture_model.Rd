@@ -63,7 +63,9 @@ item for several items). Columns named as the model's \code{predictors} are
 taken as the predictors and every other column as an occasion, so their
 number must equal the fitted model's. A model fitted from long data is
 scored from the same wide layout. A missing occasion drops out of the case's
-likelihood, as in the fit. Models with \code{growth_predictors} are not covered.
+likelihood, as in the fit. A \code{\link[=fit_gmm]{fit_gmm()}} fit with \code{growth_predictors}
+needs those columns in \code{newdata} too, by name (a factor as the factor),
+since they move each case's own class means; a case missing one gets \code{NA}.
 
 \strong{Repeated-measures models.} A \code{\link[=fit_rmlca]{fit_rmlca()}} fit is scored the same way:
 one column per item and occasion, in the order of the wide matrix it was
@@ -100,8 +102,7 @@ posterior, which conditions on the step-1 class assignment, while
 no step-1 assignment. On a one-step model the two agree exactly.
 
 \strong{Not covered.} Latent transition models (scoring a sequence of statuses
-needs a choice between filtered and smoothed probabilities), growth models
-with \code{growth_predictors}, models with
+needs a choice between filtered and smoothed probabilities), models with
 direct effects of covariates on items (\code{predictors_items}), and models
 combining predictors with a distal outcome in one structural model are
 refused with an error.

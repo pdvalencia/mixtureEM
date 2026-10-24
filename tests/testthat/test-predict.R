@@ -288,7 +288,7 @@ test_that("growth models are scored from one column per occasion", {
   expect_error(predict(fits$gmm, y[, 1:3]), "3 occasion columns")
   gp <- suppressWarnings(fit_gmm(y, times = 4, n_classes = 2, n_init = 2,
                                  random_state = 1, growth_predictors = data.frame(x = x)))
-  expect_error(predict(gp, y), "growth_predictors")
+  expect_error(predict(gp, y), "growth predictor 'x'")
 })
 
 test_that("a factor predictor's unseen level is refused, not read as the reference", {
@@ -327,4 +327,36 @@ test_that("repeated-measures fits are scored by item and occasion", {
   bad <- X[1:2, ]
   bad[1, 1] <- 3L
   expect_error(predict(f, bad), "values other than its two")
+})
+
+test_that("growth models with growth predictors score each case's own means", {
+  set.seed(26)
+  n   <- 300
+  z   <- sample(2, n, TRUE)
+  x   <- rnorm(n)
+  sex <- factor(sample(c("f", "m"), n, TRUE))
+  i   <- c(1, 3)[z] + .5 * x + .4 * (sex == "m") + rnorm(n, 0, .5)
+  y   <- outer(i, rep(1, 4)) + outer(c(.2, .8)[z], 0:3) +
+    matrix(rnorm(4 * n, 0, .5), n)
+  colnames(y) <- paste0("y", 1:4)
+  gp  <- data.frame(x = x, sex = sex)
+  f <- suppressWarnings(fit_gmm(y, n_classes = 2, times = 4,
+                                random_effects = "intercept",
+                                growth_predictors = gp, n_init = 3,
+                                random_state = 1, n_cores = 1))
+  nd <- data.frame(y, gp)
+  expect_equal(predict(f, nd, type = "posterior"),
+               class_assignments(f, type = "posterior"),
+               tolerance = 1e-8, ignore_attr = TRUE)
+  # Scored rows do not depend on which other rows are scored with them.
+  expect_equal(predict(f, nd[c(9, 3), ], type = "posterior"),
+               class_assignments(f, type = "posterior")[c(9, 3), ],
+               tolerance = 1e-8, ignore_attr = TRUE)
+  expect_error(predict(f, data.frame(y, x = x)), "growth predictor 'sex'")
+  nd$sex <- factor(rep("u", n))
+  expect_error(predict(f, nd), "level")
+  nd <- data.frame(y, gp)
+  nd$x[2] <- NA
+  expect_warning(out <- predict(f, nd), "missing predictor")
+  expect_true(is.na(out[2]))
 })

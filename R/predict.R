@@ -32,7 +32,9 @@
 #' taken as the predictors and every other column as an occasion, so their
 #' number must equal the fitted model's. A model fitted from long data is
 #' scored from the same wide layout. A missing occasion drops out of the case's
-#' likelihood, as in the fit. Models with `growth_predictors` are not covered.
+#' likelihood, as in the fit. A [`fit_gmm()`] fit with `growth_predictors`
+#' needs those columns in `newdata` too, by name (a factor as the factor),
+#' since they move each case's own class means; a case missing one gets `NA`.
 #'
 #' **Repeated-measures models.** A [`fit_rmlca()`] fit is scored the same way:
 #' one column per item and occasion, in the order of the wide matrix it was
@@ -70,8 +72,7 @@
 #' no step-1 assignment. On a one-step model the two agree exactly.
 #'
 #' **Not covered.** Latent transition models (scoring a sequence of statuses
-#' needs a choice between filtered and smoothed probabilities), growth models
-#' with `growth_predictors`, models with
+#' needs a choice between filtered and smoothed probabilities), models with
 #' direct effects of covariates on items (`predictors_items`), and models
 #' combining predictors with a distal outcome in one structural model are
 #' refused with an error.
@@ -151,8 +152,11 @@ predict.mixture_model <- function(object, newdata,
                       if (sum(bad) == 1L) "gets" else "get"), call. = FALSE)
     ok <- ok & !bad
   }
-  if (!is.null(Y)) {
-    bad <- ok & !stats::complete.cases(Y)
+  # A covariate on the growth factors shapes the case's own class means, so
+  # a case missing one cannot be scored either.
+  G <- if (!is.null(object$mm$xmat)) .predict_growth_covariates(object, newdata)
+  if (!is.null(Y) || !is.null(G)) {
+    bad <- ok & !stats::complete.cases(cbind(Y, G))
     if (any(bad))
       warning(sprintf(paste0("%d case%s with a missing predictor cannot be ",
                              "scored and %s NA."), sum(bad),
@@ -164,6 +168,9 @@ predict.mixture_model <- function(object, newdata,
   K    <- object$n_components
   resp <- matrix(NA_real_, nrow(X), K,
                  dimnames = list(NULL, paste("Class", seq_len(K))))
+  # The fitted model keeps its covariate rows aligned with its data rows; the
+  # scored cases take their place.
+  if (!is.null(G)) ms$mm$xmat <- G[ok, , drop = FALSE]
   if (any(ok)) {
     lr <- e_step(ms, X[ok, , drop = FALSE],
                  if (is.null(Y)) NULL else Y[ok, , drop = FALSE])$log_resp
@@ -189,9 +196,6 @@ predict.lta_model <- function(object, ...)
 
 # The fits whose new-data scoring is not built, each with what is missing.
 .predict_refuse <- function(object, what = "predict()") {
-  if (inherits(object, "gmm") && length(object$growth$covariate_names))
-    stop(what, " does not cover growth models with `growth_predictors` yet.",
-         call. = FALSE)
   if (.has_dif(object$mm))
     stop(what, " does not cover models with direct effects of covariates on ",
          "items (`predictors_items`).", call. = FALSE)
@@ -343,6 +347,7 @@ predict.lta_model <- function(object, ...)
   nd <- as.data.frame(newdata, stringsAsFactors = FALSE)
   pn <- if (inherits(object$sm, "covariate"))
     attr(object$Y, "covariate_terms") %||% colnames(object$sm$parameters$beta)[-1L]
+  if (!is.null(object$mm$xmat)) pn <- c(pn, .covariate_terms(object$mm$xmat))
   occ <- nd[, setdiff(names(nd), pn), drop = FALSE]
   p   <- ncol(object$data)
   if (ncol(occ) != p)
@@ -363,9 +368,22 @@ predict.lta_model <- function(object, ...)
 # A multiple-group model's prevalence effect entered the regression as the
 # group dummies `group:<level>`, which are rebuilt from `gfac`.
 .predict_covariates <- function(object, newdata, gfac = NULL) {
-  cn    <- colnames(object$sm$parameters$beta)[-1L]
-  terms <- attr(object$Y, "covariate_terms") %||% cn
-  gcols <- colnames(object$group_info$design)
+  .predict_design(newdata, colnames(object$sm$parameters$beta)[-1L], object$Y,
+                  gcols = colnames(object$group_info$design), gfac = gfac)
+}
+
+# A growth model's covariates on the growth factors, in the columns of the
+# matrix the fit kept in its measurement model.
+.predict_growth_covariates <- function(object, newdata) {
+  M <- object$mm$xmat
+  .predict_design(newdata, colnames(M), M, what = "Growth predictor")
+}
+
+# The new cases' columns of a fitted covariate design `cn`, read from
+# `newdata` by the terms and factor levels `M` (the fitted design) records.
+.predict_design <- function(newdata, cn, M, gcols = NULL, gfac = NULL,
+                            what = "Predictor") {
+  terms <- attr(M, "covariate_terms") %||% cn
   nd    <- as.data.frame(newdata, stringsAsFactors = FALSE)
   Y     <- matrix(NA_real_, nrow(nd), length(cn), dimnames = list(NULL, cn))
   for (i in seq_along(cn)) {
@@ -376,21 +394,22 @@ predict.lta_model <- function(object, ...)
     }
     tm <- terms[i]
     if (!tm %in% names(nd))
-      stop(sprintf("`newdata` lacks predictor '%s'.", tm), call. = FALSE)
+      stop(sprintf("`newdata` lacks %s '%s'.", tolower(what), tm),
+           call. = FALSE)
     v <- nd[[tm]]
     if (cn[i] == tm) {
       if (!is.numeric(v))
-        stop(sprintf("Predictor '%s' must be numeric in `newdata`.", tm),
+        stop(sprintf("%s '%s' must be numeric in `newdata`.", what, tm),
              call. = FALSE)
       Y[, i] <- v
     } else {
       # All dummies 0 is the reference level, so a level the fit never saw
       # would silently be scored as the reference; refuse it instead.
-      seen   <- attr(object$Y, "covariate_levels")[[tm]]
+      seen   <- attr(M, "covariate_levels")[[tm]]
       unseen <- setdiff(unique(as.character(v[!is.na(v)])), seen)
       if (!is.null(seen) && length(unseen))
-        stop(sprintf(paste0("Predictor '%s' has level%s %s in `newdata` ",
-                            "that the model was not fitted with."), tm,
+        stop(sprintf(paste0("%s '%s' has level%s %s in `newdata` ",
+                            "that the model was not fitted with."), what, tm,
                      if (length(unseen) == 1L) "" else "s",
                      paste0("'", unseen, "'", collapse = ", ")),
              call. = FALSE)
