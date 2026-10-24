@@ -58,7 +58,10 @@ criteria, since step 3's log-likelihood is of the assigned statuses.}
 An object of class \code{mixture_comparison}, a list with \code{fit_table}
 (columns \code{Classes}, \code{LL}, \code{Params}, \code{AIC}, \code{BIC}, \code{CAIC}, \code{AWE}, \code{AIC3},
 \code{ICL}, \code{SABIC}, \code{Entropy}, \code{Unreplicated}, \code{BF} and \code{cmP}, defined as in
-\code{\link[=compare_mixtures]{compare_mixtures()}}), the fitted \code{models} (named
+\code{\link[=compare_mixtures]{compare_mixtures()}}; for an LTA whose indicators are all continuous,
+also \code{Separation}, the smallest distance between two statuses' means at
+any occasion, as \code{\link[=classification_diagnostics]{classification_diagnostics()}} reports it by
+occasion), the fitted \code{models} (named
 \code{"K2"}, \code{"K3"}, ...) and
 \code{best_k}, the class count with the lowest BIC. It indexes exactly as a
 plain list; \code{\link[=print.mixture_comparison]{print.mixture_comparison()}} shows the table (a short view by

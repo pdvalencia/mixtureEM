@@ -11,6 +11,17 @@ column; a group the model was not fitted with is an error and a missing one
 gives `NA`. On a one-step fit's estimation sample the posteriors equal
 `class_assignments()`. No fitted value changes.
 
+## Status separation and step-3 moves for latent transition models
+
+`compare_longitudinal()` now carries `Separation` for an LTA whose
+indicators are all continuous: the smallest distance between two statuses'
+means, in pooled within-status standard deviations, at any occasion. The
+LTA `classification_diagnostics()` prints that distance occasion by
+occasion and, for a three-step fit with the ML correction and modal
+assignment, how many cases changed modal status between step 1 and step 3
+at each occasion, with the cross-tabulation, as the cross-sectional method
+already did. No estimate or index changes.
+
 ## `compare_mixtures()` shows the class separation
 
 For a comparison whose indicators are all continuous, the table now carries

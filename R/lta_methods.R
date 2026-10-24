@@ -622,7 +622,10 @@ lta_g2 <- function(object) {
 #' @return An object of class `mixture_comparison`, a list with `fit_table`
 #'   (columns `Classes`, `LL`, `Params`, `AIC`, `BIC`, `CAIC`, `AWE`, `AIC3`,
 #'   `ICL`, `SABIC`, `Entropy`, `Unreplicated`, `BF` and `cmP`, defined as in
-#'   [`compare_mixtures()`]), the fitted `models` (named
+#'   [`compare_mixtures()`]; for an LTA whose indicators are all continuous,
+#'   also `Separation`, the smallest distance between two statuses' means at
+#'   any occasion, as [`classification_diagnostics()`] reports it by
+#'   occasion), the fitted `models` (named
 #'   `"K2"`, `"K3"`, ...) and
 #'   `best_k`, the class count with the lowest BIC. It indexes exactly as a
 #'   plain list; [print.mixture_comparison()] shows the table (a short view by
@@ -703,10 +706,14 @@ compare_longitudinal <- function(indicators, k_range = NULL,
       CAIC = m$caic, AWE = m$awe, AIC3 = m$aic3, ICL = m$icl,
       SABIC = m$sabic,
       Entropy = if (k == 1L) NA_real_ else m$entropy %||% NA_real_,
-      Unreplicated = .is_unreplicated(m))
+      Unreplicated = .is_unreplicated(m),
+      Separation = if (model == "lta")
+        attr(.lta_separation(fit), "min") %||% NA_real_ else NA_real_)
   }
 
   tab <- do.call(rbind, rows)
+  # As in compare_mixtures(): a column that is NA in every row is left out.
+  if (all(is.na(tab$Separation))) tab$Separation <- NULL
   tab <- tab[order(tab$Classes), , drop = FALSE]
   rownames(tab) <- NULL
   tab <- .bf_cmp(tab)
@@ -1466,6 +1473,88 @@ classification_diagnostics.lta_model <- function(object, ...) {
                 attr(out[[t]]$table, "error")))
   cat("=========================================================\n")
 
+  # Both blocks below are the cross-sectional ones of
+  # classification_diagnostics.default(), applied at each occasion.
+  sep <- .lta_separation(object)
+  if (!is.null(sep)) {
+    cat("
+Status separation: Mahalanobis distance between status means,",
+        "
+against the pooled within-status variance, by occasion
+")
+    for (t in seq_along(sep)) {
+      cat(sprintf("
+--- %s ---
+", names(sep)[t]))
+      print(round(sep[[t]], 3))
+    }
+    cat(sprintf("Smallest distance between two statuses: %.3f
+",
+                attr(sep, "min")))
+  }
+  shift <- .lta_step3_shift(object)
+  if (!is.null(shift)) {
+    cat("
+Cases whose modal status changed between the measurement model",
+        "and step 3:
+")
+    for (t in seq_along(shift)) {
+      cat(sprintf("
+--- %s: %s (%.1f%%) ---
+", names(shift)[t],
+                  format(round(shift[[t]]$n_moved, 2)),
+                  100 * shift[[t]]$prop_moved))
+      print(shift[[t]]$table)
+    }
+  }
+  for (t in seq_along(out)) {
+    out[[t]]["separation"]  <- list(sep[[t]])
+    out[[t]]["class_shift"] <- list(shift[[t]])
+  }
+
   names(out) <- object$longitudinal$time_labels
   invisible(out)
+}
+
+# Class separation of a continuous LTA, occasion by occasion: each occasion's
+# status means and variances (the same at every occasion under full
+# invariance), pooled with that occasion's status prevalences, so the distance
+# can differ between occasions even then. A three-step fit reads its step-1
+# measurement model. NULL unless every occasion is a continuous diagonal
+# model with no random intercept and no item covariates, which would make the
+# within-status distribution depend on more than the status.
+.lta_separation <- function(object) {
+  fit <- if (.is_threestep_lta(object)) object$step1 else object
+  mm  <- fit$mm
+  prev <- fit$prevalences
+  if (!inherits(mm, "time_blocks") || !is.null(fit$ri) || !is.null(fit$dif) ||
+      !is.matrix(prev) || nrow(prev) != length(mm$models))
+    return(NULL)
+  out <- lapply(seq_along(mm$models), function(t)
+    .separation_matrix(mm$models[[t]], prev[t, ], "Status"))
+  if (any(vapply(out, is.null, logical(1)))) return(NULL)
+  names(out) <- fit$longitudinal$time_labels
+  attr(out, "min") <- min(vapply(out, attr, numeric(1), "min"))
+  out
+}
+
+# How many cases the ML third step moved at each occasion: the modal status
+# under the step-1 posterior against the modal status under step 3's, the
+# cross-sectional .step3_class_shift() per occasion. Step 3's posterior is per
+# case only when its rows are the cases; otherwise nothing is reported.
+.lta_step3_shift <- function(object) {
+  if (!.is_threestep_lta(object) ||
+      !identical(object$threestep$correction, "ML"))
+    return(NULL)
+  K <- object$n_statuses
+  out <- lapply(seq_along(object$gamma), function(t) {
+    g1 <- object$step1$gamma[[t]]
+    g3 <- object$gamma[[t]]
+    if (!identical(dim(g1), dim(g3))) return(NULL)
+    .step3_shift_table(g1, g3, object$weights_vec %||% rep(1, nrow(g3)), K,
+                       "Status")
+  })
+  if (!length(out) || any(vapply(out, is.null, logical(1)))) return(NULL)
+  names(out) <- object$longitudinal$time_labels
+  out
 }

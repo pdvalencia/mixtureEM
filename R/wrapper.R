@@ -683,6 +683,16 @@ measurement_summary.default <- function(object,
 #' Asparouhov & Muthén, 2014); many moved cases mean the structural model is redefining the
 #' classes, and the one-step and two-step fits are the comparison to run.
 #'
+#' **Latent transition models** ([`fit_lta()`]) get the same tables occasion
+#' by occasion, since a status is assigned at every occasion. The status
+#' separation is computed from each occasion's status means and variances,
+#' pooled with that occasion's prevalences (for a three-step fit, those of its
+#' step 1); it is not reported with random intercepts or item covariates. The
+#' cases moved by step 3 are counted at each occasion for
+#' `fit_lta(n_steps = 3, correction = "ML", assignment = "modal")`, where step
+#' 3 has one row per case. Each occasion's element of the returned list then
+#' carries `separation` and `class_shift` too.
+#'
 #' @param object A fitted \code{mixture_model} object returned by
 #'   \code{\link{fit_mixture}}.
 #' @param n_boot Non-negative integer. Number of case-resampling bootstrap
@@ -853,8 +863,11 @@ classification_diagnostics.default <- function(object, n_boot = 0,
 # sqrt(sum_j d_j^2). Defined only for all-continuous diagonal models; a
 # categorical indicator has no Cohen's d, and no cited analogue is substituted.
 # Computed from the parameters, never from the posteriors.
-.class_separation <- function(object) {
-  mm <- object$mm
+.class_separation <- function(object) .separation_matrix(object$mm, object$weights)
+
+# The same distance for one measurement model and the class proportions that
+# pool its variances; .lta_separation() applies it occasion by occasion.
+.separation_matrix <- function(mm, w, label = "Class") {
   if (!(class(mm)[1] %in% c("gaussian_diag", "gaussian_diag_nan",
                             "gaussian_unit", "gaussian_unit_nan")))
     return(NULL)
@@ -862,8 +875,9 @@ classification_diagnostics.default <- function(object, n_boot = 0,
   K  <- nrow(mu)
   if (K < 2L) return(NULL)
   s2 <- if (is.null(mm$parameters$covariances)) rep(1, ncol(mu))
-        else colSums(as.vector(object$weights) * mm$parameters$covariances)
-  D <- matrix(0, K, K, dimnames = list(paste("Class", 1:K), paste("Class", 1:K)))
+        else colSums(as.vector(w) * mm$parameters$covariances)
+  lab <- paste(label, 1:K)
+  D <- matrix(0, K, K, dimnames = list(lab, lab))
   for (k in 1:K) for (l in 1:K)
     D[k, l] <- sqrt(sum((mu[k, ] - mu[l, ])^2 / s2))
   attr(D, "min") <- min(D[upper.tri(D)])
@@ -917,11 +931,17 @@ classification_diagnostics.default <- function(object, n_boot = 0,
   if (is.null(object$sm) || !identical(as.integer(object$n_steps %||% 1L), 3L) ||
       !identical(object$correction, "ML"))
     return(NULL)
+  .step3_shift_table(resp1, resp3, w, K)
+}
+
+# The cross-tabulation behind it, shared with the occasion-by-occasion count
+# of a three-step LTA (.lta_step3_shift()).
+.step3_shift_table <- function(resp1, resp3, w, K, label = "Class") {
   m1 <- factor(max.col(resp1, ties.method = "first"), levels = 1:K)
   m3 <- factor(max.col(resp3, ties.method = "first"), levels = 1:K)
   tab <- stats::xtabs(w ~ m1 + m3)
-  dimnames(tab) <- list("Step 1" = paste("Class", 1:K),
-                        "Step 3" = paste("Class", 1:K))
+  dimnames(tab) <- list("Step 1" = paste(label, 1:K),
+                        "Step 3" = paste(label, 1:K))
   n_moved <- sum(w[m1 != m3])
   list(table = tab, n_moved = n_moved, prop_moved = n_moved / sum(w))
 }

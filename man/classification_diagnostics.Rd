@@ -119,6 +119,16 @@ a proportion and a cross-tabulation. The three-step method assumes the
 structural model leaves the classes as step 1 defined them (Vermunt, 2010;
 Asparouhov & Muthén, 2014); many moved cases mean the structural model is redefining the
 classes, and the one-step and two-step fits are the comparison to run.
+
+\strong{Latent transition models} (\code{\link[=fit_lta]{fit_lta()}}) get the same tables occasion
+by occasion, since a status is assigned at every occasion. The status
+separation is computed from each occasion's status means and variances,
+pooled with that occasion's prevalences (for a three-step fit, those of its
+step 1); it is not reported with random intercepts or item covariates. The
+cases moved by step 3 are counted at each occasion for
+\code{fit_lta(n_steps = 3, correction = "ML", assignment = "modal")}, where step
+3 has one row per case. Each occasion's element of the returned list then
+carries \code{separation} and \code{class_shift} too.
 }
 \examples{
 set.seed(1)

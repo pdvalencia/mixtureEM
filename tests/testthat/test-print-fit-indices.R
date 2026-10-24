@@ -64,3 +64,33 @@ test_that("compare_mixtures() carries the class separation for continuous indica
     X, k_range = 1:2, measurement = "binary", n_init = 2, n_cores = 1, random_state = 1))))
   expect_null(cb$fit_table$Separation)
 })
+
+test_that("compare_longitudinal() carries the status separation of a continuous LTA", {
+  set.seed(3)
+  n  <- 300
+  s1 <- sample(2, n, TRUE, c(.6, .4))
+  s2 <- ifelse(runif(n) < .8, s1, 3L - s1)
+  Y  <- cbind(matrix(rnorm(3 * n, c(0, 1.8)[s1]), n),
+              matrix(rnorm(3 * n, c(0, 1.8)[s2]), n))
+  cl <- NULL
+  invisible(capture.output(cl <- suppressMessages(suppressWarnings(
+    compare_longitudinal(Y, k_range = 2:3, times = 2, measurement = "continuous",
+                         n_init = 2, n_cores = 1, random_state = 1,
+                         standard_errors = FALSE)))))
+  for (k in 2:3) {
+    f <- cl$models[[paste0("K", k)]]
+    # By hand: each occasion's status means against its variances pooled with
+    # that occasion's prevalences; the column is the smallest over occasions.
+    d <- sapply(1:2, function(t) {
+      p  <- f$mm$models[[t]]$parameters
+      s2 <- colSums(f$prevalences[t, ] * p$covariances)
+      min(utils::combn(k, 2, function(ab)
+        sqrt(sum((p$means[ab[1], ] - p$means[ab[2], ])^2 / s2))))
+    })
+    expect_equal(cl$fit_table$Separation[k - 1], min(d), tolerance = 1e-12)
+    cd <- NULL
+    invisible(capture.output(cd <- classification_diagnostics(f)))
+    expect_equal(attr(cd[[2]]$separation, "min"), d[2], tolerance = 1e-12)
+  }
+  expect_true(any(grepl("Separation", capture.output(print(cl)))))
+})

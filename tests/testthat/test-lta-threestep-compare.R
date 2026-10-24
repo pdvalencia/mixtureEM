@@ -71,3 +71,20 @@ test_that("compare_longitudinal(n_steps = 3) tabulates step 1 on every row", {
                unname(vapply(cmp$models, function(m)
                  as.numeric(m$step1$metrics$n_params), numeric(1))))
 })
+
+test_that("classification_diagnostics() counts the cases step 3 moved, by occasion", {
+  three <- .tsc_fit(3, assignment = "modal")
+  cd <- NULL
+  invisible(capture.output(cd <- classification_diagnostics(three)))
+  for (t in 1:3) {
+    m1 <- max.col(three$step1$gamma[[t]], ties.method = "first")
+    m3 <- max.col(three$gamma[[t]], ties.method = "first")
+    expect_equal(cd[[t]]$class_shift$n_moved, sum(m1 != m3))
+    expect_equal(sum(diag(cd[[t]]$class_shift$table)), sum(m1 == m3))
+  }
+  # A one-step fit has no third step to move anyone.
+  one <- NULL
+  invisible(capture.output(one <- classification_diagnostics(.tsc_fit(1))))
+  expect_null(one[[1]]$class_shift)
+  expect_null(one[[1]]$separation)
+})
