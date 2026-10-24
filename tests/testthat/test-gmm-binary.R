@@ -188,7 +188,8 @@ test_that("half the starts are drawn around the start pool, inside the edge", {
   Y <- .bg_sim(n = 100, seed = 9, ts = 0:4)
   near <- vapply(1:60, function(s) {
     st <- init_params(ms, Y, NULL, random_state = s)
-    expect_true(all(abs(st$parameters$coefs) <= .qn_edge))
+    eta <- st$parameters$coefs %*% t(ms$edge_map$A)
+    expect_true(all(abs(eta) <= .bg_edge + 1e-9))
     abs(st$parameters$coefs[1, 1] - 7) < 2.5
   }, TRUE)
   expect_gt(mean(near), 0.3)
@@ -196,6 +197,26 @@ test_that("half the starts are drawn around the start pool, inside the edge", {
   # Each start is a function of its seed alone.
   expect_identical(init_params(ms, Y, NULL, random_state = 4)$parameters,
                    init_params(ms, Y, NULL, random_state = 4)$parameters)
+})
+
+test_that("the edge holds the log-odds at the first and last occasions", {
+  ms <- binary_growth_model(2, .lcga_design(c(0, 1, 3, 4, 6), 1), n_quadrature = 3)
+  expect_equal(ms$edge_map$A, ms$design[c(1, 5), ], ignore_attr = TRUE)
+  # A class that answers 1 until the last occasion keeps its switch there,
+  # with an intercept beyond the edge; a class inside is left as it is.
+  A <- rbind(c(76.77, -12.65), c(-1, 0.4))
+  B <- .bg_clamp(ms, A)
+  expect_equal(B[2, ], A[2, ])
+  expect_equal(as.vector(ms$design[c(1, 5), ] %*% B[1, ]), c(.bg_edge, 76.77 - 6 * 12.65))
+  expect_gt(-B[1, 1] / B[1, 2], 6)
+  # The finish packs those log-odds and unpacks the same trajectories.
+  ms$parameters$coefs <- B
+  ms <- .bg_set_psi(ms, .bg_psi_unmap(ms, list(diag(c(1, .3)))))
+  pk <- .qn_pack_binary_growth(ms)
+  expect_equal(pk$par[c(1, 3)], c(.bg_edge, 76.77 - 6 * 12.65), ignore_attr = TRUE)
+  expect_equal(.qn_unpack_binary_growth(ms, pk$par)$parameters$coefs, B)
+  # Time scores that do not determine the curve put the edge on the coefficients.
+  expect_equal(.bg_anchor(cbind(1, c(0, 0, 0)))$A, diag(2))
 })
 
 test_that("starts without a pool seed classes from observed response patterns", {

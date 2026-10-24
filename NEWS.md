@@ -15,9 +15,13 @@ exact scores. Every fit is rescored with ten more nodes per random effect
 (`fit$growth$quadrature_check`), and a warning says when the two differ by
 more than 0.01, which is the sign that a variance is too wide for the rule
 and the integral has to be refined before models are compared. A class
-whose answers follow its curve without exception has its log-odds held once
-they pass 15 in absolute value, as response probabilities are in a latent
-class model. `growth_estimates()`, `wald_test()`, `predict()`,
+whose answers follow its curve without exception has no finite maximum, so
+each class's log-odds at the first and last occasions (at evenly spaced
+occasions for a curve of higher degree) are kept within 37, where the
+probability is 1 in double precision. The bound is on the log-odds and not
+on the growth coefficients, so a class that answers 1 until late in the
+time range keeps its switch where the data put it, whatever intercept that
+takes. `growth_estimates()`, `wald_test()`, `predict()`,
 `class_assignments()`, `blrt()`, `simulate()`, `report_methods()`,
 `print()` and `plot()` all take the new fits; the reported trajectory is
 the probability averaged over the random effects, with the probability at

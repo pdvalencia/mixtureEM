@@ -141,7 +141,9 @@ binary_growth_model <- function(n_components, design,
     em_tol         = .bg_em_tol,
     em_squarem     = TRUE,
     # Trajectories that seed half the random starts (init_params()).
-    start_pool     = start_pool
+    start_pool     = start_pool,
+    # The occasions the trajectory's edge is placed on (.bg_anchor()).
+    edge_map       = .bg_anchor(design)
   )
   class(state) <- c("binary_growth", "emission")
   state
@@ -155,6 +157,56 @@ binary_growth_model <- function(n_components, design,
 # the maximum on two stress sets (RECORDS.md, "Part 54 E1 (W11)"); stopped at
 # 1e-3 itself, the finish can stop short along such a class's ridge.
 .bg_em_tol <- list(abs = 1e-5, rel = 1e-12)
+
+# ------------------------------------------------------------------------------
+# The trajectory's edge
+# ------------------------------------------------------------------------------
+#
+# A class whose answers follow its curve without exception (every case
+# answering 1 early and 0 late, say) has no finite maximum: the likelihood
+# keeps rising as its curve steepens towards a step. The curve is therefore
+# held inside an edge, and the edge is on the class's log-odds at the
+# occasions, not on its coefficients. A class that answers 1 until the last
+# occasion needs an intercept of |S| times the time of the switch: a maximum
+# with I = 76.8, S = -12.6 over time scores 0-6 switches at t = 6.1, and the
+# same slope with I held at 25 switches at t = 2, which cost that solution
+# 9.4 units of log-likelihood. On the same solutions the log-odds at the
+# first and last occasions never needed to pass the edge by more than
+# a few thousandths of a unit (RECORDS.md, "Part 54 E1.2b").
+#
+# The edge is placed at the p occasions spread evenly over the design's rows
+# (first and last for a linear curve, where a straight line takes its
+# extremes), so the log-odds there are an invertible linear map of the p
+# coefficients, eta = A alpha. Beyond them a curve of higher degree can pass
+# the edge between the anchors; the edge's job is to stop the walk towards
+# infinity, which bounding the curve at p points does. With repeated time
+# scores the anchors may not determine the curve, and the edge goes back on
+# the coefficients.
+#
+# At the edge's value the probability is 1 in double precision
+# (plogis(37) == 1), so the objective cannot tell the edge from the limit:
+# a curve walked further gains less than the log-likelihood's own rounding.
+.bg_edge <- 37
+
+.bg_anchor <- function(design) {
+  p <- ncol(design)
+  at <- unique(round(seq(1, nrow(design), length.out = p)))
+  A <- if (length(at) == p) design[at, , drop = FALSE]
+  if (is.null(A) || rcond(A) < 1e-8) A <- diag(1, p)
+  list(A = A, Ainv = solve(A))
+}
+
+# The trajectories `coefs` (K x p) with each class's log-odds at the anchors
+# held inside the edge; a class already inside is returned as it is.
+.bg_clamp <- function(ms, coefs) {
+  em <- ms$edge_map %||% .bg_anchor(ms$design)
+  eta <- coefs %*% t(em$A)
+  out <- rowSums(abs(eta) > .bg_edge) > 0
+  if (any(out))
+    coefs[out, ] <- pmin(pmax(eta[out, , drop = FALSE], -.bg_edge), .bg_edge) %*%
+      t(em$Ainv)
+  coefs
+}
 
 # ------------------------------------------------------------------------------
 # The covariance parameters
@@ -376,7 +428,7 @@ init_params.binary_growth <- function(model_state, X, resp, random_state = NULL,
       coefs[k, ] <- qr.solve(D[o, , drop = FALSE], ifelse(pat$Y0[i, o] > 0, A, -A))
     }
   }
-  coefs[] <- pmin(pmax(coefs, -.qn_edge), .qn_edge)
+  coefs <- .bg_clamp(model_state, coefs)
   Lr <- D[, model_state$r_cols, drop = FALSE]
   L0 <- diag(1 / sqrt(pmax(apply(Lr^2, 2L, max), 1e-8)), ncol(Lr))
   model_state$parameters$coefs <- coefs
@@ -495,7 +547,7 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
   K   <- ms$n_components; p <- ncol(ms$design); q <- length(ms$r_cols)
   # The edge holds whatever brought the state here, an accelerated step
   # (.em_squarem()) included, not only this M-step's own moves.
-  ms$parameters$coefs[] <- pmin(pmax(ms$parameters$coefs, -.qn_edge), .qn_edge)
+  ms$parameters$coefs <- .bg_clamp(ms, ms$parameters$coefs)
   pat <- .bg_patterns(X)
   P   <- nrow(pat$Y0)
   R   <- rowsum(resp, pat$idx, reorder = TRUE)   # P x K, patterns in order
@@ -532,11 +584,11 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
   # the same fits at a third more cost: the acceleration and the finish do the
   # rest (RECORDS.md, "Part 54 E1 (W11)").
   get <- function(s) c(as.vector(s$parameters$coefs), s$parameters$psi_par)
-  # The trajectory is held inside the finish's edge (.qn_edge): a class whose
+  # The trajectory is held inside its edge (.bg_clamp()): a class whose
   # curve is close to a step would otherwise be walked off towards infinity
-  # by EM itself, as the finish's wall stops it doing (.qn_pack_binary_growth()).
+  # by EM itself.
   put <- function(s, th) {
-    s$parameters$coefs[] <- pmin(pmax(th[seq_len(K * p)], -.qn_edge), .qn_edge)
+    s$parameters$coefs[] <- .bg_clamp(s, matrix(th[seq_len(K * p)], K))
     .bg_set_psi(s, th[-seq_len(K * p)])
   }
   cur <- .bg_q(ms, cells, pr, deriv = TRUE)
@@ -580,21 +632,22 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
 # Packing for the finish and the standard errors (R/qn_pack.R)
 # ------------------------------------------------------------------------------
 
-# The class trajectories as stored, then the covariance's free vector `v`:
-# the parameters EM itself moves, so the finish and the standard errors work
-# on the same surface. The reported Psi is carried to by the delta method. The
-# nodes' centres are not parameters: they stay where EM left them, which makes
-# the finish's objective one fixed rule.
+# Each class's log-odds at the edge's anchors (.bg_anchor()), then the
+# covariance's free vector `v`. The reported growth means, and Psi, are
+# carried to by the delta method. The nodes' centres are not parameters: they
+# stay where EM left them, which makes the finish's objective one fixed rule.
 #
-# The trajectory coefficients are log-odds, and a class whose answers follow
-# its curve without exception (every case answering 1 early and 0 late, say)
-# has no finite maximum: the likelihood keeps rising as its curve steepens
-# towards a step. They are therefore tagged as logits, which the finish holds
-# at its wall as it holds a response probability run to 0 or 1, rather than
-# left to walk towards infinity with a random-effect variance in tow.
-.qn_pack_binary_growth <- function(ms)
-  .qn_join(list(.qn_part(ms$parameters$coefs, "logit"),
+# The trajectory is packed by its log-odds rather than its coefficients so
+# that the finish holds a class at its wall where EM holds it at its edge:
+# a class whose curve is close to a step is held at the occasion where it is
+# certain, as a response probability run to 0 or 1 is, and moves freely at
+# the occasion where it is not, rather than being walked towards infinity
+# with a random-effect variance in tow.
+.qn_pack_binary_growth <- function(ms) {
+  em <- ms$edge_map %||% .bg_anchor(ms$design)
+  .qn_join(list(.qn_part(ms$parameters$coefs %*% t(em$A), "logit"),
                 .qn_part(ms$parameters$psi_par, "free")))
+}
 
 # Each case's score in that packed order, for the finish's analytic route
 # (R/qn_scores.R): by Fisher's identity, sum_k r_ik times the node-posterior
@@ -608,6 +661,7 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
   prof <- cbind(D, Lr[, li[, 1L], drop = FALSE])
   zix  <- c(rep(0L, p), li[, 2L])
   mp  <- .bg_psi_map(ms, ms$parameters$psi_par)
+  em  <- ms$edge_map %||% .bg_anchor(D)
   S   <- matrix(0, nrow(X), K * p + nv)
   for (k in seq_len(K)) {
     cl <- .bg_class_lp(ms, k, pat)
@@ -629,7 +683,10 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
         as.vector(rowsum((z * Rc) %*% prof[, j], pr, reorder = TRUE))
       }, numeric(P))
     }
-    Sk <- matrix(Sp, P)[pat$idx, , drop = FALSE] * R[, k]
+    # The trajectory's columns carried to the anchors' log-odds, alpha = A^-1 eta.
+    Sp <- matrix(Sp, P)
+    Sp[, seq_len(p)] <- Sp[, seq_len(p), drop = FALSE] %*% em$Ainv
+    Sk <- Sp[pat$idx, , drop = FALSE] * R[, k]
     S[, (seq_len(p) - 1L) * K + k] <- Sk[, seq_len(p)]
     S[, K * p + seq_len(nv)] <- S[, K * p + seq_len(nv)] +
       Sk[, p + seq_len(nl), drop = FALSE] %*% mp$J[[k]]
@@ -638,8 +695,9 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
 }
 
 .qn_unpack_binary_growth <- function(ms, par) {
-  n <- length(ms$parameters$coefs)
-  ms$parameters$coefs[] <- par[seq_len(n)]
+  n  <- length(ms$parameters$coefs)
+  em <- ms$edge_map %||% .bg_anchor(ms$design)
+  ms$parameters$coefs[] <- matrix(par[seq_len(n)], ms$n_components) %*% t(em$Ainv)
   .bg_set_psi(ms, par[-seq_len(n)])
 }
 
