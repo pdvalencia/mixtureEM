@@ -34,6 +34,15 @@
 #' scored from the same wide layout. A missing occasion drops out of the case's
 #' likelihood, as in the fit. Models with `growth_predictors` are not covered.
 #'
+#' **Multiple-group models.** For a model fitted with `group`, each new case
+#' is scored with its own group's parameters: its group's class sizes when
+#' the prevalences differ by group, and its group's item parameters when the
+#' measurement does. Give the groups as `group`, either a vector with one entry
+#' per row of `newdata` or the name of a `newdata` column, on the values the
+#' model was fitted with; a group the model never saw is an error, and a case
+#' with a missing group gets `NA`. A model fitted with `group_effects =
+#' "none"` ignores the group, so `group` is not needed.
+#'
 #' **Missing values.** A missing answer simply drops out of that case's
 #' likelihood (full-information scoring), whether or not the estimation sample
 #' had any. A case missing every indicator has no information to classify on
@@ -56,10 +65,10 @@
 #'
 #' **Not covered.** Latent transition models (scoring a sequence of statuses
 #' needs a choice between filtered and smoothed probabilities),
-#' [`fit_rmlca()`] fits, growth models with `growth_predictors`,
-#' multiple-group models, models with direct effects of covariates on items
-#' (`predictors_items`), and models combining predictors with a distal outcome
-#' in one structural model are refused with an error.
+#' [`fit_rmlca()`] fits, growth models with `growth_predictors`, models with
+#' direct effects of covariates on items (`predictors_items`), and models
+#' combining predictors with a distal outcome in one structural model are
+#' refused with an error.
 #'
 #' @param object A fitted model from [`fit_mixture()`], [`fit_gmm()`] or
 #'   [`fit_lcga()`].
@@ -69,6 +78,9 @@
 #' @param type What to return, as in [`class_assignments()`]: `"modal"` the
 #'   most probable class, `"posterior"` the matrix of posterior probabilities,
 #'   `"both"` a data frame of the two.
+#' @param group For a multiple-group model, the new cases' groups: a vector
+#'   with one entry per row of `newdata`, or the name of a column of
+#'   `newdata`. Ignored otherwise.
 #' @param ... Unused.
 #'
 #' @return One row (or element) per row of `newdata`, in the format
@@ -94,25 +106,43 @@
 #'
 #' @export
 predict.mixture_model <- function(object, newdata,
-                                  type = c("modal", "posterior", "both"), ...) {
+                                  type = c("modal", "posterior", "both"),
+                                  group = NULL, ...) {
   type <- match.arg(type)
   if (missing(newdata) || is.null(newdata))
     stop("`newdata` is required; for the estimation sample use ",
          "class_assignments().", call. = FALSE)
   .predict_refuse(object)
 
+  gfac <- .predict_group(object, newdata, group)
   X  <- if (inherits(object, c("gmm", "lcga"))) .predict_occasions(object, newdata)
-        else .predict_indicators(object, newdata)
+        else .predict_indicators(object, newdata, .predict_item_names(object))
+  # Counted before the padding below, which leaves a case with no group no
+  # items either and would hide why it is not scored.
+  ok <- rowSums(!is.na(X)) > 0L
+  # A group-varying measurement model reads each case's items from its own
+  # group's block, exactly as the estimation data were laid out.
+  if (inherits(object$mm, "group_blocks"))
+    X <- .pad_group_blocks(X, gfac)
   ms <- object
   if (anyNA(X)) ms$mm <- .with_missing_emission(ms$mm)
 
   # Only a class-membership regression carries over to a new case; a distal
   # outcome is not available for one and must not shape its class.
   Y <- NULL
-  if (inherits(ms$sm, "covariate")) Y <- .predict_covariates(object, newdata)
+  if (inherits(ms$sm, "covariate")) Y <- .predict_covariates(object, newdata, gfac)
+  else if (inherits(ms$sm, "group_prevalence")) Y <- matrix(as.integer(gfac))
   else ms$sm <- NULL
 
-  ok <- rowSums(!is.na(X)) > 0L
+  if (!is.null(gfac)) {
+    bad <- ok & is.na(gfac)
+    if (any(bad))
+      warning(sprintf(paste0("%d case%s with a missing group cannot be ",
+                             "scored and %s NA."), sum(bad),
+                      if (sum(bad) == 1L) "" else "s",
+                      if (sum(bad) == 1L) "gets" else "get"), call. = FALSE)
+    ok <- ok & !bad
+  }
   if (!is.null(Y)) {
     bad <- ok & !stats::complete.cases(Y)
     if (any(bad))
@@ -157,9 +187,6 @@ predict.lta_model <- function(object, ...)
   if (inherits(object, "gmm") && length(object$growth$covariate_names))
     stop(what, " does not cover growth models with `growth_predictors` yet.",
          call. = FALSE)
-  if (!is.null(object$group_info) || inherits(object$mm, "group_blocks") ||
-      inherits(object$sm, "group_prevalence"))
-    stop(what, " does not cover multiple-group models yet.", call. = FALSE)
   if (.has_dif(object$mm))
     stop(what, " does not cover models with direct effects of covariates on ",
          "items (`predictors_items`).", call. = FALSE)
@@ -191,9 +218,46 @@ predict.lta_model <- function(object, ...)
   mm
 }
 
-# The new cases' indicators, coded the way the fitted model's columns were.
-.predict_indicators <- function(object, newdata) {
+# The new cases' groups as a factor on the fitted model's levels, or NULL when
+# the group plays no part in the model (no `group`, or `group_effects =
+# "none"`). `group` is a vector with one entry per row, or the name of a
+# `newdata` column; a level the fit never saw is an error, since no parameter
+# exists for it.
+.predict_group <- function(object, newdata, group) {
+  gi <- object$group_info
+  if (is.null(gi) || identical(object$group_effects, "none")) return(NULL)
+  if (is.null(group))
+    stop("This is a multiple-group model: give each new case's group as ",
+         "`group`, a vector or the name of a column of `newdata`.",
+         call. = FALSE)
+  n <- NROW(newdata)
+  if (is.character(group) && length(group) == 1L &&
+      group %in% colnames(newdata))
+    group <- as.data.frame(newdata)[[group]]
+  if (length(group) != n)
+    stop(sprintf("`group` has %d entr%s; `newdata` has %d row%s.",
+                 length(group), if (length(group) == 1L) "y" else "ies",
+                 n, if (n == 1L) "" else "s"), call. = FALSE)
+  v      <- as.character(group)
+  unseen <- setdiff(unique(v[!is.na(v)]), gi$levels)
+  if (length(unseen))
+    stop(sprintf("`group` has level%s %s that the model was not fitted with.",
+                 if (length(unseen) == 1L) "" else "s",
+                 paste0("'", unseen, "'", collapse = ", ")), call. = FALSE)
+  factor(v, levels = gi$levels)
+}
+
+# The names the indicators had when the user supplied them. A group-varying
+# measurement model stores its data padded into one block per group, with
+# columns `G<g>.<item>`; the first block carries every item once.
+.predict_item_names <- function(object) {
   nm <- colnames(object$data)
+  if (!inherits(object$mm, "group_blocks") || is.null(nm)) return(nm)
+  sub("^G1\\.", "", grep("^G1\\.", nm, value = TRUE))
+}
+
+# The new cases' indicators, coded the way the fitted model's columns were.
+.predict_indicators <- function(object, newdata, nm = colnames(object$data)) {
   if (is.null(nm))
     stop("The fitted model has no indicator names to match `newdata` ",
          "against; refit it with named indicator columns.", call. = FALSE)
@@ -268,12 +332,20 @@ predict.lta_model <- function(object, ...)
   X
 }
 
-.predict_covariates <- function(object, newdata) {
+# A multiple-group model's prevalence effect entered the regression as the
+# group dummies `group:<level>`, which are rebuilt from `gfac`.
+.predict_covariates <- function(object, newdata, gfac = NULL) {
   cn    <- colnames(object$sm$parameters$beta)[-1L]
   terms <- attr(object$Y, "covariate_terms") %||% cn
+  gcols <- colnames(object$group_info$design)
   nd    <- as.data.frame(newdata, stringsAsFactors = FALSE)
   Y     <- matrix(NA_real_, nrow(nd), length(cn), dimnames = list(NULL, cn))
   for (i in seq_along(cn)) {
+    if (!is.null(gfac) && cn[i] %in% gcols) {
+      level  <- substring(cn[i], nchar("group:") + 1L)
+      Y[, i] <- ifelse(is.na(gfac), NA_real_, as.numeric(gfac == level))
+      next
+    }
     tm <- terms[i]
     if (!tm %in% names(nd))
       stop(sprintf("`newdata` lacks predictor '%s'.", tm), call. = FALSE)

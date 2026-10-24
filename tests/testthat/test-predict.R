@@ -192,9 +192,76 @@ test_that("models predict() does not cover are refused", {
 
   b <- .p_bin_fit()
   expect_error(predict(b$fit), "newdata")
-  g <- b$fit
-  g$group_info <- list()
-  expect_error(predict(g, b$X), "multiple-group")
+})
+
+.p_group_data <- function() {
+  set.seed(24)
+  n <- 360
+  g <- factor(sample(c("a", "b", "c"), n, TRUE))
+  z <- ifelse(runif(n) < c(.3, .5, .7)[g], 1L, 2L)
+  P <- rbind(c(.85, .8, .2, .75, .3), c(.2, .25, .8, .15, .7))
+  X <- t(sapply(seq_len(n), function(i)
+    rbinom(5, 1, plogis(qlogis(P[z[i], ]) + 0.6 * (g[i] == "c")))))
+  colnames(X) <- paste0("u", 1:5)
+  list(X = X, g = g, x = rnorm(n))
+}
+
+test_that("multiple-group fits are scored with each case's own group", {
+  d   <- .p_group_data()
+  fit <- function(...) suppressMessages(suppressWarnings(
+    fit_mixture(d$X, n_classes = 2, measurement = "binary", group = d$g,
+                n_steps = 1, n_init = 3, random_state = 1, n_cores = 1, ...)))
+  fits <- list(both        = fit(group_effects = "both"),
+               measurement = fit(group_effects = "measurement",
+                                 group_invariant_items = c("u1", "u2")),
+               prevalence  = fit(group_effects = "prevalence",
+                                 predictors = data.frame(x = d$x)),
+               equal       = fit(group_effects = "both",
+                                 group_prevalence_equal = 1))
+  for (nm in names(fits)) {
+    f  <- fits[[nm]]
+    nd <- data.frame(d$X, x = d$x)
+    expect_equal(predict(f, nd, type = "posterior", group = d$g),
+                 class_assignments(f, type = "posterior"),
+                 tolerance = 1e-8, ignore_attr = TRUE, label = nm)
+  }
+
+  # Scored rows do not depend on which other rows are scored with them.
+  f   <- fits$both
+  sub <- c(5, 2, 300)
+  expect_equal(predict(f, d$X[sub, ], type = "posterior", group = d$g[sub]),
+               class_assignments(f, type = "posterior")[sub, ],
+               tolerance = 1e-8, ignore_attr = TRUE)
+
+  # The group can be named as a column, and "none" needs none.
+  nd <- data.frame(d$X, grp = d$g)
+  expect_identical(predict(f, nd, group = "grp"), predict(f, d$X, group = d$g))
+  none <- fit(group_effects = "none")
+  expect_identical(predict(none, d$X), class_assignments(none))
+})
+
+test_that("a group-only three-step fit scores from its step-3 regression", {
+  d <- .p_group_data()
+  f <- suppressMessages(fit_mixture(d$X, n_classes = 2, measurement = "binary",
+                                    group = d$g, group_effects = "prevalence",
+                                    n_init = 3, random_state = 1, n_cores = 1))
+  lp <- log_likelihood(f$mm, f$data) + log_likelihood(f$sm, f$Y)
+  expect_equal(predict(f, d$X, type = "posterior", group = d$g),
+               exp(lp - apply(lp, 1, max)) / rowSums(exp(lp - apply(lp, 1, max))),
+               tolerance = 1e-10, ignore_attr = TRUE)
+})
+
+test_that("a multiple-group fit refuses missing or unseen groups", {
+  d <- .p_group_data()
+  f <- suppressMessages(suppressWarnings(
+    fit_mixture(d$X, n_classes = 2, measurement = "binary", group = d$g,
+                n_steps = 1, n_init = 3, random_state = 1, n_cores = 1)))
+  expect_error(predict(f, d$X[1:3, ]), "multiple-group")
+  expect_error(predict(f, d$X[1:3, ], group = c("a", "b")), "entries")
+  expect_error(predict(f, d$X[1:3, ], group = c("a", "b", "z")), "'z'")
+  expect_warning(out <- predict(f, d$X[1:3, ], group = c("a", NA, "c")),
+                 "missing group")
+  expect_identical(is.na(out), c(FALSE, TRUE, FALSE))
 })
 
 test_that("growth models are scored from one column per occasion", {

@@ -1,5 +1,16 @@
 # mixtureEM (development version)
 
+## `predict()` scores new cases from multiple-group models
+
+`predict()` now classifies new cases from a `fit_mixture(group = )` fit:
+each case is scored with its own group's class sizes and, where the
+measurement differs by group, its own group's item parameters, under every
+`group_effects` setting and with `group_prevalence_equal`. The new `group`
+argument takes the cases' groups as a vector or as the name of a `newdata`
+column; a group the model was not fitted with is an error and a missing one
+gives `NA`. On a one-step fit's estimation sample the posteriors equal
+`class_assignments()`. No fitted value changes.
+
 ## `compare_mixtures()` shows the class separation
 
 For a comparison whose indicators are all continuous, the table now carries

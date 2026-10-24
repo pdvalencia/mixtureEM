@@ -4,7 +4,13 @@
 \alias{predict.mixture_model}
 \title{Classify new cases from a fitted model}
 \usage{
-\method{predict}{mixture_model}(object, newdata, type = c("modal", "posterior", "both"), ...)
+\method{predict}{mixture_model}(
+  object,
+  newdata,
+  type = c("modal", "posterior", "both"),
+  group = NULL,
+  ...
+)
 }
 \arguments{
 \item{object}{A fitted model from \code{\link[=fit_mixture]{fit_mixture()}}, \code{\link[=fit_gmm]{fit_gmm()}} or
@@ -17,6 +23,10 @@ growth model, one column per occasion (see Details).}
 \item{type}{What to return, as in \code{\link[=class_assignments]{class_assignments()}}: \code{"modal"} the
 most probable class, \code{"posterior"} the matrix of posterior probabilities,
 \code{"both"} a data frame of the two.}
+
+\item{group}{For a multiple-group model, the new cases' groups: a vector
+with one entry per row of \code{newdata}, or the name of a column of
+\code{newdata}. Ignored otherwise.}
 
 \item{...}{Unused.}
 }
@@ -55,6 +65,14 @@ number must equal the fitted model's. A model fitted from long data is
 scored from the same wide layout. A missing occasion drops out of the case's
 likelihood, as in the fit. Models with \code{growth_predictors} are not covered.
 
+\strong{Multiple-group models.} For a model fitted with \code{group}, each new case
+is scored with its own group's parameters: its group's class sizes when
+the prevalences differ by group, and its group's item parameters when the
+measurement does. Give the groups as \code{group}, either a vector with one entry
+per row of \code{newdata} or the name of a \code{newdata} column, on the values the
+model was fitted with; a group the model never saw is an error, and a case
+with a missing group gets \code{NA}. A model fitted with \code{group_effects = "none"} ignores the group, so \code{group} is not needed.
+
 \strong{Missing values.} A missing answer simply drops out of that case's
 likelihood (full-information scoring), whether or not the estimation sample
 had any. A case missing every indicator has no information to classify on
@@ -77,10 +95,10 @@ no step-1 assignment. On a one-step model the two agree exactly.
 
 \strong{Not covered.} Latent transition models (scoring a sequence of statuses
 needs a choice between filtered and smoothed probabilities),
-\code{\link[=fit_rmlca]{fit_rmlca()}} fits, growth models with \code{growth_predictors},
-multiple-group models, models with direct effects of covariates on items
-(\code{predictors_items}), and models combining predictors with a distal outcome
-in one structural model are refused with an error.
+\code{\link[=fit_rmlca]{fit_rmlca()}} fits, growth models with \code{growth_predictors}, models with
+direct effects of covariates on items (\code{predictors_items}), and models
+combining predictors with a distal outcome in one structural model are
+refused with an error.
 }
 \examples{
 set.seed(1)
