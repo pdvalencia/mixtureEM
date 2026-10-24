@@ -16,8 +16,10 @@ or \code{"opg"}. See Details.}
 A data frame with one row per parameter and class: \code{parameter}
 (\code{"growth_mean"}, \code{"growth_regression"}, \code{"growth_variance"},
 \code{"growth_covariance"}, \code{"residual_variance"}, \code{"fitted"},
-\code{"class_logit"}, or, for a continuous \code{outcome} fitted in one step,
-\code{"outcome_mean"} and \code{"outcome_variance"}), \code{item}, \code{class}, \code{estimate}, \code{se}, \code{z} and \code{p_value}.
+\code{"class_logit"}, \code{"class_regression"} for \code{predictors} fitted in one
+step, or, for an \code{outcome} fitted in one step, \code{"outcome_mean"} and
+\code{"outcome_variance"} (continuous) or \code{"outcome_logit"} (categorical)),
+\code{item}, \code{class}, \code{estimate}, \code{se}, \code{z} and \code{p_value}.
 The covariance matrix of the reported parameters is attached as the
 attribute \code{"vcov"}.
 }
@@ -66,14 +68,26 @@ the variance: these are the standard errors of the likelihood.
 
 A growth-factor covariance matrix outside the positive semi-definite cone
 still gets standard errors (see \code{psi} in \code{\link[=fit_gmm]{fit_gmm()}}); the point is a
-maximum of the likelihood like any other. Where the information matrix is
-singular -- a parameter the data do not identify -- the standard errors are
-\code{NA} and a warning says so.
+maximum of the likelihood like any other. A probability estimated at 0 or 1
+(on the logit scale, a value run out to the estimation limit) is held fixed
+where it stopped: its standard error is \code{NA}, it enters a Wald test as a
+constant, and the other standard errors are computed without it. Where the
+information matrix is otherwise singular -- a parameter the data do not
+identify -- the standard errors are \code{NA} and a warning says so.
 
 The class-size logits are \eqn{\log(\pi_k / \pi_K)}. When the class sizes
-are modelled by \code{predictors} they are not reported here; see \code{\link[=coef]{coef()}}.
-Under \code{n_steps = 3} the standard errors here are those of the step-1 model,
-which is where the growth parameters are estimated.
+are modelled by \code{predictors} in one step (\code{n_steps = 1}), the class
+regression takes their place: for each class \eqn{k < K} and each term
+(the intercept and every predictor), the coefficient of
+\eqn{\log(\pi_k(x) / \pi_K(x))}, so the last class is the reference. Any
+other reference is a difference of these rows, and its standard error
+follows from the attached covariance matrix. A categorical \code{outcome} fitted
+in one step is reported as each class's log-odds of every category against
+the lowest one, with the categories numbered from 1 in increasing order
+(item \code{"outcome=2"} is the second-lowest value); for a binary outcome that
+is the class's logit of the higher value. Under \code{n_steps = 3} the standard errors here are those of the
+step-1 model, which is where the growth parameters are estimated, and the
+structural model is reported by the function that fitted it.
 }
 \examples{
 \donttest{

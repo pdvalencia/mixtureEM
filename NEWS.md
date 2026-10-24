@@ -1,5 +1,21 @@
 # mixtureEM (development version)
 
+## `growth_estimates()` reports one-step class regressions and categorical outcomes
+
+A `fit_gmm()` or `fit_lcga()` fit with `predictors` estimated in one step
+(`n_steps = 1`) now gets its class regression in `growth_estimates()`: rows
+`"class_regression"`, one per class and term, each class's multinomial-logit
+coefficients against the last class, with standard errors from the same
+sandwich as the growth parameters. A categorical `outcome` fitted in one step
+gets rows `"outcome_logit"`, each class's log-odds of every category against
+the lowest. Both can be named in `wald_test()`, and a coefficient against any
+other reference class is a difference of these rows, with its standard error
+from the attached covariance. A probability estimated at 0 or 1 is now held
+fixed in these standard errors, as `measurement_estimates()` already did, so
+that one class whose outcome never takes a value no longer leaves every
+standard error of the fit `NA`. No estimate changes, and the standard
+errors of a fit with no probability at 0 or 1 are unchanged.
+
 ## Faster latent transition models with covariates and item covariates
 
 `fit_lta()` already searched a plain categorical model on one row per

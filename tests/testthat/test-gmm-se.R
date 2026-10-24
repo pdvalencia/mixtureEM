@@ -164,6 +164,43 @@ test_that("a single-class growth model gets standard errors and no class logits"
   expect_equal(ge$se[ge$parameter == "growth_mean"], sqrt(diag(V)), tolerance = 1e-4)
 })
 
+test_that("one-step predictors and a categorical outcome are reported with SEs", {
+  set.seed(6)
+  n   <- 400
+  x   <- rnorm(n)
+  cls <- ifelse(runif(n) < plogis(0.4 + 0.8 * x), 1, 2)
+  y   <- outer(ifelse(cls == 1, 3, 1) + rnorm(n, 0, 0.5), rep(1, 4)) +
+    outer(ifelse(cls == 1, 0.8, 0.1), 0:3) + matrix(rnorm(n * 4, 0, 0.6), n, 4)
+  fp <- suppressWarnings(fit_gmm(y, times = 4, n_classes = 2, n_init = 5,
+                                 random_state = 1, n_steps = 1,
+                                 predictors = data.frame(x = x)))
+  ge <- growth_estimates(fp)
+  cr <- ge[ge$parameter == "class_regression", ]
+  expect_equal(cr$item, c("Intercept", "x"))
+  expect_false("class_logit" %in% ge$parameter)
+  B <- fp$sm$parameters$beta
+  expect_equal(cr$estimate, B[1, ] - B[2, ], ignore_attr = TRUE)
+  expect_true(all(is.finite(cr$se)))
+  # The slope is the generating one's sign, whichever class is listed first.
+  k1 <- which.max(fp$growth$means[, 1])
+  expect_lt(abs(cr$estimate[2] * (if (k1 == 1) 1 else -1) - 0.8), 4 * cr$se[2])
+  w <- wald_test(fp, list(c("class_regression[x, 1]" = 1)))
+  expect_equal(w$Wald_Chi2, (cr$estimate[2] / cr$se[2])^2, tolerance = 1e-8)
+
+  z  <- rbinom(n, 1, ifelse(cls == 1, 0.7, 0.2))
+  fo <- suppressWarnings(fit_gmm(y, times = 4, n_classes = 2, n_init = 5,
+                                 random_state = 1, n_steps = 1, outcome = z,
+                                 outcome_type = "categorical"))
+  ge <- growth_estimates(fo)
+  ol <- ge[ge$parameter == "outcome_logit", ]
+  expect_equal(ol$item, c("outcome=2", "outcome=2"))
+  expect_equal(ol$estimate, as.vector(fo$sm$parameters$beta_pooled[1, 1:2]))
+  expect_true(all(is.finite(ol$se)))
+  expect_true("class_logit" %in% ge$parameter)
+  w <- wald_test(fo, list(c("outcome_logit[outcome=2, 1]", "outcome_logit[outcome=2, 2]")))
+  expect_gt(w$Wald_Chi2, 10)
+})
+
 test_that("growth_estimates() refuses a fit that is not a growth model", {
   expect_error(growth_estimates(list()), "fit_gmm")
 })

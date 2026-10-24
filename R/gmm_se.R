@@ -48,14 +48,26 @@
 #'
 #' A growth-factor covariance matrix outside the positive semi-definite cone
 #' still gets standard errors (see `psi` in [`fit_gmm()`]); the point is a
-#' maximum of the likelihood like any other. Where the information matrix is
-#' singular -- a parameter the data do not identify -- the standard errors are
-#' `NA` and a warning says so.
+#' maximum of the likelihood like any other. A probability estimated at 0 or 1
+#' (on the logit scale, a value run out to the estimation limit) is held fixed
+#' where it stopped: its standard error is `NA`, it enters a Wald test as a
+#' constant, and the other standard errors are computed without it. Where the
+#' information matrix is otherwise singular -- a parameter the data do not
+#' identify -- the standard errors are `NA` and a warning says so.
 #'
 #' The class-size logits are \eqn{\log(\pi_k / \pi_K)}. When the class sizes
-#' are modelled by `predictors` they are not reported here; see [`coef()`].
-#' Under `n_steps = 3` the standard errors here are those of the step-1 model,
-#' which is where the growth parameters are estimated.
+#' are modelled by `predictors` in one step (`n_steps = 1`), the class
+#' regression takes their place: for each class \eqn{k < K} and each term
+#' (the intercept and every predictor), the coefficient of
+#' \eqn{\log(\pi_k(x) / \pi_K(x))}, so the last class is the reference. Any
+#' other reference is a difference of these rows, and its standard error
+#' follows from the attached covariance matrix. A categorical `outcome` fitted
+#' in one step is reported as each class's log-odds of every category against
+#' the lowest one, with the categories numbered from 1 in increasing order
+#' (item `"outcome=2"` is the second-lowest value); for a binary outcome that
+#' is the class's logit of the higher value. Under `n_steps = 3` the standard errors here are those of the
+#' step-1 model, which is where the growth parameters are estimated, and the
+#' structural model is reported by the function that fitted it.
 #'
 #' @param fit A model returned by [`fit_gmm()`] or [`fit_lcga()`].
 #' @param se Which standard-error estimator: `"robust"` (default), `"hessian"`
@@ -64,8 +76,10 @@
 #' @return A data frame with one row per parameter and class: `parameter`
 #'   (`"growth_mean"`, `"growth_regression"`, `"growth_variance"`,
 #'   `"growth_covariance"`, `"residual_variance"`, `"fitted"`,
-#'   `"class_logit"`, or, for a continuous `outcome` fitted in one step,
-#'   `"outcome_mean"` and `"outcome_variance"`), `item`, `class`, `estimate`, `se`, `z` and `p_value`.
+#'   `"class_logit"`, `"class_regression"` for `predictors` fitted in one
+#'   step, or, for an `outcome` fitted in one step, `"outcome_mean"` and
+#'   `"outcome_variance"` (continuous) or `"outcome_logit"` (categorical)),
+#'   `item`, `class`, `estimate`, `se`, `z` and `p_value`.
 #'   The covariance matrix of the reported parameters is attached as the
 #'   attribute `"vcov"`.
 #'
@@ -125,12 +139,33 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
 }
 
 # A shared variance is repeated across the classes, as any shared parameter is.
+# A categorical outcome is reported as each class's log-odds of every category
+# against the lowest one, and the class regression of `predictors` as each
+# class's coefficients against the last class.
 .gmm_outcome_rows <- function(fit, st) {
   sm <- st$sm
-  if (is.null(sm) || !identical(as.integer(fit$n_steps), 1L) ||
-      !inherits(sm, "distal_continuous")) return(NULL)
+  if (is.null(sm) || !identical(as.integer(fit$n_steps), 1L)) return(NULL)
   K  <- fit$n_components
+  if (inherits(sm, "covariate")) {
+    B <- sm$parameters$beta
+    if (K < 2L || is.null(B)) return(NULL)
+    D <- sweep(B[-K, , drop = FALSE], 2L, B[K, ])
+    terms <- sm$parameters$terms %||% colnames(B)
+    return(data.frame(parameter = "class_regression",
+                      item = rep(terms, each = K - 1L),
+                      class = rep(seq_len(K - 1L), ncol(B)),
+                      estimate = as.vector(D), stringsAsFactors = FALSE))
+  }
   nm <- colnames(fit$Y)[1L] %||% "outcome"
+  if (inherits(sm, "distal_pooled")) {
+    B <- sm$parameters$beta_pooled[, seq_len(K), drop = FALSE]
+    # Categories are numbered from 1, the lowest value, as the fit codes them.
+    return(data.frame(parameter = "outcome_logit",
+                      item = rep(sprintf("%s=%d", nm, seq_len(nrow(B)) + 1L), K),
+                      class = rep(seq_len(K), each = nrow(B)),
+                      estimate = as.vector(B), stringsAsFactors = FALSE))
+  }
+  if (!inherits(sm, "distal_continuous")) return(NULL)
   data.frame(parameter = rep(c("outcome_mean", "outcome_variance"), each = K),
              item = nm, class = rep(seq_len(K), 2L),
              estimate = c(sm$parameters$means[, 1L], sm$parameters$covariances[, 1L]),
@@ -177,8 +212,12 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
   tab
 }
 
-# The three covariance matrices of the reported parameters.
-.gmm_vcov <- function(fit) .reported_vcov(fit, .gmm_reported, "growth model")
+# The three covariance matrices of the reported parameters. A probability run
+# to the finish's wall (a class whose outcome never takes some value) is held
+# where it stopped, as measurement_estimates() holds it, rather than making
+# every other standard error NA.
+.gmm_vcov <- function(fit) .reported_vcov(fit, .gmm_reported, "growth model",
+                                          drop_walls = TRUE)
 
 # The same three matrices for any fit .qn_mixture_problem() can pack, with
 # `reported(fit, st, logits)` naming the parameters as they are reported and
