@@ -97,7 +97,11 @@ one \emph{among the models in the table}, \eqn{\exp(\mathrm{SIC}_K -
 it changes when the range of K does (Masyn, 2013). The
 \verb{-> Best model} line and \code{best_k} below are always chosen by \code{BIC}
 alone; the other indices are printed for comparison, not used to pick a
-model. With
+model. When every indicator is continuous it also carries \code{Separation},
+the smallest distance between two classes' means in pooled within-class
+standard deviations (the class separation of
+\code{\link[=classification_diagnostics]{classification_diagnostics()}}, which explains how to read it; \code{NA}
+for one class), and prints it. With
 \code{vlmr} set it also carries \code{VLMR_LR} and one p-value column per
 requested form (\code{VLMR_p}, \code{VLMR_p_robust}); each row tests its own K
 against the next one in the table, so the last row is \code{NA}.

@@ -4440,7 +4440,11 @@ print.mixture_model <- function(x, ...) {
 #'     it changes when the range of K does (Masyn, 2013). The
 #'     `-> Best model` line and `best_k` below are always chosen by `BIC`
 #'     alone; the other indices are printed for comparison, not used to pick a
-#'     model. With
+#'     model. When every indicator is continuous it also carries `Separation`,
+#'     the smallest distance between two classes' means in pooled within-class
+#'     standard deviations (the class separation of
+#'     [`classification_diagnostics()`], which explains how to read it; `NA`
+#'     for one class), and prints it. With
 #'     `vlmr` set it also carries `VLMR_LR` and one p-value column per
 #'     requested form (`VLMR_p`, `VLMR_p_robust`); each row tests its own K
 #'     against the next one in the table, so the last row is `NA`.
@@ -4615,10 +4619,14 @@ compare_mixtures <- function(X, k_range = 1:5, measurement,
       # No warning is raised anywhere in this loop: it calls the engine
       # directly, and the warning lives in fit_mixture(). The column is how a
       # user learns which K found its maximum only once.
-      Unreplicated = .is_unreplicated(fit$metrics)
+      Unreplicated = .is_unreplicated(fit$metrics),
+      Separation = attr(.class_separation(fit), "min") %||% NA_real_
     )
   }
   fit_table   <- do.call(rbind, results)
+  # Separation exists for all-continuous models only; elsewhere the column
+  # would be NA in every row, so it is left out.
+  if (all(is.na(fit_table$Separation))) fit_table$Separation <- NULL
   # The rows must be in ascending K for row i to test K against K + 1, which is
   # what k_range gives unless the caller shuffled it.
   fit_table   <- fit_table[order(fit_table$Classes), , drop = FALSE]
@@ -4802,8 +4810,8 @@ print.mixture_comparison <- function(x, columns = c("default", "all"), ...) {
                     LL = paste0(num(tab$LL), ifelse(unrep, "*", " ")),
                     Params = tab$Params, check.names = FALSE)
   shown <- if (columns == "all")
-    c("AIC", "BIC", "CAIC", "AWE", "AIC3", "ICL", "SABIC", "Entropy")
-  else c("BIC", "SABIC", "AIC3", "Entropy")
+    c("AIC", "BIC", "CAIC", "AWE", "AIC3", "ICL", "SABIC", "Entropy", "Separation")
+  else c("BIC", "SABIC", "AIC3", "Entropy", "Separation")
   for (nm in intersect(shown, names(tab)))
     out[[nm]] <- num(tab[[nm]])
   if (columns == "all") {

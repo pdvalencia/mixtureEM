@@ -1,5 +1,14 @@
 # mixtureEM (development version)
 
+## `compare_mixtures()` shows the class separation
+
+For a comparison whose indicators are all continuous, the table now carries
+`Separation`, the smallest distance between two classes' means in pooled
+within-class standard deviations, beside the fit indices, and prints it.
+It is the class separation `classification_diagnostics()` already reported
+for a single fit, now visible while choosing the number of classes, where
+it matters most. Other comparisons are unchanged.
+
 ## `predict()` scores new cases from growth models
 
 `predict()` now classifies new cases from a `fit_gmm()` or `fit_lcga()` fit,

@@ -42,3 +42,25 @@ test_that("a three-step fit reads its criteria off the step it reports", {
   expect_false(any(grepl(sprintf("BIC\\s*\\(Step 1\\)\\s*: %.2f",
                                  fit3$metrics$bic), out)))
 })
+
+test_that("compare_mixtures() carries the class separation for continuous indicators only", {
+  set.seed(2)
+  z <- sample(2, 300, TRUE)
+  Y <- matrix(rnorm(900, rep(c(0, 1.5)[z], 3)), ncol = 3)
+  cm <- NULL
+  invisible(capture.output(cm <- suppressWarnings(compare_mixtures(
+    Y, k_range = 1:3, measurement = "continuous", n_init = 3, n_cores = 1,
+    random_state = 1))))
+  sep <- cm$fit_table$Separation
+  expect_true(is.na(sep[1]))
+  for (k in 2:3) {
+    cd <- NULL
+    invisible(capture.output(cd <- classification_diagnostics(cm$models[[paste0("K", k)]])))
+    expect_equal(sep[k], attr(cd$separation, "min"))
+  }
+  expect_true(any(grepl("Separation", capture.output(print(cm)))))
+  X <- matrix(rbinom(600, 1, 0.5), ncol = 6)
+  invisible(capture.output(cb <- suppressWarnings(compare_mixtures(
+    X, k_range = 1:2, measurement = "binary", n_init = 2, n_cores = 1, random_state = 1))))
+  expect_null(cb$fit_table$Separation)
+})
