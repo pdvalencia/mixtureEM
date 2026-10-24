@@ -128,6 +128,7 @@
   switch(fam,
     structured_normal = .qn_pack_sn(emis),
     lcga              = .qn_pack_lcga(emis),
+    binary_growth     = .qn_pack_binary_growth(emis),
     zip               = .qn_pack_zip(emis),
     negbin            = .qn_pack_negbin(emis),
     NULL)
@@ -141,6 +142,7 @@
     ordinal           = .qn_unpack_ordinal(emis, par, items),
     structured_normal = .qn_unpack_sn(emis, par),
     lcga              = .qn_unpack_lcga(emis, par),
+    binary_growth     = .qn_unpack_binary_growth(emis, par),
     zip               = .qn_unpack_zip(emis, par),
     negbin            = .qn_unpack_negbin(emis, par),
     emis)

@@ -321,8 +321,8 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
                          "negbin", "negbin_nan",
                          "gaussian_diag", "gaussian_diag_nan",
                          "gaussian_unit", "gaussian_unit_nan",
-                         "structured_normal", "lcga")
-.em_prior_flat_only <- c("structured_normal", "lcga")
+                         "structured_normal", "lcga", "binary_growth")
+.em_prior_flat_only <- c("structured_normal", "lcga", "binary_growth")
 
 # The marginals every measurement prior is centred on. They are functions of the
 # data and the case weights and never of the parameters, so they are computed
@@ -371,7 +371,8 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
       function(j) .ordinal_item_cols(mm, j))),
     gaussian_diag     = ,
     gaussian_diag_nan = list(s2 = .marginal_var(X, wt)),
-    lcga              = .lcga_marginal(X, wt),
+    lcga              = ,
+    binary_growth     = .lcga_marginal(X, wt),
     structured_normal = list(),
     NULL)
 }
@@ -533,7 +534,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
       s2 <- matrix(marginals$s2, nrow = K, ncol = ncol(v), byrow = TRUE)
       val <- val - 0.5 * (a / K) * sum(log(v) + s2 / v)
     }
-  } else if (fam == "lcga") {
+  } else if (fam %in% c("lcga", "binary_growth")) {
     val <- val + .lcga_log_prior(mm, marginals)
   }
   # structured_normal: no measurement prior; its objective is the likelihood
@@ -1295,7 +1296,23 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
   use_pen <- !is.na(log_prior_of(model_state))
   spike_at <- .em_spike_check(model_state, X)
 
-  for (iter in 1:max_iter) {
+  # An emission whose EM crawls may ask for it to be accelerated
+  # (.em_squarem() below); every other emission runs the plain loop.
+  sq <- if (isTRUE(model_state$mm$em_squarem))
+    .em_squarem(model_state, X, Y, max_iter, abs_tol, rel_tol,
+                function(st) {
+                  v <- sum(st$sample_weights * e_step(st, X, Y)$log_prob_norm)
+                  if (use_pen) v + log_prior_of(st) else v
+                })
+  if (!is.null(sq)) {
+    model_state     <- sq$state
+    converged       <- sq$converged
+    n_iter          <- sq$n_iter
+    e_res           <- sq$e_res
+    log_prob_vector <- e_res$log_prob_norm
+  }
+
+  for (iter in if (is.null(sq)) 1:max_iter else integer(0)) {
     # 1. E-STEP
     e_res <- e_step(model_state, X, Y)
 
@@ -1352,6 +1369,56 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
   if (isTRUE(refine)) model_state <- refine_lbfgs(model_state, X, Y)
 
   return(model_state)
+}
+
+# EM accelerated by squared extrapolation (SQUAREM; Varadhan & Roland, 2008),
+# for an emission that asks for it by carrying `em_squarem = TRUE`. Two EM
+# steps from theta_0 give r = theta_1 - theta_0 and v = (theta_2 - theta_1) - r;
+# the step length alpha = -|r| / |v| (at most -1) extrapolates along the path
+# the two steps trace, to theta_0 - 2 alpha r + alpha^2 v, and one more EM step
+# from there stabilises it. The extrapolated point is kept only when it scores
+# at least as well as theta_2, so every cycle climbs at least as far as two
+# plain EM steps would. The coordinates are the ones the Newton-type finish
+# works on (.qn_mixture_layout(), R/qn_finish.R), so the class sizes move on
+# the logit scale and every constraint the packing encodes holds by
+# construction. `objective(state)` is the quantity fit_single_init() stops
+# on. Returns NULL where the model has no packing, and the caller runs plain
+# EM instead.
+.em_squarem <- function(model_state, X, Y, max_iter, abs_tol, rel_tol,
+                        objective) {
+  lay <- .qn_mixture_layout(model_state, Y)
+  if (is.null(lay)) return(NULL)
+  em   <- function(s) m_step_core(s, X, Y, e_step(s, X, Y)$log_resp)
+  pack <- function(s) .qn_mixture_layout(s, Y)$par
+  st <- model_state
+  f0 <- objective(st)
+  it <- 0L
+  converged <- FALSE
+  while (it < max_iter) {
+    s1 <- em(st); s2 <- em(s1); it <- it + 2L
+    f2 <- objective(s2)
+    new <- s2; fnew <- f2
+    p0 <- pack(st); r <- pack(s1) - p0; v <- pack(s2) - p0 - 2 * r
+    nv <- sqrt(sum(v^2))
+    if (is.finite(f2) && is.finite(nv) && nv > 1e-12) {
+      a  <- min(-sqrt(sum(r^2)) / nv, -1)
+      sj <- tryCatch(em(.qn_mixture_unpack(st, lay, p0 - 2 * a * r + a^2 * v)),
+                     error = function(e) NULL)
+      it <- it + 1L
+      fj <- if (is.null(sj)) -Inf else
+        tryCatch(objective(sj), error = function(e) -Inf)
+      if (is.finite(fj) && fj >= f2) { new <- sj; fnew <- fj }
+    }
+    change <- fnew - f0
+    st <- new
+    f_prev <- f0; f0 <- fnew
+    if (!is.na(change) && (abs(change) < abs_tol ||
+                           abs(change / max(abs(f_prev), 1e-9)) < rel_tol)) {
+      converged <- TRUE
+      break
+    }
+  }
+  list(state = st, converged = converged, n_iter = it, e_res = e_step(st, X, Y))
 }
 
 # Multi-start EM

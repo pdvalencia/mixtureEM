@@ -187,6 +187,12 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
       g$overdispersion <- mm$parameters$overdispersion
     return(.growth_reported_table(g, K, st, logits))
   }
+  if (inherits(mm, "binary_growth")) {
+    g$means  <- mm$parameters$coefs
+    g$psi    <- mm$parameters$psi[seq_len(if (isTRUE(mm$psi_equal)) 1L else K)]
+    g$fitted <- .bg_fitted(mm, marginal = TRUE)
+    return(.growth_reported_table(g, K, st, logits))
+  }
   g$means <- mm$parameters$alpha
   if (!is.null(g$coefficients))
     g$coefficients <- .gmm_name_coefficients(mm, g$covariate_names)

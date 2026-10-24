@@ -25,8 +25,9 @@
 # so column m of the score matrix is coordinate m of the packed vector. A
 # parameter the packing holds once for several places (an item or a parameter
 # equal across groups, a variance equal across classes) sums its places'
-# terms. Anything without scores here -- the growth models, which carry few
-# parameters -- returns NULL, and the finish differences that fit as before;
+# terms. Anything without scores here -- the growth models other than the
+# binary growth mixture, which carry few parameters and a cheap likelihood --
+# returns NULL, and the finish differences that fit as before;
 # no fit is ever part analytic, part differenced. Every family is checked
 # against central differences to 1e-5 (tests/testthat/test-qn-mixture-scores.R).
 
@@ -44,6 +45,10 @@
 # composite model can pick out or sum an item's columns.
 .qn_flat_scores <- function(emis, X, R) {
   fam <- .step1_family(emis)
+  # The binary growth mixture (R/gmm_binary.R): integrated over its nodes,
+  # in its own packed order; it is never a block of a composite model.
+  if (fam == "binary_growth")
+    return(list(S = .qn_bg_scores(emis, X, R), item = NA_integer_, part = "p"))
   K   <- emis$n_components
   n   <- nrow(X)
   p   <- emis$parameters

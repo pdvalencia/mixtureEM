@@ -231,8 +231,14 @@
   fam <- if (f$family == "gmm" && identical(g$random_effects, "none")) "lcga"
          else f$family
   switch(fam,
-    gmm   = sprintf("%d-class growth mixture model (%s growth, random %s)",
-                    f$k, shape(), gsub("_", " and ", g$random_effects)),
+    gmm   = if (identical(g$family, "binomial"))
+      sprintf(paste0("%d-class growth mixture model for a binary outcome (%s ",
+                     "growth in the log-odds, random %s, integrated by ",
+                     "Gauss-Hermite quadrature with %d nodes per random effect)"),
+              f$k, shape(), gsub("_", " and ", g$random_effects),
+              g$n_quadrature)
+    else sprintf("%d-class growth mixture model (%s growth, random %s)",
+                 f$k, shape(), gsub("_", " and ", g$random_effects)),
     lcga  = sprintf("%d-class latent class growth analysis (%s growth, no within-class growth-factor variance)",
                     f$k, shape()),
     rmlca = sprintf("%d-class repeated-measures latent class model", f$k),

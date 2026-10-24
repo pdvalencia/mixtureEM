@@ -23,6 +23,8 @@ fit_gmm(
   growth_predictors = NULL,
   growth_predictors_equal = TRUE,
   fix = NULL,
+  family = c("gaussian", "binomial"),
+  n_quadrature = 30,
   ...
 )
 }
@@ -145,6 +147,21 @@ always, and the fixed values move with their class; \code{fit$growth$fix}
 shows where they ended. Fixed values have no standard error, and
 \code{\link[=blrt]{blrt()}} refuses such a fit.}
 
+\item{family}{Distribution of the outcome given class and random effects:
+\code{"gaussian"} (the default) for a continuous outcome, \code{"binomial"} for a
+binary one in \verb{\{0, 1\}}, modelled on the logit scale (see Details).
+\code{residual}, \code{residual_equal}, \code{growth_predictors} and \code{fix} apply to the
+continuous outcome only.}
+
+\item{n_quadrature}{\code{family = "binomial"} only: the number of Gauss-Hermite
+nodes per random effect, so the integral is evaluated at
+\code{n_quadrature^q} points for q random effects. The default, 30, puts the
+log-likelihood within about 0.003 of its limit at growth-factor variances
+up to 6 on the logit scale, and usually within 0.0005. Every fit is
+rescored with 10 more nodes (\code{fit$growth$quadrature_check}), and a
+warning says so when the two differ by more than 0.01, which happens
+when a variance is much wider than that; refit with more nodes then.}
+
 \item{...}{Further arguments passed to \code{\link[=fit_mixture]{fit_mixture()}}, such as \code{outcome}
 and its companions, \code{n_init}, \code{random_state}, \code{weights}, \code{strata} or
 \code{cluster}.}
@@ -173,6 +190,30 @@ the diagonal matrix of residual variances. Because the outcome is continuous
 the random effects integrate out in closed form, so no numerical integration
 is involved and the estimator is the ordinary EM algorithm the rest of the
 package uses.
+
+\strong{A binary outcome.} With \code{family = "binomial"} the outcome is 0/1 and the
+trajectory is a curve in its log-odds,
+\deqn{\mathrm{logit}\,P(y_{it} = 1 \mid c_i = k, b_i) = \Lambda_t (\alpha_k + b_i), \qquad b_i \sim N(0, \Psi_k),}
+so cases in a class differ in where their log-odds start and how fast they
+change, about the class's own curve. There is no residual variance (on the
+logit scale it is fixed by the distribution), and the random effects no
+longer integrate out in closed form: the class likelihood is evaluated by
+Gauss-Hermite quadrature over the random effects, with \code{n_quadrature}
+nodes for each, and maximised by EM with the random effects as missing data
+(Bock & Aitkin, 1981). With \code{random_effects = "none"} this is
+\code{\link[=fit_lcga]{fit_lcga()}}\code{(family = "binomial")}, which is the model to use. The
+reported trajectory is the probability averaged over the random effects --
+the share of the class expected to answer 1 at each occasion, which is what
+the observed class means estimate -- and \code{fit$growth$fitted_at_mean} holds
+the probability at the class's mean growth factors, which is lower than the
+average where it is above one half and higher where it is below.
+
+A class whose cases answer exactly as its curve predicts, every one of them
+(all 1 early and all 0 late, say), has no finite maximum: its curve keeps
+steepening towards a step. Its log-odds are then held once they pass 15 in
+absolute value, as a response probability run to 0 or 1 is held in a latent
+class model, and such a class's estimates describe a near-deterministic
+group rather than a precise curve.
 
 \eqn{\Gamma_k} is present only when \code{growth_predictors} are supplied, and is
 the within-class growth-factor regression: covariates shift a case's own growth factors \emph{within} its
@@ -243,6 +284,10 @@ fit
 }
 }
 \references{
+Bock, R. D., & Aitkin, M. (1981). Marginal maximum likelihood estimation of
+item parameters: Application of an EM algorithm. \emph{Psychometrika}, \emph{46}(4),
+443-459. \doi{10.1007/BF02293801}
+
 Muthen, B., & Shedden, K. (1999). Finite mixture modeling with mixture
 outcomes using the EM algorithm. \emph{Biometrics}, \emph{55}(2), 463-469.
 

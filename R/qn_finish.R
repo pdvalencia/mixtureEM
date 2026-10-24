@@ -558,7 +558,7 @@
   # correlation above one, a negative variance) stops short of it, while the
   # same model with more classes is finished there.
   (model_state$n_components >= 2L ||
-     inherits(model_state$mm, "structured_normal")) &&
+     inherits(model_state$mm, c("structured_normal", "binary_growth"))) &&
     !is.null(.qn_mixture_layout(model_state, Y))
 }
 

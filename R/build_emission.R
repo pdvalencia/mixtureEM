@@ -124,6 +124,15 @@ build_emission <- function(descriptor, n_components = 2, ...) {
       return(.construct_emission(structured_normal_model, args_list))
 
       # ------------------------------------------------------------------
+      # Growth mixture model for a binary outcome: the random growth factors
+      # are integrated out by quadrature. Extra arguments (design,
+      # random_effects, psi, n_quadrature) reach here through fit_gmm(). See
+      # R/gmm_binary.R.
+      # ------------------------------------------------------------------
+    } else if (descriptor == "binary_growth") {
+      return(.construct_emission(binary_growth_model, args_list))
+
+      # ------------------------------------------------------------------
       # Structural models - original names (retained for back-compatibility)
       # ------------------------------------------------------------------
     } else if (descriptor == "covariate") {

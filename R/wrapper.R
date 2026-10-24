@@ -51,6 +51,19 @@ sort_model_classes <- function(model_state) {
     model_state$mm$parameters$dispersion <-
       model_state$mm$parameters$dispersion[new_order]
   }
+  # Binary growth mixture: one covariance factor per class, and the free
+  # vector re-read from them in the new order; each class's quadrature
+  # centres go with it.
+  if (inherits(model_state$mm, "binary_growth")) {
+    L <- model_state$mm$parameters$chol[new_order]
+    model_state$mm <- .bg_set_psi(model_state$mm,
+                                  .bg_psi_unmap(model_state$mm, L))
+    ad <- model_state$mm$node_centres
+    if (!is.null(ad)) {
+      ad$m <- ad$m[new_order]; ad$S <- ad$S[new_order]
+      model_state$mm$node_centres <- ad
+    }
+  }
   # GMM: growth-factor means are one row per class, residual variances one row
   # per class, and the growth-factor covariance one matrix per class. All are
   # stored per class even where a constraint makes the classes share a value, so
@@ -4207,7 +4220,9 @@ fit_mixture <- function(indicators = NULL,
   # once it is. A hand-written fit_mixture(measurement = "structured_normal")
   # therefore does not get it; that is the accepted cost of not having two
   # warnings contradict each other.
-  if (!identical(measurement, "structured_normal")) .check_replication(fit)
+  if (!(identical(measurement, "structured_normal") ||
+        identical(measurement, "binary_growth")))
+    .check_replication(fit)
 
   # What report_methods() quotes as the line that refits the model. The wrappers
   # that call this function (fit_gmm(), fit_lcga(), fit_rmlca()) overwrite the

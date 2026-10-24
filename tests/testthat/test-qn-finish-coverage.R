@@ -94,6 +94,12 @@
     list(fit = .cov_q(fit_gmm(Y, times = 4, n_classes = 2, n_init = 2,
                               random_state = 1)))
   },
+  binary_growth     = function() {
+    set.seed(7); b <- rnorm(200, rep(c(-1, 1), each = 100))
+    Y <- matrix(rbinom(800, 1, plogis(outer(b, rep(1, 4)) + outer(rep(0.3, 200), 0:3))), 200)
+    list(fit = .cov_q(fit_gmm(Y, times = 4, n_classes = 2, family = "binomial",
+                              n_quadrature = 5, n_init = 2, random_state = 1)))
+  },
   bernoulli_dif     = function() {
     X <- .cov_bin(); d <- data.frame(z = rbinom(nrow(X), 1, .5))
     list(fit = .cov_fm(X, measurement = "binary", predictors = ~ z, data = d,
@@ -169,7 +175,7 @@
   ordinal = "lta:ordinal", ordinal_nan = "lta:ordinal",
   time_blocks = "lta:time_blocks", group_blocks = "group_blocks",
   lcga = "lcga", structured_normal = "structured_normal",
-  gmm = "structured_normal",
+  gmm = "structured_normal", binary_growth = "binary_growth",
   covariate = "covariate", predict_class = "covariate",
   distal_regression = "distal_regression",
   categorical_outcome_moderated = "distal_regression",

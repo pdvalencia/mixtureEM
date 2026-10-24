@@ -1,5 +1,30 @@
 # mixtureEM (development version)
 
+## Growth mixture models for a binary outcome
+
+`fit_gmm(family = "binomial")` fits a growth mixture model to a 0/1 outcome
+measured repeatedly: each class has its own trajectory in the log-odds, and
+cases vary about it through normal random growth factors, with the same
+`random_effects` and `psi` choices as the continuous model (`"equal"`,
+`"variances"`, `"free"`). The random effects are integrated out by
+Gauss-Hermite quadrature with `n_quadrature` nodes per random effect (30 by
+default, with negligible corner nodes dropped), and the model is estimated by
+EM with the random effects as missing data, accelerated by squared
+extrapolation, then taken to the maximum by the Newton-type finish with
+exact scores. Every fit is rescored with ten more nodes per random effect
+(`fit$growth$quadrature_check`), and a warning says when the two differ by
+more than 0.01, which is the sign that a variance is too wide for the rule
+and the integral has to be refined before models are compared. A class
+whose answers follow its curve without exception has its log-odds held once
+they pass 15 in absolute value, as response probabilities are in a latent
+class model. `growth_estimates()`, `wald_test()`, `predict()`,
+`class_assignments()`, `blrt()`, `simulate()`, `report_methods()`,
+`print()` and `plot()` all take the new fits; the reported trajectory is
+the probability averaged over the random effects, with the probability at
+the class's mean growth factors in `fit$growth$fitted_at_mean`.
+`growth_predictors` and `fix` are not yet available with a binary outcome.
+Nothing else changes.
+
 ## `predict()` scores new cases from multiple-group models
 
 `predict()` now classifies new cases from a `fit_mixture(group = )` fit:

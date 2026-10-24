@@ -532,7 +532,7 @@ NULL
 # and D1 transform by the same Jacobian), so any such packing gives the same
 # corrected variance. The Psi unit that packing divides by is read from the
 # state an unpack starts from, which here is always the fitted step 1.
-.step1_growth_families <- c("structured_normal", "lcga")
+.step1_growth_families <- c("structured_normal", "lcga", "binary_growth")
 
 # Pack an emission (measurement model) — NULL when the family is unsupported.
 .step1_pack_mm <- function(mm) {

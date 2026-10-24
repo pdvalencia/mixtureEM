@@ -131,6 +131,30 @@
 #' is involved and the estimator is the ordinary EM algorithm the rest of the
 #' package uses.
 #'
+#' **A binary outcome.** With `family = "binomial"` the outcome is 0/1 and the
+#' trajectory is a curve in its log-odds,
+#' \deqn{\mathrm{logit}\,P(y_{it} = 1 \mid c_i = k, b_i) = \Lambda_t (\alpha_k + b_i), \qquad b_i \sim N(0, \Psi_k),}
+#' so cases in a class differ in where their log-odds start and how fast they
+#' change, about the class's own curve. There is no residual variance (on the
+#' logit scale it is fixed by the distribution), and the random effects no
+#' longer integrate out in closed form: the class likelihood is evaluated by
+#' Gauss-Hermite quadrature over the random effects, with `n_quadrature`
+#' nodes for each, and maximised by EM with the random effects as missing data
+#' (Bock & Aitkin, 1981). With `random_effects = "none"` this is
+#' [`fit_lcga()`]`(family = "binomial")`, which is the model to use. The
+#' reported trajectory is the probability averaged over the random effects --
+#' the share of the class expected to answer 1 at each occasion, which is what
+#' the observed class means estimate -- and `fit$growth$fitted_at_mean` holds
+#' the probability at the class's mean growth factors, which is lower than the
+#' average where it is above one half and higher where it is below.
+#'
+#' A class whose cases answer exactly as its curve predicts, every one of them
+#' (all 1 early and all 0 late, say), has no finite maximum: its curve keeps
+#' steepening towards a step. Its log-odds are then held once they pass 15 in
+#' absolute value, as a response probability run to 0 or 1 is held in a latent
+#' class model, and such a class's estimates describe a near-deterministic
+#' group rather than a precise curve.
+#'
 #' \eqn{\Gamma_k} is present only when `growth_predictors` are supplied, and is
 #' the within-class growth-factor regression: covariates shift a case's own growth factors *within* its
 #' class, answering "who, in this trajectory group, starts higher or grows
@@ -286,6 +310,19 @@
 #'   always, and the fixed values move with their class; `fit$growth$fix`
 #'   shows where they ended. Fixed values have no standard error, and
 #'   [`blrt()`] refuses such a fit.
+#' @param family Distribution of the outcome given class and random effects:
+#'   `"gaussian"` (the default) for a continuous outcome, `"binomial"` for a
+#'   binary one in `{0, 1}`, modelled on the logit scale (see Details).
+#'   `residual`, `residual_equal`, `growth_predictors` and `fix` apply to the
+#'   continuous outcome only.
+#' @param n_quadrature `family = "binomial"` only: the number of Gauss-Hermite
+#'   nodes per random effect, so the integral is evaluated at
+#'   `n_quadrature^q` points for q random effects. The default, 30, puts the
+#'   log-likelihood within about 0.003 of its limit at growth-factor variances
+#'   up to 6 on the logit scale, and usually within 0.0005. Every fit is
+#'   rescored with 10 more nodes (`fit$growth$quadrature_check`), and a
+#'   warning says so when the two differ by more than 0.01, which happens
+#'   when a variance is much wider than that; refit with more nodes then.
 #' @param ... Further arguments passed to [`fit_mixture()`], such as `outcome`
 #'   and its companions, `n_init`, `random_state`, `weights`, `strata` or
 #'   `cluster`.
@@ -298,6 +335,10 @@
 #'   growth-factor-by-covariate matrix per class.
 #'
 #' @references
+#' Bock, R. D., & Aitkin, M. (1981). Marginal maximum likelihood estimation of
+#' item parameters: Application of an EM algorithm. *Psychometrika*, *46*(4),
+#' 443-459. \doi{10.1007/BF02293801}
+#'
 #' Muthen, B., & Shedden, K. (1999). Finite mixture modeling with mixture
 #' outcomes using the EM algorithm. *Biometrics*, *55*(2), 463-469.
 #'
@@ -361,9 +402,13 @@ fit_gmm <- function(indicator,
                     growth_predictors = NULL,
                     growth_predictors_equal = TRUE,
                     fix = NULL,
+                    family = c("gaussian", "binomial"),
+                    n_quadrature = 30,
                     ...) {
 
   growth_predictors_expr <- substitute(growth_predictors)
+  residual_given <- !missing(residual) || !missing(residual_equal)
+  family         <- match.arg(family)
   random_effects <- match.arg(random_effects)
   psi            <- match.arg(psi)
   residual       <- match.arg(residual)
@@ -394,6 +439,27 @@ fit_gmm <- function(indicator,
              "given. With degree + 1 = %d coefficients per class the curve ",
              "would reproduce the occasion means exactly."),
       degree, degree + 2L, Tn, degree + 1L), call. = FALSE)
+
+  if (identical(family, "binomial")) {
+    if (residual_given)
+      stop(paste0("A binary outcome has no residual variance to specify: on ",
+                  "the logit scale it is fixed by the distribution. Drop ",
+                  "`residual` and `residual_equal`."), call. = FALSE)
+    if (!is.null(growth_predictors) || !is.null(fix))
+      stop(paste0("`growth_predictors` and `fix` are not available yet for ",
+                  "family = \"binomial\"."), call. = FALSE)
+    if (identical(random_effects, "none"))
+      stop(paste0("With no random effects this is a latent class growth ",
+                  "model: use fit_lcga(family = \"binomial\")."), call. = FALSE)
+    fit <- .fit_gmm_binary(prep, n_classes, degree, random_effects, psi,
+                           time_scores, n_quadrature,
+                           if (is.null(predictors)) NULL else
+                             .as_named_covariates(predictors,
+                                                  substitute(predictors),
+                                                  "predictor"), ...)
+    fit$call <- match.call()
+    return(fit)
+  }
 
   .lcga_check_outcome(prep$X, "gaussian")
 
@@ -944,12 +1010,15 @@ plot.gmm <- function(x, observed = c("means", "cases", "none"), main = NULL,
   labels <- .class_plot_labels(base, x$weights)
 
   obs <- .growth_observed(x, observed)
+  binary <- identical(g$family, "binomial")
   rng <- range(c(ft, .growth_observed_range(obs)), na.rm = TRUE)
   pad <- if (diff(rng) > 0) 0.05 * diff(rng) else max(abs(rng[1]), 1) * 0.05
-  ylim <- rng + c(-pad, pad)
+  # A probability panel is the full 0-1 range, as for a binary LCGA.
+  ylim <- if (binary) c(0, 1) else rng + c(-pad, pad)
 
   matplot(g$time_scores, t(ft), type = "n", ylim = ylim, xaxt = "n", las = 1,
-          bty = "l", xlab = "Occasion", ylab = "Mean",
+          bty = "l", xlab = "Occasion",
+          ylab = if (binary) "Probability" else "Mean",
           main = main %||% "Estimated class trajectories")
   .growth_draw_observed(obs, g$time_scores, cols)
   matlines(g$time_scores, t(ft), type = "b", pch = shapes, lty = 1, lwd = 2.5,
@@ -980,7 +1049,11 @@ print.gmm <- function(x, ...) {
   cat(sprintf("Occasions          : %d (time scores %s)\n",
               length(g$time_scores),
               paste(format(g$time_scores, trim = TRUE), collapse = ", ")))
-  cat(sprintf("Trajectory         : %s\n", shape))
+  cat(sprintf("Trajectory         : %s%s\n", shape,
+              if (identical(g$family, "binomial")) ", logit link" else ""))
+  if (identical(g$family, "binomial"))
+    cat(sprintf("Integration        : %d Gauss-Hermite nodes per random effect\n",
+                g$n_quadrature))
   cat(sprintf("Random effects     : %s\n",
               if (!length(g$random_names)) "none (latent class growth analysis)"
               else paste(g$random_names, collapse = ", ")))
@@ -1017,16 +1090,20 @@ print.gmm <- function(x, ...) {
     }
   }
 
-  cat(sprintf("\nRESIDUAL VARIANCE%s\n",
-              if (g$residual_equal) " (held equal across classes)" else ""))
-  rv <- g$residual_variance[seq_len(if (g$residual_equal) 1L else K), ,
-                            drop = FALSE]
-  dimnames(rv) <- list(
-    if (g$residual_equal) "Variance" else paste("Class", seq_len(nrow(rv))),
-    g$time_labels)
-  print(round(rv, 3))
+  if (!is.null(g$residual_variance)) {
+    cat(sprintf("\nRESIDUAL VARIANCE%s\n",
+                if (g$residual_equal) " (held equal across classes)" else ""))
+    rv <- g$residual_variance[seq_len(if (g$residual_equal) 1L else K), ,
+                              drop = FALSE]
+    dimnames(rv) <- list(
+      if (g$residual_equal) "Variance" else paste("Class", seq_len(nrow(rv))),
+      g$time_labels)
+    print(round(rv, 3))
+  }
 
   cat(sprintf("\nFITTED TRAJECTORY (%s)\n",
+              if (identical(g$family, "binomial"))
+                "probability, averaged over the random effects" else
               if (is.null(g$coefficients)) "mean" else
                 "at the mean of the covariates"))
   ft <- g$fitted

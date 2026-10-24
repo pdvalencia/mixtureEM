@@ -71,6 +71,22 @@ generate_synthetic_data <- function(mm, classes, N) {
     return(X_gen)
   }
 
+  # A binary growth mixture (R/gmm_binary.R) draws each case's random effects
+  # first, b = L_k z, and its answers given them: drawn occasion by occasion
+  # from the class curve alone, as the LCGA branch below would, the replicate
+  # would come from the model with no random effects.
+  if (inherits(mm, "binary_growth")) {
+    D  <- mm$design; Lr <- D[, mm$r_cols, drop = FALSE]
+    X_gen <- matrix(0, nrow = N, ncol = nrow(D))
+    for (i in seq_len(N)) {
+      k   <- classes[i]
+      b   <- mm$parameters$chol[[k]] %*% stats::rnorm(length(mm$r_cols))
+      eta <- as.vector(D %*% mm$parameters$coefs[k, ] + Lr %*% b)
+      X_gen[i, ] <- stats::rbinom(length(eta), 1L, stats::plogis(eta))
+    }
+    return(X_gen)
+  }
+
   # A growth model's class parameters are coefficients rather than one value per
   # column, so the trajectory has to be evaluated before anything can be drawn;
   # after that it generates exactly like the flat model of the same family, one
@@ -176,10 +192,14 @@ generate_synthetic_data <- function(mm, classes, N) {
                 "rule for which class keeps them. Compare the fits with ",
                 "vlmr_test() or BIC instead."), call. = FALSE)
 
+  binary <- identical(g$family, "binomial") && inherits(fit, "gmm")
   args <- if (inherits(fit, "lcga"))
     list(design = g$design, family = g$family,
          dispersion_structure = g$dispersion %||% "occasion",
          inflation_design = g$inflation_design)
+  else if (binary)
+    list(design = g$design, random_effects = g$random_effects,
+         psi = g$psi_type, n_quadrature = g$n_quadrature)
   else
     list(design                  = g$design,
          random_effects          = g$random_effects,
@@ -192,7 +212,8 @@ generate_synthetic_data <- function(mm, classes, N) {
          growth_covariates_equal = isTRUE(g$covariate_equal))
 
   list(indicators  = fit$data,
-       measurement = if (inherits(fit, "lcga")) "lcga" else "structured_normal",
+       measurement = if (inherits(fit, "lcga")) "lcga" else
+                     if (binary) "binary_growth" else "structured_normal",
        args        = args)
 }
 
