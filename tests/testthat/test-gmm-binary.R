@@ -181,3 +181,46 @@ test_that("blrt() and report_methods() take a binary growth mixture", {
   expect_match(paste(capture.output(report_methods(f)), collapse = " "),
                "binary outcome")
 })
+
+test_that("half the starts are drawn around the start pool, inside the edge", {
+  ms <- binary_growth_model(3, .lcga_design(0:4, 1), n_quadrature = 5,
+                            start_pool = list(rbind(c(7, 0), c(-3, 1), c(30, -9))))
+  Y <- .bg_sim(n = 100, seed = 9, ts = 0:4)
+  near <- vapply(1:60, function(s) {
+    st <- init_params(ms, Y, NULL, random_state = s)
+    expect_true(all(abs(st$parameters$coefs) <= .qn_edge))
+    abs(st$parameters$coefs[1, 1] - 7) < 2.5
+  }, TRUE)
+  expect_gt(mean(near), 0.3)
+  expect_lt(mean(near), 0.7)
+  # Each start is a function of its seed alone.
+  expect_identical(init_params(ms, Y, NULL, random_state = 4)$parameters,
+                   init_params(ms, Y, NULL, random_state = 4)$parameters)
+})
+
+test_that("starts without a pool seed classes from observed response patterns", {
+  # Two patterns only, 11000 and 00000: a class seeded from the first has the
+  # least-squares line through (A, A, -A, -A, -A), slope -0.6 per unit of
+  # intercept whatever A is, and from the second intercept -A, slope 0.
+  Y <- rbind(matrix(c(1, 1, 0, 0, 0), 20, 5, byrow = TRUE), matrix(0, 80, 5))
+  ms <- binary_growth_model(3, .lcga_design(0:4, 1), n_quadrature = 5)
+  rows <- do.call(rbind, lapply(1:40, function(s)
+    init_params(ms, Y, NULL, random_state = s)$parameters$coefs))
+  step <- abs(rows[, 2] / rows[, 1] + 0.6) < 1e-8 & rows[, 1] > 2 & rows[, 1] < 10
+  none <- abs(rows[, 2]) < 1e-8 & rows[, 1] < -2 & rows[, 1] > -10
+  expect_gt(sum(step), 5)
+  expect_gt(sum(none), 5)
+})
+
+test_that("the start pool is the latent class growth fit, and only for a search", {
+  Y <- .bg_sim(n = 150, seed = 10)
+  D <- .lcga_design(0:3, 1)
+  pool <- .bg_q(.bg_start_pool(Y, 2, D, n_init = 3, random_state = 1, n_cores = 1))
+  l <- .bg_q(fit_lcga(Y, times = 4, n_classes = 2, family = "binomial",
+                      n_init = 3, random_state = 1, n_cores = 1))
+  expect_length(pool, 1L)
+  expect_equal(pool[[1]], l$growth$coefficients, tolerance = 1e-6,
+               ignore_attr = TRUE)
+  expect_null(.bg_start_pool(Y, 2, D, n_init = 1))
+  expect_null(.bg_start_pool(Y, 2, D, n_init = 5, refine_from = list()))
+})

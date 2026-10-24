@@ -11,6 +11,7 @@ binary_growth_model(
   psi = "equal",
   n_quadrature = 30,
   adaptive = FALSE,
+  start_pool = NULL,
   ...
 )
 }
@@ -30,6 +31,11 @@ growth factor, as built by the polynomial in the time scores.}
 \item{adaptive}{Logical. Keep the standard normal's nodes for every
 response pattern (\code{FALSE}, the default) or centre them on each pattern's
 posterior.}
+
+\item{start_pool}{Optional list of \code{n_components} x \code{ncol(design)}
+trajectory matrices that half the random starts are drawn around;
+\code{NULL} draws every start from the pooled trajectory and the observed
+response patterns.}
 
 \item{...}{Additional arguments, ignored.}
 }

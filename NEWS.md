@@ -22,6 +22,12 @@ class model. `growth_estimates()`, `wald_test()`, `predict()`,
 `print()` and `plot()` all take the new fits; the reported trajectory is
 the probability averaged over the random effects, with the probability at
 the class's mean growth factors in `fit$growth$fitted_at_mean`.
+Small classes whose curves are close to steps (cases that switch from 1 to
+0, or answer 1 throughout in a sample that mostly answers 0) lie far from
+the pooled trajectory, so the random starts are drawn two ways: half from
+the latent class growth model fitted first at the same number of classes
+(on at most 20 starts), and half from the pooled trajectory with some
+classes replaced by a curve through one observed response pattern.
 `growth_predictors` and `fix` are not yet available with a binary outcome.
 Nothing else changes.
 

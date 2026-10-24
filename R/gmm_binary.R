@@ -73,6 +73,10 @@
 #' @param adaptive Logical. Keep the standard normal's nodes for every
 #'   response pattern (`FALSE`, the default) or centre them on each pattern's
 #'   posterior.
+#' @param start_pool Optional list of `n_components` x `ncol(design)`
+#'   trajectory matrices that half the random starts are drawn around;
+#'   `NULL` draws every start from the pooled trajectory and the observed
+#'   response patterns.
 #' @param ... Additional arguments, ignored.
 #'
 #' @return A list object of class \code{c("binary_growth", "emission")}.
@@ -80,7 +84,7 @@
 binary_growth_model <- function(n_components, design,
                                 random_effects = "intercept_slope",
                                 psi = "equal", n_quadrature = 30,
-                                adaptive = FALSE, ...) {
+                                adaptive = FALSE, start_pool = NULL, ...) {
   p <- ncol(design)
   if (!psi %in% c("equal", "variances", "free"))
     stop("Unknown `psi` specification: ", psi, call. = FALSE)
@@ -135,7 +139,9 @@ binary_growth_model <- function(n_components, design,
     # and the finish takes it the rest of the way.
     em_max_iter    = 5000L,
     em_tol         = .bg_em_tol,
-    em_squarem     = TRUE
+    em_squarem     = TRUE,
+    # Trajectories that seed half the random starts (init_params()).
+    start_pool     = start_pool
   )
   class(state) <- c("binary_growth", "emission")
   state
@@ -327,22 +333,50 @@ log_likelihood.binary_growth <- function(model_state, X, ...) {
 n_parameters.binary_growth <- function(model_state, ...)
   length(model_state$parameters$coefs) + .bg_n_psi(model_state)
 
-# Starting values: the pooled logistic trajectory perturbed once per class on
-# the link scale, as init_params.lcga() starts, and a diagonal Psi under which
-# each random effect moves the log-odds by about one unit at the occasion where
-# it weighs most. A start has no centres yet, and uses the standard nodes.
+# Starting values. A class whose curve is close to a step (cases that answer 1
+# until some occasion and 0 after it, or always 1 in a sample that mostly
+# answers 0) sits far from the pooled trajectory on the logit scale, and its
+# basin is narrow: perturbing the pooled curve, as init_params.lcga() does,
+# almost never lands in it, and with two such classes in one solution, never
+# (RECORDS.md, "Part 54 E1.2"). So half the starts take the latent class
+# growth model's trajectories at the same number of classes (`start_pool`,
+# .bg_start_pool()), which hold such classes when the data have them, jittered
+# by 0.5 on the logit scale; the other half perturb the pooled trajectory and
+# then, with probability one half per class, replace the class by a curve
+# through one observed response pattern, chosen uniformly among the distinct
+# patterns so that rare ones are drawn as often as common ones: +-A on the
+# logit scale where the pattern answers 1 or 0, A uniform on (2, 10), fitted by
+# least squares on its observed occasions. Psi starts diagonal, each random
+# effect moving the log-odds by about one unit at the occasion where it weighs
+# most. A start has no centres yet, and uses the standard nodes.
 #' @exportS3Method
 init_params.binary_growth <- function(model_state, X, resp, random_state = NULL,
                                       ...) {
   if (!is.null(random_state)) set.seed(random_state)
   K   <- model_state$n_components
   D   <- model_state$design
-  lng <- .lcga_long(model_state, X)
-  pooled <- .wglm_fit(lng$D, lng$y, as.numeric(lng$observed), model_state$fam)
-  eta0 <- as.vector(D %*% pooled$coefficients)
-  coefs <- matrix(0, K, ncol(D))
-  for (k in seq_len(K))
-    coefs[k, ] <- qr.solve(D, eta0 + stats::rnorm(length(eta0)))
+  pool <- model_state$start_pool
+  if (length(pool) && stats::runif(1) < 0.5) {
+    C0 <- pool[[sample.int(length(pool), 1L)]]
+    coefs <- C0 + matrix(stats::rnorm(length(C0), 0, 0.5), nrow(C0))
+  } else {
+    lng <- .lcga_long(model_state, X)
+    pooled <- .wglm_fit(lng$D, lng$y, as.numeric(lng$observed), model_state$fam)
+    eta0 <- as.vector(D %*% pooled$coefficients)
+    coefs <- matrix(0, K, ncol(D))
+    for (k in seq_len(K))
+      coefs[k, ] <- qr.solve(D, eta0 + stats::rnorm(length(eta0)))
+    pat <- .bg_patterns(X)
+    for (k in seq_len(K)) {
+      if (stats::runif(1) >= 0.5) next
+      i <- sample.int(nrow(pat$Y0), 1L)
+      o <- pat$O[i, ] > 0
+      if (sum(o) < ncol(D)) next
+      A <- stats::runif(1, 2, 10)
+      coefs[k, ] <- qr.solve(D[o, , drop = FALSE], ifelse(pat$Y0[i, o] > 0, A, -A))
+    }
+  }
+  coefs[] <- pmin(pmax(coefs, -.qn_edge), .qn_edge)
   Lr <- D[, model_state$r_cols, drop = FALSE]
   L0 <- diag(1 / sqrt(pmax(apply(Lr^2, 2L, max), 1e-8)), ncol(Lr))
   model_state$parameters$coefs <- coefs
@@ -622,6 +656,8 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
   .lcga_check_outcome(prep$X, "binomial")
   design <- .lcga_design(time_scores, degree)
 
+  pool <- .bg_start_pool(prep$X, n_classes, design, ...)
+
   fit <- fit_mixture(
     indicators     = prep$X,
     n_classes      = n_classes,
@@ -631,6 +667,7 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
     random_effects = random_effects,
     psi            = psi,
     n_quadrature   = n_quadrature,
+    start_pool     = pool,
     ...
   )
 
@@ -671,6 +708,25 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
   .check_replication(fit)
   class(fit) <- c("gmm", class(fit))
   fit
+}
+
+# The latent class growth model at the same number of classes, whose
+# trajectories seed half the starts (init_params.binary_growth()): fitted to
+# the same cases with the same weights, priors and seed, on at most 20 starts.
+# A fit that continues another (`refine_from`, `start_from`) draws no starts,
+# and a search of one start gets none.
+.bg_start_pool <- function(X, n_classes, design, ...) {
+  a <- list(...)
+  n_init <- a$n_init %||% 20L
+  if (!is.null(a$refine_from) || !is.null(a$start_from) || n_init < 2L)
+    return(NULL)
+  a <- a[intersect(names(a), c("random_state", "n_cores", "bayes_constants",
+                               "smoothing", "weights", "weight_type"))]
+  a$n_init <- min(as.integer(n_init), 20L)
+  lc <- tryCatch(suppressWarnings(suppressMessages(do.call(fit_mixture, c(list(
+    indicators = X, n_classes = n_classes, measurement = "lcga",
+    design = design, family = "binomial"), a)))), error = function(e) NULL)
+  if (is.null(lc)) NULL else list(lc$mm$parameters$coefs)
 }
 
 # The fitted log-likelihood rescored with 10 more nodes per random effect, at
