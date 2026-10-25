@@ -190,12 +190,31 @@
 #            boundary is a degenerate optimum, not a cell at 0 or 1, and it is
 #            never walled: a finish that shrinks one is refused instead (see
 #            .qn_scale_collapsed());
+#   logodds  a log-odds the model itself holds inside an edge of its own
+#            (`.bg_edge`, the binary growth trajectory at its anchor
+#            occasions, R/gmm_binary.R). The finish moves it freely up to
+#            that edge, never past it, and holds it once there: a class
+#            whose curve is close to a step climbs along such a coordinate
+#            with every other parameter moving with it, which EM does at a
+#            crawl and a held coordinate stops altogether. Anywhere else (the
+#            standard errors) it is walled as a logit is;
 #   free     anything else -- a mean, a growth coefficient, a regression slope.
 #
 # A packing that says nothing is all `logit`, which is what every coordinate of
 # the categorical fits the finish was first built for is.
-.qn_wall_hit <- function(x, kind) {
-  (kind == "logit" & abs(x) > .qn_wall) | (kind == "log_pos" & x < -.qn_wall)
+.qn_wall_hit <- function(x, kind, finish = FALSE) {
+  lo <- kind == "logodds"
+  ((kind == "logit" | (lo & !finish)) & abs(x) > .qn_wall) |
+    (lo & finish & abs(x) >= .bg_edge) | (kind == "log_pos" & x < -.qn_wall)
+}
+
+# Where a held coordinate is sent, and the projection of a step onto the
+# logodds coordinates' edge.
+.qn_edge_of <- function(kind) ifelse(kind == "logodds", .bg_edge, .qn_edge)
+.qn_project <- function(x, kind) {
+  lo <- kind == "logodds"
+  if (any(lo)) x[lo] <- pmin(pmax(x[lo], -.bg_edge), .bg_edge)
+  x
 }
 
 # The largest fall in a `scale` coordinate the finish may make: log(10), a
@@ -251,13 +270,13 @@
   fx <- value(x)
   if (!is.finite(fx)) return(NULL)
   sw <- sum(w)
-  free <- setdiff(which(is.finite(x) & !.qn_wall_hit(x, kind)), fixed)
+  free <- setdiff(which(is.finite(x) & !.qn_wall_hit(x, kind, TRUE)), fixed)
   if (!length(free)) return(NULL)
 
   # Coordinates already past the wall go to the edge, if that does not cost.
   to_edge <- function(x, fx, idx) {
     e <- x
-    e[idx] <- sign(x[idx]) * .qn_edge
+    e[idx] <- sign(x[idx]) * .qn_edge_of(kind[idx])
     fe <- value(e)
     if (fe >= fx) list(x = e, fx = fe) else list(x = x, fx = fx)
   }
@@ -372,6 +391,7 @@
     try_at <- function(a) {
       xn <- x
       xn[free] <- x[free] + a * d
+      xn <- .qn_project(xn, kind)
       ln <- case_ll(xn)
       pn <- prior(xn)
       list(a = a, xn = xn, gain = sum(w * (ln - lx)) + (pn - px),
@@ -409,7 +429,7 @@
       break
     }
 
-    hit <- free[.qn_wall_hit(xn[free], kind[free])]
+    hit <- free[.qn_wall_hit(xn[free], kind[free], TRUE)]
     if (length(hit)) {
       r <- to_edge(xn, fn, hit); xn <- r$x; fn <- r$fx
       free <- setdiff(free, hit)

@@ -219,6 +219,35 @@ test_that("the edge holds the log-odds at the first and last occasions", {
   expect_equal(.bg_anchor(cbind(1, c(0, 0, 0)))$A, diag(2))
 })
 
+test_that("a start on the pattern table is the start the full rows give", {
+  Y <- .bg_sim(n = 200, seed = 4, ts = 0:3) * 1.0
+  pt <- .pattern_index(Y)
+  Xc <- Y[pt$rep_row, , drop = FALSE]
+  cnt <- as.vector(rowsum(rep(1, nrow(Y)), pt$idx))
+  D <- .lcga_design(0:3, 1)
+  for (ms in list(binary_growth_model(3, D, n_quadrature = 5),
+                  lcga_model(3, D, "binomial"))) {
+    full <- init_params(ms, Y, NULL, random_state = 7)
+    ms$row_counts <- cnt
+    coll <- init_params(ms, Xc, NULL, random_state = 7)
+    expect_equal(coll$parameters$coefs, full$parameters$coefs, tolerance = 1e-10)
+  }
+  # fit_mixture() fits the pattern table and leaves no counts behind.
+  f <- .bg_q(fit_gmm(Y, times = 4, family = "binomial", n_classes = 2,
+                     n_quadrature = 5, n_init = 2, random_state = 1, n_cores = 1))
+  expect_null(f$mm$row_counts)
+  expect_identical(nrow(f$log_resp), nrow(Y))
+})
+
+test_that("the finish moves an anchor's log-odds up to the edge and holds it there", {
+  kind <- c("logodds", "logodds", "logit")
+  expect_identical(.qn_wall_hit(c(20, 37, 20), kind, finish = TRUE), c(FALSE, TRUE, TRUE))
+  # Everywhere else (the standard errors) it is walled as a logit is.
+  expect_identical(.qn_wall_hit(c(20, 37, 20), kind), c(TRUE, TRUE, TRUE))
+  expect_identical(.qn_project(c(40, -50, 40), kind), c(.bg_edge, -.bg_edge, 40))
+  expect_identical(.qn_edge_of(kind), c(.bg_edge, .bg_edge, .qn_edge))
+})
+
 test_that("starts without a pool seed classes from observed response patterns", {
   # Two patterns only, 11000 and 00000: a class seeded from the first has the
   # least-squares line through (A, A, -A, -A, -A), slope -0.6 per unit of

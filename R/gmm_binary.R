@@ -304,11 +304,6 @@ binary_growth_model <- function(n_components, design,
 # log(1 + exp(x)) without overflow.
 .bg_log1pexp <- function(x) pmax(x, 0) + log1p(exp(-abs(x)))
 
-.bg_lse_rows <- function(M) {
-  m <- M[cbind(seq_len(nrow(M)), max.col(M, ties.method = "first"))]
-  m + log(rowSums(exp(M - m)))
-}
-
 # Class k's nodes for every pattern: `Z`, (P Q) x q with the pattern varying
 # fastest, and `lw`, their log weights, P x Q. The standard rule's where the
 # state holds no centre for a pattern.
@@ -370,10 +365,35 @@ binary_growth_model <- function(n_components, design,
   list(Z = nd$Z, E = E, fixed = FALSE, lp = .bg_node_lp(ms, E, pat, nd$lw))
 }
 
+# Every class's .bg_class_lp() with its row sums done once: `ll`, each
+# pattern's log-likelihood, and `H`, the posterior weight of each node, from
+# the one exponential both need. The E-step asks for these and the M-step
+# asks again at the same parameters, so the last result is kept and returned
+# while the parameters, the nodes' centres and the data are what they were;
+# that was a third of an iteration's time.
+.bg_lp_cache <- new.env(parent = emptyenv())
+.bg_class_lps <- function(ms, pat) {
+  key <- list(ms$parameters$coefs, ms$parameters$psi_par, ms$node_centres,
+              ms$nodes, ms$adaptive, pat$key, pat$O)
+  if (identical(key, .bg_lp_cache$key)) return(.bg_lp_cache$val)
+  val <- lapply(seq_len(ms$n_components), function(k) {
+    cl <- .bg_class_lp(ms, k, pat)
+    M  <- cl$lp
+    m  <- M[cbind(seq_len(nrow(M)), max.col(M, ties.method = "first"))]
+    W  <- exp(M - m)
+    sw <- rowSums(W)
+    cl$ll <- m + log(sw)
+    cl$H  <- W / sw
+    cl
+  })
+  .bg_lp_cache$key <- key
+  .bg_lp_cache$val <- val
+  val
+}
+
 # Pattern-by-class log-likelihood (P x K).
 .bg_pattern_ll <- function(ms, pat)
-  vapply(seq_len(ms$n_components), function(k)
-    .bg_lse_rows(.bg_class_lp(ms, k, pat)$lp), numeric(nrow(pat$Y0)))
+  vapply(.bg_class_lps(ms, pat), `[[`, numeric(nrow(pat$Y0)), "ll")
 
 #' @exportS3Method
 log_likelihood.binary_growth <- function(model_state, X, ...) {
@@ -413,7 +433,11 @@ init_params.binary_growth <- function(model_state, X, resp, random_state = NULL,
     coefs <- C0 + matrix(stats::rnorm(length(C0), 0, 0.5), nrow(C0))
   } else {
     lng <- .lcga_long(model_state, X)
-    pooled <- .wglm_fit(lng$D, lng$y, as.numeric(lng$observed), model_state$fam)
+    # On the pattern table each row stands for its count of cases
+    # (`row_counts`, set where fit_mixture() collapsed the data).
+    rc  <- model_state$row_counts
+    rc  <- if (length(rc) == nrow(X)) rep(rc, ncol(X)) else 1
+    pooled <- .wglm_fit(lng$D, lng$y, as.numeric(lng$observed) * rc, model_state$fam)
     eta0 <- as.vector(D %*% pooled$coefficients)
     coefs <- matrix(0, K, ncol(D))
     for (k in seq_len(K))
@@ -557,9 +581,10 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
   # the E-step used; the nodes stay where they are for the whole M-step.
   cells <- vector("list", K)
   adapt <- list(key = pat$key, m = vector("list", K), S = vector("list", K))
+  cls <- .bg_class_lps(ms, pat)
   for (k in seq_len(K)) {
-    cl <- .bg_class_lp(ms, k, pat)
-    Hp <- exp(cl$lp - .bg_lse_rows(cl$lp))                # P x Q
+    cl <- cls[[k]]
+    Hp <- cl$H                                            # P x Q
     # Shared nodes: each node's cells summed over the patterns first.
     cells[[k]] <- if (cl$fixed) {
       G <- Hp * R[, k]
@@ -638,14 +663,14 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
 # stay where EM left them, which makes the finish's objective one fixed rule.
 #
 # The trajectory is packed by its log-odds rather than its coefficients so
-# that the finish holds a class at its wall where EM holds it at its edge:
-# a class whose curve is close to a step is held at the occasion where it is
-# certain, as a response probability run to 0 or 1 is, and moves freely at
-# the occasion where it is not, rather than being walked towards infinity
-# with a random-effect variance in tow.
+# that the finish holds a class at the edge EM holds it at, occasion by
+# occasion: a class whose curve is close to a step is held at the occasion
+# where it reaches the edge, and moves freely at the one where it does not.
+# Tagged `logodds`, the finish takes such a class along its climb towards the
+# edge (.qn_wall_hit(), R/qn_finish.R), which EM makes at a crawl.
 .qn_pack_binary_growth <- function(ms) {
   em <- ms$edge_map %||% .bg_anchor(ms$design)
-  .qn_join(list(.qn_part(ms$parameters$coefs %*% t(em$A), "logit"),
+  .qn_join(list(.qn_part(ms$parameters$coefs %*% t(em$A), "logodds"),
                 .qn_part(ms$parameters$psi_par, "free")))
 }
 
@@ -663,9 +688,10 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
   mp  <- .bg_psi_map(ms, ms$parameters$psi_par)
   em  <- ms$edge_map %||% .bg_anchor(D)
   S   <- matrix(0, nrow(X), K * p + nv)
+  cls <- .bg_class_lps(ms, pat)
   for (k in seq_len(K)) {
-    cl <- .bg_class_lp(ms, k, pat)
-    Hm <- exp(cl$lp - .bg_lse_rows(cl$lp))                # P x Q
+    cl <- cls[[k]]
+    Hm <- cl$H                                            # P x Q
     mu <- stats::plogis(cl$E)
     Sp <- if (cl$fixed) {
       # sum_q H_pq z_q (y_pt - mu_qt), observed cells only.

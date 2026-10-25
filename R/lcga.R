@@ -164,8 +164,13 @@ init_params.lcga <- function(model_state, X, resp, random_state = NULL, ...) {
   fam <- model_state$fam
   lng <- .lcga_long(model_state, X)
   p   <- ncol(model_state$design)
+  # On the pattern table each row stands for its count of cases
+  # (`row_counts`, set where fit_mixture() collapsed the data), so every
+  # pooled quantity below counts it that often.
+  rc  <- model_state$row_counts
+  rc  <- if (length(rc) == nrow(X)) rep(rc, ncol(X)) else rep(1, length(lng$y))
 
-  pooled <- .wglm_fit(lng$D, lng$y, as.numeric(lng$observed), fam)
+  pooled <- .wglm_fit(lng$D, lng$y, as.numeric(lng$observed) * rc, fam)
   eta0   <- as.vector(model_state$design %*% pooled$coefficients)
 
   s <- if (fam$name == "gaussian") {
@@ -185,10 +190,11 @@ init_params.lcga <- function(model_state, X, resp, random_state = NULL, ...) {
   # The inflation starts at the zeros the pooled Poisson cannot explain: the
   # observed share of zeros less the Poisson's own, as a share of the cases
   # that are not Poisson zeros, kept off 0 and 1 and perturbed per class.
+  yo <- lng$y[lng$observed]
+  wo <- rc[lng$observed]
   if (isTRUE(fam$has_inflation)) {
-    yo  <- lng$y[lng$observed]
-    p0  <- exp(-mean(yo))
-    exc <- (mean(yo == 0) - p0) / (1 - p0)
+    p0  <- exp(-stats::weighted.mean(yo, wo))
+    exc <- (stats::weighted.mean(yo == 0, wo) - p0) / (1 - p0)
     g0  <- stats::qlogis(min(max(exc, 0.05), 0.95))
     q   <- ncol(model_state$inflation_design)
     model_state$parameters$inflation <-
@@ -199,9 +205,10 @@ init_params.lcga <- function(model_state, X, resp, random_state = NULL, ...) {
   # mean^2, which the mixture of class means inflates; kept off the Poisson
   # boundary, from which the one-dimensional search could still leave.
   if (isTRUE(fam$has_overdispersion)) {
-    yo <- lng$y[lng$observed]
-    m  <- max(mean(yo), 1e-2)
-    a0 <- min(max((stats::var(yo) - m) / m^2, 0.05), 10)
+    mo <- stats::weighted.mean(yo, wo)
+    m  <- max(mo, 1e-2)
+    v  <- sum(wo * (yo - mo)^2) / (sum(wo) - 1)
+    a0 <- min(max((v - m) / m^2, 0.05), 10)
     model_state$parameters$overdispersion <- matrix(a0, K, lng$Tn)
   }
   model_state

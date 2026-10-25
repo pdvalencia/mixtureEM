@@ -35,6 +35,20 @@ classes replaced by a curve through one observed response pattern.
 `growth_predictors` and `fix` are not yet available with a binary outcome.
 Nothing else changes.
 
+## Faster growth models of a binary or count outcome
+
+`fit_gmm(family = "binomial")` and `fit_lcga()` with a binary or count
+outcome are now estimated on the table of distinct response patterns, each
+weighted by the cases that gave it, as categorical latent class models
+already were. The likelihood and the starts are the same as on the full
+rows, so a fit lands where it did; the cost of an iteration no longer
+grows with the sample. On 50,000 cases with 32 distinct patterns one start
+of a four-class binary growth mixture fell from about three minutes to 40
+seconds and one start of a four-class binary `fit_lcga()` from five minutes
+to under two seconds. The Newton-type finish now also takes a binary growth
+class close to a step the rest of the way to its edge, where it used to be
+left to EM's slow climb.
+
 ## `predict()` scores new cases from multiple-group models
 
 `predict()` now classifies new cases from a `fit_mixture(group = )` fit:

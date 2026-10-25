@@ -123,8 +123,21 @@ e_step <- function(model_state, X, Y = NULL) {
     # weight-aware first.
     if (anyNA(Y)) return(NULL)
   }
-  if (!class(model_state$mm)[1] %in%
-      c("bernoulli", "bernoulli_nan", "multinoulli", "multinoulli_nan")) return(NULL)
+  # The binary growth mixture (R/gmm_binary.R) collapses too: its likelihood
+  # is a function of the response pattern alone, and it already computes every
+  # quantity per pattern, so on the full rows each iteration's case-level work
+  # (the E-step's normalisation, the responsibilities, the class sizes) is pure
+  # overhead, which at n = 50,000 and 32 patterns was half its time.
+  # So does the latent class growth model of a discrete outcome (R/lcga.R),
+  # whose likelihood is likewise a function of the pattern and whose M-step
+  # takes case weights; a Gaussian outcome rarely repeats, and stays on its
+  # rows. The binary growth mixture's start pool is one such fit, and on the
+  # full rows of n = 50,000 one of its starts took five minutes.
+  lcga_discrete <- inherits(model_state$mm, "lcga") &&
+    !identical(model_state$mm$family, "gaussian")
+  if (!lcga_discrete && !class(model_state$mm)[1] %in%
+      c("bernoulli", "bernoulli_nan", "multinoulli", "multinoulli_nan",
+        "binary_growth")) return(NULL)
   if (isTRUE(model_state$has_survey_design)) return(NULL)
 
   n  <- nrow(X)
@@ -159,7 +172,8 @@ e_step <- function(model_state, X, Y = NULL) {
   # 1..P, so the counts line up with the rows of Xc.
   w <- model_state$sample_weights
   list(X = Xc, Y = if (is.null(Y)) NULL else Y[pat$rep_row, , drop = FALSE],
-       w = as.vector(rowsum(w, pat$idx)), w_orig = w)
+       w = as.vector(rowsum(w, pat$idx)), w_orig = w,
+       count = as.vector(rowsum(rep(1, n), pat$idx)))
 }
 
 # Restore the full-sample weights and rebuild the per-case E-step fields
@@ -168,6 +182,7 @@ e_step <- function(model_state, X, Y = NULL) {
 .expand_patterns <- function(model_state, coll, X, Y) {
   if (is.null(coll)) return(model_state)
   model_state$sample_weights <- coll$w_orig
+  model_state$mm$row_counts  <- NULL
   e_res <- e_step(model_state, X, Y)
   model_state$log_resp    <- e_res$log_resp
   model_state$lower_bound <- e_res$log_prob_norm
