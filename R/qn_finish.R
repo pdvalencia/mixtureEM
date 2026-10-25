@@ -125,6 +125,12 @@
 # time 2.9-fold at the median and left no finish more than 1e-6 from its
 # maximum, where BHHH alone had left some 5e-4 short; none was slower by more
 # than 20% and a second (RECORDS.md, "Part 58 round 3").
+#
+# An emission may set its own schedule by carrying `qn_curvature` (`after`,
+# `hessians`, and `modified`, which takes the modified Newton step where the
+# exact curvature is not negative definite instead of setting it aside). The
+# binary growth mixture does (R/gmm_binary.R); every other model runs the
+# schedule above.
 .qn_newton_after    <- 100L
 .qn_newton_hessians <- 2L
 .qn_newton_keep     <- 0.1
@@ -258,8 +264,11 @@
 .qn_finish <- function(case_ll, w, par0, prior = function(p) 0,
                        scores = NULL, gtol_stop = .qn_gtol_stop,
                        maxit = 500L, kind = NULL, fixed = integer(0),
-                       prior_grad = NULL) {
+                       prior_grad = NULL, curvature = NULL) {
   analytic <- !is.null(scores)
+  newton_after <- curvature$after %||% .qn_newton_after
+  newton_hess  <- curvature$hessians %||% .qn_newton_hessians
+  modified     <- isTRUE(curvature$modified)
   scores <- scores %||% function(p, idx) .qn_fd_scores(case_ll, p, idx)
   kind   <- kind %||% rep("logit", length(par0))
   value  <- function(p) {
@@ -292,7 +301,7 @@
     colSums(scores(p, free) * w) + gp
   }
   H <- NULL; H_free <- NULL
-  n_hess <- 0L; next_hess <- .qn_newton_after
+  n_hess <- 0L; next_hess <- newton_after
 
   it <- 0L
   g  <- NULL
@@ -332,9 +341,10 @@
     #
     # Past `.qn_newton_after` iterations the curvature is the exact one instead
     # (see `.qn_newton_after` above), once it has been found to be negative
-    # definite; the eigenvalue floor, the radius and everything after are
-    # the same for both.
-    if (is.null(H) && analytic && n_hess < .qn_newton_hessians &&
+    # definite, or, where the emission asks for it (`curvature$modified`),
+    # whatever its sign; the eigenvalue floor, the radius and everything after
+    # are the same for both.
+    if (is.null(H) && analytic && n_hess < newton_hess &&
         it >= next_hess) {
       n_hess <- n_hess + 1L
       Hn <- vapply(seq_along(free), function(i) {
@@ -342,11 +352,19 @@
         (grad_at(x + e) - grad_at(x - e)) / 2e-5
       }, numeric(length(free)))
       Hn <- -(Hn + t(Hn)) / 2
-      if (all(is.finite(Hn)) &&
-          min(eigen(Hn, symmetric = TRUE, only.values = TRUE)$values) > 0) {
+      lam_n <- if (all(is.finite(Hn)))
+        eigen(Hn, symmetric = TRUE, only.values = TRUE)$values
+      if (!is.null(lam_n) && min(lam_n) > 0) {
         H <- Hn; H_free <- free
+      } else if (!is.null(lam_n) && modified) {
+        ev <- eigen(Hn, symmetric = TRUE)
+        # The modified Newton step (Nocedal & Wright, 2006, sec. 3.4): the
+        # exact curvature with each eigenvalue replaced by its size, so the
+        # step is an ascent direction that still follows the surface's shape.
+        lv <- pmax(abs(ev$values), 1e-8 * max(abs(ev$values)))
+        H <- ev$vectors %*% (lv * t(ev$vectors)); H_free <- free
       } else {
-        next_hess <- it + .qn_newton_after
+        next_hess <- it + newton_after
       }
     }
     newton <- !is.null(H)
@@ -418,7 +436,7 @@
     if (newton && (a < 1 || !is.finite(gain) ||
                    gain < .qn_newton_keep * 0.5 * sum(g * d))) {
       H <- NULL
-      next_hess <- it + .qn_newton_after
+      next_hess <- it + newton_after
     }
     # A step that no longer moves any coordinate beyond its last few digits
     # leaves the point where it is, and so would every step after it -- unless
@@ -683,7 +701,8 @@
   # 340 for 2e-8 of log-likelihood (RECORDS.md, Part 56).
   res <- .qn_finish(case_ll, pr$w, par0, pr$prior, scores,
                     gtol_stop = .qn_gtol_stop_fd, kind = lay$kind,
-                    fixed = pr$fixed, prior_grad = prior_grad)
+                    fixed = pr$fixed, prior_grad = prior_grad,
+                    curvature = model_state$mm$qn_curvature)
   if (is.null(res) || res$value <= start) return(NULL)
   if (.qn_scale_collapsed(par0, res$par, lay$kind)) return(NULL)
 

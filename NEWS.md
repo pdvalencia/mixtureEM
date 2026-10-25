@@ -49,6 +49,24 @@ to under two seconds. The Newton-type finish now also takes a binary growth
 class close to a step the rest of the way to its edge, where it used to be
 left to EM's slow climb.
 
+A binary growth mixture start that EM has not converged after 500
+iterations is now handed to the Newton-type finish there, and the starts
+compete on where the finish takes them. Along the ridge where a class trades
+its size against its level the finish now uses the exact curvature, rebuilt
+every 20 iterations, with the modified Newton step where that curvature is
+not negative definite; it used to fall back on the outer product of scores
+and crawl as EM did. On 50,000 cases a 50-start four-class fit fell from 542
+to 74 seconds, all 50 starts reached the reported maximum, and its
+log-likelihood rose by 0.007. On nine smaller simulated sets the reported
+log-likelihood is the same or higher (by at most 0.002 where the variances
+are shared), and the fits take up to five times less time where starts
+used to crawl and the same time where EM converged them. With
+class-specific variances the reported maximum can move to a different point
+of the same ridge. Starts that EM converges, and every other model, are
+unchanged. Fitting on several cores also hands the starts to the workers one
+at a time instead of in bundles of three or four, so a worker that draws two
+slow starts no longer holds up the rest; no number changes.
+
 ## `predict()` scores new cases from multiple-group models
 
 `predict()` now classifies new cases from a `fit_mixture(group = )` fit:

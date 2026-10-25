@@ -274,3 +274,22 @@ test_that("the start pool is the latent class growth fit, and only for a search"
   expect_null(.bg_start_pool(Y, 2, D, n_init = 1))
   expect_null(.bg_start_pool(Y, 2, D, n_init = 5, refine_from = list()))
 })
+
+test_that("a start still climbing is finished where long EM ends", {
+  Y <- .bg_sim(n = 400, seed = 5)
+  fit <- function() .bg_q(fit_gmm(Y, times = 4, n_classes = 2, family = "binomial",
+                                  n_quadrature = 15, n_init = 2, random_state = 3,
+                                  n_cores = 1))
+  long <- fit()
+  # Handed to the finish after ten iterations instead of EM's own rule.
+  orig <- binary_growth_model
+  local_mocked_bindings(binary_growth_model = function(...) {
+    s <- orig(...); s$em_finish_after <- 10L; s
+  })
+  short <- fit()
+  # Ten iterations is far shorter than the shipped 500, and from that far off
+  # a start can be finished onto another maximum; the best one is the same.
+  expect_gte(max(short$start_lls), max(long$start_lls) - 1e-6)
+  expect_equal(short$metrics$ll, long$metrics$ll, tolerance = 1e-6)
+  expect_equal(short$growth$means, long$growth$means, tolerance = 1e-3)
+})

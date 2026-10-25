@@ -140,6 +140,8 @@ binary_growth_model <- function(n_components, design,
     em_max_iter    = 5000L,
     em_tol         = .bg_em_tol,
     em_squarem     = TRUE,
+    em_finish_after = .bg_finish_after,
+    qn_curvature   = .bg_qn_curvature,
     # Trajectories that seed half the random starts (init_params()).
     start_pool     = start_pool,
     # The occasions the trajectory's edge is placed on (.bg_anchor()).
@@ -157,6 +159,26 @@ binary_growth_model <- function(n_components, design,
 # the maximum on two stress sets (RECORDS.md, "Part 54 E1 (W11)"); stopped at
 # 1e-3 itself, the finish can stop short along such a class's ridge.
 .bg_em_tol <- list(abs = 1e-5, rel = 1e-12)
+
+#
+# A start that has not met that rule after 500 iterations is handed to the
+# finish (R/qn_finish.R) there, and competes on where the finish takes it
+# (fit_single_init(), R/em_core.R). On 50,000 cases half of a 50-start search
+# was still climbing at EM's ceiling of 5000 iterations, along the ridge where
+# a class trades its size against its level, and those starts held two thirds
+# of the search's time; the shorter stops the 1e-3 rule made lost the maximum
+# because it ranked unfinished starts. A start that converges by the rule
+# leaves as it did.
+#
+# Along that ridge the exact curvature is not negative definite, so the
+# finish's default schedule (two tries, then BHHH alone) crawls as EM does:
+# 500 BHHH iterations gained 0.1-4 units and left the gradient at 70-270. The
+# modified Newton step there (the exact curvature with its eigenvalues taken
+# by size; Nocedal & Wright, 2006, sec. 3.4), rebuilt every 20 iterations,
+# took each of 13 such starts to a maximum in 40-410 iterations, nine of them
+# to the search's best (RECORDS.md, "Part 54 E1.4: every start finished").
+.bg_finish_after <- 500L
+.bg_qn_curvature <- list(after = 20L, hessians = 25L, modified = TRUE)
 
 # ------------------------------------------------------------------------------
 # The trajectory's edge

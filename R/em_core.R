@@ -1268,6 +1268,11 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
     abs_tol <- em_tol$abs
     rel_tol <- em_tol$rel
   }
+  # And it may hand a search's starts to the finish after a fixed number of
+  # iterations (`em_finish_after`, below the loop); a bootstrap replicate,
+  # which skips the finish, runs EM to the ceiling as before.
+  finish_after <- if (isTRUE(refine)) model_state$mm$em_finish_after
+  if (!is.null(finish_after)) max_iter <- min(max_iter, finish_after)
 
   if (is.null(init_state)) {
     model_state$weights <- rep(1 / model_state$n_components,
@@ -1381,6 +1386,14 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
   # With analytical gradients this is fast (~0.3s at n=5000), so the n_init-fold
   # cost is acceptable and selection bias from EM-only ranking is avoided.
   # Skipped when refine = FALSE (BLRT bootstrap replicates).
+  #
+  # A start still climbing at its emission's `em_finish_after` is handed to the
+  # Newton-type finish (R/qn_finish.R) there, and competes on where the finish
+  # takes it; a start that EM converged leaves as it always did.
+  if (!is.null(finish_after) && !converged) {
+    fin <- .qn_finish_mixture(model_state, X, Y)
+    if (!is.null(fin)) { fin$n_iter <- n_iter; model_state <- fin }
+  }
   if (isTRUE(refine)) model_state <- refine_lbfgs(model_state, X, Y)
 
   return(model_state)
