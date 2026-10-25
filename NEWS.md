@@ -316,8 +316,10 @@ one, the slope SE 0.71 to 1.00; the lower ends are weakly separated classes.
 `se = "hessian"` still gives the step-2-only figure, unchanged.
 
 `lr_test()` now computes the scaling correction for growth mixtures fitted
-under sampling weights or a survey design, where it refused before. No
-existing result changes.
+under sampling weights or a survey design, where it refused before, and
+`blrt()` now runs on them too, rescaling its bootstrap null by the smaller
+model's design effect as it does for every other model. No existing result
+changes.
 
 ## Fixed growth-factor variances in a growth mixture
 

@@ -457,9 +457,9 @@ blrt <- function(indicators, k_small, k_large, measurement,
         "blrt() was fit under sampling weights or a complex survey design, so",
         "the observed statistic is a pseudo-likelihood-ratio and the i.i.d.",
         "bootstrap null has to be rescaled by the null model's design effect.",
-        "That design effect cannot be computed for this model (a growth",
-        "measurement model, a constrained group structure, or a family with",
-        "no unconstrained packing) -- refit without",
+        "That design effect cannot be computed for this model (a",
+        "constrained group structure, or a family with no unconstrained",
+        "packing) -- refit without",
         "`weights`/`strata`/`cluster`, or treat this as a diagnostic rather",
         "than a calibrated test."), call. = FALSE)
     scaling_factor <- pieces$c

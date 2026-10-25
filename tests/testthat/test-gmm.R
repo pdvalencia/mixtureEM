@@ -684,15 +684,22 @@ test_that("the BLRT runs end to end on a growth model", {
   expect_true(is.finite(res$p_value))
 })
 
-test_that("a weighted growth-model BLRT is refused, having no design effect", {
+test_that("a weighted growth-model BLRT rescales by the null model's design effect", {
   set.seed(149)
   Y <- .sim_gmm(n = 200)
+  w <- exp(rnorm(200, 0, 0.5))
   fit <- fit_gmm(Y, times = 4, n_classes = 1, n_init = 2, random_state = 1)
-  expect_error(suppressWarnings(
+  res <- suppressWarnings(
     blrt(k_small = 1, k_large = 2, from_fit = fit, n_reps = 2,
-         n_init_base = 2, n_init_boot = 1, verbose = FALSE,
-         weights = exp(rnorm(200, 0, 0.5)))),
-    "design effect cannot be computed")
+         n_init_base = 2, n_init_boot = 1, verbose = FALSE, weights = w))
+  expect_true(res$scaled)
+  expect_true(is.finite(res$p_value))
+
+  # The factor is the weighted one-class fit's c = tr(A^-1 B) / p.
+  f1 <- fit_gmm(Y, times = 4, n_classes = 1, n_init = 2, random_state = 1,
+                weights = w)
+  expect_equal(res$scaling_factor,
+               .scaling_pieces(.nested_fit_info(f1))$c, tolerance = 1e-6)
 })
 
 test_that("the VLMR test runs on a growth model", {
