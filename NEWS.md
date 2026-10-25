@@ -23,6 +23,11 @@ now exact, the reported start took a few iterations fewer. A
 coefficient of an uncorrected step-3 regression can move in the fifth
 decimal, to the regression's maximum.
 
+When the package is installed outside the default library (a project
+library, for instance), the workers of `n_cores` now load that same
+installation. They used to load whichever copy the default library held,
+which could be an older release.
+
 ## Growth mixture models for a binary outcome
 
 `fit_gmm(family = "binomial")` fits a growth mixture model to a 0/1 outcome

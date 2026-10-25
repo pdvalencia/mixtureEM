@@ -123,19 +123,28 @@
   if (is.null(cl)) return(NULL)
 
   dev <- .par_dev_path()
+  # The setup functions are given the base environment. Written here, their
+  # environment is this namespace, and a worker unpacking a function whose
+  # environment is a namespace loads that package by name first, from the
+  # worker's default library, before the function sets `.libPaths()`. With
+  # the package installed anywhere else (a project library, a side library)
+  # the workers then ran whatever copy the default library held.
+  inst <- function(lp) {
+    .libPaths(lp)
+    requireNamespace("mixtureEM", quietly = TRUE)
+  }
+  devl <- function(lp, p) {
+    .libPaths(lp)
+    requireNamespace("pkgload", quietly = TRUE) &&
+      isTRUE(tryCatch({ pkgload::load_all(p, quiet = TRUE); TRUE },
+                      error = function(e) FALSE))
+  }
+  environment(inst) <- environment(devl) <- baseenv()
   ok <- tryCatch({
     if (is.null(dev)) {
-      parallel::clusterCall(cl, function(lp) {
-        .libPaths(lp)
-        requireNamespace("mixtureEM", quietly = TRUE)
-      }, .libPaths())
+      parallel::clusterCall(cl, inst, .libPaths())
     } else {
-      parallel::clusterCall(cl, function(lp, p) {
-        .libPaths(lp)
-        requireNamespace("pkgload", quietly = TRUE) &&
-          isTRUE(tryCatch({ pkgload::load_all(p, quiet = TRUE); TRUE },
-                          error = function(e) FALSE))
-      }, .libPaths(), dev)
+      parallel::clusterCall(cl, devl, .libPaths(), dev)
     }
   }, error = function(e) list(FALSE))
 
