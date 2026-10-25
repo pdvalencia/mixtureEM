@@ -105,6 +105,27 @@
   list()
 }
 
+# The largest total case weight on any one value of columns `cols` of X,
+# pooled over the columns as .one_score_cells() pools them. A function of the
+# data and the weights alone, kept between checks: one table per (X, w)
+# (.one_hot_memo(), R/categorical.R), holding one entry per column set, since
+# every class and column of a model is its own group.
+.one_score_wmax <- function(X, cols, w) {
+  tab <- .one_hot_memo("one_score_wmax", X, NULL, w,
+                       function() new.env(parent = emptyenv()))
+  key <- paste(cols, collapse = ",")
+  if (is.null(tab[[key]])) {
+    cs <- cols[cols <= ncol(X)]
+    vals <- numeric(0); wt <- numeric(0)
+    for (j in cs) {
+      ok <- !is.na(X[, j])
+      vals <- c(vals, X[ok, j]); wt <- c(wt, w[ok])
+    }
+    tab[[key]] <- if (length(vals)) max(rowsum(wt, match(vals, unique(vals)))) else 0
+  }
+  tab[[key]]
+}
+
 # The groups of `mm` whose class sits on one value of the data, as a data frame
 # with the class, the column holding that value, the value and the share; NULL
 # when there are none. `post` is the n x K posterior matrix, or a list of them
@@ -118,6 +139,25 @@
   post_of <- function(b) if (is.list(post)) post[[b]] else post
 
   rows <- lapply(gs, function(g) {
+    # A class's mass on one value is at most the weight of the cases holding
+    # it, since a posterior is at most 1. Where the heaviest value's weight
+    # (a property of the data, kept for the fit) is below `share` of the
+    # class's total, no cell can pass, and the grouping below -- every
+    # distinct value of a continuous column, at every check of every
+    # restart -- is not needed. The margin keeps a rounding step from ever
+    # deciding a case the full computation would decide the other way.
+    tot <- 0
+    for (i in seq_along(g$cols)) {
+      j <- g$cols[i]
+      if (j > ncol(X)) next
+      P <- post_of(g$blocks[i])
+      if (is.null(P) || g$class > ncol(P)) next
+      ok  <- !is.na(X[, j])
+      tot <- tot + sum(w[ok] * P[ok, g$class])
+    }
+    if (is.finite(tot) && tot > 0 &&
+        .one_score_wmax(X, g$cols, w) < share * tot * (1 - 1e-12)) return(NULL)
+
     vals <- numeric(0); mass <- numeric(0); where <- integer(0)
     for (i in seq_along(g$cols)) {
       j <- g$cols[i]

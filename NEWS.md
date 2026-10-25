@@ -36,6 +36,14 @@ to 29 seconds. Log-likelihoods and numbers of replicated starts are
 unchanged; on a simulated set whose slope sits on a nearly flat ridge
 the reported slope moved by 1e-4, at a log-likelihood higher by 8e-6.
 
+The check EM runs every ten iterations for a class sitting on one value of
+data its own variance governs no longer groups every distinct value of a
+continuous indicator when no value carries enough weight to pass it: a
+class's mass on a value is at most the weight of the cases holding it. The
+decision is the same; on 30,000 cases with class-specific variances it
+was a fifth of a fit's time, and a 25-start four-class profile model went
+from 14 to 11.5 seconds.
+
 When the package is installed outside the default library (a project
 library, for instance), the workers of `n_cores` now load that same
 installation. They used to load whichever copy the default library held,
