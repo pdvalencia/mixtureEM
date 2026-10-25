@@ -389,6 +389,64 @@ binary_growth_model <- function(n_components, design,
 }
 
 # ------------------------------------------------------------------------------
+# The variance prior
+# ------------------------------------------------------------------------------
+#
+# A class whose cases answer almost constantly (all 0, or all 1) says little
+# about how widely its log-odds vary: once its curve is far from zero, a
+# wider spread leaves its answers as constant as before, and the likelihood
+# keeps rising slowly as a variance grows. Under class-specific variances such
+# a class's intercept or slope variance ran to 35-319 on five of seven stress
+# sets where it was 0.05-4 (RECORDS.md, "Part 54 E1.4v: the variance prior").
+# With the prior the largest error in any class's variance fell from a median
+# of 6.9 to 2.1 over the seven, and on four sets with a shared Psi each
+# estimate came closer to the generating one. The `variances` Bayes constant
+# therefore carries to the random effects the prior it puts on the variances
+# of continuous indicators (m_step.gaussian_diag()): per class and random
+# effect j,
+#
+#     -(alpha / 2K) [log psi_kjj + s0_j / psi_kjj],
+#
+# the truncated inverse-Wishart kernel, here on each variance and not on the
+# covariance, so a correlation of one stays an ordinary point. It is centred
+# on s0_j = 1 / max_t Lambda_r,tj^2, a variance that moves the log-odds by one
+# unit at the occasion where the random effect weighs most (the starting
+# scale, init_params()). It falls without bound as a variance grows and as it
+# collapses, and is alpha / K pseudo-observations, negligible against a class
+# with real information; alpha = 0 is plain maximum likelihood.
+#
+# Its value, and with `deriv` its gradient and negative curvature in the
+# factor's lower elements (in .chol_index order), for one class's factor L.
+.bg_var_prior <- function(ms, L, deriv = FALSE) {
+  a <- .bayes_alpha(ms, "variances")
+  if (!(a > 0)) return(list(value = 0))
+  K  <- ms$n_components
+  Lr <- ms$design[, ms$r_cols, drop = FALSE]
+  s0 <- unname(1 / pmax(apply(Lr^2, 2L, max), 1e-8))
+  ps <- pmax(rowSums(L^2), 1e-300)
+  c0 <- a / (2 * K)
+  val <- -c0 * sum(log(ps) + s0 / ps)
+  if (!deriv) return(list(value = val))
+  li <- ms$chol_index; nl <- nrow(li)
+  d1 <- -c0 * (1 / ps - s0 / ps^2)                  # d / d psi_jj
+  d2 <- -c0 * (-1 / ps^2 + 2 * s0 / ps^3)           # d2 / d psi_jj^2
+  r  <- li[, 1L]; cc <- li[, 2L]
+  Lv <- L[li]
+  g  <- 2 * d1[r] * Lv
+  H  <- matrix(0, nl, nl)
+  for (l in seq_len(nl)) for (m in seq_len(nl)) if (r[l] == r[m])
+    H[l, m] <- -(4 * d2[r[l]] * Lv[l] * Lv[m] +
+                   if (cc[l] == cc[m]) 2 * d1[r[l]] else 0)
+  list(value = val, g = g, H = H)
+}
+
+# The prior over every class, as the M-step adds it (one term per class,
+# whether or not the classes share their factor).
+.bg_var_log_prior <- function(ms)
+  sum(vapply(seq_len(ms$n_components), function(k)
+    .bg_var_prior(ms, ms$parameters$chol[[k]])$value, 0))
+
+# ------------------------------------------------------------------------------
 # Likelihood
 # ------------------------------------------------------------------------------
 
@@ -632,12 +690,17 @@ init_params.binary_growth <- function(model_state, X, resp, random_state = NULL,
     a  <- ms$parameters$coefs[k, ]
     ck <- cells[[k]]
     d  <- .bg_cell_derivs(ms, k, ck$Z, ck$Wy, ck$Wo, deriv)
-    val <- val + d$value
+    vp <- .bg_var_prior(ms, ms$parameters$chol[[k]], deriv)
+    val <- val + d$value + vp$value
     ep <- if (length(pr$y)) as.vector(pr$D %*% a)
     if (length(pr$y)) val <- val + sum(pr$w * (pr$y * ep - .bg_log1pexp(ep)))
     if (!deriv) next
     gk <- d$g; Hk <- d$H
     ia <- seq_len(p); il <- p + seq_len(nl)
+    if (!is.null(vp$g)) {
+      gk[il] <- gk[il] + vp$g
+      Hk[il, il] <- Hk[il, il] + vp$H
+    }
     if (length(pr$y)) {
       m <- stats::plogis(ep)
       gk[ia] <- gk[ia] + crossprod(pr$D, pr$w * (pr$y - m))

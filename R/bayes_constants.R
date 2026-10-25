@@ -22,6 +22,9 @@
 #   variances   Truncated inverse-Wishart prior on the class-specific variances
 #               of continuous indicators, centred on the item's observed
 #               marginal variance. Stops a variance from collapsing to zero.
+#               The same kernel on each random-effect variance of a binary
+#               growth mixture (.bg_var_prior(), R/gmm_binary.R), where it
+#               also stops a variance from growing without bound.
 #
 # Each is expressed in *pseudo-observations*: a constant of alpha contributes
 # alpha / K pseudo-observations to each of the K classes, so its influence

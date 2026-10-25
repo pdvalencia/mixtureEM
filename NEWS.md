@@ -45,6 +45,19 @@ the latent class growth model fitted first at the same number of classes
 (on at most 20 starts), and half from the pooled trajectory with some
 classes replaced by a curve through one observed response pattern.
 `growth_predictors` and `fix` are not yet available with a binary outcome.
+The `variances` Bayes constant also places its weak prior on each random-effect
+variance of a binary growth mixture, centred on a variance that moves the
+log-odds by one unit at the occasion where that random effect weighs most,
+and on the variances only, so a correlation of one stays allowed. A class
+whose cases answer almost constantly says little about how widely its
+log-odds vary, and under class-specific variances such a class's variance
+grew without bound while the likelihood crept up: on five of seven
+simulated data sets it reached 35 to 319 where the generating values were
+0.05 to 4. With
+the prior at its default the largest error in any class's variance fell
+from a median of 6.9 to 2.1, and a 30,000-case fit fell from 257 to 91
+seconds. A plain maximum-likelihood fit needs `variances = 0` beside
+`categorical = 0` and `latent = 0`, and is unchanged.
 Nothing else changes.
 
 ## Faster growth models of a binary or count outcome

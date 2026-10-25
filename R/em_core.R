@@ -551,6 +551,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
     }
   } else if (fam %in% c("lcga", "binary_growth")) {
     val <- val + .lcga_log_prior(mm, marginals)
+    if (fam == "binary_growth") val <- val + .bg_var_log_prior(mm)
   }
   # structured_normal: no measurement prior; its objective is the likelihood
   # plus the class-weight term .em_log_prior() adds.

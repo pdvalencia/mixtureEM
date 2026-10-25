@@ -3491,9 +3491,13 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   \code{latent} (class weights and, in the transition models, the initial
 #'   and transition probabilities), \code{categorical} (item-response
 #'   probabilities), \code{poisson} (count rates), and \code{variances}
-#'   (class-specific variances of continuous indicators); all default to
-#'   \code{1}. Each is a number of pseudo-observations spread over the classes,
-#'   so its influence shrinks as the sample grows.
+#'   (class-specific variances of continuous indicators, and the random-effect
+#'   variances of a binary growth mixture, \code{fit_gmm(family =
+#'   "binomial")}); all default to \code{1}. Each is a number of
+#'   pseudo-observations spread over the classes, so its influence shrinks as
+#'   the sample grows. A plain maximum-likelihood binary growth mixture
+#'   therefore needs \code{variances = 0} beside \code{categorical = 0} and
+#'   \code{latent = 0}.
 #'
 #'   The default of one observation, and the fact that it is spread in agreement
 #'   with each item's own observed marginal rather than uniformly over the
@@ -3514,7 +3518,17 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
 #'   thing on a five-point scale and on an income variable: rescaling an
 #'   indicator rescales the prior with it. That invariance is the reason the
 #'   penalised-likelihood literature recommends a data-scaled penalty over a
-#'   constant one (Chen, Tan, & Zhang, 2008, sec. 4).
+#'   constant one (Chen, Tan, & Zhang, 2008, sec. 4). On a binary growth
+#'   mixture's random effects, which live on the logit scale, it is centred
+#'   instead on a variance that moves the log-odds by one unit at the occasion
+#'   where the random effect weighs most, and it is placed on each variance and
+#'   not on the covariance, so a correlation of one stays allowed. A class that
+#'   answers almost constantly says little about how widely its log-odds vary,
+#'   and without the prior such a class's variance can grow without bound
+#'   while the likelihood creeps up; on simulated data with class-specific
+#'   variances it ran to 35-319 on five of seven sets where the generating
+#'   values were 0.05-4, and with the prior the largest error in any class's
+#'   variance fell from a median of 6.9 to 2.1 over the seven.
 #'
 #'   Two uses. \strong{An unregularized fit:} setting a constant to
 #'   \code{0} removes that prior and gives plain maximum likelihood for that

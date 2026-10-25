@@ -83,6 +83,32 @@ test_that("the principal-axis rule integrates a nearly singular Psi", {
                              MARGIN = 1)), f$metrics$ll, tolerance = 1e-8)
 })
 
+test_that("the variance prior's derivatives are its own, and alpha = 0 removes it", {
+  for (re in c("intercept_slope", "all")) {
+    D  <- .lcga_design(0:4, if (re == "all") 2 else 1)
+    ms <- binary_growth_model(3, D, re, "free", n_quadrature = 5)
+    ms$bayes_constants <- list(latent = 1, categorical = 1, poisson = 1, variances = 2)
+    q <- length(ms$r_cols); li <- ms$chol_index
+    set.seed(3)
+    L <- matrix(0, q, q); L[li] <- rnorm(nrow(li), 0, .7); diag(L) <- abs(diag(L)) + .3
+    f <- function(v) { M <- matrix(0, q, q); M[li] <- v; .bg_var_prior(ms, M)$value }
+    v0 <- L[li]; h <- 1e-5; e <- function(i) replace(numeric(length(v0)), i, h)
+    gn <- vapply(seq_along(v0), function(i) (f(v0 + e(i)) - f(v0 - e(i))) / (2 * h), 0)
+    Hn <- sapply(seq_along(v0), function(i) sapply(seq_along(v0), function(j)
+      (f(v0 + e(i) + e(j)) - f(v0 + e(i) - e(j)) - f(v0 - e(i) + e(j)) +
+         f(v0 - e(i) - e(j))) / (4 * h^2)))
+    an <- .bg_var_prior(ms, L, TRUE)
+    expect_equal(an$g, gn, tolerance = 1e-6)
+    expect_equal(an$H, -Hn, tolerance = 1e-4)
+    # The kernel itself: -(alpha / 2K) sum_j [log psi_jj + s0_j / psi_jj].
+    s0 <- 1 / apply(D[, ms$r_cols, drop = FALSE]^2, 2, max)
+    ps <- rowSums(L^2)
+    expect_equal(an$value, -(2 / 6) * sum(log(ps) + s0 / ps))
+    ms$bayes_constants$variances <- 0
+    expect_identical(.bg_var_prior(ms, L, TRUE), list(value = 0))
+  }
+})
+
 test_that("each psi form counts its parameters", {
   Y <- .bg_sim(n = 200)
   np <- function(psi, re = "intercept_slope")
