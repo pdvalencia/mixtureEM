@@ -185,9 +185,14 @@
   # random starts of the same model routinely differ several-fold in how many
   # iterations they need, and a bootstrap replicate is no more predictable.
   # Under static chunking the call cannot finish before its unluckiest chunk,
-  # so the workers that drew the cheap pieces wait. parLapplyLB() hands out one
-  # piece at a time to whichever worker is free, so the tail is one piece long
-  # instead of one chunk long.
+  # so the workers that drew the cheap pieces wait. parLapplyLB() hands out
+  # pieces to whichever worker is free, so the tail is one piece long instead
+  # of one chunk long -- but only with `chunk.size = 1`. At its default it
+  # still cuts `X` into twice as many chunks as there are workers: fifty
+  # restarts go out in bundles of three or four on eight workers, and a bundle
+  # that draws two of the slow ones holds up the call as static chunking
+  # would. Each piece is a model fit, so sending them one at a time costs
+  # nothing that can be seen beside it.
   #
   # This is worth having wherever the pool is smaller than the job -- a BLRT's
   # two thousand replicates, a hundred-restart search. It cannot help a call
@@ -203,7 +208,7 @@
   # The pool outlives this call, so a failure here must not leave it holding a
   # half-finished state. stopCluster() on error is the safe reading: the next
   # call rebuilds, which costs a spawn and cannot cost a wrong answer.
-  res <- tryCatch(parallel::parLapplyLB(cl, X, FUN, ...),
+  res <- tryCatch(parallel::parLapplyLB(cl, X, FUN, ..., chunk.size = 1L),
                   error = function(e) { .par_stop_cluster(); stop(e) })
   res
 }
