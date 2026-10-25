@@ -52,6 +52,10 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 # EM loop successive M-steps move the coefficients very little, so starting from
 # the last iteration's values cuts the work sharply without changing the optimum.
 #
+# `newton = TRUE` maximises by Newton-Raphson with the exact Hessian from
+# `start` and falls back to the BFGS fit from zero when that fails (see
+# .mnl_newton()); the mixture M-step asks for it.
+#
 # Estimation runs on the table of unique covariate patterns whenever fewer than
 # half the rows are distinct, which is the ordinary case for a grouping
 # variable or a set of dummies. This is exact rather than an approximation: the
@@ -61,7 +65,7 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 # carrying the pattern's total weight. A regression on continuous covariates
 # has no duplicate rows to exploit and runs the full-data path unchanged.
 .fit_mnl <- function(Z, resp, weights = NULL, augment = TRUE, start = NULL,
-                     alpha = 0) {
+                     alpha = 0, newton = FALSE) {
   K <- ncol(resp)
   D <- ncol(Z)
   w_vec <- if (!is.null(weights)) weights else rep(1, nrow(Z))
@@ -147,7 +151,26 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   par0 <- if (!is.null(start) && identical(dim(start), c(K, D)))
     as.vector(t(start[seq_len(K - 1), , drop = FALSE])) else rep(0, (K - 1) * D)
 
-  fit  <- optim(par = par0, fn = nll_func, gr = nll_grad, method = "BFGS")
+  # The Hessian of nll_func, in the same parameter order (class-major,
+  # covariate fastest): block (k, j) is Z' diag(w p_k (1{k = j} - p_j)) Z.
+  nll_hess <- function(pars) {
+    B    <- rbind(matrix(pars, K - 1, D, byrow = TRUE), 0)
+    prob <- probs_for(B, Z_aug)
+    H    <- matrix(0, (K - 1) * D, (K - 1) * D)
+    for (k in seq_len(K - 1)) for (j in k:(K - 1)) {
+      W  <- w_aug * prob[, k] * ((if (k == j) 1 else 0) - prob[, j])
+      Hb <- crossprod(Z_aug, Z_aug * W)
+      ik <- (k - 1) * D + seq_len(D); ij <- (j - 1) * D + seq_len(D)
+      H[ik, ij] <- Hb
+      if (j != k) H[ij, ik] <- t(Hb)
+    }
+    H
+  }
+
+  fit <- if (isTRUE(newton)) .mnl_newton(par0, nll_func, nll_grad, nll_hess)
+  if (is.null(fit))
+    fit <- optim(par = if (isTRUE(newton)) rep(0, (K - 1) * D) else par0,
+                 fn = nll_func, gr = nll_grad, method = "BFGS")
   beta <- rbind(matrix(fit$par, K - 1, D, byrow = TRUE), 0)
 
   prob <- probs_for(beta, Z)
@@ -177,6 +200,44 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   list(beta = beta, hessian = H, prob = prob)
 }
 
+# Newton-Raphson on the multinomial logit's negative log-likelihood, which is
+# convex: from `par0`, a full step along -H^-1 g, halved until the objective
+# does not rise, until the Newton decrement g' H^-1 g is below 1e-12 of the
+# objective's scale. NULL when that has not happened within 50 steps, when the
+# Hessian cannot be solved, or when no halving helps -- the separated case,
+# whose maximum is at infinity -- and the caller then runs BFGS from zero, the
+# fit it always ran.
+#
+# Inside EM the mixture M-step fitted the regression by BFGS from zero at every
+# iteration: dozens of objective and gradient evaluations per M-step on a table
+# of a few rows, 70% of a one-step covariate fit's time on 61,000 cases. From
+# the previous iteration's coefficients Newton needs two or three steps, and it
+# stops at the maximum itself rather than where BFGS's relative tolerance
+# (1e-8 of the objective) lets it stop.
+.mnl_newton <- function(par0, fn, gr, hess, max_iter = 50L) {
+  par <- par0
+  f   <- fn(par)
+  if (!is.finite(f)) return(NULL)
+  for (it in seq_len(max_iter)) {
+    g    <- gr(par)
+    step <- tryCatch(solve(hess(par), g), error = function(e) NULL)
+    if (is.null(step) || !all(is.finite(step))) return(NULL)
+    dec <- sum(g * step)
+    if (!is.finite(dec) || dec < 0) return(NULL)
+    if (dec < 1e-12 * (1 + abs(f))) return(list(par = par, value = f))
+    t <- 1
+    repeat {
+      np <- par - t * step
+      fn_new <- fn(np)
+      if (is.finite(fn_new) && fn_new <= f) break
+      t <- t / 2
+      if (t < 1e-10) return(NULL)
+    }
+    par <- np; f <- fn_new
+  }
+  NULL
+}
+
 #' @exportS3Method
 m_step.covariate <- function(model_state, X, resp, weights = NULL, ...) {
   # Missing covariates are completed under the class-invariant Gaussian marginal
@@ -199,7 +260,8 @@ m_step.covariate <- function(model_state, X, resp, weights = NULL, ...) {
   # covariate M-steps do the same, R/lta_core.R).
   alpha      <- .bayes_alpha(model_state, "latent")
   mnl        <- .fit_mnl(X_mat, resp, weights = w_vec, augment = alpha > 0,
-                         alpha = alpha)
+                         alpha = alpha, newton = TRUE,
+                         start = model_state$parameters$beta)
   beta_final <- mnl$beta
   prob       <- mnl$prob
   H          <- mnl$hessian

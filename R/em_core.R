@@ -48,7 +48,8 @@ e_step <- function(model_state, X, Y = NULL) {
   covariate_active <- !is.null(Y) && .supplies_class_probs(model_state$sm)
   if (!covariate_active) {
     log_weights <- log(model_state$weights + 1e-15)
-    log_prob    <- sweep(log_prob, 2, log_weights, "+")
+    # sweep(MARGIN = 2) without its aperm() copy: the same sums.
+    log_prob    <- log_prob + rep(log_weights, each = nrow(log_prob))
   }
 
   # 4. Log-sum-exp trick for stability. logsumexp() is the vectorised form of
@@ -133,10 +134,22 @@ e_step <- function(model_state, X, Y = NULL) {
   # takes case weights; a Gaussian outcome rarely repeats, and stays on its
   # rows. The binary growth mixture's start pool is one such fit, and on the
   # full rows of n = 50,000 one of its starts took five minutes.
+  # The ordinal family is the multinoulli one with a ragged category count
+  # (R/ordinal.R): the same per-class category probabilities, the same
+  # weighted M-step, and a likelihood that is a function of the pattern. On
+  # the full rows of n = 61,000 one of its starts took fifteen times as long
+  # as the same model written as multinoulli.
+  # Direct covariate effects on the items (R/categorical_dif.R,
+  # R/ordinal_dif.R) collapse on the key widened by their covariates, for the
+  # reason a class regression's covariates widen it: a case's item
+  # probabilities are a function of its responses' pattern and its own
+  # covariate pattern. Both M-steps fold the case weights into their
+  # per-pattern counts.
   lcga_discrete <- inherits(model_state$mm, "lcga") &&
     !identical(model_state$mm$family, "gaussian")
   if (!lcga_discrete && !class(model_state$mm)[1] %in%
       c("bernoulli", "bernoulli_nan", "multinoulli", "multinoulli_nan",
+        "ordinal", "ordinal_nan", "bernoulli_dif", "ordinal_dif",
         "binary_growth")) return(NULL)
   if (isTRUE(model_state$has_survey_design)) return(NULL)
 
@@ -164,16 +177,29 @@ e_step <- function(model_state, X, Y = NULL) {
   # continuous covariates make nearly every row unique and the payoff gate
   # below declines the collapse on its own. The saving is real for discrete
   # covariates -- sex, group, treatment arm -- which is the common applied case.
-  pat <- .pattern_index(X, Y)
+  dif <- if (.is_dif(model_state$mm)) model_state$mm$dif
+  pat <- .pattern_index(X, if (is.null(dif)) Y else cbind(Y, dif$Z))
   Xc  <- X[pat$rep_row, , drop = FALSE]
   if (nrow(Xc) > 0.5 * n) return(NULL)
+
+  # The DIF emission indexes its cases by covariate pattern; on the pattern
+  # table that index is the representative rows' own. Every covariate pattern
+  # still occurs, so `Zu` and `P` are unchanged.
+  dif_c <- if (!is.null(dif)) {
+    d <- dif
+    d$Z   <- dif$Z[pat$rep_row, , drop = FALSE]
+    d$pat <- dif$pat[pat$rep_row]
+    d$rows <- lapply(seq_len(d$P), function(p) which(d$pat == p))
+    d
+  }
 
   # rowsum() returns its groups sorted by label, and integer labels 1..P sort to
   # 1..P, so the counts line up with the rows of Xc.
   w <- model_state$sample_weights
   list(X = Xc, Y = if (is.null(Y)) NULL else Y[pat$rep_row, , drop = FALSE],
        w = as.vector(rowsum(w, pat$idx)), w_orig = w,
-       count = as.vector(rowsum(rep(1, n), pat$idx)))
+       count = as.vector(rowsum(rep(1, n), pat$idx)),
+       dif = dif_c, dif_orig = dif)
 }
 
 # Restore the full-sample weights and rebuild the per-case E-step fields
@@ -183,6 +209,7 @@ e_step <- function(model_state, X, Y = NULL) {
   if (is.null(coll)) return(model_state)
   model_state$sample_weights <- coll$w_orig
   model_state$mm$row_counts  <- NULL
+  if (!is.null(coll$dif_orig)) model_state$mm$dif <- coll$dif_orig
   e_res <- e_step(model_state, X, Y)
   model_state$log_resp    <- e_res$log_resp
   model_state$lower_bound <- e_res$log_prob_norm
@@ -226,7 +253,7 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
   # (R/group_prevalence.R) is an unrelated vector of class indices.
   frozen <- model_state$frozen
 
-  nk <- if (weighted) colSums(sweep(resp, 1, w, "*")) else colSums(resp)
+  nk <- if (weighted) colSums(resp * w) else colSums(resp)
   nk_prior <- nk + prior_obs
   if (!"weights" %in% frozen)
     model_state$weights <- nk_prior / sum(nk_prior)
@@ -1506,9 +1533,32 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
   }
 }
 
-fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
-                   random_state = NULL, refine = TRUE, warm_start = NULL,
-                   n_cores = 1L) {
+# The search never reads the copy of the indicators a fit keeps for its
+# methods (`model_state$data`, the full rows, where `X` here may be the
+# pattern table), but every restart sent to a worker carried it both ways:
+# the function each worker runs encloses the search's frame, and every
+# fitted restart came back with a copy. At n = 61,000 that was 5 MB of an
+# 8 MB restart, and it made a start on a worker three times as slow as the
+# same start run alone. So it is set aside here, one frame above the one the
+# workers' functions enclose, and put back on the state returned.
+fit_em <- function(model_state, X, Y, ...) {
+  held <- model_state$data
+  model_state$data <- NULL
+  best <- .fit_em_search(model_state, X, Y, ...)
+  if (!is.null(best)) best$data <- held
+  best
+}
+
+.fit_em_search <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
+                           random_state = NULL, refine = TRUE, warm_start = NULL,
+                           n_cores = 1L) {
+  # Every argument is evaluated here, before any function is sent to a worker.
+  # An argument still unevaluated is a promise that holds the caller's frame,
+  # and serialising the workers' functions serialises it: `refine`, read only
+  # inside them, carried fit_mixture()'s whole frame (every copy of the data,
+  # 40 MB at n = 61,000) to the workers with every restart.
+  force(model_state); force(X); force(Y); force(n_init); force(max_iter)
+  force(random_state); force(refine); force(warm_start); force(n_cores)
 
   # An emission may raise the ceiling on itself, but never lower one the caller
   # asked for: `max_iter` is a documented argument of fit_mixture().
@@ -1697,9 +1747,8 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     # on. This is the standard two-stage multi-start scheme, used for exactly the
     # same reason, and the survivors resume from where stage 1 left them rather
     # than restarting, so nothing is thrown away.
-    candidates <- .par_lapply(make_inits(n_init), function(st)
-      fit_single_init(model_state, X, Y, max_iter = stage$iter,
-                      refine = FALSE, init_state = st),
+    candidates <- .par_lapply(make_inits(n_init),
+      .em_restart_runner(model_state, X, Y, stage$iter, FALSE),
       n_cores = n_cores)
     lls  <- vapply(candidates, ll_of, numeric(1))
     keep <- order(lls, decreasing = TRUE)[
@@ -1708,10 +1757,11 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
     # The seed is restored so that the second stage of a given start draws the
     # same random numbers it would have drawn in a single-stage run; nothing
     # below uses them today, but a stochastic M-step later would.
-    fitted <- .par_lapply(keep, function(i) {
-      if (!is.null(random_state)) set.seed(random_state + i)
-      run_from(candidates[[i]])
-    }, n_cores = n_cores)
+    fitted <- .par_lapply(lapply(keep, function(i)
+      list(seed = if (!is.null(random_state)) random_state + i,
+           st = candidates[[i]])),
+      .em_restart_runner(model_state, X, Y, max_iter, refine, seeded = TRUE),
+      n_cores = n_cores)
 
     # The warm start skips stage 1: ranking it against random starts on a short
     # pass would defeat its purpose, since the basin it seeds is the one a short
@@ -1722,14 +1772,32 @@ fit_em <- function(model_state, X, Y, n_init = 1, max_iter = 1000,
 
   # Every restart is built here, in restart order, and then fitted. Splitting
   # the draw from the fit is what lets the fits run on workers: see make_inits().
-  fitted <- .par_lapply(make_inits(n_init), function(st)
-    # Each restart includes L-BFGS refinement so selection is by PM likelihood.
-    fit_single_init(model_state, X, Y, max_iter = max_iter, refine = refine,
-                    init_state = st),
+  # Each restart includes L-BFGS refinement so selection is by PM likelihood.
+  fitted <- .par_lapply(make_inits(n_init),
+    .em_restart_runner(model_state, X, Y, max_iter, refine),
     n_cores = n_cores)
 
   if (!is.null(warm)) fitted <- c(fitted, list(run_warm(warm)))
   select(fitted)
+}
+
+# The function a worker runs on one restart, built in a frame that holds only
+# what a restart reads. Written inside the search it enclosed the search's
+# whole frame -- its closures, the start pool, the stage-1 candidates -- and
+# every restart sent all of it to a worker to be unpacked there: 1.6 MB, and
+# 30% of a worker's time on ENPOL's 918-pattern table. With `seeded` the
+# piece is list(seed, st) and the seed is set first, as the second stage of
+# the staged search does.
+.em_restart_runner <- function(model_state, X, Y, max_iter, refine,
+                               seeded = FALSE) {
+  force(model_state); force(X); force(Y); force(max_iter); force(refine)
+  if (seeded) function(p) {
+    if (!is.null(p$seed)) set.seed(p$seed)
+    fit_single_init(model_state, X, Y, max_iter = max_iter, refine = refine,
+                    init_state = p$st)
+  } else function(st)
+    fit_single_init(model_state, X, Y, max_iter = max_iter, refine = refine,
+                    init_state = st)
 }
 
 # The k-deleted log-likelihood (Seo & Lindsay, 2010, sec. 4): the fit's total

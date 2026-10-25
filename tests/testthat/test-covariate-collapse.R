@@ -98,3 +98,61 @@ test_that("a collapsed covariate fit reports the log-likelihood it actually has"
                sum(e_step(fit, d$X, d$Z)$log_prob_norm),
                tolerance = 1e-8)
 })
+
+# Ordinal items, and direct covariate effects on the items, take the same
+# economy: the ordinal emission is the multinoulli one with a ragged category
+# count, and a DIF emission's item probabilities are a function of the
+# response pattern and the case's own item covariates, which join the key.
+.cc_ordinal_sim <- function(seed = 5, n = 1500) {
+  set.seed(seed)
+  z  <- stats::rbinom(n, 1L, 0.5)
+  s  <- 1L + stats::rbinom(n, 1L, stats::plogis(-0.4 + 0.9 * z))
+  th <- rbind(c(-1.2, 1.0), c(0.8, 2.6))
+  X  <- matrix(NA_integer_, n, 4)
+  for (j in 1:4) {
+    eta <- th[s, ] - if (j == 1) 0.8 * z else 0
+    u   <- stats::runif(n)
+    X[, j] <- 1L + (u < stats::plogis(eta[, 1])) + (u < stats::plogis(eta[, 2]))
+  }
+  colnames(X) <- paste0("i", 1:4)
+  list(X = X, d = data.frame(z = z))
+}
+
+.cc_ordinal_fit <- function(d, dif = TRUE, ...) suppressMessages(suppressWarnings(
+  fit_mixture(indicators = d$X, n_classes = 2, measurement = "ordinal",
+              cats = rep(3L, 4), predictors = ~ z, data = d$d, n_steps = 1,
+              predictors_items = if (dif) list(i1 = ~ z),
+              standard_errors = FALSE, order_by_size = FALSE, ...)))
+
+test_that("ordinal and DIF fits collapse, and the table gives the full log-likelihood", {
+  d  <- .cc_ordinal_sim()
+  Z  <- as.matrix(d$d)
+  for (dif in c(FALSE, TRUE)) {
+    st   <- .cc_ordinal_fit(d, dif = dif, n_init = 2, random_state = 3)
+    coll <- .collapse_patterns(st, d$X, Z)
+    expect_false(is.null(coll))
+    expect_lt(nrow(coll$X), nrow(d$X) / 2)
+    expect_equal(sum(coll$w), nrow(d$X))
+    st_c <- st
+    st_c$sample_weights <- coll$w
+    if (dif) {
+      # The covariate index is the representative rows' own.
+      expect_equal(length(coll$dif$pat), nrow(coll$X))
+      expect_equal(coll$dif$Z[, 1], coll$Y[, 1])
+      expect_identical(coll$dif_orig, st$mm$dif)
+      st_c$mm$dif <- coll$dif
+    }
+    expect_equal(sum(coll$w * e_step(st_c, coll$X, coll$Y)$log_prob_norm),
+                 sum(e_step(st, d$X, Z)$log_prob_norm))
+  }
+})
+
+test_that("a collapsed DIF fit hands back the full sample's covariate index", {
+  d   <- .cc_ordinal_sim()
+  fit <- .cc_ordinal_fit(d, n_init = 3, random_state = 9)
+  expect_equal(length(fit$mm$dif$pat), nrow(d$X))
+  expect_equal(length(fit$sample_weights), nrow(d$X))
+  expect_equal(fit$metrics$ll,
+               sum(e_step(fit, d$X, as.matrix(d$d))$log_prob_norm),
+               tolerance = 1e-8)
+})

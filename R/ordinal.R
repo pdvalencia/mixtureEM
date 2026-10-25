@@ -50,7 +50,12 @@ ordinal_model <- function(n_components, n_features = NULL, cats, type = "ordinal
 # which is what makes the emission FIML by construction (log_likelihood and
 # m_step below never special-case a missing cell; it simply contributes zero
 # to every category indicator).
-one_hot_ragged <- function(X, cats) {
+one_hot_ragged <- function(X, cats)
+  .one_hot_memo("ordinal", X, cats, NULL,
+                function() .one_hot_ragged_build(X, cats))
+
+# Kept the way one_hot() keeps its expansion (R/categorical.R).
+.one_hot_ragged_build <- function(X, cats) {
   n <- nrow(X)
   D <- length(cats)
   offsets <- cumsum(c(0L, cats))
@@ -97,7 +102,8 @@ init_params.ordinal <- function(model_state, X, resp, random_state = NULL, ...) 
 m_step.ordinal <- function(model_state, X, resp, weights = NULL, alpha = NULL,
                            prior_scale = 1, ...) {
   alpha <- alpha %||% .bayes_alpha(model_state, "categorical")
-  if (!is.null(weights)) resp <- sweep(resp, 1, weights, "*")
+  # sweep() written as its arithmetic, as m_step.multinoulli() does.
+  if (!is.null(weights)) resp <- resp * weights
 
   if (is.null(model_state$item_names) && !is.null(colnames(X)))
     model_state$item_names <- colnames(X)
@@ -121,10 +127,10 @@ m_step.ordinal <- function(model_state, X, resp, weights = NULL, alpha = NULL,
   }
 
   pis <- t(resp) %*% X_oh
-  pis <- sweep(pis, 2, prior_obs * marginal_prob, "+")
+  pis <- pis + rep(prior_obs * marginal_prob, each = nrow(pis))
 
   sum_resp <- colSums(resp) + prior_obs
-  pis <- sweep(pis, 1, sum_resp, "/")
+  pis <- pis / sum_resp
 
   # An item no case answered (an all-missing column, as the padding of
   # fit_joint_classes() writes) has no counts to normalise; it is held flat,
@@ -132,8 +138,7 @@ m_step.ordinal <- function(model_state, X, resp, weights = NULL, alpha = NULL,
   for (j in seq_along(cats)) {
     cols <- .ordinal_item_cols(model_state, j)
     if (!any(!is.na(X[, j]))) { pis[, cols] <- 1 / cats[j]; next }
-    pis[, cols] <- sweep(pis[, cols, drop = FALSE], 1,
-                        rowSums(pis[, cols, drop = FALSE]), "/")
+    pis[, cols] <- pis[, cols, drop = FALSE] / rowSums(pis[, cols, drop = FALSE])
   }
 
   model_state$parameters$pis <- pis

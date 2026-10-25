@@ -1,5 +1,28 @@
 # mixtureEM (development version)
 
+## Faster latent class models on large samples
+
+Ordinal items, and items with direct covariate effects
+(`predictors_items`), are now estimated on the table of distinct response
+patterns (with the covariates in the key), as binary and categorical items
+already were. On 61,000 cases with ten items one start of a five-class
+ordinal model fell from 31 to 2 seconds, with a class covariate from 63 to
+5 seconds, and with five item covariates from 94 to 9 seconds. The
+class-membership regression of a one-step model is now maximised by
+Newton-Raphson from the previous iteration's coefficients, which stops at
+the maximum of each M-step instead of near it, at a fraction of the cost.
+Multi-start fits on several cores (`n_cores`) send each worker only what a
+start needs: every start used to carry a copy of the whole data with it,
+40 MB at that sample size. The response-indicator table is computed once
+per fit instead of twice per iteration. On the six large-sample fits
+checked, with 100 starts on 8 cores, a plain five-class model went from 43
+to 15 seconds and a model with a class covariate and three item
+covariates from 129 to 79 seconds. Their log-likelihoods and numbers of
+replicated starts are unchanged; where the class regression's M-step is
+now exact, the reported start took a few iterations fewer. A
+coefficient of an uncorrected step-3 regression can move in the fifth
+decimal, to the regression's maximum.
+
 ## Growth mixture models for a binary outcome
 
 `fit_gmm(family = "binomial")` fits a growth mixture model to a 0/1 outcome

@@ -214,7 +214,37 @@ log_likelihood.bernoulli_nan <- function(model_state, X, ...) {
   }, integer(1))
 }
 
-one_hot <- function(X, max_val, cats = NULL) {
+one_hot <- function(X, max_val, cats = NULL)
+  .one_hot_memo(if (is.null(cats)) "multinoulli" else "multinoulli_cats",
+                X, max_val, cats,
+                function() .one_hot_build(X, max_val, cats))
+
+# The expansion is a function of the data alone, and an EM iteration asks for
+# it twice (the E-step's likelihood and the M-step's counts) on the same
+# matrix, so on a categorical fit it was rebuilt hundreds of times per start:
+# 38% of a start's time on the ENPOL pattern table. The last expansion is
+# kept, per family and call form (the two steps differ in whether they
+# pass `cats`, and one slot would be overwritten every half-iteration), and
+# handed back when the same matrix and category counts
+# come in again. `identical()` reads the matrix once, which is cheaper than
+# building and validating the wider one-hot table. The checks run in the
+# build, so a matrix that fails them is never kept. Tables above 1e7 cells
+# are not kept, so a fit on very large data does not leave its expansion
+# pinned in the session.
+.one_hot_cache <- new.env(parent = emptyenv())
+
+.one_hot_memo <- function(tag, X, a, b, build) {
+  hit <- .one_hot_cache[[tag]]
+  if (!is.null(hit) && identical(hit$a, a) && identical(hit$b, b) &&
+      identical(hit$X, X))
+    return(hit$out)
+  out <- build()
+  .one_hot_cache[[tag]] <- if (length(out) <= 1e7)
+    list(X = X, a = a, b = b, out = out)
+  out
+}
+
+.one_hot_build <- function(X, max_val, cats = NULL) {
   n <- nrow(X)
   D <- ncol(X)
   out <- matrix(0, nrow = n, ncol = D * max_val)
@@ -313,9 +343,10 @@ init_params.multinoulli <- function(model_state, X, resp, random_state = NULL, .
 m_step.multinoulli <- function(model_state, X, resp, weights = NULL, alpha = NULL,
                                prior_scale = 1, ...) {
   alpha <- alpha %||% .bayes_alpha(model_state, "categorical")
-  if (!is.null(weights)) {
-    resp <- sweep(resp, 1, weights, "*")
-  }
+  # The sweep() calls this step used to make were a third of a categorical
+  # start's time, nearly all of it in the aperm() copy sweep() builds; each is
+  # written below as the arithmetic it did, which gives the same numbers.
+  if (!is.null(weights)) resp <- resp * weights
 
   if (is.null(model_state$item_names) && !is.null(colnames(X)))
     model_state$item_names <- colnames(X)
@@ -339,15 +370,15 @@ m_step.multinoulli <- function(model_state, X, resp, weights = NULL, alpha = NUL
   }
 
   pis <- t(resp) %*% X_oh
-  pis <- sweep(pis, 2, prior_obs * marginal_prob, "+")
+  pis <- pis + rep(prior_obs * marginal_prob, each = nrow(pis))
 
   sum_resp <- colSums(resp) + prior_obs
-  pis <- sweep(pis, 1, sum_resp, "/")
+  pis <- pis / sum_resp
 
   # Re-normalize just to prevent floating point drift
   for (j in seq_len(ncol(X))) {
     cols <- ((j - 1) * model_state$max_val + 1):(j * model_state$max_val)
-    pis[, cols] <- sweep(pis[, cols, drop=FALSE], 1, rowSums(pis[, cols, drop=FALSE]), "/")
+    pis[, cols] <- pis[, cols, drop=FALSE] / rowSums(pis[, cols, drop=FALSE])
   }
 
   model_state$parameters$pis <- pis

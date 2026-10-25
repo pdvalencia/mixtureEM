@@ -2653,6 +2653,7 @@ fit_mixture_internal <- function(X, Y = NULL, n_components = 2,
   # `coll$Y` is NULL on every other path, so this is `Y` unchanged there.
   Y_em <- if (is.null(coll) || is.null(coll$Y)) Y else coll$Y
   if (!is.null(coll)) model_state$sample_weights <- coll$w
+  if (!is.null(coll$dif)) model_state$mm$dif <- coll$dif
   # The growth models' starts fit the pooled trajectory to the cases
   # (init_params.binary_growth(), init_params.lcga()), which on the pattern
   # table means each pattern counted as often as it occurs.

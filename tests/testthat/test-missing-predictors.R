@@ -50,9 +50,11 @@ test_that("uncorrected step 3 under listwise is the regression on complete cases
   ok  <- !is.na(d$x)
   f   <- suppressWarnings(suppressMessages(
     add_covariates(fit, data.frame(x = d$x), correction = "none")))
+  # The reference is the regression's exact maximum (Newton-Raphson, as the
+  # step-3 M-step fits it); the BFGS fit stops 5e-5 short of it here.
   ref <- .fit_mnl(cbind(1, d$x[ok]), exp(fit$log_resp[ok, ]),
                   augment = .bayes_alpha(f$sm, "latent") > 0,
-                  alpha = .bayes_alpha(f$sm, "latent"))
+                  alpha = .bayes_alpha(f$sm, "latent"), newton = TRUE)
   b   <- f$sm$parameters$beta
   expect_equal(unname(b[1, ] - b[2, ]), ref$beta[1, ] - ref$beta[2, ],
                tolerance = 1e-5)
