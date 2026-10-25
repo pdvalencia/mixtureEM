@@ -179,16 +179,102 @@ m_step.ordinal_dif <- function(model_state, X, resp, weights = NULL,
     gb <- drop(crossprod(A, rowSums(G)))
     list(val = val, grad = -c(as.vector(gt), gb))
   }
+  # The exact Hessian of fg()$val. Per row the objective depends on the
+  # boundaries eta_c = theta_c(k) + A b only; its curvature in the boundary
+  # heights F_c is tridiagonal (each P_s is a difference of neighbours), and
+  # the chain to `v` adds each boundary's own bend f'(eta) and the bend of
+  # the increment form (theta_c = t_1 - sum_{u <= c} exp(t_u)).
+  nv  <- K * m + nb
+  hfn <- function(v) {
+    u  <- unpack(v)
+    th <- u$t
+    if (m > 1L) for (s in 2:m) th[, s] <- th[, s - 1L] - exp(u$t[, s])
+    eta <- th[kk, , drop = FALSE] + drop(A %*% u$b)
+    Fm  <- plogis(eta)
+    f   <- Fm * (1 - Fm)
+    P   <- pmax(cbind(1, Fm) - cbind(Fm, 0), 1e-300)
+    R1  <- Nm / P
+    Q2  <- Nm / P^2
+    dF  <- R1[, -Sj, drop = FALSE] - R1[, -1L, drop = FALSE]   # d nll / d F_c
+    ge  <- dF * f                                              # d nll / d eta_c
+    nr  <- nrow(Nm)
+    # d eta_c / d v, one rows x nv matrix per boundary.
+    J <- lapply(seq_len(m), function(c) {
+      Jc <- matrix(0, nr, nv)
+      Jc[cbind(seq_len(nr), kk)] <- 1
+      if (c > 1L) for (uu in 2:c)
+        Jc[cbind(seq_len(nr), (uu - 1L) * K + kk)] <- -exp(u$t[kk, uu])
+      if (nb) Jc[, K * m + seq_len(nb)] <- A
+      Jc
+    })
+    H <- matrix(0, nv, nv)
+    for (c in seq_len(m)) {
+      dcc <- f[, c]^2 * (Q2[, c] + Q2[, c + 1L]) + dF[, c] * f[, c] * (1 - 2 * Fm[, c])
+      H <- H + crossprod(J[[c]], J[[c]] * dcc)
+      if (c < m) {
+        dcd <- -f[, c] * f[, c + 1L] * Q2[, c + 1L]
+        X   <- crossprod(J[[c]], J[[c + 1L]] * dcd)
+        H   <- H + X + t(X)
+      }
+    }
+    # The increment form's own bend: d2 theta_c / d t_u^2 = -exp(t_u), u <= c.
+    if (m > 1L) for (uu in 2:m) {
+      w <- -exp(u$t[kk, uu]) * rowSums(ge[, uu:m, drop = FALSE])
+      idx <- (uu - 1L) * K + seq_len(K)
+      H[cbind(idx, idx)] <- H[cbind(idx, idx)] + as.vector(crossprod(onehot_k, w))
+    }
+    H
+  }
+
   lo <- c(rep(-15, K), rep(-20, K * (m - 1L)), rep(-15, nb))
   hi <- c(rep(15, K), rep(4, K * (m - 1L)), rep(15, nb))
   v0 <- pmin(pmax(c(as.vector(th0), b0), lo), hi)
-  res <- stats::nlminb(v0, function(v) fg(v)$val, function(v) fg(v)$grad,
-                       lower = lo, upper = hi,
-                       control = list(eval.max = 400, iter.max = 300,
-                                      rel.tol = 1e-12, x.tol = 1e-10))
-  v <- if (is.finite(res$objective) && res$objective <= fg(v0)$val) res$par else v0
+  v  <- .ordinal_dif_newton(v0, fg, hfn, lo, hi)
+  if (is.null(v)) {
+    res <- stats::nlminb(v0, function(v) fg(v)$val, function(v) fg(v)$grad,
+                         lower = lo, upper = hi,
+                         control = list(eval.max = 400, iter.max = 300,
+                                        rel.tol = 1e-12, x.tol = 1e-10))
+    v <- if (is.finite(res$objective) && res$objective <= fg(v0)$val) res$par else v0
+  }
   u <- unpack(v)
   list(theta = u$t, b = u$b)
+}
+
+# Newton-Raphson for one item's cumulative logit inside the M-step, from the
+# previous iteration's values: a full step along -H^-1 g, halved until the
+# objective does not rise and the point stays inside the box, until the
+# Newton decrement is below 1e-12 of the objective's scale. NULL -- and the
+# caller runs its bounded nlminb() fit, the fit it always ran -- when the
+# Hessian is not positive definite or cannot be solved, no halving helps (a
+# maximum on the box's edge ends here), or 50 steps pass. The nlminb() fit took most of an ordinal DIF model's time: dozens of
+# evaluations per item and M-step, where Newton from a warm start needs two
+# or three.
+.ordinal_dif_newton <- function(v0, fg, hfn, lo, hi, max_iter = 50L) {
+  v   <- v0
+  cur <- fg(v)
+  if (!is.finite(cur$val)) return(NULL)
+  for (it in seq_len(max_iter)) {
+    H    <- tryCatch(hfn(v), error = function(e) NULL)
+    if (is.null(H) || !all(is.finite(H))) return(NULL)
+    step <- tryCatch(solve(H, cur$grad), error = function(e) NULL)
+    if (is.null(step) || !all(is.finite(step))) return(NULL)
+    dec <- sum(cur$grad * step)
+    if (!is.finite(dec) || dec < 0) return(NULL)
+    if (dec < 1e-12 * (1 + abs(cur$val))) return(v)
+    t <- 1
+    repeat {
+      nv <- v - t * step
+      if (all(nv >= lo) && all(nv <= hi)) {
+        new <- fg(nv)
+        if (is.finite(new$val) && new$val <= cur$val) break
+      }
+      t <- t / 2
+      if (t < 1e-10) return(NULL)
+    }
+    v <- nv; cur <- new
+  }
+  NULL
 }
 
 # Packing for the joint numerical Hessian (R/step3_variance.R) and the

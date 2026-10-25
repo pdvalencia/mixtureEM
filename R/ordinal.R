@@ -113,18 +113,24 @@ m_step.ordinal <- function(model_state, X, resp, weights = NULL, alpha = NULL,
   K     <- model_state$n_components
   prior_obs <- prior_scale * alpha / K
 
-  marginal_prob <- numeric(ncol(X_oh))
-  for (j in seq_along(cats)) {
-    valid <- !is.na(X[, j])
-    cols  <- .ordinal_item_cols(model_state, j)
-    if (!any(valid)) next
-    if (!is.null(weights)) {
-      marginal_prob[cols] <- colSums(X_oh[valid, cols, drop = FALSE] * weights[valid]) /
-        sum(weights[valid])
-    } else {
-      marginal_prob[cols] <- colMeans(X_oh[valid, cols, drop = FALSE])
+  # The observed marginal is a function of the data and the case weights
+  # alone, both fixed for a fit, so it is kept between M-steps with the
+  # one-hot table (.one_hot_memo(), R/categorical.R).
+  marginal_prob <- .one_hot_memo("ordinal_marginal", X, cats, weights, function() {
+    mp <- numeric(ncol(X_oh))
+    for (j in seq_along(cats)) {
+      valid <- !is.na(X[, j])
+      cols  <- .ordinal_item_cols(model_state, j)
+      if (!any(valid)) next
+      if (!is.null(weights)) {
+        mp[cols] <- colSums(X_oh[valid, cols, drop = FALSE] * weights[valid]) /
+          sum(weights[valid])
+      } else {
+        mp[cols] <- colMeans(X_oh[valid, cols, drop = FALSE])
+      }
     }
-  }
+    mp
+  })
 
   pis <- t(resp) %*% X_oh
   pis <- pis + rep(prior_obs * marginal_prob, each = nrow(pis))
@@ -263,8 +269,12 @@ n_parameters.ordinal_nan <- n_parameters.ordinal
     cols <- (off[j] + 1L):(off[j + 1L])
     p    <- pis[, cols, drop = FALSE]
     S    <- cats[j]
-    cum  <- t(apply(p, 1L, function(row) rev(cumsum(rev(row)))))
-    cum  <- cum[, 2:S, drop = FALSE]              # P(U >= s), s = 2..S
+    # P(U >= s), s = 2..S: the sums from the right, a column at a time over
+    # every class at once (the per-row apply() it replaces was a fifth of an
+    # ordinal DIF fit, since this runs in every E- and M-step).
+    cum  <- p
+    if (S > 1L) for (s in (S - 1L):1L) cum[, s] <- cum[, s + 1L] + p[, s]
+    cum  <- cum[, 2:S, drop = FALSE]
     cum  <- pmin(pmax(cum, 1e-10), 1 - 1e-10)
     th   <- qlogis(cum)                            # K x (S - 1), decreasing across s
     out_cols <- .ordinal_theta_cols(cats, j)

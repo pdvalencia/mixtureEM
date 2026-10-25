@@ -355,19 +355,24 @@ m_step.multinoulli <- function(model_state, X, resp, weights = NULL, alpha = NUL
   K <- model_state$n_components
   prior_obs <- prior_scale * alpha / K
 
-  # Calculate marginal probabilities ignoring NAs
-  marginal_prob <- numeric(ncol(X_oh))
-  for (j in seq_len(ncol(X))) {
-    valid <- !is.na(X[, j])
-    cols <- ((j - 1) * model_state$max_val + 1):(j * model_state$max_val)
-    if (any(valid)) {
-      if (!is.null(weights)) {
-        marginal_prob[cols] <- colSums(X_oh[valid, cols, drop=FALSE] * weights[valid]) / sum(weights[valid])
-      } else {
-        marginal_prob[cols] <- colMeans(X_oh[valid, cols, drop=FALSE])
+  # Calculate marginal probabilities ignoring NAs. A function of the data and
+  # the case weights alone, so kept between M-steps like the one-hot table.
+  marginal_prob <- .one_hot_memo("multinoulli_marginal", X, model_state$max_val,
+                                 weights, function() {
+    mp <- numeric(ncol(X_oh))
+    for (j in seq_len(ncol(X))) {
+      valid <- !is.na(X[, j])
+      cols <- ((j - 1) * model_state$max_val + 1):(j * model_state$max_val)
+      if (any(valid)) {
+        if (!is.null(weights)) {
+          mp[cols] <- colSums(X_oh[valid, cols, drop=FALSE] * weights[valid]) / sum(weights[valid])
+        } else {
+          mp[cols] <- colMeans(X_oh[valid, cols, drop=FALSE])
+        }
       }
     }
-  }
+    mp
+  })
 
   pis <- t(resp) %*% X_oh
   pis <- pis + rep(prior_obs * marginal_prob, each = nrow(pis))

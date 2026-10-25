@@ -23,6 +23,19 @@ now exact, the reported start took a few iterations fewer. A
 coefficient of an uncorrected step-3 regression can move in the fifth
 decimal, to the regression's maximum.
 
+The M-step of an ordinal item with direct covariate effects is now a
+Newton-Raphson fit with the exact Hessian of the cumulative logit, started
+from the previous iteration's values, with the bounded quasi-Newton fit as
+the fallback where Newton cannot proceed. It ends at the item's maximum
+rather than near it. The class probabilities of a one-step class
+regression are computed once per distinct covariate row and copied to the
+cases, and the items' observed marginals once per fit. With 100 starts on
+8 cores the five-class model with a class covariate went from 48 to 25
+seconds, and the models with item covariates from 134 to 43 and from 79
+to 29 seconds. Log-likelihoods and numbers of replicated starts are
+unchanged; on a simulated set whose slope sits on a nearly flat ridge
+the reported slope moved by 1e-4, at a log-likelihood higher by 8e-6.
+
 When the package is installed outside the default library (a project
 library, for instance), the workers of `n_cores` now load that same
 installation. They used to load whichever copy the default library held,

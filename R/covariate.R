@@ -92,12 +92,11 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   # printed representation. Skipped when fewer than half the rows are duplicates
   # (a continuous covariate), which leaves that path running exactly the code it
   # ran before.
-  codes <- lapply(seq_len(D), function(j) match(Z[, j], unique(Z[, j])))
-  key   <- do.call(paste, c(codes, sep = "\r"))
-  u     <- !duplicated(key)
+  pz    <- .mnl_patterns(Z)
+  u     <- pz$u
   agg   <- sum(u) <= nrow(Z) / 2
   if (agg) {
-    idx <- match(key, key[u])
+    idx <- pz$idx
     w_d <- as.vector(rowsum(w_vec, idx))
     if (any(w_d <= 0)) {
       agg <- FALSE
@@ -143,8 +142,9 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   nll_grad <- function(pars) {
     B     <- rbind(matrix(pars, K - 1, D, byrow = TRUE), 0)
     prob  <- probs_for(B, Z_aug)
-    resid <- sweep(prob[, seq_len(K - 1), drop = FALSE] -
-                     resp_aug[, seq_len(K - 1), drop = FALSE], 1, w_aug, "*")
+    # sweep(MARGIN = 1) written as the product it is (a weight per row).
+    resid <- (prob[, seq_len(K - 1), drop = FALSE] -
+                resp_aug[, seq_len(K - 1), drop = FALSE]) * w_aug
     as.vector(t(Z_aug) %*% resid)   # D × (K-1), flattened row-major
   }
 
@@ -173,7 +173,10 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
                  fn = nll_func, gr = nll_grad, method = "BFGS")
   beta <- rbind(matrix(fit$par, K - 1, D, byrow = TRUE), 0)
 
-  prob <- probs_for(beta, Z)
+  # A row's probabilities depend on its own covariates only, so on the
+  # pattern table they are computed once per pattern and copied out: the
+  # same numbers, for a few rows' work instead of n.
+  prob <- if (agg) probs_for(beta, Z_d)[idx, , drop = FALSE] else probs_for(beta, Z)
 
   # Rows the Hessian is taken over: data alone under the ghost, data plus the
   # prior rows when the prior is what augmented the fit.
@@ -192,13 +195,27 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   for (k in seq_len(K - 1)) {
     for (j in seq_len(K - 1)) {
       W    <- prob_h[, k] * ((if (k == j) 1 else 0) - prob_h[, j]) * w_h
-      H_kj <- -t(Z_h) %*% sweep(Z_h, 1, W, "*")
+      H_kj <- -t(Z_h) %*% (Z_h * W)
       H[((k - 1) * D + 1):(k * D), ((j - 1) * D + 1):(j * D)] <- H_kj
     }
   }
 
   list(beta = beta, hessian = H, prob = prob)
 }
+
+# Which rows of a covariate design are copies of which: `u` marks each
+# distinct row's first appearance and `idx` maps every row to it. The key is
+# built from per-column match() codes so that two doubles are never merged by
+# a shared printed form. A function of Z alone, and an EM fit hands the same
+# design to every E- and M-step, so the last one is kept (.one_hot_memo(),
+# R/categorical.R) instead of being rebuilt from paste() each time.
+.mnl_patterns <- function(Z)
+  .one_hot_memo("mnl_patterns", Z, NULL, NULL, function() {
+    codes <- lapply(seq_len(ncol(Z)), function(j) match(Z[, j], unique(Z[, j])))
+    key   <- do.call(paste, c(codes, sep = "\r"))
+    u     <- !duplicated(key)
+    list(u = u, idx = match(key, key[u]))
+  })
 
 # Newton-Raphson on the multinomial logit's negative log-likelihood, which is
 # convex: from `par0`, a full step along -H^-1 g, halved until the objective
@@ -445,6 +462,18 @@ log_likelihood.covariate <- function(model_state, X, ...) {
   #    class-invariant Gaussian marginal; a no-op when covariates are complete).
   X <- complete_covariates(as.matrix(X))
   X_mat <- if(model_state$intercept) cbind(1, X) else X
+
+  # A case's class log-probabilities depend on its own covariate row only, so
+  # where the covariates take few distinct values (a grouping variable, a
+  # few dummies) they are computed once per distinct row and copied out --
+  # the same numbers, row by row. This runs in every E-step, on every row of
+  # the pattern table.
+  pz <- if (ncol(X_mat) > 0L && nrow(X_mat) > 0L) .mnl_patterns(X_mat)
+  if (!is.null(pz) && sum(pz$u) <= nrow(X_mat) / 2) {
+    lu <- X_mat[pz$u, , drop = FALSE] %*% t(model_state$parameters$beta)
+    lu <- lu - logsumexp(lu, MARGIN = 1)
+    return(matrix(lu[pz$idx, , drop = FALSE], nrow = nrow(X_mat), ncol = ncol(lu)))
+  }
 
   # 2. Compute Raw Logits
   logits <- X_mat %*% t(model_state$parameters$beta)
