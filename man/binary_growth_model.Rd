@@ -11,6 +11,7 @@ binary_growth_model(
   psi = "equal",
   n_quadrature = 30,
   adaptive = FALSE,
+  principal = TRUE,
   start_pool = NULL,
   ...
 )
@@ -26,11 +27,20 @@ growth factor, as built by the polynomial in the time scores.}
 
 \item{psi}{\code{"equal"}, \code{"variances"} or \code{"free"}, as in \code{\link[=fit_gmm]{fit_gmm()}}.}
 
-\item{n_quadrature}{Number of quadrature nodes per random effect.}
+\item{n_quadrature}{The density of the quadrature rule: the number of
+nodes per random effect on the standard rule, and with two or more random
+effects on the principal-axis rule (\code{principal}), two thirds of this many
+nodes per unit of log-odds standard deviation along each axis, at least
+a tenth of it, and at most \code{n_quadrature^q} nodes in all.}
 
 \item{adaptive}{Logical. Keep the standard normal's nodes for every
 response pattern (\code{FALSE}, the default) or centre them on each pattern's
 posterior.}
+
+\item{principal}{Logical. With two or more random effects, lay the rule
+along each class's principal axes of the random effects (\code{TRUE}, the
+default, when \code{adaptive} is \code{FALSE}) or keep \code{n_quadrature} nodes on
+each standardised random effect.}
 
 \item{start_pool}{Optional list of \code{n_components} x \code{ncol(design)}
 trajectory matrices that half the random starts are drawn around;

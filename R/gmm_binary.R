@@ -18,16 +18,19 @@
 # is evaluated by a product Gauss-Hermite rule in the q standardised random
 # effects z (.gauss_hermite(), R/quadrature.R).
 #
-# The rule is the same for every case: Q nodes per random effect, Q^q in
-# all. With every case on the same nodes the linear predictor is one Q x T
-# matrix per class and the log-likelihood of every response pattern is two
-# matrix products, which is what makes the model affordable. The cost is
-# accuracy where the random effects are wide: a variance of 5 on the logit
-# scale needs about 30 nodes per dimension for the log-likelihood to sit
-# within 0.003 of its limit, and a fit whose variance runs larger still can
+# The rule is the same for every case. With every case on the same nodes the
+# linear predictor is one Q x T matrix per class and the log-likelihood of
+# every response pattern is two matrix products, which is what makes the
+# model affordable. With two or more random effects the rule is laid along
+# Psi_k's principal axes, with each axis given nodes in proportion to the
+# spread of log-odds it carries (.bg_rule()): a wide, nearly singular Psi is
+# a likelihood that is sharp along one direction and flat along the other,
+# and a square grid in z spends its nodes on the flat one. With one random
+# effect the rule is Q nodes on z. Where the random effects are wide the rule
+# is still an approximation, and a fit whose variance runs wide enough can
 # find a maximum of the rule's own error rather than of the likelihood
-# (RECORDS.md, "Part 54 E1 (W11)"). fit_gmm() therefore rescores every fit on
-# a finer rule and warns when the two disagree.
+# (RECORDS.md, "Part 54 E1 (W11)", "Part 54 E1.3"). fit_gmm() therefore
+# rescores every fit on a finer rule and warns when the two disagree.
 #
 # An adaptive rule is available (`adaptive = TRUE`; Liu & Pierce, 1994;
 # Pinheiro & Bates, 1995): for each pattern and class the nodes u are moved
@@ -69,10 +72,18 @@
 #' @param random_effects Which growth factors vary within a class:
 #'   `"intercept_slope"`, `"intercept"` or `"all"`.
 #' @param psi `"equal"`, `"variances"` or `"free"`, as in [`fit_gmm()`].
-#' @param n_quadrature Number of quadrature nodes per random effect.
+#' @param n_quadrature The density of the quadrature rule: the number of
+#'   nodes per random effect on the standard rule, and with two or more random
+#'   effects on the principal-axis rule (`principal`), two thirds of this many
+#'   nodes per unit of log-odds standard deviation along each axis, at least
+#'   a tenth of it, and at most `n_quadrature^q` nodes in all.
 #' @param adaptive Logical. Keep the standard normal's nodes for every
 #'   response pattern (`FALSE`, the default) or centre them on each pattern's
 #'   posterior.
+#' @param principal Logical. With two or more random effects, lay the rule
+#'   along each class's principal axes of the random effects (`TRUE`, the
+#'   default, when `adaptive` is `FALSE`) or keep `n_quadrature` nodes on
+#'   each standardised random effect.
 #' @param start_pool Optional list of `n_components` x `ncol(design)`
 #'   trajectory matrices that half the random starts are drawn around;
 #'   `NULL` draws every start from the pooled trajectory and the observed
@@ -84,7 +95,8 @@
 binary_growth_model <- function(n_components, design,
                                 random_effects = "intercept_slope",
                                 psi = "equal", n_quadrature = 30,
-                                adaptive = FALSE, start_pool = NULL, ...) {
+                                adaptive = FALSE, principal = TRUE,
+                                start_pool = NULL, ...) {
   p <- ncol(design)
   if (!psi %in% c("equal", "variances", "free"))
     stop("Unknown `psi` specification: ", psi, call. = FALSE)
@@ -104,14 +116,7 @@ binary_growth_model <- function(n_components, design,
                 "at most two random effects. Use psi = \"equal\" or ",
                 "\"free\", or random_effects = \"intercept_slope\"."),
          call. = FALSE)
-  gh <- .gauss_hermite(n_quadrature)
-  U  <- unname(as.matrix(expand.grid(rep(list(gh$z), q))))
-  lw <- unname(rowSums(log(as.matrix(expand.grid(rep(list(gh$w), q))))))
-  # The product rule's corners carry products of tail weights: at 30 nodes in
-  # two dimensions, 408 of the 900 weigh under 1e-14 and 2e-13 together, so
-  # dropping them moves no log-likelihood and halves the work.
-  keep <- lw > log(1e-14) | length(lw) == 1L
-  U <- U[keep, , drop = FALSE]; lw <- lw[keep]
+  gr <- .bg_grid(rep(as.integer(n_quadrature), q))
 
   state <- list(
     n_components   = n_components,
@@ -122,8 +127,14 @@ binary_growth_model <- function(n_components, design,
     psi_equal      = identical(psi, "equal"),
     n_quadrature   = as.integer(n_quadrature),
     adaptive       = isTRUE(adaptive) && n_quadrature > 1L,
-    nodes          = U,
-    log_node_w     = lw,
+    principal      = isTRUE(principal) && !isTRUE(adaptive) && q >= 2L &&
+                       n_quadrature > 1L,
+    nodes          = gr$U,
+    log_node_w     = gr$lw,
+    # The principal-axis rule each class is integrated on, held fixed while
+    # the finish runs (.qn_unpack_binary_growth()); NULL otherwise, and the
+    # rule is then built from the parameters themselves (.bg_std_nodes()).
+    node_rule      = NULL,
     chol_index     = which(lower.tri(diag(q), diag = TRUE), arr.ind = TRUE),
     # The binomial family supplies the prior of R/lcga.R (.lcga_prior_rows()),
     # which this emission shares: it is a prior on each class's trajectory,
@@ -297,6 +308,87 @@ binary_growth_model <- function(n_components, design,
 }
 
 # ------------------------------------------------------------------------------
+# The quadrature rule
+# ------------------------------------------------------------------------------
+
+# The product Gauss-Hermite rule with Qv[a] nodes on axis a: nodes `U` and
+# their log weights `lw`. Its corners carry products of tail weights: at 30
+# nodes in two dimensions, 408 of the 900 weigh under 1e-14 and 2e-13
+# together, so dropping them moves no log-likelihood and halves the work.
+# The rules are kept by their node counts, since the principal-axis rule asks
+# for one at every E-step.
+.bg_grid_cache <- new.env(parent = emptyenv())
+.bg_grid <- function(Qv) {
+  key <- paste(Qv, collapse = "x")
+  if (!is.null(.bg_grid_cache[[key]])) return(.bg_grid_cache[[key]])
+  g  <- lapply(Qv, .gauss_hermite)
+  U  <- unname(as.matrix(expand.grid(lapply(g, `[[`, "z"))))
+  lw <- unname(rowSums(log(as.matrix(expand.grid(lapply(g, `[[`, "w"))))))
+  keep <- lw > log(1e-14) | length(lw) == 1L
+  .bg_grid_cache[[key]] <- list(U = U[keep, , drop = FALSE], lw = lw[keep])
+}
+
+# The principal-axis rule for a class with covariance factor L. With the
+# singular value decomposition L = U S W', the random effects are
+# b = L z = U S u for u = W' z, and since W is orthogonal u is standard
+# normal as z is: the nodes z = W u carry the standard weights. Along axis a,
+# u moves the log-odds at occasion t by S_a Lambda_r,t U_a, and the rule gives
+# that axis nodes in proportion to the largest such spread, sigma_a:
+# Q_a = 2 Q sigma_a / 3 (20 per unit at the default Q = 30), at least Q / 10
+# and at most 10 Q, within the standard rule's budget of Q^q nodes: where the
+# counts would pass it, every axis is scaled down by the same factor. The
+# short axis of a Psi with a correlation near one carries almost no spread
+# and gets the minimum, which on those sets was as accurate as 10 nodes
+# there, and the long axis gets the rest of the budget.
+#
+# On the E1.3 stress sets (RECORDS.md, "Part 54 E1.3: the principal-axis
+# rule") this rule sat within 0.004 of the integral's limit at each set's
+# maximum-likelihood solution and within 0.012 at the nearly singular points
+# the standard rule's search had climbed to, where 30 x 30 nodes on z were
+# 1.5 units off and 150 x 150 were still 0.04 off: there the likelihood along
+# the long axis changes over less than a tenth of a standard deviation of u.
+# Without the budget the search's starts, which pass through wide Psi on
+# their way, used a median of 1282 nodes against the standard rule's 492 and
+# doubled the fit's time, for 0.004 at those solutions.
+# Computing W from L, rather than rotating by L^-1 times Psi's eigenvectors
+# (the same matrix), keeps the rule defined at a singular Psi, and the sign
+# of a singular vector does not matter, since the rule is symmetric.
+.bg_rule <- function(ms, L) {
+  Q  <- ms$n_quadrature
+  sv <- svd(L)
+  Lr <- ms$design[, ms$r_cols, drop = FALSE]
+  sg <- sv$d * apply(abs(Lr %*% sv$u), 2L, max)
+  lo <- ceiling(Q / 10)
+  raw <- pmin(pmax(2 * Q * sg / 3, lo), 10L * Q)
+  B  <- Q^length(sg)
+  Qv <- ceiling(raw)
+  if (prod(Qv) > B) {
+    Qv <- pmax(ceiling(raw * (B / prod(raw))^(1 / length(raw))), lo)
+    Qv[1L] <- max(lo, floor(B / prod(Qv[-1L])))
+  }
+  gr <- .bg_grid(as.integer(Qv))
+  list(Z = gr$U %*% t(sv$v), lw = gr$lw, counts = as.integer(Qv))
+}
+
+# Class k's shared nodes `Z` (Q x q) and their log weights `lw`: the
+# standard rule, the rule held in the state (`node_rule`), or the
+# principal-axis rule built from the class's current factor.
+.bg_std_nodes <- function(ms, k) {
+  if (!isTRUE(ms$principal))
+    return(list(Z = ms$nodes, lw = ms$log_node_w))
+  ms$node_rule[[k]] %||% .bg_rule(ms, ms$parameters$chol[[k]])
+}
+
+# Every class's principal-axis rule at the current parameters, built once
+# where the classes share one factor.
+.bg_rules <- function(ms) {
+  K <- ms$n_components
+  if (isTRUE(ms$psi_equal))
+    return(rep(list(.bg_rule(ms, ms$parameters$chol[[1L]])), K))
+  lapply(seq_len(K), function(k) .bg_rule(ms, ms$parameters$chol[[k]]))
+}
+
+# ------------------------------------------------------------------------------
 # Likelihood
 # ------------------------------------------------------------------------------
 
@@ -377,10 +469,11 @@ binary_growth_model <- function(n_components, design,
 # Q x q and `E` Q x T, and otherwise (P Q) x q and (P Q) x T.
 .bg_class_lp <- function(ms, k, pat) {
   if (.bg_fixed_nodes(ms, pat)) {
-    E  <- .bg_eta_at(ms, k, ms$nodes)
+    nd <- .bg_std_nodes(ms, k)
+    E  <- .bg_eta_at(ms, k, nd$Z)
     lp <- pat$Y0 %*% t(E) - pat$O %*% t(.bg_log1pexp(E))
-    return(list(Z = ms$nodes, E = E, fixed = TRUE,
-                lp = sweep(lp, 2L, ms$log_node_w, "+")))
+    return(list(Z = nd$Z, E = E, fixed = TRUE,
+                lp = sweep(lp, 2L, nd$lw, "+")))
   }
   nd <- .bg_nodes(ms, k, pat)
   E  <- .bg_eta_at(ms, k, nd$Z)
@@ -396,7 +489,8 @@ binary_growth_model <- function(n_components, design,
 .bg_lp_cache <- new.env(parent = emptyenv())
 .bg_class_lps <- function(ms, pat) {
   key <- list(ms$parameters$coefs, ms$parameters$psi_par, ms$node_centres,
-              ms$nodes, ms$adaptive, pat$key, pat$O)
+              ms$nodes, ms$adaptive, ms$principal, ms$node_rule,
+              ms$n_quadrature, pat$key, pat$O)
   if (identical(key, .bg_lp_cache$key)) return(.bg_lp_cache$val)
   val <- lapply(seq_len(ms$n_components), function(k) {
     cl <- .bg_class_lp(ms, k, pat)
@@ -479,6 +573,7 @@ init_params.binary_growth <- function(model_state, X, resp, random_state = NULL,
   L0 <- diag(1 / sqrt(pmax(apply(Lr^2, 2L, max), 1e-8)), ncol(Lr))
   model_state$parameters$coefs <- coefs
   model_state$node_centres <- NULL
+  model_state$node_rule    <- NULL
   .bg_set_psi(model_state, .bg_psi_unmap(model_state, rep(list(L0), K)))
 }
 
@@ -656,8 +751,10 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
     if (max(abs(s * step)) < 1e-8) break
     cur <- .bg_q(ms, cells, pr, deriv = TRUE)
   }
-  # The next E-step builds its rule on the posterior just used.
+  # The next E-step builds its rule on the posterior just used, or on the
+  # new parameters' principal axes.
   if (isTRUE(ms$adaptive)) ms$node_centres <- adapt
+  ms$node_rule <- NULL
   ms
 }
 
@@ -669,10 +766,10 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
   K <- mm$n_components
   if (!marginal)
     return(t(stats::plogis(mm$design %*% t(mm$parameters$coefs))))
-  w <- exp(mm$log_node_w)
-  t(vapply(seq_len(K), function(k)
-    as.vector(crossprod(stats::plogis(.bg_eta_at(mm, k, mm$nodes)), w)),
-    numeric(nrow(mm$design))))
+  t(vapply(seq_len(K), function(k) {
+    nd <- .bg_std_nodes(mm, k)
+    as.vector(crossprod(stats::plogis(.bg_eta_at(mm, k, nd$Z)), exp(nd$lw)))
+  }, numeric(nrow(mm$design))))
 }
 
 # ------------------------------------------------------------------------------
@@ -682,7 +779,9 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
 # Each class's log-odds at the edge's anchors (.bg_anchor()), then the
 # covariance's free vector `v`. The reported growth means, and Psi, are
 # carried to by the delta method. The nodes' centres are not parameters: they
-# stay where EM left them, which makes the finish's objective one fixed rule.
+# stay where EM left them, and the principal-axis rule stays the one built at
+# the point the finish starts from (.qn_unpack_binary_growth()), which makes
+# the finish's objective one fixed rule and its scores exact for it.
 #
 # The trajectory is packed by its log-odds rather than its coefficients so
 # that the finish holds a class at the edge EM holds it at, occasion by
@@ -745,6 +844,7 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
 .qn_unpack_binary_growth <- function(ms, par) {
   n  <- length(ms$parameters$coefs)
   em <- ms$edge_map %||% .bg_anchor(ms$design)
+  if (isTRUE(ms$principal) && is.null(ms$node_rule)) ms$node_rule <- .bg_rules(ms)
   ms$parameters$coefs[] <- matrix(par[seq_len(n)], ms$n_components) %*% t(em$Ainv)
   .bg_set_psi(ms, par[-seq_len(n)])
 }
@@ -805,7 +905,7 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
       abs(qc$difference) > .bg_quadrature_tol)
     warning(sprintf(paste0(
       "The log-likelihood moves by %.3f when the random effects are ",
-      "integrated with %d nodes instead of %d, so at this solution the ",
+      "integrated with n_quadrature = %d instead of %d, so at this solution the ",
       "integral is not accurate enough to compare models on. A random ",
       "effect with a variance of %.1f on the logit scale is wide for the ",
       "rule. Refit with n_quadrature = %d or more."),
@@ -835,7 +935,8 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
   if (is.null(lc)) NULL else list(lc$mm$parameters$coefs)
 }
 
-# The fitted log-likelihood rescored with 10 more nodes per random effect, at
+# The fitted log-likelihood rescored on the rule of n_quadrature + 10 (10
+# more nodes per random effect, or a third more along each principal axis), at
 # the same parameters. The difference is what the rule's error is worth at
 # this solution; NULL for one node, which is a different model rather than a
 # rough integral.
@@ -845,7 +946,8 @@ m_step.binary_growth <- function(model_state, X, resp, weights = NULL, ...) {
   if (mm$n_quadrature <= 1L) return(NULL)
   Q2 <- mm$n_quadrature + 10L
   fine <- binary_growth_model(mm$n_components, mm$design, mm$random_effects,
-                              mm$psi_type, n_quadrature = Q2)
+                              mm$psi_type, n_quadrature = Q2,
+                              principal = isTRUE(mm$principal))
   fine$parameters <- mm$parameters
   ll <- function(m) {
     L <- sweep(log_likelihood(m, fit$data), 2L,

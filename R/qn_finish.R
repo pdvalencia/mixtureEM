@@ -647,7 +647,41 @@
        value = function(par) sum(w * case_ll(par)) + prior(par))
 }
 
+# An emission whose quadrature rule follows its own parameters (the binary
+# growth mixture's principal-axis rule, R/gmm_binary.R) is finished on the
+# rule built where the finish starts, which keeps the objective one fixed
+# rule and the scores exact for it. Once the finish has moved, that rule is
+# no longer the one its end point would be integrated on: it is released
+# (`node_rule`, NULL outside a finish), and where the rule rebuilt at the end
+# point moves the log-likelihood by 1e-4 or more, the finish runs again from
+# there on that rule, at most four rounds in all. On a 30,000-case stress set
+# (RECORDS.md, "Part 54 E1.3: the principal-axis rule") the rule kept from
+# the start left the reported fit's quadrature check (R/gmm_binary.R) at
+# -0.82, and the rounds took it to -0.11. The state returned carries no rule
+# of its own, so its log-likelihood is the one its parameters give.
 .qn_finish_mixture <- function(model_state, X, Y) {
+  fin <- .qn_finish_mixture_once(model_state, X, Y)
+  if (is.null(fin) || is.null(fin$mm$node_rule)) return(fin)
+  w <- fin$sample_weights %||% 1
+  release <- function(st) {
+    st$mm$node_rule <- NULL
+    e <- e_step(st, X, if (.qn_mixture_layout(st, Y)$has_sm) Y)
+    st$log_resp <- e$log_resp; st$lower_bound <- e$log_prob_norm
+    st
+  }
+  for (r in 1:3) {
+    rel <- release(fin)
+    moved <- abs(sum(w * (rel$lower_bound - fin$lower_bound)))
+    fin <- rel
+    if (!is.finite(moved) || moved < 1e-4) return(fin)
+    nxt <- .qn_finish_mixture_once(fin, X, Y)
+    if (is.null(nxt)) return(fin)
+    fin <- nxt
+  }
+  release(fin)
+}
+
+.qn_finish_mixture_once <- function(model_state, X, Y) {
   pr <- .qn_mixture_problem(model_state, X, Y)
   if (is.null(pr)) return(NULL)
   lay <- pr$lay; par0 <- pr$par; Yp <- pr$Yp; wt <- pr$wt

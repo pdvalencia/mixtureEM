@@ -234,9 +234,12 @@
     gmm   = if (identical(g$family, "binomial"))
       sprintf(paste0("%d-class growth mixture model for a binary outcome (%s ",
                      "growth in the log-odds, random %s, integrated by ",
-                     "Gauss-Hermite quadrature with %d nodes per random effect)"),
+                     "Gauss-Hermite quadrature at density %d%s)"),
               f$k, shape(), gsub("_", " and ", g$random_effects),
-              g$n_quadrature)
+              g$n_quadrature,
+              if (length(g$random_names) >= 2L)
+                " along each class's principal axes of the random effects"
+              else "")
     else sprintf("%d-class growth mixture model (%s growth, random %s)",
                  f$k, shape(), gsub("_", " and ", g$random_effects)),
     lcga  = sprintf("%d-class latent class growth analysis (%s growth, no within-class growth-factor variance)",

@@ -138,9 +138,9 @@
 #' change, about the class's own curve. There is no residual variance (on the
 #' logit scale it is fixed by the distribution), and the random effects no
 #' longer integrate out in closed form: the class likelihood is evaluated by
-#' Gauss-Hermite quadrature over the random effects, with `n_quadrature`
-#' nodes for each, and maximised by EM with the random effects as missing data
-#' (Bock & Aitkin, 1981). With `random_effects = "none"` this is
+#' Gauss-Hermite quadrature over the random effects, laid along each class's
+#' principal axes of the random effects (see `n_quadrature`), and maximised
+#' by EM with the random effects as missing data (Bock & Aitkin, 1981). With `random_effects = "none"` this is
 #' [`fit_lcga()`]`(family = "binomial")`, which is the model to use. The
 #' reported trajectory is the probability averaged over the random effects --
 #' the share of the class expected to answer 1 at each occasion, which is what
@@ -315,14 +315,22 @@
 #'   binary one in `{0, 1}`, modelled on the logit scale (see Details).
 #'   `residual`, `residual_equal`, `growth_predictors` and `fix` apply to the
 #'   continuous outcome only.
-#' @param n_quadrature `family = "binomial"` only: the number of Gauss-Hermite
-#'   nodes per random effect, so the integral is evaluated at
-#'   `n_quadrature^q` points for q random effects. The default, 30, puts the
-#'   log-likelihood within about 0.003 of its limit at growth-factor variances
-#'   up to 6 on the logit scale, and usually within 0.0005. Every fit is
-#'   rescored with 10 more nodes (`fit$growth$quadrature_check`), and a
-#'   warning says so when the two differ by more than 0.01, which happens
-#'   when a variance is much wider than that; refit with more nodes then.
+#' @param n_quadrature `family = "binomial"` only: the density of the
+#'   Gauss-Hermite rule over the random effects. With one random effect it is
+#'   the number of nodes. With two or more, the rule is laid along each
+#'   class's principal axes of the random effects, and each axis gets
+#'   `2 * n_quadrature / 3` nodes per unit of the log-odds standard deviation
+#'   it carries (at least `n_quadrature / 10`), scaled down where needed to
+#'   keep within `n_quadrature^q` nodes for q random effects. A nearly
+#'   singular growth-factor covariance, wide along one axis and narrow along
+#'   the other, then gets its nodes where the likelihood needs them. The
+#'   default, 30, puts the log-likelihood within about 0.003 of its limit at
+#'   growth-factor variances up to 6 on the logit scale, and usually within
+#'   0.0005. Every
+#'   fit is rescored at `n_quadrature + 10` (`fit$growth$quadrature_check`),
+#'   and a warning says so when the two differ by more than 0.01, which
+#'   happens when a variance is much wider than that; refit with a larger
+#'   `n_quadrature` then.
 #' @param ... Further arguments passed to [`fit_mixture()`], such as `outcome`
 #'   and its companions, `n_init`, `random_state`, `weights`, `strata` or
 #'   `cluster`.
@@ -1052,8 +1060,9 @@ print.gmm <- function(x, ...) {
   cat(sprintf("Trajectory         : %s%s\n", shape,
               if (identical(g$family, "binomial")) ", logit link" else ""))
   if (identical(g$family, "binomial"))
-    cat(sprintf("Integration        : %d Gauss-Hermite nodes per random effect\n",
-                g$n_quadrature))
+    cat(sprintf("Integration        : Gauss-Hermite, n_quadrature = %d%s\n",
+                g$n_quadrature,
+                if (length(g$random_names) >= 2L) " (principal axes)" else ""))
   cat(sprintf("Random effects     : %s\n",
               if (!length(g$random_names)) "none (latent class growth analysis)"
               else paste(g$random_names, collapse = ", ")))

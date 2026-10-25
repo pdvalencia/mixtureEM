@@ -7,14 +7,26 @@ measured repeatedly: each class has its own trajectory in the log-odds, and
 cases vary about it through normal random growth factors, with the same
 `random_effects` and `psi` choices as the continuous model (`"equal"`,
 `"variances"`, `"free"`). The random effects are integrated out by
-Gauss-Hermite quadrature with `n_quadrature` nodes per random effect (30 by
-default, with negligible corner nodes dropped), and the model is estimated by
-EM with the random effects as missing data, accelerated by squared
-extrapolation, then taken to the maximum by the Newton-type finish with
-exact scores. Every fit is rescored with ten more nodes per random effect
-(`fit$growth$quadrature_check`), and a warning says when the two differ by
-more than 0.01, which is the sign that a variance is too wide for the rule
-and the integral has to be refined before models are compared. A class
+Gauss-Hermite quadrature, and the model is estimated by EM with the random
+effects as missing data, accelerated by squared extrapolation, then taken to
+the maximum by the Newton-type finish with exact scores. With one random
+effect the rule has `n_quadrature` nodes (30 by default). With two or more,
+it is laid along each class's principal axes of the random effects, and
+each axis gets nodes in proportion to the spread of log-odds it carries (20
+per unit of standard deviation at the default, at least 3), within the
+`n_quadrature^q` nodes of a square grid, with negligible corner nodes
+dropped. A growth-factor
+covariance with a correlation near one is wide along one axis and almost
+flat along the other, and a square grid on the standardised random effects
+spends half its nodes on the flat one: on simulated data of that shape the
+square grid's search climbed to a point where the integral was 1.5 units
+off and found a maximum of the rule's error 0.64 below the true one, which
+the principal-axis rule finds (within 0.012 of the integral's limit at
+such points, and 0.004 at the maxima). Every fit is rescored at
+`n_quadrature + 10` (`fit$growth$quadrature_check`), and a warning says
+when the two differ by more than 0.01, which is the sign that a variance is
+too wide for the rule and the integral has to be refined before models are
+compared. A class
 whose answers follow its curve without exception has no finite maximum, so
 each class's log-odds at the first and last occasions (at evenly spaced
 occasions for a curve of higher degree) are kept within 37, where the

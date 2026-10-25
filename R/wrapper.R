@@ -63,6 +63,8 @@ sort_model_classes <- function(model_state) {
       ad$m <- ad$m[new_order]; ad$S <- ad$S[new_order]
       model_state$mm$node_centres <- ad
     }
+    if (!is.null(model_state$mm$node_rule))
+      model_state$mm$node_rule <- model_state$mm$node_rule[new_order]
   }
   # GMM: growth-factor means are one row per class, residual variances one row
   # per class, and the growth-factor covariance one matrix per class. All are

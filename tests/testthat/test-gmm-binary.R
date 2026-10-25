@@ -57,6 +57,32 @@ test_that("the class likelihood is the integral over the random effects", {
   expect_equal(log_likelihood(ms, X), ll, tolerance = 1e-5)
 })
 
+test_that("the principal-axis rule integrates a nearly singular Psi", {
+  # Correlation 0.9992 and a log-odds spread near 8 at the last occasion, on
+  # data from another model: at the default density the square rule on z is
+  # 3.8 from the limit and the principal-axis rule 0.03, and at 60 it is
+  # 0.0003 while the square rule is still 0.5 off.
+  D  <- .lcga_design(0:4, 1)
+  Y  <- .bg_sim(n = 200, seed = 4, ts = 0:4)
+  set_up <- function(Q, principal) {
+    ms <- binary_growth_model(2, D, n_quadrature = Q, principal = principal)
+    ms$parameters$coefs <- rbind(c(-2, .3), c(1.5, -.6))
+    .bg_set_psi(ms, .bg_psi_unmap(ms, list(t(chol(matrix(c(6.3, 3.72, 3.72, 2.2), 2))))))
+  }
+  total <- function(ms) sum(logsumexp(log_likelihood(ms, Y) + log(.5), MARGIN = 1))
+  lim <- total(set_up(150, TRUE))
+  expect_lt(abs(total(set_up(30, TRUE)) - lim), 0.05)
+  expect_gt(abs(total(set_up(30, FALSE)) - lim), 1)
+  expect_lt(abs(total(set_up(60, TRUE)) - lim), 1e-3)
+  # A fitted state holds no rule of its own: its log-likelihood is the one its
+  # parameters give.
+  f <- .bg_q(fit_gmm(Y, times = 5, n_classes = 2, family = "binomial",
+                     n_init = 2, random_state = 1, n_cores = 1))
+  expect_null(f$mm$node_rule)
+  expect_equal(sum(logsumexp(sweep(log_likelihood(f$mm, Y), 2, log(f$weights), "+"),
+                             MARGIN = 1)), f$metrics$ll, tolerance = 1e-8)
+})
+
 test_that("each psi form counts its parameters", {
   Y <- .bg_sim(n = 200)
   np <- function(psi, re = "intercept_slope")

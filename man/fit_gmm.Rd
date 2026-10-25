@@ -153,14 +153,22 @@ binary one in \verb{\{0, 1\}}, modelled on the logit scale (see Details).
 \code{residual}, \code{residual_equal}, \code{growth_predictors} and \code{fix} apply to the
 continuous outcome only.}
 
-\item{n_quadrature}{\code{family = "binomial"} only: the number of Gauss-Hermite
-nodes per random effect, so the integral is evaluated at
-\code{n_quadrature^q} points for q random effects. The default, 30, puts the
-log-likelihood within about 0.003 of its limit at growth-factor variances
-up to 6 on the logit scale, and usually within 0.0005. Every fit is
-rescored with 10 more nodes (\code{fit$growth$quadrature_check}), and a
-warning says so when the two differ by more than 0.01, which happens
-when a variance is much wider than that; refit with more nodes then.}
+\item{n_quadrature}{\code{family = "binomial"} only: the density of the
+Gauss-Hermite rule over the random effects. With one random effect it is
+the number of nodes. With two or more, the rule is laid along each
+class's principal axes of the random effects, and each axis gets
+\code{2 * n_quadrature / 3} nodes per unit of the log-odds standard deviation
+it carries (at least \code{n_quadrature / 10}), scaled down where needed to
+keep within \code{n_quadrature^q} nodes for q random effects. A nearly
+singular growth-factor covariance, wide along one axis and narrow along
+the other, then gets its nodes where the likelihood needs them. The
+default, 30, puts the log-likelihood within about 0.003 of its limit at
+growth-factor variances up to 6 on the logit scale, and usually within
+0.0005. Every
+fit is rescored at \code{n_quadrature + 10} (\code{fit$growth$quadrature_check}),
+and a warning says so when the two differ by more than 0.01, which
+happens when a variance is much wider than that; refit with a larger
+\code{n_quadrature} then.}
 
 \item{...}{Further arguments passed to \code{\link[=fit_mixture]{fit_mixture()}}, such as \code{outcome}
 and its companions, \code{n_init}, \code{random_state}, \code{weights}, \code{strata} or
@@ -198,9 +206,9 @@ so cases in a class differ in where their log-odds start and how fast they
 change, about the class's own curve. There is no residual variance (on the
 logit scale it is fixed by the distribution), and the random effects no
 longer integrate out in closed form: the class likelihood is evaluated by
-Gauss-Hermite quadrature over the random effects, with \code{n_quadrature}
-nodes for each, and maximised by EM with the random effects as missing data
-(Bock & Aitkin, 1981). With \code{random_effects = "none"} this is
+Gauss-Hermite quadrature over the random effects, laid along each class's
+principal axes of the random effects (see \code{n_quadrature}), and maximised
+by EM with the random effects as missing data (Bock & Aitkin, 1981). With \code{random_effects = "none"} this is
 \code{\link[=fit_lcga]{fit_lcga()}}\code{(family = "binomial")}, which is the model to use. The
 reported trajectory is the probability averaged over the random effects --
 the share of the class expected to answer 1 at each occasion, which is what
