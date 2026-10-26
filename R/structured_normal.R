@@ -194,13 +194,26 @@ structured_normal_model <- function(n_components, design,
 # occasions. Grouping first means one Cholesky per (class, pattern) instead of
 # one per (class, case), which is what makes FIML here no more expensive than
 # complete data when attrition is monotone (T + 1 patterns, not n).
+#
+# The grouping is a function of the data alone and every E- and M-step asks
+# for it, so the last one is kept (.one_hot_memo(), R/categorical.R): building
+# the key was a third of a growth mixture's time at n = 30,000. Data above 1e7
+# cells are not kept, so a very large fit does not leave its matrix pinned.
 .sn_patterns <- function(X) {
+  if (length(X) > 1e7) return(.sn_patterns_build(X))
+  .one_hot_memo("sn_patterns", X, NULL, NULL, function() .sn_patterns_build(X))
+}
+
+.sn_patterns_build <- function(X) {
   obs <- !is.na(X)
   key <- do.call(paste0, as.data.frame(obs + 0L))
   ukey <- unique(key)
   lapply(ukey, function(k) {
     rows <- which(key == k)
-    list(rows = rows, cols = which(obs[rows[1L], ]))
+    cols <- which(obs[rows[1L], ])
+    # The pattern's own block of the data, cut out once: every E- and M-step
+    # reads it, and cutting it from X each time was most of their cost.
+    list(rows = rows, cols = cols, Y = X[rows, cols, drop = FALSE])
   })
 }
 
@@ -601,7 +614,7 @@ structured_normal_model <- function(n_components, design,
       A_k[[k]]   <- A_k[[k]] + kronecker(crossprod(Zp, wk * Zp),
                                          LSi %*% L[cols, , drop = FALSE])
       rhs_k[[k]] <- rhs_k[[k]] +
-        as.vector(LSi %*% crossprod(X[rows, cols, drop = FALSE], wk * Zp))
+        as.vector(LSi %*% crossprod(pat$Y, wk * Zp))
       den[k] <- den[k] + sum(wk)
     }
   }
@@ -616,7 +629,7 @@ structured_normal_model <- function(n_components, design,
     lapply(pats, function(pat) {
       if (!length(pat$cols) || !(k %in% live)) return(NULL)
       wk <- resp[pat$rows, k]
-      R  <- .sn_resid(X, mu, pat$rows, pat$cols)
+      R  <- .sn_resid(X, mu, pat$rows, pat$cols, pat$Y)
       list(cols = pat$cols, n = sum(wk), S = crossprod(R, wk * R))
     })
   })
@@ -734,11 +747,12 @@ structured_normal_model <- function(n_components, design,
 }
 
 # Residuals of the rows and columns a missingness pattern selects, against
-# whichever of the two mean shapes the model has.
-.sn_resid <- function(X, mu, rows, cols) {
-  Y <- X[rows, cols, drop = FALSE]
+# whichever of the two mean shapes the model has. The shared mean is recycled
+# down the columns, the subtraction sweep(MARGIN = 2) does, without its aperm()
+# copy.
+.sn_resid <- function(X, mu, rows, cols, Y = X[rows, cols, drop = FALSE]) {
   if (is.matrix(mu)) Y - mu[rows, cols, drop = FALSE] else
-    sweep(Y, 2, mu[cols], "-")
+    Y - rep(mu[cols], each = nrow(Y))
 }
 
 # Fitted trajectory on the outcome scale: K x T, what the plot draws and print()
@@ -914,7 +928,7 @@ log_likelihood.structured_normal <- function(model_state, X, ...) {
       ch <- .sn_chol(Sig[cols, cols, drop = FALSE])
       if (is.null(ch)) { log_eps[rows, k] <- -1e10; next }
 
-      R <- .sn_resid(X, mu, rows, cols)
+      R <- .sn_resid(X, mu, rows, cols, pat$Y)
       z <- backsolve(ch, t(R), transpose = TRUE)          # |cols| x n_rows
       log_eps[rows, k] <- -0.5 * (length(cols) * log(2 * pi) +
                                     2 * sum(log(diag(ch))) + colSums(z^2))
@@ -1021,7 +1035,7 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
       if (is.null(ch)) next
       Sinv <- chol2inv(ch)
 
-      R  <- .sn_resid(X, mu, rows, cols)
+      R  <- .sn_resid(X, mu, rows, cols, pats[[ip]]$Y)
 
       if (q) {
         LrP <- Lr[cols, , drop = FALSE]
@@ -1043,7 +1057,7 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
       Winv <- 1 / th[cols]
       LWL  <- crossprod(LP * Winv, LP)                 # p x p
       Zp   <- Z[rows, , drop = FALSE]                  # n_rows x d
-      Res  <- X[rows, cols, drop = FALSE] - adj
+      Res  <- pats[[ip]]$Y - adj
 
       A_k[[k]]   <- A_k[[k]] + kronecker(crossprod(Zp, wk * Zp), LWL)
       rhs_k[[k]] <- rhs_k[[k]] +
@@ -1091,7 +1105,7 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
 
       wk <- resp[rows, k]
       sw <- sum(wk)
-      E  <- .sn_resid(X, mu, rows, cols)
+      E  <- .sn_resid(X, mu, rows, cols, pats[[ip]]$Y)
 
       corr <- 0
       if (q) {

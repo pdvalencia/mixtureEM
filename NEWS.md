@@ -49,6 +49,33 @@ library, for instance), the workers of `n_cores` now load that same
 installation. They used to load whichever copy the default library held,
 which could be an older release.
 
+## Faster repeated-measures latent class and continuous growth models
+
+`fit_rmlca()` with binary, categorical or ordinal items is now estimated on
+the table of distinct response patterns, as a latent class model of the
+same items already was. On 30,000 cases with four binary items at three
+occasions, a 25-start three-class model went from 11 to 1.7 seconds with
+the items held equal over time, and from 7.0 to 1.2 seconds with them
+free. Log-likelihoods, estimates, class probabilities and numbers of
+replicated starts are unchanged. The "robust" and "hessian" standard errors
+can move in the fourth or fifth significant digit: they rest on a
+numerically differentiated Hessian, which carries that much rounding
+noise between a pattern table and the rows it summarises, as a latent
+class model's always has.
+
+`fit_lcga(family = "gaussian")` now updates each class's trajectory from
+the class's total weight and weighted mean at each occasion, which is all
+its weighted least-squares fit uses, instead of refitting the regression to
+every case at every occasion, and evaluates the normal log-density directly
+instead of cell by cell. `fit_gmm()` keeps each pattern of observed
+occasions, and the block of data it selects, once per fit instead of
+rebuilding them on every E- and M-step. On 30,000 cases at five occasions a
+25-start three-class LCGA went from 101 to 14 seconds and a three-class
+growth mixture model from 28.5 to 17.4 seconds. The growth mixture results
+are identical; the LCGA's agree to rounding (log-likelihood to 1e-11,
+estimates to 1e-12, standard errors to the seventh significant digit), with
+the same numbers of replicated starts.
+
 ## Growth mixture models for a binary outcome
 
 `fit_gmm(family = "binomial")` fits a growth mixture model to a 0/1 outcome

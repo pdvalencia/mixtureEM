@@ -228,6 +228,8 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
 
   K   <- model_state$n_components
   fam <- model_state$fam
+  if (fam$name == "gaussian")
+    return(.lcga_gaussian_m_step(model_state, X, resp, weights))
   lng <- .lcga_long(model_state, X)
 
   cen   <- .lcga_marginal(X, weights)
@@ -319,6 +321,55 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
   model_state
 }
 
+# The Gaussian M-step of m_step.lcga(), on the n x T matrix itself rather than
+# its occasion-stacked records. Every case shares the design row of its
+# occasion, so the weighted least-squares normal equations D'W(y - D b) = 0 of a
+# class depend on the data only through its total weight and weighted response
+# sum at each occasion: two T x K cross-products for all the classes at once,
+# then a solve on T rows. The trajectory is the one the records give (to
+# rounding), and the cost no longer grows with n beyond the cross-products. The
+# residual variance needs the spread within each occasion, which those sums do
+# not carry, so it is read off the cases. `resp` arrives already multiplied by
+# the case weights (m_step.lcga()); `weights` is read only for the prior's
+# pooled variance.
+.lcga_gaussian_m_step <- function(model_state, X, resp, weights = NULL) {
+  K     <- model_state$n_components
+  n     <- nrow(X)
+  D     <- model_state$design
+  a_var <- .bayes_alpha(model_state, "variances") / K
+  cen   <- if (a_var > 0) .lcga_marginal(X, weights)
+
+  obs <- !is.na(X)
+  X0  <- replace(X, !obs, 0)
+  W   <- crossprod(obs * 1, resp)                   # T x K weight by occasion
+  S   <- crossprod(X0, resp)                        # T x K weighted sums
+
+  coefs      <- model_state$parameters$coefs
+  dispersion <- model_state$parameters$dispersion
+  for (k in seq_len(K)) {
+    ok <- is.finite(W[, k]) & W[, k] > 0
+    # .wglm_fit()'s answer for a class with no weight anywhere: unchanged.
+    if (!any(ok)) { dispersion[k] <- 1; next }
+    # The rank tolerance glm.fit() uses at .wglm_fit()'s epsilon of 1e-10.
+    beta <- stats::lm.wfit(D[ok, , drop = FALSE], S[ok, k] / W[ok, k],
+                           W[ok, k], tol = 1e-13)$coefficients
+    beta[!is.finite(beta)] <- 0
+    names(beta) <- NULL
+    coefs[k, ] <- beta
+
+    E <- X0 - rep(as.vector(D %*% beta), each = n)
+    E[!obs] <- 0
+    rss <- sum(resp[, k] * rowSums(E * E))
+    nk  <- sum(W[, k])
+    dispersion[k] <- if (a_var > 0)
+      max((rss + a_var * cen$s2) / (nk + a_var), 1e-6)
+    else max(rss / nk, 1e-6)
+  }
+  model_state$parameters$coefs      <- coefs
+  model_state$parameters$dispersion <- dispersion
+  model_state
+}
+
 # The probability of a structural zero, K x T.
 .lcga_inflation <- function(mm)
   t(stats::plogis(mm$inflation_design %*% t(mm$parameters$inflation)))
@@ -332,6 +383,22 @@ log_likelihood.lcga <- function(model_state, X, ...) {
 
   eta <- model_state$design %*% t(model_state$parameters$coefs)   # T x K
   log_eps <- matrix(0, nrow = n, ncol = K)
+
+  # Gaussian: the normal log density summed over a case's observed occasions,
+  # written out rather than evaluated cell by cell through dnorm(); the same
+  # value to rounding, at a fraction of the cost on a large n.
+  if (fam$name == "gaussian") {
+    obs   <- !is.na(X)
+    X0    <- replace(X, !obs, 0)
+    n_obs <- rowSums(obs)
+    for (k in seq_len(K)) {
+      s2 <- model_state$parameters$dispersion[k]
+      E  <- X0 - rep(eta[, k], each = n)
+      E[!obs] <- 0
+      log_eps[, k] <- -0.5 * (n_obs * log(2 * base::pi * s2) + rowSums(E * E) / s2)
+    }
+    return(log_eps)
+  }
   # Held off 0 and 1 for the same reason as a binomial mean: a class whose
   # inflation reached 1 would otherwise give a positive count the -Inf that the
   # FIML guard below zeroes, and so claim a perfect fit to data it excludes.

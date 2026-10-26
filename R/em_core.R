@@ -145,12 +145,22 @@ e_step <- function(model_state, X, Y = NULL) {
   # probabilities are a function of its responses' pattern and its own
   # covariate pattern. Both M-steps fold the case weights into their
   # per-pattern counts.
+  # The repeated-measures LCA (R/time_blocks.R) is one of those categorical
+  # emissions per occasion: its likelihood is the sum of theirs, a function of
+  # the response pattern, and m_step.blocks() hands the case weights to each
+  # occasion's M-step (stacked, for the items held equal over time). It
+  # collapses when its occasions do; a mixed-indicator occasion does not.
+  categorical <- c("bernoulli", "bernoulli_nan", "multinoulli",
+                   "multinoulli_nan", "ordinal", "ordinal_nan")
   lcga_discrete <- inherits(model_state$mm, "lcga") &&
     !identical(model_state$mm$family, "gaussian")
-  if (!lcga_discrete && !class(model_state$mm)[1] %in%
-      c("bernoulli", "bernoulli_nan", "multinoulli", "multinoulli_nan",
-        "ordinal", "ordinal_nan", "bernoulli_dif", "ordinal_dif",
-        "binary_growth")) return(NULL)
+  rm_discrete <- identical(class(model_state$mm)[1], "time_blocks") &&
+    length(model_state$mm$models) > 0L &&
+    all(vapply(model_state$mm$models, function(m) class(m)[1] %in% categorical,
+               logical(1)))
+  if (!lcga_discrete && !rm_discrete && !class(model_state$mm)[1] %in%
+      c(categorical, "bernoulli_dif", "ordinal_dif", "binary_growth"))
+    return(NULL)
   if (isTRUE(model_state$has_survey_design)) return(NULL)
 
   n  <- nrow(X)
