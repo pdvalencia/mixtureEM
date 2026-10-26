@@ -998,12 +998,16 @@
     if (mm_free) st$mm <- .qn_unpack_mm(st$mm, r[-seq_len(n_red)])
     st
   }
-  unpack <- function(r) {
-    st <- .lta_par_unpack(r[seq_len(n_red)][red$src], with_mm(r), red$layout)
+  # Every pass below reads a point's coefficients and never a covariate model's
+  # case-averaged tables (.lta_par_unpack()'s `average`), which cost as much as
+  # the forward pass on 30,000 cases; only the state handed back is averaged.
+  unpack <- function(r, average = TRUE) {
+    st <- .lta_par_unpack(r[seq_len(n_red)][red$src], with_mm(r), red$layout,
+                          average = average)
     if (red$shared) st$tau_independent <- TRUE
     keep(st)
   }
-  X_prior <- X; unpack_prior <- unpack
+  X_prior <- X; unpack_prior <- function(r) unpack(r, average = FALSE)
   if (analytic) {
     # The scores are asked for once an iteration, at the accepted point; the
     # per-row log-likelihood at every point the line search tries, five a
@@ -1012,7 +1016,8 @@
     # each is computed on its own, and the last of each is cached. Every
     # log-likelihood the finish compares comes from the forward pass alone,
     # so a step's gain never differences two routes to the same number.
-    at_st <- function(r) keep(.lta_par_unpack(r[red$src], red$state, red$layout))
+    at_st <- function(r) keep(.lta_par_unpack(r[red$src], red$state, red$layout,
+                                              average = FALSE))
     # Every pass of the finish -- log-likelihood, scores, prior -- runs on the
     # pattern table, unpacking straight onto it (a covariate model's per-case
     # transition tables are most of an unpack's cost). The prior reads the data
@@ -1023,9 +1028,9 @@
     if (!is.null(pr)) {
       red_rows <- pr$shrink(red$state)
       at_rows  <- function(r) pr$shrink(keep(.lta_par_unpack(r[red$src], red_rows,
-                                                             red$layout)))
+                                                             red$layout, average = FALSE)))
       unpack_rows <- function(r) {
-        st <- .lta_par_unpack(r[red$src], red_rows, red$layout)
+        st <- .lta_par_unpack(r[red$src], red_rows, red$layout, average = FALSE)
         if (red$shared) st$tau_independent <- TRUE
         pr$shrink(keep(st))
       }
@@ -1059,12 +1064,20 @@
     scores  <- NULL
     gtol    <- .qn_gtol_stop_fd
   }
-  prior <- function(r) .qn_lta_prior(unpack_prior(r), X_prior, alpha, marginals)
+  # A prior that is zero at every parameter value (plain maximum likelihood:
+  # .lta_prior_is_zero()) is zero at every point the finish tries, and so are
+  # its gradient and curvature; each evaluation otherwise unpacks the state.
+  zero_prior <- .lta_prior_is_zero(state, alpha)
+  prior <- if (zero_prior) function(r) 0 else
+    function(r) .qn_lta_prior(unpack_prior(r), X_prior, alpha, marginals)
   if (is.na(prior(r0))) return(NULL)
   start <- sum(w * case_ll(r0)) + prior(r0)
   if (!is.finite(start)) return(NULL)
-  prior_grad <- if (analytic) .qn_lta_prior_grad(red, unpack_prior, X_prior, alpha,
-                                                  r0, prior, fixed)
+  prior_grad <- if (zero_prior) {
+    zero <- numeric(length(r0))
+    function(r) list(g = zero, h = zero)
+  } else if (analytic) .qn_lta_prior_grad(red, unpack_prior, X_prior, alpha,
+                                          r0, prior, fixed)
   res <- .qn_finish(case_ll, w, r0, prior, scores, gtol_stop = gtol, kind = kind,
                     fixed = fixed, prior_grad = prior_grad)
   if (is.null(res) || res$value <= start) return(NULL)

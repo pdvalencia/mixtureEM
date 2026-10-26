@@ -236,6 +236,14 @@
 # `augment = FALSE` also drops .fit_mnl()'s ghost rows, so the fit is plain
 # maximum likelihood and a separated cell drifts towards the boundary, as in
 # any ML fit.
+#
+# Each regression is solved by Newton from the previous iteration's
+# coefficients (`newton = "warm"`), which takes two or three steps where the
+# BFGS fit took dozens of objective evaluations over every case: 80% of a
+# covariate LTA's time on 30,000 cases. Newton stops at the M-step's maximum
+# rather than where BFGS's relative tolerance let it stop, so the iterates
+# move towards that maximum; where Newton fails (a separated cell) the old
+# BFGS update runs unchanged.
 
 # The `alpha` one transition regression is handed, so that .fit_mnl()'s
 # alpha / (K U0) comes out at alpha / (K^2 U) per pattern, origin and
@@ -329,7 +337,8 @@
   keep <- .lta_delta_keep(state)
   fit <- .fit_mnl(state$Z_delta, gamma1[, keep, drop = FALSE],
                   weights = state$weights_vec,
-                  start = state$delta_beta, augment = augment, alpha = alpha)
+                  start = state$delta_beta, augment = augment, alpha = alpha,
+                  newton = "warm")
   state$delta_beta    <- fit$beta
   state$delta_hessian <- fit$hessian
   state$delta         <- numeric(state$n_statuses)
@@ -343,8 +352,10 @@
 # probability of being in that origin status at all. .fit_mnl() expects rows
 # summing to one, so the mass is normalised out of the responsibilities and
 # folded into the case weight instead - algebraically identical, and it keeps
-# the shared fitter free of special cases.
-.lta_mstep_tau_cov <- function(state, fb, augment = TRUE, alpha = 0) {
+# the shared fitter free of special cases. `average = FALSE` leaves the
+# reported average tables (below) to the caller, as .lta_em() does.
+.lta_mstep_tau_cov <- function(state, fb, augment = TRUE, alpha = 0,
+                               average = TRUE) {
   K  <- state$n_statuses
   Tn <- state$n_times
   w  <- state$weights_vec
@@ -378,7 +389,7 @@
         }
         f <- .fit_mnl(Zs, resp[, keep, drop = FALSE], weights = wt,
                       start = state$tau_beta[[m]][[k]], augment = augment,
-                      alpha = a_reg)
+                      alpha = a_reg, newton = "warm")
         bk[[k]] <- f$beta; hk[[k]] <- f$hessian
       }
       betas[[m]] <- bk; hess[[m]] <- hk
@@ -411,7 +422,7 @@
       }
       f <- .fit_mnl(Zs, resp[, keep, drop = FALSE], weights = wt,
                     start = state$tau_beta[[m]],
-                    augment = augment, alpha = a_reg)
+                    augment = augment, alpha = a_reg, newton = "warm")
       betas[[m]] <- f$beta; hess[[m]] <- f$hessian
     }
   }
@@ -422,7 +433,7 @@
 
   # Report the average transition matrix implied by the fitted regression, so
   # that transition_matrix() keeps returning something interpretable.
-  state$tau <- .lta_cov_average_tau(state)
+  if (average) state$tau <- .lta_cov_average_tau(state)
   state
 }
 

@@ -54,7 +54,11 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 #
 # `newton = TRUE` maximises by Newton-Raphson with the exact Hessian from
 # `start` and falls back to the BFGS fit from zero when that fails (see
-# .mnl_newton()); the mixture M-step asks for it.
+# .mnl_newton()); the mixture M-step asks for it. `newton = "warm"` is the
+# same Newton fit with the fallback BFGS started from `start`, which is the
+# fit the latent transition M-steps ran before they used Newton, so a
+# regression Newton cannot solve (a separated transition) still gets exactly
+# the update it always got.
 #
 # Estimation runs on the table of unique covariate patterns whenever fewer than
 # half the rows are distinct, which is the ordinary case for a grouping
@@ -129,9 +133,23 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
     Z_aug <- Z_d; resp_aug <- resp_d; w_aug <- w_d
   }
 
+  # The fitted probabilities at the last point asked for. Newton asks for the
+  # objective, gradient and Hessian at one point, and BFGS for the objective
+  # and gradient, so each point's probabilities are computed once instead of
+  # two to four times: the same numbers, and on a transition regression over
+  # every case most of the M-step.
+  last_par  <- NULL
+  last_prob <- NULL
+  prob_at <- function(pars) {
+    if (!identical(pars, last_par)) {
+      last_prob <<- probs_for(rbind(matrix(pars, K - 1, D, byrow = TRUE), 0), Z_aug)
+      last_par  <<- pars
+    }
+    last_prob
+  }
+
   nll_func <- function(pars) {
-    B    <- rbind(matrix(pars, K - 1, D, byrow = TRUE), 0)
-    prob <- probs_for(B, Z_aug)
+    prob <- prob_at(pars)
     -sum(w_aug * rowSums(resp_aug * log(prob + 1e-15)))
   }
 
@@ -140,8 +158,7 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   #   ∂nll/∂B[k,d] = Σ_i w_i (prob[i,k] - resp[i,k]) * Z[i,d]  for k < K
   # Vectorised: grad[k, :] = t(Z_aug) %*% (w_aug * (prob[,k] - resp_aug[,k]))
   nll_grad <- function(pars) {
-    B     <- rbind(matrix(pars, K - 1, D, byrow = TRUE), 0)
-    prob  <- probs_for(B, Z_aug)
+    prob  <- prob_at(pars)
     # sweep(MARGIN = 1) written as the product it is (a weight per row).
     resid <- (prob[, seq_len(K - 1), drop = FALSE] -
                 resp_aug[, seq_len(K - 1), drop = FALSE]) * w_aug
@@ -154,8 +171,7 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   # The Hessian of nll_func, in the same parameter order (class-major,
   # covariate fastest): block (k, j) is Z' diag(w p_k (1{k = j} - p_j)) Z.
   nll_hess <- function(pars) {
-    B    <- rbind(matrix(pars, K - 1, D, byrow = TRUE), 0)
-    prob <- probs_for(B, Z_aug)
+    prob <- prob_at(pars)
     H    <- matrix(0, (K - 1) * D, (K - 1) * D)
     for (k in seq_len(K - 1)) for (j in k:(K - 1)) {
       W  <- w_aug * prob[, k] * ((if (k == j) 1 else 0) - prob[, j])
@@ -167,7 +183,7 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
     H
   }
 
-  fit <- if (isTRUE(newton)) .mnl_newton(par0, nll_func, nll_grad, nll_hess)
+  fit <- if (!isFALSE(newton)) .mnl_newton(par0, nll_func, nll_grad, nll_hess)
   if (is.null(fit))
     fit <- optim(par = if (isTRUE(newton)) rep(0, (K - 1) * D) else par0,
                  fn = nll_func, gr = nll_grad, method = "BFGS")
@@ -176,7 +192,11 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   # A row's probabilities depend on its own covariates only, so on the
   # pattern table they are computed once per pattern and copied out: the
   # same numbers, for a few rows' work instead of n.
-  prob <- if (agg) probs_for(beta, Z_d)[idx, , drop = FALSE] else probs_for(beta, Z)
+  # Without augmentation the rows fitted are these rows themselves, whose
+  # probabilities at the estimate prob_at() already holds.
+  same_rows <- !isTRUE(augment)
+  prob <- if (agg) probs_for(beta, Z_d)[idx, , drop = FALSE] else
+    if (same_rows) prob_at(fit$par) else probs_for(beta, Z)
 
   # Rows the Hessian is taken over: data alone under the ghost, data plus the
   # prior rows when the prior is what augmented the fit.
@@ -189,7 +209,7 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   # complete-data matrix built here.
   Z_h    <- if (prior_rows) Z_aug else Z_d
   w_h    <- if (prior_rows) w_aug else w_d
-  prob_h <- probs_for(beta, Z_h)
+  prob_h <- if (prior_rows || same_rows) prob_at(fit$par) else probs_for(beta, Z_h)
 
   H <- matrix(0, (K - 1) * D, (K - 1) * D)
   for (k in seq_len(K - 1)) {
@@ -208,9 +228,13 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 # built from per-column match() codes so that two doubles are never merged by
 # a shared printed form. A function of Z alone, and an EM fit hands the same
 # design to every E- and M-step, so the last one is kept (.one_hot_memo(),
-# R/categorical.R) instead of being rebuilt from paste() each time.
+# R/categorical.R) instead of being rebuilt from paste() each time. One slot
+# per design width: a latent transition model with covariates alternates its
+# initial-status design (n rows) and its stacked transition design (one row
+# per case and origin, wider by the origin dummies) every iteration, and one
+# slot rebuilt both each time, 15% of an iteration on 30,000 cases.
 .mnl_patterns <- function(Z)
-  .one_hot_memo("mnl_patterns", Z, NULL, NULL, function() {
+  .one_hot_memo(paste0("mnl_patterns_", ncol(Z)), Z, NULL, NULL, function() {
     codes <- lapply(seq_len(ncol(Z)), function(j) match(Z[, j], unique(Z[, j])))
     key   <- do.call(paste, c(codes, sep = "\r"))
     u     <- !duplicated(key)

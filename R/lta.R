@@ -2908,8 +2908,11 @@ fit_lta <- function(indicators,
   layout <- .lta_par_layout(state)
   par    <- .lta_par_pack(state, layout)
   w      <- state$weights_vec
+  # The scores read the coefficients, never a covariate model's case-averaged
+  # tables, so those are not rebuilt at each of the 2p points.
   grad_at <- function(p)
-    colSums(w * .lta_score_matrix(.lta_par_unpack(p, state, layout), X)$S)
+    colSums(w * .lta_score_matrix(.lta_par_unpack(p, state, layout, average = FALSE),
+                                  X)$S)
   Hd <- vapply(seq_along(par), function(j) {
     h <- 1e-5 * max(1, abs(par[j]))
     e <- numeric(length(par)); e[j] <- h

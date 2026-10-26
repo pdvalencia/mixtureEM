@@ -430,6 +430,7 @@
   prev_obj <- -Inf
   converged <- FALSE
   n_iter <- 0L
+  tau_stale <- FALSE
 
   has_delta_cov <- !is.null(state$Z_delta)
   has_tau_cov   <- !is.null(state$Z_tau)
@@ -540,10 +541,13 @@
       }
 
       # --- transition matrices ------------------------------------------------
+      # The case-averaged tables a transition regression reports are built
+      # once, after the loop: nothing in it reads them once the coefficients
+      # exist, and at 30,000 cases they cost a quarter of each iteration.
       if (Tn > 1L && has_tau_cov) {
         state <- .lta_mstep_tau_cov(state, es, augment = alpha > 0,
-                                     alpha = alpha)
-        state$tau_c[[c]] <- state$tau
+                                     alpha = alpha, average = FALSE)
+        tau_stale <- TRUE
       } else if (Tn > 1L) {
         Xi <- .lta_pair_counts(es, wc, K, Tn, C)
         allowed <- state$tau_allowed_c[[c]]
@@ -633,6 +637,11 @@
   # it here, before the final E-step, so that step's `pq` is already computed
   # under the normalised parameterisation and never needs its own permutation.
   if (!is.null(state$ri)) state <- .lta_ri_sign_normalise(state)
+
+  if (tau_stale) {
+    state$tau <- .lta_cov_average_tau(state)
+    state$tau_c[[1L]] <- state$tau
+  }
 
   # Final E-step so the stored posteriors match the returned parameters.
   E <- e_step(state, keep = TRUE)
