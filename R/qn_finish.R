@@ -1052,7 +1052,10 @@
     }
     scores <- function(r, idx) {
       if (is.null(cache) || !identical(cache$r, r)) {
-        sc <- .lta_score_matrix(at_st(r), X_rows, shared_ok = TRUE)
+        # A frozen measurement model's columns are `fixed`, never read: they
+        # come back as zeros rather than computed.
+        sc <- .lta_score_matrix(at_st(r), X_rows, shared_ok = TRUE,
+                                measurement = !frozen)
         # Shared rows fold onto their one free vector.
         cache <<- list(r = r, S = if (!is.null(sc)) t(rowsum(t(sc$S), red$src)))
       }

@@ -285,6 +285,16 @@ Estimates are unchanged and standard errors move by at most a few parts in
 a million, the rounding of the numerical derivative. On 30,000 cases the
 third step with a covariate went from 6.5 to 2.5 seconds.
 
+Two-step joint latent class models (`fit_joint_classes(n_steps = 2)`)
+and two-step latent transition models no longer compute the scores of the
+measurement parameters, which step 2 holds fixed, at each iteration of the
+Newton-type finish. Grouping cases into distinct response patterns builds
+an integer key column by column instead of a text key per case, the same
+grouping in the same order, eight times faster on 61,000 cases. On the
+61,000-case joint model of two latent class variables with item and class
+covariates, step 2 with no association went from 16 to 12 seconds and with
+association from 18 to 15.5 seconds. Every estimate is unchanged.
+
 The items' observed means and variances, which centre the default priors,
 are now computed once per data set instead of at every EM iteration of a
 model with missing cells or mixed item types. On 30,000 cases with three

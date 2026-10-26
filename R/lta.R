@@ -3082,7 +3082,7 @@ fit_lta <- function(indicators,
 # The forward-backward pass is run here rather than read off `state`, so the
 # scores describe the parameters currently in `state` even when no E-step has
 # been taken at them. At a converged fit the two agree by construction.
-.lta_score_matrix <- function(state, X, shared_ok = FALSE) {
+.lta_score_matrix <- function(state, X, shared_ok = FALSE, measurement = TRUE) {
   K  <- state$n_statuses
   Tn <- state$n_times
   C  <- state$n_classes %||% 1L
@@ -3335,6 +3335,18 @@ fit_lta <- function(indicators,
     # and the two descriptions of one vector must agree.
     loading_free <- .lta_ri_loading_free(state)
     for (j in seq_len(J)) {
+      # `measurement = FALSE`: the item blocks as zero columns of their
+      # widths, for a caller that holds the measurement model fixed and never
+      # reads them (the two-step finish, R/qn_finish.R).
+      if (!measurement) {
+        zero <- function(width, name) if (width > 0L)
+          add_block(matrix(0, n, width), NULL, NULL, sprintf("%s[item %d]", name, j))
+        zero(K * (if (ordinal_ri) cats[j] - 1L else 1L),
+             if (ordinal_ri) "theta" else "alpha")
+        if (loading_free) zero(M, "lambda")
+        if (ordinal_ri && !is.null(state$dif)) zero(.lta_dif_len(state$dif, j), "dif")
+        next
+      }
       if (ordinal_ri) {
         Sj      <- cats[j]
         cols    <- .ordinal_theta_cols(cats, j)

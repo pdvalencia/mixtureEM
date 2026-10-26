@@ -102,12 +102,25 @@ e_step <- function(model_state, X, Y = NULL, resp = FALSE) {
 # requires: once a case's class probabilities are a function of its own
 # covariate values, agreeing on the responses alone is no longer enough to make
 # two cases interchangeable. Passing `Z = NULL` is the original key, unchanged.
+#
+# The key is built a column at a time as an integer, not as a string: a row's
+# pattern number so far and its value's number in the next column make a
+# pair, and the pairs are renumbered in first-appearance order. `match()`
+# numbers NA as one more value, so a missing cell is its own code, as above.
+# The same partition and order as one string per row, without building
+# n strings: that was 0.9 s on the 61,000 ENPOL rows, three times a fit.
 .pattern_index <- function(X, Z = NULL) {
-  parts   <- as.data.frame(X)
+  parts <- as.data.frame(X)
   if (!is.null(Z)) parts <- c(parts, as.data.frame(Z))
-  key     <- do.call(paste, c(parts, sep = "\r"))
-  rep_row <- !duplicated(key)
-  list(rep_row = rep_row, idx = match(key, key[rep_row]))
+  n <- NROW(X)
+  g <- rep(1L, n)
+  for (v in parts) {
+    u   <- unique(v)
+    key <- (g - 1) * length(u) + match(v, u)
+    g   <- match(key, unique(key))
+  }
+  rep_row <- !duplicated(g)
+  list(rep_row = rep_row, idx = g)
 }
 
 # Collapse X to unique response patterns, summing the case weights within each
