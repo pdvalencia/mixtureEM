@@ -126,6 +126,33 @@ On 30,000 cases a 25-start three-class model went from 113 to 37 seconds
 and on 1,000 cases from 21 to 10 seconds, with identical
 log-likelihoods, class sizes and numbers of replicated starts.
 
+`fit_gmm(psi = "free")`, whose classes each have their own growth-factor
+covariance, hands a start that EM has not converged after 300 iterations
+to the Newton-type finish, as the binary growth mixture does after 500;
+such starts used to run 2,000 to 4,600 EM iterations. The finish now
+computes each case's score on the growth mixture's parameters exactly
+rather than by differencing the log-likelihood, which makes it several
+times cheaper on every continuous growth mixture model and lets it switch
+to the exact curvature where it crawls. Without growth covariates, each
+EM iteration now reads the data once per class and missingness pattern,
+through the pattern's class-weighted totals, instead of building
+residuals case by case, and the log-density of every class comes from one
+matrix product per pattern. On 30,000 cases a 25-start three-class model
+went from 575 to 43 seconds and on 1,000 cases from 50 to 6.4 seconds. On
+simulated data with weakly separated classes, a 5% class, a slope variance
+near zero in one class, a strongly negative intercept-slope covariance,
+dropout, unequal spacing, n = 400 and n = 30,000, the reported maximum
+and every estimate are those of the previous fit on seven of the eight
+sets; on the n = 400 set the search now reports a higher maximum, with a
+2% class whose intercept variance is slightly negative. The number of
+starts that reach the reported maximum went up on five of the eight sets
+and down on one, and on the 1,000-case set from 36 of 50 to 28.
+Models with `psi = "equal"` or `"variances"` keep their search; their
+iterations are faster and agree with the previous ones to rounding.
+
+`fit_gmm(psi = "variances", fix = )` no longer stops with a type error
+when a growth-factor variance is fixed in one class.
+
 ## Growth mixture models for a binary outcome
 
 `fit_gmm(family = "binomial")` fits a growth mixture model to a 0/1 outcome

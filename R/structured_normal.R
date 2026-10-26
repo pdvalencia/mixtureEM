@@ -190,7 +190,22 @@ structured_normal_model <- function(n_components, design,
                                  identical(psi, "equal") && is.null(psi_fixed) &&
                                  isTRUE(residual_equal) &&
                                  identical(residual, "occasion") &&
-                                 is.null(growth_covariates)) "unconditional"
+                                 is.null(growth_covariates)) "unconditional",
+    # With Psi free by class the same crawl runs to 2,000-4,600 iterations a
+    # start, and SQUAREM there jumps to points where a class's Sigma is nearly
+    # singular (on five of seven simulated stress sets it reported a spike
+    # 9-35 units above every other start, Psi outside the cone). So a start
+    # still climbing after 300 iterations is handed to the Newton-type finish
+    # (fit_single_init(), R/em_core.R), as the binary growth mixture's are
+    # after 500. On those sets and one of 30,000 cases (RECORDS.md, "Part 74
+    # row 14: the hand-over graded") every estimate is plain EM's on seven of
+    # the eight; on the n = 400 set the search reports a higher maximum than
+    # the one plain EM stopped near; 214 replicated starts over the eight sets
+    # against 192, and the 30,000-case fit 7x faster. Handed over at 100 or
+    # 50 instead, one set moved to a different maximum.
+    em_finish_after        = if (identical(psi, "free") && is.null(psi_fixed) &&
+                                 isTRUE(residual_equal) &&
+                                 is.null(growth_covariates)) 300L
   )
   class(state) <- c("structured_normal", "emission")
   state
@@ -227,7 +242,10 @@ structured_normal_model <- function(n_components, design,
     cols <- which(obs[rows[1L], ])
     # The pattern's own block of the data, cut out once: every E- and M-step
     # reads it, and cutting it from X each time was most of their cost.
-    list(rows = rows, cols = cols, Y = X[rows, cols, drop = FALSE])
+    Y <- X[rows, cols, drop = FALSE]
+    # And with a column of ones, for the likelihood's one product per pattern
+    # (log_likelihood.structured_normal()).
+    list(rows = rows, cols = cols, Y = Y, Y1 = cbind(Y, 1))
   })
 }
 
@@ -396,7 +414,7 @@ structured_normal_model <- function(n_components, design,
 # fit_gmm() checks) is not random in that class at all: it drops out of the
 # class's Psi, which is the "active" block every Psi computation uses.
 .sn_psi_slots <- function(ms) {
-  K  <- ms$n_components; q <- length(ms$r_cols)
+  K  <- as.integer(ms$n_components); q <- length(ms$r_cols)
   li <- which(lower.tri(diag(q), diag = TRUE), arr.ind = TRUE)
   nl <- nrow(li); dg <- li[, 1L] == li[, 2L]
   key <- t(vapply(seq_len(K), function(k) switch(.sn_psi_type(ms),
@@ -625,8 +643,8 @@ structured_normal_model <- function(n_components, design,
       wk  <- resp[rows, k]
       LSi <- crossprod(L[cols, , drop = FALSE], chol2inv(ch))   # p x |cols|
       Zp  <- Z[rows, , drop = FALSE]
-      A_k[[k]]   <- A_k[[k]] + kronecker(crossprod(Zp, wk * Zp),
-                                         LSi %*% L[cols, , drop = FALSE])
+      ZwZ <- crossprod(Zp, wk * Zp); LSL <- LSi %*% L[cols, , drop = FALSE]
+      A_k[[k]]   <- A_k[[k]] + if (d == 1L) ZwZ[1L] * LSL else kronecker(ZwZ, LSL)
       rhs_k[[k]] <- rhs_k[[k]] +
         as.vector(LSi %*% crossprod(pat$Y, wk * Zp))
       den[k] <- den[k] + sum(wk)
@@ -914,35 +932,56 @@ log_likelihood.structured_normal <- function(model_state, X, ...) {
   pats    <- .sn_patterns(X)
   log_eps <- matrix(0, n, K)
 
-  for (k in seq_len(K)) {
-    Sig <- .sn_sigma(model_state, k)
-    mu  <- .sn_mu(model_state, k)
-
-    # A Psi outside the positive semi-definite cone is a legitimate estimate so
-    # long as Sigma_k stays positive definite; once it does not, there is no
-    # likelihood at all. Only the Newton finish can put Psi there (EM's update
-    # is a sum of outer products), and NaN is what makes the finish's line
-    # search refuse the step, where .sn_chol()'s ridge would quietly score a
-    # point that does not exist.
-    if (length(model_state$r_cols) &&
-        is.null(tryCatch(chol(Sig), error = function(e) NULL)) &&
+  Sig <- lapply(seq_len(K), function(k) .sn_sigma(model_state, k))
+  mu  <- lapply(seq_len(K), function(k) .sn_mu(model_state, k))
+  # A Psi outside the positive semi-definite cone is a legitimate estimate so
+  # long as Sigma_k stays positive definite; once it does not, there is no
+  # likelihood at all. Only the Newton finish can put Psi there (EM's update
+  # is a sum of outer products), and NaN is what makes the finish's line
+  # search refuse the step, where .sn_chol()'s ridge would quietly score a
+  # point that does not exist.
+  live <- vapply(seq_len(K), function(k)
+    !(length(model_state$r_cols) &&
+        is.null(tryCatch(chol(Sig[[k]]), error = function(e) NULL)) &&
         min(eigen(model_state$parameters$psi[[k]], symmetric = TRUE,
-                  only.values = TRUE)$values) < 0) {
-      log_eps[, k] <- NaN
+                  only.values = TRUE)$values) < 0), logical(1))
+  log_eps[, !live] <- NaN
+
+  for (pat in pats) {
+    cols <- pat$cols; rows <- pat$rows
+    # A case observing nothing contributes a flat likelihood, which is what
+    # keeps it in the sample with its class probabilities equal to the
+    # marginal ones rather than dropping it.
+    if (!length(cols)) next
+    o <- length(cols)
+
+    if (is.null(model_state$xmat)) {
+      # Every case of the pattern shares each class's mean, so with U the
+      # inverse of the Cholesky factor, (y - mu)' Sigma^-1 (y - mu) is the
+      # squared length of [y, 1] [U; -mu' U]: one product over the pattern's
+      # data for every class at once, rather than a residual matrix, its
+      # transpose and a triangular solve per class.
+      blk <- list(); cst <- numeric(0); ks <- integer(0)
+      for (k in which(live)) {
+        ch <- .sn_chol(Sig[[k]][cols, cols, drop = FALSE])
+        if (is.null(ch)) { log_eps[rows, k] <- -1e10; next }
+        U   <- backsolve(ch, diag(o))
+        blk <- c(blk, list(rbind(U, -mu[[k]][cols] %*% U)))
+        cst <- c(cst, -0.5 * (o * log(2 * pi) + 2 * sum(log(diag(ch)))))
+        ks  <- c(ks, k)
+      }
+      if (!length(ks)) next
+      Z <- pat$Y1 %*% do.call(cbind, blk)
+      Q <- (Z * Z) %*% kronecker(diag(length(ks)), rep(1, o))
+      log_eps[rows, ks] <- rep(cst, each = length(rows)) - 0.5 * Q
       next
     }
 
-    for (pat in pats) {
-      cols <- pat$cols; rows <- pat$rows
-      # A case observing nothing contributes a flat likelihood, which is what
-      # keeps it in the sample with its class probabilities equal to the
-      # marginal ones rather than dropping it.
-      if (!length(cols)) next
-
-      ch <- .sn_chol(Sig[cols, cols, drop = FALSE])
+    for (k in which(live)) {
+      ch <- .sn_chol(Sig[[k]][cols, cols, drop = FALSE])
       if (is.null(ch)) { log_eps[rows, k] <- -1e10; next }
 
-      R <- .sn_resid(X, mu, rows, cols, pat$Y)
+      R <- .sn_resid(X, mu[[k]], rows, cols, pat$Y)
       z <- backsolve(ch, t(R), transpose = TRUE)          # |cols| x n_rows
       log_eps[rows, k] <- -0.5 * (length(cols) * log(2 * pi) +
                                     2 * sum(log(diag(ch))) + colSums(z^2))
@@ -1016,9 +1055,14 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
   psi   <- model_state$parameters$psi
   theta <- model_state$parameters$theta
 
+  # Without growth covariates every case of a missingness pattern shares its
+  # mean, so both passes run on each pattern's class-weighted totals
+  # (`mom`); with them, on the cases.
+  moments <- m == 0L
+  mom   <- lapply(seq_len(K), function(k) vector("list", length(pats)))
   # Posterior means of the random effects, kept for the second pass: one
   # n x q matrix per class.
-  bhat  <- lapply(seq_len(K), function(k) matrix(0, nrow(X), q))
+  bhat  <- if (!moments) lapply(seq_len(K), function(k) matrix(0, nrow(X), q))
   # Posterior variances, one q x q matrix per (class, pattern).
   vhat  <- vector("list", K)
 
@@ -1049,17 +1093,52 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
       if (is.null(ch)) next
       Sinv <- chol2inv(ch)
 
+      LP   <- L[cols, , drop = FALSE]
+      Winv <- 1 / th[cols]
+      LWL  <- crossprod(LP * Winv, LP)                 # p x p
+
+      if (moments) {
+        # Every case of the pattern shares G, V and the mean, so the pass
+        # needs the data only through its class-weighted totals: with
+        # r_i = y_i - mu the posterior mean is G r_i, sum_i w_i B_i B_i' is
+        # G C2 G', and sum_i w_i (y_i - Lambda_r B_i) is s1 - H c1 for
+        # H = Lambda_r G. One pass over the pattern's rows, not ten.
+        Yp <- pats[[ip]]$Y
+        mo <- mu[cols]
+        s1 <- as.vector(crossprod(Yp, wk))
+        S2 <- crossprod(Yp, wk * Yp)
+        c1 <- s1 - sw * mo
+        if (q) {
+          LrP <- Lr[cols, , drop = FALSE]
+          G   <- tcrossprod(psi[[k]], LrP) %*% Sinv    # q x |cols|
+          V   <- psi[[k]] - G %*% LrP %*% psi[[k]]
+          C2  <- S2 - tcrossprod(s1, mo) - tcrossprod(mo, s1) + sw * tcrossprod(mo)
+          psi_num[[k]] <- psi_num[[k]] + G %*% tcrossprod(C2, G) + sw * V
+          H   <- LrP %*% G                             # |cols| x |cols|
+          res_sum <- s1 - as.vector(H %*% c1)
+        } else {
+          V <- NULL; H <- matrix(0, length(cols), length(cols)); res_sum <- s1
+        }
+        mom[[k]][[ip]] <- list(s1 = s1, S2 = S2, H = H, mo = mo, sw = sw)
+        # Assigned only when there is one: NULL into a list slot deletes it.
+        if (q) vhat[[k]][[ip]] <- V
+        psi_den[k] <- psi_den[k] + sw
+        A_k[[k]]   <- A_k[[k]] + sw * LWL
+        rhs_k[[k]] <- rhs_k[[k]] + as.vector(crossprod(LP * Winv, res_sum))
+        next
+      }
+
       R  <- .sn_resid(X, mu, rows, cols, pats[[ip]]$Y)
 
       if (q) {
         LrP <- Lr[cols, , drop = FALSE]
-        G   <- psi[[k]] %*% t(LrP) %*% Sinv            # q x |cols|
-        B   <- R %*% t(G)                              # n_rows x q
+        G   <- tcrossprod(psi[[k]], LrP) %*% Sinv      # q x |cols|
+        B   <- tcrossprod(R, G)                        # n_rows x q
         V   <- psi[[k]] - G %*% LrP %*% psi[[k]]
         vhat[[k]][[ip]] <- V
         bhat[[k]][rows, ] <- B
         psi_num[[k]] <- psi_num[[k]] + crossprod(B, wk * B) + sw * V
-        adj <- B %*% t(LrP)                            # random part, removed
+        adj <- tcrossprod(B, LrP)                      # random part, removed
       } else {
         adj <- 0
       }
@@ -1067,9 +1146,6 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
 
       # Growth-coefficient normal equations, weighted by the inverse residual
       # variance of the occasions this pattern observes.
-      LP   <- L[cols, , drop = FALSE]
-      Winv <- 1 / th[cols]
-      LWL  <- crossprod(LP * Winv, LP)                 # p x p
       Zp   <- Z[rows, , drop = FALSE]                  # n_rows x d
       Res  <- pats[[ip]]$Y - adj
 
@@ -1117,6 +1193,32 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
       cols <- pats[[ip]]$cols; rows <- pats[[ip]]$rows
       if (!length(cols)) next
 
+      if (moments) {
+        mm <- mom[[k]][[ip]]
+        # A pattern pass 1 could not factor carries no random-effect term,
+        # as on the case-level path.
+        if (is.null(mm)) {
+          wk <- resp[rows, k]
+          E  <- .sn_resid(X, mu, rows, cols, pats[[ip]]$Y)
+          th_num[k, cols] <- th_num[k, cols] + colSums(wk * E^2)
+          th_den[k, cols] <- th_den[k, cols] + sum(wk)
+          next
+        }
+        # E_i = y_i - mu_new - H (y_i - mu_old) = P y_i + c with P = I - H,
+        # so sum_i w_i E_i^2 is the diagonal of P S2 P' + 2 (P s1) c' + sw c c'.
+        P  <- diag(length(cols)) - mm$H
+        cc <- as.vector(mm$H %*% mm$mo) - mu[cols]
+        Ps <- as.vector(P %*% mm$s1)
+        ee <- rowSums((P %*% mm$S2) * P) + 2 * Ps * cc + mm$sw * cc^2
+        V  <- if (q) vhat[[k]][[ip]]
+        corr <- if (!is.null(V)) {
+          LrP <- Lr[cols, , drop = FALSE]
+          rowSums((LrP %*% V) * LrP)
+        } else 0
+        th_num[k, cols] <- th_num[k, cols] + ee + mm$sw * corr
+        th_den[k, cols] <- th_den[k, cols] + mm$sw
+        next
+      }
       wk <- resp[rows, k]
       sw <- sum(wk)
       E  <- .sn_resid(X, mu, rows, cols, pats[[ip]]$Y)
@@ -1124,7 +1226,7 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
       corr <- 0
       if (q) {
         LrP <- Lr[cols, , drop = FALSE]
-        E   <- E - bhat[[k]][rows, , drop = FALSE] %*% t(LrP)
+        E   <- E - tcrossprod(bhat[[k]][rows, , drop = FALSE], LrP)
         V   <- vhat[[k]][[ip]]
         # The residual carries the uncertainty in the random effect as well as
         # the squared point residual: E[(y - Lambda_r u)^2] = e^2 + Lambda_r V

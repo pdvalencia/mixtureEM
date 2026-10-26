@@ -25,10 +25,10 @@
 # so column m of the score matrix is coordinate m of the packed vector. A
 # parameter the packing holds once for several places (an item or a parameter
 # equal across groups, a variance equal across classes) sums its places'
-# terms. Anything without scores here -- the growth models other than the
-# binary growth mixture, which carry few parameters and a cheap likelihood --
-# returns NULL, and the finish differences that fit as before;
-# no fit is ever part analytic, part differenced. Every family is checked
+# terms. Anything without scores here -- latent class growth (R/lcga.R),
+# which carries few parameters and a cheap likelihood -- returns NULL, and the
+# finish differences that fit as before; no fit is ever part analytic, part
+# differenced. Every family is checked
 # against central differences to 1e-5 (tests/testthat/test-qn-mixture-scores.R).
 
 # Observed-cell mask and the data with missing cells at zero.
@@ -49,6 +49,8 @@
   # in its own packed order; it is never a block of a composite model.
   if (fam == "binary_growth")
     return(list(S = .qn_bg_scores(emis, X, R), item = NA_integer_, part = "p"))
+  if (fam == "structured_normal")
+    return(list(S = .qn_sn_scores(emis, X, R), item = NA_integer_, part = "p"))
   K   <- emis$n_components
   n   <- nrow(X)
   p   <- emis$parameters
@@ -97,6 +99,94 @@
     return(list(S = S, item = item, part = rep("p", length(item))))
   }
   NULL
+}
+
+# The growth mixture (R/structured_normal.R), in .qn_pack_sn()'s order. Within
+# a class and a pattern of observed occasions O a case is normal with mean
+# mu_O and covariance Sigma_O, so with a = Sigma_O^-1 (y_O - mu_O) its
+# log-density moves by a in the mean and by (a a' - Sigma_O^-1) / 2 in
+# Sigma_O. The mean is Lambda (alpha_k + Gamma_k x_i), so a growth mean takes
+# Lambda_O' a and a regression coefficient that times x_i. Sigma is
+# Lambda_r Psi Lambda_r' + Theta: a Psi element (a, b) takes
+# [Lambda_r' (a a' - Sigma^-1) Lambda_r]_ab / 2, twice over off the diagonal
+# for the two places a symmetric element sits, times the unit the packing
+# divides it by (.qn_sn_psi_unit()); a residual variance, packed as its log
+# standard deviation, takes theta_t (a_t^2 - [Sigma^-1]_tt). The covariance is
+# factored as log_likelihood.structured_normal() factors it (.sn_chol()), so
+# the scores are those of the log-likelihood the finish evaluates.
+.qn_sn_scores <- function(ms, X, R) {
+  X  <- as.matrix(X)
+  n  <- nrow(X); K <- ms$n_components
+  L  <- ms$design; p <- ncol(L)
+  q  <- length(ms$r_cols); Lr <- L[, ms$r_cols, drop = FALSE]
+  m  <- .sn_m(ms); Z <- .sn_z(ms, n)
+  th <- .qn_sn_theta_dims(ms); nr <- length(th$rows)
+  np <- length(.qn_pack_sn(ms)$par)
+  off_th <- np - nr * length(th$cols)
+  off_psi <- K * p + if (m > 0L) (if (isTRUE(ms$gamma_equal)) 1L else K) * p * m
+             else 0L
+  S  <- matrix(0, n, np)
+
+  # Each lower-triangle slot's coordinate in the Psi block, class by class
+  # (NA where the element is fixed), and its multiplier.
+  if (q) {
+    li <- which(lower.tri(diag(q), diag = TRUE), arr.ind = TRUE)
+    nl <- nrow(li); dg <- li[, 1L] == li[, 2L]
+    fl <- ifelse(dg, 0.5, 1) * (ms$qn_psi_unit %||% .qn_sn_psi_unit(ms))[li]
+    type <- .sn_psi_type(ms)
+    sl <- if (!is.null(ms$psi_fixed)) .sn_psi_slots(ms)
+    psi_col <- function(k) {
+      if (!is.null(sl)) return(sl$id[k, ])
+      if (identical(type, "variances") && q > 1L) {
+        out <- integer(nl)
+        out[dg]  <- (li[dg, 1L] - 1L) * K + k
+        out[!dg] <- K * q + seq_len(sum(!dg))
+        return(out)
+      }
+      if (identical(type, "equal")) seq_len(nl) else (k - 1L) * nl + seq_len(nl)
+    }
+  }
+
+  for (k in seq_len(K)) {
+    Sig <- .sn_sigma(ms, k); mu <- .sn_mu(ms, k)
+    pc  <- if (q) psi_col(k)
+    tr  <- if (nr == 1L) 1L else k
+    gb  <- K * p + if (isTRUE(ms$gamma_equal)) 0L else (k - 1L) * p * m
+    for (pat in .sn_patterns(X)) {
+      cols <- pat$cols; rows <- pat$rows
+      if (!length(cols)) next
+      ch <- .sn_chol(Sig[cols, cols, drop = FALSE])
+      if (is.null(ch)) next
+      Si <- chol2inv(ch)
+      A  <- .sn_resid(X, mu, rows, cols, pat$Y) %*% Si
+      w  <- R[rows, k]
+      G  <- (w * A) %*% L[cols, , drop = FALSE]
+      S[rows, (seq_len(p) - 1L) * K + k] <- G
+      for (c in seq_len(m)) {
+        ci <- gb + (c - 1L) * p + seq_len(p)
+        S[rows, ci] <- S[rows, ci] + G * Z[rows, c + 1L]
+      }
+      if (q) {
+        Lo <- Lr[cols, , drop = FALSE]
+        C  <- A %*% Lo
+        M  <- crossprod(Lo, Si %*% Lo)
+        for (j in which(!is.na(pc))) {
+          ci <- off_psi + pc[j]
+          S[rows, ci] <- S[rows, ci] +
+            w * fl[j] * (C[, li[j, 1L]] * C[, li[j, 2L]] - M[li[j, 1L], li[j, 2L]])
+        }
+      }
+      Tt <- w * sweep(A * A, 2, diag(Si), "-") *
+        rep(ms$parameters$theta[k, cols], each = length(rows))
+      if (length(th$cols) == 1L) {
+        S[rows, off_th + tr] <- S[rows, off_th + tr] + rowSums(Tt)
+      } else {
+        ci <- off_th + (cols - 1L) * nr + tr
+        S[rows, ci] <- S[rows, ci] + Tt
+      }
+    }
+  }
+  S
 }
 
 # A sub-model of a composite model, flat or mixed (`nested`), with its items
@@ -462,6 +552,12 @@
   fam <- .step1_family(sub)
   K   <- sub$n_components
   p   <- sub$parameters
+  # The growth mixture has no measurement prior (.em_family_log_prior()).
+  if (fam == "structured_normal") {
+    np <- length(.qn_pack_sn(sub)$par)
+    return(list(g = numeric(np), h = numeric(np), item = rep(NA_integer_, np),
+                part = rep("p", np)))
+  }
   if (fam %in% c("bernoulli", "bernoulli_dif", "poisson", "gaussian_unit",
                  "gaussian_diag")) {
     E  <- switch(fam, poisson = p$rates, gaussian_unit = , gaussian_diag = p$means,

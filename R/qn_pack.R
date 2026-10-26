@@ -260,6 +260,9 @@
     nq <- q * (q + 1L) / 2L
     type <- .sn_psi_type(ms)
     U    <- .qn_sn_psi_unit(ms)
+    # The unpacked state's own residual variances move with `par`, so the unit
+    # the vector was read in travels with it for the scores (.qn_sn_scores()).
+    ms$qn_psi_unit <- U
     if (!is.null(ms$psi_fixed)) {
       sl <- .sn_psi_slots(ms)
       ms$parameters$psi <- .sn_psi_build(sl, take(sl$n), U[sl$li])

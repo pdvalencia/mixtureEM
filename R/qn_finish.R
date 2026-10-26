@@ -692,7 +692,7 @@
   # same E-step as the case log-likelihood: the finish asks for both at one
   # point, so that pass is cached, and the scores are built only when asked
   # for, not at every trial point of the line search. Central differences for
-  # the rest -- the growth models.
+  # the rest -- latent class growth.
   s0 <- .qn_mixture_scores(pr$unpack(par0), lay, X, Yp)
   if (!is.null(s0)) {
     cache <- NULL
@@ -741,6 +741,7 @@
   if (.qn_scale_collapsed(par0, res$par, lay$kind)) return(NULL)
 
   st <- pr$unpack(res$par)
+  st$mm$qn_psi_unit <- NULL
   if (.qn_sigma_collapsed(model_state$mm, st$mm)) return(NULL)
   e  <- e_step(st, X, Yp)
   # An outcome model keeps quantities its M-step derives from the estimates

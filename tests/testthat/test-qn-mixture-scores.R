@@ -182,7 +182,7 @@ test_that("structural-model scores equal central differences", {
       "distal categorical, class-specific slopes")
 })
 
-test_that("a frozen measurement block is left out, and growth models have no scores", {
+test_that("a frozen measurement block is left out", {
   # The two-step estimator's step 2 (R/stepwise.R) holds the measurement block
   # where step 1 left it; its columns are zeros and are never read.
   X <- .sc_bin(); set.seed(22)
@@ -193,10 +193,31 @@ test_that("a frozen measurement block is left out, and growth models have no sco
   expect_length(pr$fixed, length(pr$lay$idx$mm))
   S  <- .qn_mixture_scores(pr$unpack(pr$par), pr$lay, f2$data, pr$Yp)$S
   expect_true(all(S[, pr$fixed] == 0))
+})
+
+test_that("growth mixture scores equal central differences", {
+  # Every Psi packing (shared, class variances with shared covariances, free,
+  # a fixed element), residual variances by class and constant over
+  # occasions, growth-factor regressions, a class regression and missing
+  # occasions. The point off the fit moves the residual variances, which the
+  # Psi unit is read from, so it also checks the unit stays the packing's.
   set.seed(6)
-  Y <- outer(rnorm(200, rep(c(0, 3), each = 100)), 0:3 * .5, "+") +
-    matrix(rnorm(800, sd = .5), 200)
-  gm <- .sc_q(fit_gmm(Y, times = 4, n_classes = 2, n_init = 2, random_state = 1))
-  pr <- .qn_mixture_problem(gm, gm$data, NULL)
-  expect_null(.qn_mixture_scores(pr$unpack(pr$par), pr$lay, gm$data, NULL))
+  n  <- 240
+  Y  <- outer(rnorm(n, rep(c(0, 3), each = n / 2)), 0:3 * .5, "+") +
+    rnorm(n, 0, .3) * outer(rep(1, n), 0:3) + matrix(rnorm(n * 4, sd = .5), n)
+  Ym <- Y; Ym[sample(length(Ym), 60)] <- NA
+  x  <- rnorm(n); z <- rbinom(n, 1, .5)
+  fx <- data.frame(parameter = "growth_variance", item = "linear", class = 2,
+                   value = 0.05)
+  gm <- function(Y, ...) .sc_q(fit_gmm(Y, times = 4, n_classes = 2, n_init = 2,
+                                       random_state = 1, n_cores = 1, ...))
+  .sc_check(gm(Y), "growth, psi equal")
+  .sc_check(gm(Ym, psi = "free"), "growth, psi free NA")
+  .sc_check(gm(Y, psi = "variances", fix = fx), "growth, psi variances fixed")
+  .sc_check(gm(Y, residual = "constant", residual_equal = FALSE),
+            "growth, residual constant by class")
+  .sc_check(gm(Y, growth_predictors = cbind(x, z), growth_predictors_equal = FALSE),
+            "growth, regressions by class")
+  .sc_check(gm(Y, predictors = data.frame(x = x), n_steps = 1),
+            "growth, class regression")
 })
