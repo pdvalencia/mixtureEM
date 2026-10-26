@@ -39,6 +39,39 @@ test_that("one-class zero-inflated counts: Poisson over-extracts, ZIP does not",
   expect_lt(zb[1], zb[2])
 })
 
+test_that("the ZIP M-step is the per-record EM update, prior and linear inflation included", {
+  # The M-step works on each class's occasion sums. It must land where the
+  # per-record form does: the structural share z of every zero, the inflation
+  # logit fitted to z with the class weights, the rate to the counts with
+  # weights w (1 - z) plus the prior's pseudo-rows, each by glm.fit() at a
+  # far tighter stop than the package uses.
+  y <- sim_zip(300, 5, 0.6, 0.1, 0.25, 7)
+  y[sample(length(y), 60)] <- NA
+  n <- nrow(y); Tn <- ncol(y)
+  D <- mixtureEM:::.lcga_design(0:4, 1)
+  mm <- lcga_model(2, D, "zip", inflation_design = D)
+  mm <- init_params(mm, y, NULL, random_state = 3)
+  set.seed(4); R <- matrix(runif(n * 2), n, 2); R <- R / rowSums(R)
+  got <- m_step(mm, y, R)$parameters
+
+  pr <- mixtureEM:::.lcga_prior_rows(mm, mixtureEM:::.lcga_marginal(y))
+  v  <- as.vector(y); ok <- !is.na(v); DL <- D[rep(1:Tn, each = n), ]
+  ctl <- list(epsilon = 1e-14, maxit = 100)
+  for (k in 1:2) {
+    w  <- rep(R[, k], Tn)
+    pk <- plogis(as.vector(DL %*% mm$parameters$inflation[k, ]))
+    mk <- exp(as.vector(DL %*% mm$parameters$coefs[k, ]))
+    z  <- ifelse(ok & v == 0, pk / (pk + (1 - pk) * exp(-mk)), 0)
+    gi <- suppressWarnings(glm.fit(DL[ok, ], z[ok], weights = w[ok],
+                                   family = binomial(), control = ctl))$coefficients
+    gc <- suppressWarnings(glm.fit(rbind(DL[ok, ], pr$D), c(v[ok], pr$y),
+                                   weights = c((w * (1 - z))[ok], pr$w),
+                                   family = poisson(), control = ctl))$coefficients
+    expect_equal(got$inflation[k, ], unname(gi), tolerance = 1e-9)
+    expect_equal(got$coefs[k, ], unname(gc), tolerance = 1e-9)
+  }
+})
+
 test_that("a ZIP growth fit recovers its classes and reports the inflation", {
   y <- rbind(sim_zip(300, 5, 1.2, 0.1, 0.2, 3), sim_zip(300, 5, -0.5, 0.2, 0.6, 4))
   f <- fit_lcga(y, times = 5, n_classes = 2, family = "zip", n_init = 10,

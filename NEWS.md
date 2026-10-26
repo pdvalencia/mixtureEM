@@ -107,6 +107,17 @@ with the same numbers of replicated starts. These two families keep plain
 EM: squared extrapolation reached the same maxima but replicated fewer
 starts where a class sits near probability 0 or 1.
 
+`fit_lcga(family = "zip")` is updated the same way. The share of each
+zero that is structural depends only on the class and the occasion, so
+both of a class's regressions, the event rate and the logit of a
+structural zero, are fitted to its weight, weighted count and weight on
+zeros at each occasion. On 30,000 cases a 25-start three-class model went
+from 287 to 13 seconds, and on 1,500 cases with weakly separated classes
+from 366 to 19 seconds. On simulated sets with weak separation, a 5%
+class, a class with almost no structural zeros, dropout, four classes and
+unequal spacing, log-likelihoods agree with the previous fit to 1e-10 and
+estimates to 2e-6, with the same numbers of replicated starts.
+
 ## Growth mixture models for a binary outcome
 
 `fit_gmm(family = "binomial")` fits a growth mixture model to a 0/1 outcome

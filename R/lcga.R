@@ -240,95 +240,47 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
   fam <- model_state$fam
   if (fam$name == "gaussian")
     return(.lcga_gaussian_m_step(model_state, X, resp, weights))
-  if (fam$name %in% c("binomial", "poisson"))
+  if (fam$name %in% c("binomial", "poisson", "zip"))
     return(.lcga_count_m_step(model_state, X, resp, weights))
-  lng <- .lcga_long(model_state, X)
-
-  cen   <- .lcga_marginal(X, weights)
-  prior <- .lcga_prior_rows(model_state, cen)
-  a_var <- if (fam$name == "gaussian")
-    .bayes_alpha(model_state, "variances") / K else 0
-
+  # What is left is the negative binomial: ECM. Each class's rate at the
+  # current alpha, then alpha at the new rates once every class has moved. The
+  # prior rows are Poisson rows (alpha 0), so the count prior is the Poisson
+  # family's.
+  lng   <- .lcga_long(model_state, X)
+  prior <- .lcga_prior_rows(model_state, .lcga_marginal(X, weights))
   y_obs <- replace(lng$y, !lng$observed, 0)
-
-  coefs      <- model_state$parameters$coefs
-  dispersion <- model_state$parameters$dispersion
-  infl       <- model_state$parameters$inflation
-  od         <- model_state$parameters$overdispersion
-  if (isTRUE(fam$has_inflation)) {
-    Dz <- model_state$inflation_design[rep(seq_len(lng$Tn), each = lng$n), ,
-                                       drop = FALSE]
-    zero <- lng$observed & y_obs == 0
-    logit_fam <- .wglm_family("binomial")
-  }
+  coefs <- model_state$parameters$coefs
+  od    <- model_state$parameters$overdispersion
 
   for (k in seq_len(K)) {
     w_k <- rep(resp[, k], lng$Tn)
     w_k[!lng$observed] <- 0     # FIML: a missing occasion informs nothing
-
-    # Zero inflation: an inner E-step splits each zero into its chance of being
-    # structural, z, given the current parameters; the rate is then fitted on
-    # the share 1 - z of each record that is Poisson, and the inflation logit
-    # on z itself. Both are exact maximisations of the complete-data
-    # likelihood, so this is still EM.
-    w_rate <- w_k
-    if (isTRUE(fam$has_inflation)) {
-      pi_k <- stats::plogis(as.vector(Dz %*% infl[k, ]))
-      mu_k <- exp(as.vector(lng$D %*% coefs[k, ]))
-      z <- numeric(length(w_k))
-      z[zero] <- pi_k[zero] / (pi_k[zero] + (1 - pi_k[zero]) * exp(-mu_k[zero]))
-      w_rate <- w_k * (1 - z)
-      infl[k, ] <- .wglm_fit(Dz, z, w_k, logit_fam, start = infl[k, ])$coefficients
-    }
-
-    # Negative binomial: ECM. The rate at the current alpha here, then alpha
-    # at the new rates once every class has moved, below. The prior rows are
-    # Poisson rows (alpha 0), so the count prior is the Poisson family's.
-    if (isTRUE(fam$has_overdispersion)) {
-      coefs[k, ] <- .nb_rate_fit(D     = rbind(lng$D, prior$D),
-                                 y     = c(y_obs, prior$y),
-                                 w     = c(w_k,   prior$w),
-                                 alpha = c(rep(od[k, ], each = lng$n),
-                                           rep(0, length(prior$y))),
-                                 start = coefs[k, ])
-      next
-    }
-
-    fit <- .wglm_fit(D     = rbind(lng$D, prior$D),
-                     y     = c(y_obs,    prior$y),
-                     w     = c(w_rate,   prior$w),
-                     fam   = fam,
-                     start = coefs[k, ])
-    coefs[k, ]    <- fit$coefficients
-    dispersion[k] <- fit$dispersion
-    if (a_var > 0) {
-      mu  <- as.vector(lng$D %*% fit$coefficients)
-      rss <- sum(w_k * (y_obs - mu)^2)
-      dispersion[k] <- max((rss + a_var * cen$s2) / (sum(w_k) + a_var), 1e-6)
-    }
+    coefs[k, ] <- .nb_rate_fit(D     = rbind(lng$D, prior$D),
+                               y     = c(y_obs, prior$y),
+                               w     = c(w_k,   prior$w),
+                               alpha = c(rep(od[k, ], each = lng$n),
+                                         rep(0, length(prior$y))),
+                               start = coefs[k, ])
   }
 
   # One alpha per occasion pools that occasion's records over the classes; one
   # per class pools the class's records over the occasions.
-  if (isTRUE(fam$has_overdispersion)) {
-    occ <- rep(seq_len(lng$Tn), each = lng$n)
-    MU  <- exp(lng$D %*% t(coefs))                        # (n T) x K
-    W   <- resp[rep(seq_len(lng$n), lng$Tn), , drop = FALSE] * lng$observed
-    if (identical(model_state$dispersion_structure, "class")) {
-      for (k in seq_len(K))
-        od[k, ] <- .nb_alpha_fit(y_obs, MU[, k], W[, k])
-    } else {
-      for (t in seq_len(lng$Tn)) {
-        r <- occ == t
-        od[, t] <- .nb_alpha_fit(rep(y_obs[r], K), as.vector(MU[r, ]),
-                                 as.vector(W[r, ]))
-      }
+  occ <- rep(seq_len(lng$Tn), each = lng$n)
+  MU  <- exp(lng$D %*% t(coefs))                          # (n T) x K
+  W   <- resp[rep(seq_len(lng$n), lng$Tn), , drop = FALSE] * lng$observed
+  if (identical(model_state$dispersion_structure, "class")) {
+    for (k in seq_len(K))
+      od[k, ] <- .nb_alpha_fit(y_obs, MU[, k], W[, k])
+  } else {
+    for (t in seq_len(lng$Tn)) {
+      r <- occ == t
+      od[, t] <- .nb_alpha_fit(rep(y_obs[r], K), as.vector(MU[r, ]),
+                               as.vector(W[r, ]))
     }
   }
 
   model_state$parameters$coefs      <- coefs
-  model_state$parameters$dispersion <- dispersion
-  model_state$parameters$inflation  <- infl
+  model_state$parameters$dispersion <- rep(1, K)
   model_state$parameters$overdispersion <- od
   model_state
 }
@@ -382,14 +334,21 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
   model_state
 }
 
-# The binomial and Poisson M-step of m_step.lcga(), on the occasion sums for
-# the reason the Gaussian one is: a class's weighted log-likelihood depends on
-# the data only through its total weight W and weighted response sum S at each
-# occasion, two T x K cross-products for all the classes at once. The prior's
-# pseudo-rows (.lcga_prior_rows()) sit on the observed occasions with response
-# m, so they add their weight to W and weight x m to S there. Each class is
-# then solved by Newton on T rows (.lcga_count_newton()), with .wglm_fit() on
-# the same rows when Newton cannot proceed.
+# The binomial, Poisson and zero-inflated Poisson M-step of m_step.lcga(), on
+# the occasion sums for the reason the Gaussian one is: a class's weighted
+# log-likelihood depends on the data only through its total weight W and
+# weighted response sum S at each occasion, two T x K cross-products for all
+# the classes at once. The prior's pseudo-rows (.lcga_prior_rows()) sit on the
+# observed occasions with response m, so they add their weight to W and
+# weight x m to S there. Each class is then solved by Newton on T rows
+# (.lcga_count_newton()), with .wglm_fit() on the same rows when Newton cannot
+# proceed.
+#
+# Zero inflation keeps the inner E-step of the per-record form: the share z
+# of a zero that is structural depends only on its class and occasion, so with
+# Z0 the weight on observed zeros at each occasion the rate is fitted on
+# weight W - z Z0 (a count's events are all Poisson) and the inflation logit is
+# a binomial with z Z0 successes in W trials, on the inflation design's rows.
 .lcga_count_m_step <- function(model_state, X, resp, weights = NULL) {
   K   <- model_state$n_components
   fam <- model_state$fam
@@ -398,27 +357,54 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
   prior <- .lcga_prior_rows(model_state, cen)
 
   obs <- !is.na(X)
+  X0  <- replace(X, !obs, 0)
   W   <- crossprod(obs * 1, resp)                   # T x K weight by occasion
-  S   <- crossprod(replace(X, !obs, 0), resp)       # T x K weighted sums
+  S   <- crossprod(X0, resp)                        # T x K weighted sums
+  Wp  <- matrix(0, nrow(W), K)                      # the prior's share of W
   if (length(prior$w)) {
     occ <- which(cen$occ)
-    W[occ, ] <- W[occ, ] + prior$w
+    Wp[occ, ] <- prior$w
     S[occ, ] <- S[occ, ] + prior$w * prior$y
   }
 
   coefs <- model_state$parameters$coefs
+  infl  <- model_state$parameters$inflation
+  zip   <- isTRUE(fam$has_inflation)
+  if (zip) {
+    Z0 <- crossprod((obs & X == 0) * 1, resp)       # T x K weight on zeros
+    Z0[is.na(Z0)] <- 0
+    Dz <- model_state$inflation_design
+  }
   for (k in seq_len(K)) {
-    if (!any(is.finite(W[, k]) & W[, k] > 0)) next
-    beta <- .lcga_count_newton(D, S[, k], W[, k], fam$name, coefs[k, ])
+    Wk <- W[, k]
+    if (!any(is.finite(Wk) & Wk > 0)) next
+    if (zip) {
+      pi_k <- stats::plogis(as.vector(Dz %*% infl[k, ]))
+      mu_k <- exp(as.vector(D %*% coefs[k, ]))
+      z    <- pi_k / (pi_k + (1 - pi_k) * exp(-mu_k))
+      zk   <- z * Z0[, k]
+      g    <- .lcga_count_newton(Dz, zk, Wk, "binomial", infl[k, ])
+      if (is.null(g)) {
+        ok <- Wk > 0
+        g  <- .wglm_fit(Dz[ok, , drop = FALSE], zk[ok] / Wk[ok], Wk[ok],
+                        .wglm_family("binomial"), start = infl[k, ])$coefficients
+      }
+      infl[k, ] <- g
+      Wk <- Wk - zk
+    }
+    Wk <- Wk + Wp[, k]
+    beta <- .lcga_count_newton(D, S[, k], Wk, if (zip) "poisson" else fam$name,
+                               coefs[k, ])
     if (is.null(beta)) {
-      ok   <- W[, k] > 0
-      beta <- .wglm_fit(D[ok, , drop = FALSE], S[ok, k] / W[ok, k], W[ok, k],
+      ok   <- Wk > 0
+      beta <- .wglm_fit(D[ok, , drop = FALSE], S[ok, k] / Wk[ok], Wk[ok],
                         fam, start = coefs[k, ])$coefficients
     }
     coefs[k, ] <- beta
   }
   model_state$parameters$coefs      <- coefs
   model_state$parameters$dispersion <- rep(1, K)
+  model_state$parameters$inflation  <- infl
   model_state
 }
 
@@ -452,25 +438,34 @@ log_likelihood.lcga <- function(model_state, X, ...) {
     return(log_eps)
   }
   todo <- seq_len(K)
-  # Binomial and Poisson the same way: a case's sum over its observed
-  # occasions is two matrix products for all the classes, y'log mu +
-  # (o - y)'log(1 - mu), or y'log mu - o'mu less the case's own log y! terms.
+  # Binomial, Poisson and zero-inflated Poisson the same way: a case's sum
+  # over its observed occasions is a few matrix products for all the classes,
+  # y'log mu + (o - y)'log(1 - mu), or y'log mu - o'mu less the case's own
+  # log y! terms (the zero-inflated split below).
   # The binomial keeps its two terms apart rather than writing y'(log mu -
   # log(1 - mu)) + o'log(1 - mu): near mu = 1 that difference is a large
   # number minus itself, and the rounding it leaves is what the numerical
   # Hessian of the standard errors then differentiates. A class with a term
   # that is not finite takes the cell-by-cell path below, whose guard
   # handles it.
-  if (fam$name %in% c("binomial", "poisson")) {
+  if (fam$name %in% c("binomial", "poisson", "zip")) {
     obs <- !is.na(X)
     X0  <- replace(X, !obs, 0)
     mu  <- fam$linkinv(eta)
     if (fam$name == "binomial") {
       mu <- pmin(pmax(mu, 1e-15), 1 - 1e-15)
       log_eps <- X0 %*% log(mu) + (obs - X0) %*% log1p(-mu)
-    } else {
+    } else if (fam$name == "poisson") {
       mu <- pmax(mu, 1e-15)
       log_eps <- X0 %*% log(mu) - obs %*% mu - rowSums(lgamma(X0 + 1))
+    } else {
+      # Zero-inflated: a positive count is log(1 - pi) plus its Poisson term,
+      # a zero log(pi + (1 - pi) e^-mu), with pi held off 0 and 1 as below.
+      mu  <- pmax(mu, 1e-15)
+      pz  <- t(pmin(pmax(.lcga_inflation(model_state), 1e-15), 1 - 1e-15))
+      pos <- obs & X0 > 0
+      log_eps <- X0 %*% log(mu) + pos %*% (log1p(-pz) - mu) -
+        rowSums(lgamma(X0 + 1)) + (obs & X0 == 0) %*% log(pz + (1 - pz) * exp(-mu))
     }
     todo <- which(colSums(!is.finite(log_eps)) > 0)
     if (!length(todo)) return(unname(log_eps))
