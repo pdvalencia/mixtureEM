@@ -75,6 +75,12 @@ lcga_model <- function(n_components, design, family = "binomial",
     # Which cells of the K x T overdispersion matrix share one free value.
     dispersion_structure = if (identical(family, "negbin"))
       match.arg(dispersion_structure, c("occasion", "class")),
+    # The Gaussian family's EM is accelerated (.em_squarem(), R/em_core.R) when
+    # nothing but the measurement model is estimated: a start that wanders to
+    # a poor maximum took hundreds of iterations to get there. On simulated
+    # stress sets it reaches plain EM's maximum and parameters (to 1e-8); a
+    # class regression was not among them, so that model keeps plain EM.
+    em_squarem   = if (identical(family, "gaussian")) "unconditional",
     parameters   = list()
     # No `em_tol` here: refine_lbfgs() does not cover this emission, and
     # fit_single_init() gives every unpolished emission the tighter stopping

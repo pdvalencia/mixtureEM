@@ -176,7 +176,21 @@ structured_normal_model <- function(n_components, design,
     # -3221.290 against the -3223.379 a staged search settles for.
     em_stage1              = if (identical(psi, "equal") &&
                                  isTRUE(residual_equal))
-      list(iter = 20L, frac = 0.2, min_keep = 4L) else NULL
+      list(iter = 20L, frac = 0.2, min_keep = 4L) else NULL,
+    # EM crawls along the growth covariance here, 200 to 1,300 iterations per
+    # surviving start at n = 30,000, so it is accelerated (.em_squarem(),
+    # R/em_core.R) for the model where that was checked on simulated stress
+    # sets (weak separation, a 5% class, a slope variance at the boundary,
+    # dropout, four classes, unequal spacing): the same maximum and
+    # parameters as plain EM to 1e-8, and as many replicated starts or more.
+    # Only that model -- a random intercept and slope, Psi and Theta shared
+    # by the classes, Theta by occasion, no growth covariates and no class
+    # regression; the class-varying model is the ridge case above.
+    em_squarem             = if (identical(random_effects, "intercept_slope") &&
+                                 identical(psi, "equal") && is.null(psi_fixed) &&
+                                 isTRUE(residual_equal) &&
+                                 identical(residual, "occasion") &&
+                                 is.null(growth_covariates)) "unconditional"
   )
   class(state) <- c("structured_normal", "emission")
   state

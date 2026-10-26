@@ -76,6 +76,21 @@ are identical; the LCGA's agree to rounding (log-likelihood to 1e-11,
 estimates to 1e-12, standard errors to the seventh significant digit), with
 the same numbers of replicated starts.
 
+The Gaussian LCGA, and the growth mixture model with a random intercept and
+slope whose covariance and occasion-specific residual variances are shared
+by the classes, are now estimated by EM accelerated by squared
+extrapolation (SQUAREM; Varadhan & Roland, 2008), as the binary growth
+mixture already was, when no class regression or growth covariate is
+estimated with them. A start that crept along the growth covariance for
+hundreds of EM iterations now gets there in a fraction of them. On
+simulated data with weakly separated classes, a 5% class, a slope variance
+at its boundary, dropout, four classes and unequal spacing, the reported
+maximum and every estimate are those of plain EM (to 1e-8), and the number
+of starts that replicate it is the same or higher. On 30,000 cases the
+LCGA went from 14 to 4.4 seconds and the growth mixture model from 17.4 to
+9.2 seconds. Other growth structures, and these two with covariates, run
+plain EM as before.
+
 ## Growth mixture models for a binary outcome
 
 `fit_gmm(family = "binomial")` fits a growth mixture model to a 0/1 outcome

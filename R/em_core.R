@@ -1355,8 +1355,13 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
   spike_at <- .em_spike_check(model_state, X)
 
   # An emission whose EM crawls may ask for it to be accelerated
-  # (.em_squarem() below); every other emission runs the plain loop.
-  sq <- if (isTRUE(model_state$mm$em_squarem))
+  # (.em_squarem() below); every other emission runs the plain loop. Asked
+  # as "unconditional", only while no structural model is being estimated
+  # alongside it.
+  sq_on <- isTRUE(model_state$mm$em_squarem) ||
+    (identical(model_state$mm$em_squarem, "unconditional") &&
+       (is.null(Y) || is.null(model_state$sm)))
+  sq <- if (sq_on)
     .em_squarem(model_state, X, Y, max_iter, abs_tol, rel_tol,
                 function(st) {
                   v <- sum(st$sample_weights * e_step(st, X, Y)$log_prob_norm)
@@ -1438,7 +1443,8 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
 }
 
 # EM accelerated by squared extrapolation (SQUAREM; Varadhan & Roland, 2008),
-# for an emission that asks for it by carrying `em_squarem = TRUE`. Two EM
+# for an emission that asks for it by carrying `em_squarem = TRUE` (or
+# "unconditional": only when no structural model is estimated). Two EM
 # steps from theta_0 give r = theta_1 - theta_0 and v = (theta_2 - theta_1) - r;
 # the step length alpha = -|r| / |v| (at most -1) extrapolates along the path
 # the two steps trace, to theta_0 - 2 alpha r + alpha^2 v, and one more EM step
