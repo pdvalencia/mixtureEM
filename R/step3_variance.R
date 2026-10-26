@@ -733,7 +733,13 @@ NULL
   # its information is that sum's curvature. The prior's centre (the item
   # marginals) is a property of the data, held fixed while theta1 moves. A
   # model the prior cannot be priced for (NA) keeps the likelihood alone.
-  ll <- function(v) sum(w * .step1_ll_case(model_state, X, v))
+  # The sum runs over the distinct response patterns where the step-one model
+  # is a plain categorical one (.step1_patterns()): the same sum, grouped, for
+  # the 2p^2 evaluations the Hessian needs. The prior keeps the full data.
+  cp <- .step1_patterns(model_state, X, w)
+  Xh <- if (is.null(cp)) X else cp$X
+  wh <- if (is.null(cp)) w else cp$w
+  ll <- function(v) sum(wh * .step1_ll_case(model_state, Xh, v))
   m0 <- tryCatch(.em_prior_marginals(model_state, X), error = function(e) NULL)
   lp <- function(v) tryCatch(
     .em_log_prior(.step1_unpack(model_state, v), X, marginals = m0),
@@ -758,6 +764,23 @@ NULL
     return(list(V = outer_v(), method = "outer", fallback = TRUE))
   }
   list(V = V1, method = "hessian", fallback = FALSE)
+}
+
+# The step-one data as distinct response patterns with their summed weights,
+# where the measurement model is one of the plain categorical families (whose
+# case log-likelihood is a function of the response pattern alone, as in
+# .collapse_patterns(), R/em_core.R) and fewer than half the rows are
+# distinct. NULL otherwise, and the caller keeps the rows. On 30,000 binary
+# cases with 64 patterns the step-three Hessian took 4.5 of a covariate step
+# three's 6.4 seconds over the rows.
+.step1_patterns <- function(model_state, X, w) {
+  categorical <- c("bernoulli", "bernoulli_nan", "multinoulli",
+                   "multinoulli_nan", "ordinal", "ordinal_nan")
+  if (!class(model_state$mm)[1] %in% categorical || length(w) != nrow(X))
+    return(NULL)
+  pat <- .pattern_index(X)
+  if (sum(pat$rep_row) > nrow(X) / 2) return(NULL)
+  list(X = X[pat$rep_row, , drop = FALSE], w = as.vector(rowsum(w, pat$idx)))
 }
 
 # Symmetric numerical Hessian of a scalar function of the step-one parameter

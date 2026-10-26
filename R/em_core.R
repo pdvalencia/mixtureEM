@@ -150,11 +150,15 @@ e_step <- function(model_state, X, Y = NULL) {
   # the response pattern, and m_step.blocks() hands the case weights to each
   # occasion's M-step (stacked, for the items held equal over time). It
   # collapses when its occasions do; a mixed-indicator occasion does not.
+  # The multiple-group measurement model (R/group_blocks.R) is the same
+  # emission with groups for occasions: a case's other groups' blocks are
+  # structurally missing, so its pattern carries its group, and its
+  # likelihood is a function of that pattern alone.
   categorical <- c("bernoulli", "bernoulli_nan", "multinoulli",
                    "multinoulli_nan", "ordinal", "ordinal_nan")
   lcga_discrete <- inherits(model_state$mm, "lcga") &&
     !identical(model_state$mm$family, "gaussian")
-  rm_discrete <- identical(class(model_state$mm)[1], "time_blocks") &&
+  rm_discrete <- class(model_state$mm)[1] %in% c("time_blocks", "group_blocks") &&
     length(model_state$mm$models) > 0L &&
     all(vapply(model_state$mm$models, function(m) class(m)[1] %in% categorical,
                logical(1)))
@@ -440,13 +444,17 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
   else colSums(sweep(M, 1, wt, "*"), na.rm = TRUE) / sum(wt)
 }
 # Per column, over that column's observed cells only -- what the _nan M-steps
-# do, and what a column with missing cells needs.
+# do, and what a column with missing cells needs. Kept for the last data and
+# weights asked about, as .marginal_var() is (R/gaussian.R).
 .em_col_marginal_valid <- function(M, wt) {
-  vapply(seq_len(ncol(M)), function(j) {
-    ok <- !is.na(M[, j])
-    if (!any(ok)) return(0)
-    if (is.null(wt)) mean(M[ok, j]) else sum(M[ok, j] * wt[ok]) / sum(wt[ok])
-  }, numeric(1))
+  build <- function()
+    vapply(seq_len(ncol(M)), function(j) {
+      ok <- !is.na(M[, j])
+      if (!any(ok)) return(0)
+      if (is.null(wt)) mean(M[ok, j]) else sum(M[ok, j] * wt[ok]) / sum(wt[ok])
+    }, numeric(1))
+  if (length(M) > 1e7) build() else
+    .one_hot_memo("col_marginal_valid", M, wt, NULL, build)
 }
 # A one-hot expansion's marginal, item by item, over the rows that observed
 # that item. Shared by the multinoulli and ordinal arms, which differ only in

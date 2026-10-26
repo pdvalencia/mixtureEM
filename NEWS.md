@@ -218,6 +218,45 @@ unchanged. Fitting on several cores also hands the starts to the workers one
 at a time instead of in bundles of three or four, so a worker that draws two
 slow starts no longer holds up the rest; no number changes.
 
+## Faster latent transition models with covariates, multiple-group and three-step models
+
+The regressions of a latent transition model's initial status and
+transitions on covariates (`predictors_initial`, `predictors_transition`)
+are now maximised by Newton-Raphson from the previous iteration's
+coefficients, with the quasi-Newton fit they used before as the fallback
+where Newton cannot proceed, so each M-step ends at its maximum instead of
+near it. The case-averaged status and transition tables these models report
+are computed once, at the end of EM, instead of at every iteration, and the
+Newton-type finish and the standard errors no longer rebuild them at every
+point they evaluate; a fit without priors no longer evaluates its zero
+prior there. On 30,000 cases with one covariate, a 25-start model with
+three statuses over two occasions went from 413 to 68 seconds. On seven
+simulated sets the log-likelihood is unchanged to 2e-12, the estimated
+probabilities to 6e-11 and the numbers of replicated starts are the same or
+higher. Such a model's statuses keep the labels their regressions give
+them, so the same solution can still be reported under a different
+labelling from one search to another.
+
+A multiple-group latent class model whose measurement differs by group
+(`group_effects = "both"` or `"measurement"`) with binary, categorical or
+ordinal items is now estimated on the table of distinct response patterns,
+a case's group being part of its pattern. On 30,000 cases a 25-start
+three-class configural model went from 115 to 9 seconds. Estimates,
+log-likelihoods and numbers of replicated starts are unchanged.
+
+The step-one variance behind the corrected standard errors of three-step
+and two-step models now sums the step-one log-likelihood over the distinct
+response patterns when the items are binary, categorical or ordinal.
+Estimates are unchanged and standard errors move by at most a few parts in
+a million, the rounding of the numerical derivative. On 30,000 cases the
+third step with a covariate went from 6.5 to 2.5 seconds.
+
+The items' observed means and variances, which centre the default priors,
+are now computed once per data set instead of at every EM iteration of a
+model with missing cells or mixed item types. On 30,000 cases with three
+binary and three continuous items, a 25-start three-class fit went from 11
+to 9 seconds. No number changes.
+
 ## `predict()` scores new cases from multiple-group models
 
 `predict()` now classifies new cases from a `fit_mixture(group = )` fit:

@@ -156,3 +156,57 @@ test_that("a collapsed DIF fit hands back the full sample's covariate index", {
                sum(e_step(fit, d$X, as.matrix(d$d))$log_prob_norm),
                tolerance = 1e-8)
 })
+
+# The multiple-group measurement model (R/group_blocks.R) is a block emission
+# whose other groups' blocks are structurally missing, so a case's pattern
+# carries its group and the same economy applies.
+test_that("a multiple-group measurement model collapses, and the table gives the full log-likelihood", {
+  set.seed(21)
+  n <- 900
+  g <- sample(c("a", "b"), n, TRUE)
+  s <- sample(2L, n, TRUE)
+  p <- ifelse(s == 1L, 0.2, 0.8) + ifelse(g == "b", 0.1, 0) * (2L * (s == 1L) - 1L)
+  X <- matrix(stats::rbinom(n * 5, 1L, p), n, 5)
+  colnames(X) <- paste0("i", 1:5)
+  fit <- suppressMessages(suppressWarnings(fit_mixture(
+    X, n_classes = 2, measurement = "binary", group = g, group_effects = "both",
+    n_steps = 1, n_init = 2, random_state = 5, standard_errors = FALSE)))
+  Xg <- .pad_group_blocks(X, factor(g))
+  Y  <- .lta_group_design(g, n)$design
+
+  coll <- .collapse_patterns(fit, Xg, Y)
+  expect_false(is.null(coll))
+  expect_lt(nrow(coll$X), n / 2)
+  expect_equal(sum(coll$w), n)
+
+  st_c <- fit
+  st_c$sample_weights <- coll$w
+  expect_equal(sum(coll$w * e_step(st_c, coll$X, coll$Y)$log_prob_norm),
+               sum(e_step(fit, Xg, Y)$log_prob_norm))
+  # And the fit reports the log-likelihood its parameters give over all n.
+  expect_equal(fit$metrics$ll, sum(e_step(fit, Xg, Y)$log_prob_norm),
+               tolerance = 1e-8)
+})
+
+# The step-three variance differentiates the step-one log-likelihood twice;
+# for a categorical step one it sums over the response patterns instead of
+# the cases (.step1_patterns(), R/step3_variance.R).
+test_that("the step-one Hessian on the pattern table is the rows' Hessian", {
+  d   <- .cc_sim(n = 1200)
+  fit <- suppressMessages(suppressWarnings(fit_mixture(
+    d$X, n_classes = 2, measurement = "binary", n_init = 2, random_state = 3)))
+  th <- .step1_pack(fit)
+  w  <- rep(1, nrow(d$X))
+  cp <- .step1_patterns(fit, d$X, w)
+  expect_false(is.null(cp))
+  expect_lt(nrow(cp$X), nrow(d$X) / 2)
+  H_rows <- .step1_fd_hessian(function(v) sum(w * .step1_ll_case(fit, d$X, v)), th)
+  H_pat  <- .step1_fd_hessian(function(v) sum(cp$w * .step1_ll_case(fit, cp$X, v)), th)
+  expect_equal(H_pat, H_rows, tolerance = 1e-6)
+
+  # Continuous indicators keep their rows.
+  Y <- matrix(stats::rnorm(400), 200, 2)
+  gfit <- suppressMessages(suppressWarnings(fit_mixture(
+    Y, n_classes = 2, measurement = "continuous", n_init = 1, random_state = 1)))
+  expect_null(.step1_patterns(gfit, Y, rep(1, 200)))
+})

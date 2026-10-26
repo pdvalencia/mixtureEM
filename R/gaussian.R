@@ -180,19 +180,28 @@ init_params.gaussian_diag <- function(model_state, X, resp, random_state = NULL,
   out
 }
 
+# The items' observed variances, a function of the data and the weights
+# alone, kept for the last pair asked about (.one_hot_memo(),
+# R/categorical.R): a mixed-indicator model's prior asks for them at every
+# EM iteration, 12% of a fit on 30,000 cases. Data above 1e7 cells are not
+# kept, as .sn_patterns() does not keep them (R/structured_normal.R).
 .marginal_var <- function(X, weights = NULL) {
-  w <- if (is.null(weights)) rep(1, nrow(X)) else weights
-  vapply(seq_len(ncol(X)), function(j) {
-    ok <- !is.na(X[, j])
-    if (!any(ok)) return(1)
-    wj <- w[ok]
-    sw <- sum(wj)
-    if (!is.finite(sw) || sw <= 0) return(1)
-    xj <- X[ok, j]
-    mu <- sum(wj * xj) / sw
-    v  <- sum(wj * (xj - mu)^2) / sw
-    if (!is.finite(v) || v <= 0) 1 else v
-  }, numeric(1))
+  build <- function() {
+    w <- if (is.null(weights)) rep(1, nrow(X)) else weights
+    vapply(seq_len(ncol(X)), function(j) {
+      ok <- !is.na(X[, j])
+      if (!any(ok)) return(1)
+      wj <- w[ok]
+      sw <- sum(wj)
+      if (!is.finite(sw) || sw <= 0) return(1)
+      xj <- X[ok, j]
+      mu <- sum(wj * xj) / sw
+      v  <- sum(wj * (xj - mu)^2) / sw
+      if (!is.finite(v) || v <= 0) 1 else v
+    }, numeric(1))
+  }
+  if (length(X) > 1e7) build() else
+    .one_hot_memo("marginal_var", X, weights, NULL, build)
 }
 
 #' @exportS3Method
