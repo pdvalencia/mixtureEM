@@ -118,6 +118,14 @@ class, a class with almost no structural zeros, dropout, four classes and
 unequal spacing, log-likelihoods agree with the previous fit to 1e-10 and
 estimates to 2e-6, with the same numbers of replicated starts.
 
+`fit_lcga(family = "negbin")` fits each class's event rate the same way:
+its kernel is linear in the counts, and every case at an occasion shares
+that occasion's overdispersion, so the rate needs only each occasion's
+weight and weighted mean. The overdispersion itself is fitted as before.
+On 30,000 cases a 25-start three-class model went from 113 to 37 seconds
+and on 1,000 cases from 21 to 10 seconds, with identical
+log-likelihoods, class sizes and numbers of replicated starts.
+
 ## Growth mixture models for a binary outcome
 
 `fit_gmm(family = "binomial")` fits a growth mixture model to a 0/1 outcome

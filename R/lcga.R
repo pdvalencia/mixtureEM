@@ -244,24 +244,27 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
     return(.lcga_count_m_step(model_state, X, resp, weights))
   # What is left is the negative binomial: ECM. Each class's rate at the
   # current alpha, then alpha at the new rates once every class has moved. The
-  # prior rows are Poisson rows (alpha 0), so the count prior is the Poisson
-  # family's.
+  # rate's kernel y eta - (y + 1/alpha) log(1 + alpha mu) is linear in the
+  # response, and every record at an occasion shares that occasion's alpha
+  # and design row, so the rate is fitted to each occasion's total weight and
+  # weighted mean, as the other families' are. The prior rows are Poisson
+  # rows (alpha 0), so the count prior is the Poisson family's.
   lng   <- .lcga_long(model_state, X)
   prior <- .lcga_prior_rows(model_state, .lcga_marginal(X, weights))
   y_obs <- replace(lng$y, !lng$observed, 0)
   coefs <- model_state$parameters$coefs
   od    <- model_state$parameters$overdispersion
+  obs   <- !is.na(X)
+  W     <- crossprod(obs * 1, resp)                 # T x K weight by occasion
+  S     <- crossprod(replace(X, !obs, 0), resp)     # T x K weighted sums
+  D     <- model_state$design
 
-  for (k in seq_len(K)) {
-    w_k <- rep(resp[, k], lng$Tn)
-    w_k[!lng$observed] <- 0     # FIML: a missing occasion informs nothing
-    coefs[k, ] <- .nb_rate_fit(D     = rbind(lng$D, prior$D),
-                               y     = c(y_obs, prior$y),
-                               w     = c(w_k,   prior$w),
-                               alpha = c(rep(od[k, ], each = lng$n),
-                                         rep(0, length(prior$y))),
+  for (k in seq_len(K))
+    coefs[k, ] <- .nb_rate_fit(D     = rbind(D, prior$D),
+                               y     = c(S[, k] / W[, k], prior$y),
+                               w     = c(W[, k], prior$w),
+                               alpha = c(od[k, ], rep(0, length(prior$y))),
                                start = coefs[k, ])
-  }
 
   # One alpha per occasion pools that occasion's records over the classes; one
   # per class pools the class's records over the occasions.
