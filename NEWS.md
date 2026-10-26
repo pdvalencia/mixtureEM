@@ -91,6 +91,22 @@ LCGA went from 14 to 4.4 seconds and the growth mixture model from 17.4 to
 9.2 seconds. Other growth structures, and these two with covariates, run
 plain EM as before.
 
+`fit_lcga()` with a binary or Poisson outcome now updates each class's
+trajectory the same way, from the class's total weight and weighted
+number of events at each occasion, by Newton-Raphson from the previous
+iteration's coefficients instead of a call to `glm.fit()` per class, and
+evaluates the binomial and Poisson log-densities directly. Each M-step
+now ends at its maximum rather than at `glm.fit()`'s deviance stop. On 30,000 cases at five
+occasions a 25-start three-class model went from 4.9 to 1.5 seconds with a
+binary outcome and from 33.7 to 3.8 seconds with a count; on 1,500 cases
+a weakly separated count model fell from 133 to 12 seconds. On simulated
+sets with weak separation, a 5% class, a class whose probability or rate
+is near zero, dropout, four classes and unequal spacing, log-likelihoods
+agree with the previous fit to 1e-10 and estimates to 1e-6 or better,
+with the same numbers of replicated starts. These two families keep plain
+EM: squared extrapolation reached the same maxima but replicated fewer
+starts where a class sits near probability 0 or 1.
+
 ## Growth mixture models for a binary outcome
 
 `fit_gmm(family = "binomial")` fits a growth mixture model to a 0/1 outcome

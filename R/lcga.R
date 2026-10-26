@@ -80,6 +80,10 @@ lcga_model <- function(n_components, design, family = "binomial",
     # a poor maximum took hundreds of iterations to get there. On simulated
     # stress sets it reaches plain EM's maximum and parameters (to 1e-8); a
     # class regression was not among them, so that model keeps plain EM.
+    # Binomial and Poisson keep it too: on their stress sets the accelerated
+    # search reached the same maxima but replicated fewer starts where a
+    # class sits near probability 0 or 1, along the flat ridge such a class
+    # has.
     em_squarem   = if (identical(family, "gaussian")) "unconditional",
     parameters   = list()
     # No `em_tol` here: refine_lbfgs() does not cover this emission, and
@@ -236,6 +240,8 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
   fam <- model_state$fam
   if (fam$name == "gaussian")
     return(.lcga_gaussian_m_step(model_state, X, resp, weights))
+  if (fam$name %in% c("binomial", "poisson"))
+    return(.lcga_count_m_step(model_state, X, resp, weights))
   lng <- .lcga_long(model_state, X)
 
   cen   <- .lcga_marginal(X, weights)
@@ -376,6 +382,46 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
   model_state
 }
 
+# The binomial and Poisson M-step of m_step.lcga(), on the occasion sums for
+# the reason the Gaussian one is: a class's weighted log-likelihood depends on
+# the data only through its total weight W and weighted response sum S at each
+# occasion, two T x K cross-products for all the classes at once. The prior's
+# pseudo-rows (.lcga_prior_rows()) sit on the observed occasions with response
+# m, so they add their weight to W and weight x m to S there. Each class is
+# then solved by Newton on T rows (.lcga_count_newton()), with .wglm_fit() on
+# the same rows when Newton cannot proceed.
+.lcga_count_m_step <- function(model_state, X, resp, weights = NULL) {
+  K   <- model_state$n_components
+  fam <- model_state$fam
+  D   <- model_state$design
+  cen   <- .lcga_marginal(X, weights)
+  prior <- .lcga_prior_rows(model_state, cen)
+
+  obs <- !is.na(X)
+  W   <- crossprod(obs * 1, resp)                   # T x K weight by occasion
+  S   <- crossprod(replace(X, !obs, 0), resp)       # T x K weighted sums
+  if (length(prior$w)) {
+    occ <- which(cen$occ)
+    W[occ, ] <- W[occ, ] + prior$w
+    S[occ, ] <- S[occ, ] + prior$w * prior$y
+  }
+
+  coefs <- model_state$parameters$coefs
+  for (k in seq_len(K)) {
+    if (!any(is.finite(W[, k]) & W[, k] > 0)) next
+    beta <- .lcga_count_newton(D, S[, k], W[, k], fam$name, coefs[k, ])
+    if (is.null(beta)) {
+      ok   <- W[, k] > 0
+      beta <- .wglm_fit(D[ok, , drop = FALSE], S[ok, k] / W[ok, k], W[ok, k],
+                        fam, start = coefs[k, ])$coefficients
+    }
+    coefs[k, ] <- beta
+  }
+  model_state$parameters$coefs      <- coefs
+  model_state$parameters$dispersion <- rep(1, K)
+  model_state
+}
+
 # The probability of a structural zero, K x T.
 .lcga_inflation <- function(mm)
   t(stats::plogis(mm$inflation_design %*% t(mm$parameters$inflation)))
@@ -405,13 +451,38 @@ log_likelihood.lcga <- function(model_state, X, ...) {
     }
     return(log_eps)
   }
+  todo <- seq_len(K)
+  # Binomial and Poisson the same way: a case's sum over its observed
+  # occasions is two matrix products for all the classes, y'log mu +
+  # (o - y)'log(1 - mu), or y'log mu - o'mu less the case's own log y! terms.
+  # The binomial keeps its two terms apart rather than writing y'(log mu -
+  # log(1 - mu)) + o'log(1 - mu): near mu = 1 that difference is a large
+  # number minus itself, and the rounding it leaves is what the numerical
+  # Hessian of the standard errors then differentiates. A class with a term
+  # that is not finite takes the cell-by-cell path below, whose guard
+  # handles it.
+  if (fam$name %in% c("binomial", "poisson")) {
+    obs <- !is.na(X)
+    X0  <- replace(X, !obs, 0)
+    mu  <- fam$linkinv(eta)
+    if (fam$name == "binomial") {
+      mu <- pmin(pmax(mu, 1e-15), 1 - 1e-15)
+      log_eps <- X0 %*% log(mu) + (obs - X0) %*% log1p(-mu)
+    } else {
+      mu <- pmax(mu, 1e-15)
+      log_eps <- X0 %*% log(mu) - obs %*% mu - rowSums(lgamma(X0 + 1))
+    }
+    todo <- which(colSums(!is.finite(log_eps)) > 0)
+    if (!length(todo)) return(unname(log_eps))
+    log_eps[, todo] <- 0
+  }
   # Held off 0 and 1 for the same reason as a binomial mean: a class whose
   # inflation reached 1 would otherwise give a positive count the -Inf that the
   # FIML guard below zeroes, and so claim a perfect fit to data it excludes.
   if (isTRUE(fam$has_inflation))
     pi <- pmin(pmax(.lcga_inflation(model_state), 1e-15), 1 - 1e-15)
 
-  for (k in seq_len(K)) {
+  for (k in todo) {
     mu <- fam$linkinv(eta[, k])
     if (fam$name == "binomial") mu <- pmin(pmax(mu, 1e-15), 1 - 1e-15)
     if (fam$name %in% c("poisson", "zip", "negbin")) mu <- pmax(mu, 1e-15)

@@ -141,6 +141,32 @@ expect_matches_flexmix <- function(fit, ref, tag, coef_tol = 0.03,
   expect_lt(ref$ll - fit$metrics$ll, ll_slack)
 }
 
+test_that("the binomial and Poisson M-step is the weighted GLM's maximum, prior included", {
+  # The M-step works on each class's occasion sums; the maximum it reaches
+  # must be the one glm.fit() finds on the stacked records plus the prior's
+  # pseudo-rows, run to a much tighter stop than the package ever uses.
+  set.seed(43)
+  n <- 300; Tn <- 5; ts <- 0:(Tn - 1)
+  for (fam in c("binomial", "poisson")) {
+    Y <- if (fam == "binomial") matrix(rbinom(n * Tn, 1, 0.4), n, Tn)
+         else matrix(rpois(n * Tn, 1.5), n, Tn)
+    Y[sample(n * Tn, 100)] <- NA
+    mm <- lcga_model(2, design = .lcga_design(ts, 1), family = fam)
+    mm <- init_params(mm, Y, NULL, random_state = 1)
+    R <- matrix(runif(n * 2), n, 2); R <- R / rowSums(R)
+    got <- m_step(mm, Y, R)$parameters$coefs
+
+    pr <- .lcga_prior_rows(mm, .lcga_marginal(Y))
+    D  <- mm$design[rep(seq_len(Tn), each = n), , drop = FALSE]
+    ok <- !is.na(as.vector(Y))
+    want <- t(sapply(1:2, function(k) suppressWarnings(glm.fit(
+      rbind(D[ok, ], pr$D), c(as.vector(Y)[ok], pr$y),
+      weights = c(rep(R[, k], Tn)[ok], pr$w), family = mm$fam$glm_family,
+      control = list(epsilon = 1e-14, maxit = 100)))$coefficients))
+    expect_equal(got, unname(want), tolerance = 1e-9)
+  }
+})
+
 test_that("gaussian LCGA agrees with flexmix", {
   skip_on_cran()
   skip_if_not_installed("flexmix")

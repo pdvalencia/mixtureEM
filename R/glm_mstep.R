@@ -283,6 +283,59 @@
   list(coefficients = beta, dispersion = 1, converged = FALSE)
 }
 
+# The binomial or Poisson GLM of one class on its occasion sums. When every
+# record at an occasion shares that occasion's design row, the weighted
+# log-likelihood depends on the data only through each row's total weight W and
+# weighted response sum S: sum_t S_t eta_t - W_t b(eta_t), with b(eta) =
+# log(1 + e^eta) or e^eta. So the M-step maximum is the one the records give,
+# found here by Newton on T rows (score D'(S - W mu), information
+# D' diag(W v) D, v = mu (1 - mu) or mu), warm from the previous iterate, with
+# the step halved until the objective does not fall. No bound on the
+# coefficients: a class that never (or always) responds has its maximum at
+# infinity, and the estimate keeps walking out as glm.fit()'s does.
+#
+# Returns NULL when Newton cannot proceed (a singular information matrix, as
+# with a class observed at one occasion only, or an objective that is not
+# finite at the start), so the caller can fall back to .wglm_fit().
+.lcga_count_newton <- function(D, S, W, family, start, max_iter = 50L,
+                               tol = 1e-10) {
+  ok <- is.finite(W) & W > 0 & is.finite(S)
+  D  <- D[ok, , drop = FALSE]; S <- S[ok]; W <- W[ok]
+  binomial <- identical(family, "binomial")
+  obj <- function(eta)
+    if (binomial) sum(S * stats::plogis(eta, log.p = TRUE) +
+                      (W - S) * stats::plogis(-eta, log.p = TRUE))
+    else sum(S * eta - W * exp(eta))
+  b   <- start
+  eta <- as.vector(D %*% b)
+  f0  <- obj(eta)
+  if (!is.finite(f0)) return(NULL)
+  for (it in seq_len(max_iter)) {
+    mu <- if (binomial) stats::plogis(eta) else exp(eta)
+    v  <- if (binomial) mu * (1 - mu) else mu
+    g  <- crossprod(D, S - W * mu)
+    H  <- crossprod(D, D * (W * v))
+    R  <- tryCatch(chol(H), error = function(e) NULL)
+    if (is.null(R)) return(NULL)
+    step <- as.vector(backsolve(R, forwardsolve(t(R), g)))
+    if (!all(is.finite(step))) return(NULL)
+    for (h in 0:30) {
+      b_new   <- b + step
+      eta_new <- as.vector(D %*% b_new)
+      f_new   <- obj(eta_new)
+      if (is.finite(f_new) && f_new >= f0 - 1e-12 * (abs(f0) + 1)) break
+      step <- step / 2
+    }
+    if (!is.finite(f_new) || f_new < f0 - 1e-12 * (abs(f0) + 1)) break
+    moved <- max(abs(b_new - b))
+    gain  <- f_new - f0
+    b <- b_new; eta <- eta_new; f0 <- f_new
+    if (moved < tol || gain < 1e-13 * (abs(f0) + 1)) break
+  }
+  names(b) <- NULL
+  b
+}
+
 # Pseudo-observations that keep a class from separating.
 #
 # The package's Bernoulli and Poisson emissions each carry a conjugate prior of
