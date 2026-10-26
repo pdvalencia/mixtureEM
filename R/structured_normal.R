@@ -243,9 +243,17 @@ structured_normal_model <- function(n_components, design,
     # The pattern's own block of the data, cut out once: every E- and M-step
     # reads it, and cutting it from X each time was most of their cost.
     Y <- X[rows, cols, drop = FALSE]
-    # And with a column of ones, for the likelihood's one product per pattern
-    # (log_likelihood.structured_normal()).
-    list(rows = rows, cols = cols, Y = Y, Y1 = cbind(Y, 1))
+    # And `W`: every case's squares and cross-products of its observed
+    # occasions, one column per cell of the upper triangle (`ut`), then the
+    # occasions themselves, all about the pattern's own means `cm` so that no
+    # quadratic form below is a small difference of large sums. A quadratic
+    # form in the data is then one product with W, for every class at once:
+    # the log-density's, and the moment M-step's weighted totals.
+    ut <- which(upper.tri(diag(length(cols)), diag = TRUE), arr.ind = TRUE)
+    cm <- colMeans(Y)
+    Yc <- Y - rep(cm, each = length(rows))
+    W  <- cbind(Yc[, ut[, 1L], drop = FALSE] * Yc[, ut[, 2L], drop = FALSE], Yc)
+    list(rows = rows, cols = cols, Y = Y, W = W, ut = ut, cm = cm)
   })
 }
 
@@ -956,24 +964,32 @@ log_likelihood.structured_normal <- function(model_state, X, ...) {
     o <- length(cols)
 
     if (is.null(model_state$xmat)) {
-      # Every case of the pattern shares each class's mean, so with U the
-      # inverse of the Cholesky factor, (y - mu)' Sigma^-1 (y - mu) is the
-      # squared length of [y, 1] [U; -mu' U]: one product over the pattern's
-      # data for every class at once, rather than a residual matrix, its
-      # transpose and a triangular solve per class.
-      blk <- list(); cst <- numeric(0); ks <- integer(0)
+      # Every case of the pattern shares each class's mean, so with yc the
+      # data about the pattern's means, d = mu - cm and P = Sigma^-1,
+      # (y - mu)' P (y - mu) = yc' P yc - 2 d' P yc + d' P d: a fixed linear
+      # combination of the columns of W (the off-diagonal cells of P count
+      # twice) plus a constant, and so one product over the pattern's data for
+      # every class at once.
+      ut  <- pat$ut
+      off <- ifelse(ut[, 1L] == ut[, 2L], 1, 2)
+      cf <- list(); cst <- numeric(0); ks <- integer(0)
       for (k in which(live)) {
         ch <- .sn_chol(Sig[[k]][cols, cols, drop = FALSE])
         if (is.null(ch)) { log_eps[rows, k] <- -1e10; next }
-        U   <- backsolve(ch, diag(o))
-        blk <- c(blk, list(rbind(U, -mu[[k]][cols] %*% U)))
-        cst <- c(cst, -0.5 * (o * log(2 * pi) + 2 * sum(log(diag(ch)))))
+        P   <- chol2inv(ch)
+        d   <- mu[[k]][cols] - pat$cm
+        Pd  <- as.vector(P %*% d)
+        cf  <- c(cf, list(c(P[ut] * off, -2 * Pd)))
+        cst <- c(cst, -0.5 * (o * log(2 * pi) + 2 * sum(log(diag(ch))) +
+                                sum(d * Pd)))
         ks  <- c(ks, k)
       }
       if (!length(ks)) next
-      Z <- pat$Y1 %*% do.call(cbind, blk)
-      Q <- (Z * Z) %*% kronecker(diag(length(ks)), rep(1, o))
-      log_eps[rows, ks] <- rep(cst, each = length(rows)) - 0.5 * Q
+      # Halving the coefficients is exact, and saves a pass over the result;
+      # a pattern holding every case and class is the whole matrix.
+      Q <- pat$W %*% (-0.5 * do.call(cbind, cf)) + rep(cst, each = length(rows))
+      if (length(rows) == n && length(ks) == K) log_eps <- Q
+      else log_eps[rows, ks] <- Q
       next
     }
 
@@ -1066,6 +1082,16 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
   # Posterior variances, one q x q matrix per (class, pattern).
   vhat  <- vector("list", K)
 
+  # On the moment path each pattern's class-weighted totals for every class
+  # at once: one product of the pattern's data, and of its squares, with its
+  # rows of `resp`, where a product per class read the data K times.
+  # The totals are taken about the pattern's means (`W`) and moved back.
+  pm <- if (moments) lapply(pats, function(pt) {
+    if (!length(pt$cols)) return(NULL)
+    RS <- if (length(pt$rows) == nrow(resp)) resp else resp[pt$rows, , drop = FALSE]
+    list(M = crossprod(pt$W, RS), sw = colSums(RS))
+  })
+
   psi_num <- lapply(seq_len(K), function(k) matrix(0, q, q))
   psi_den <- numeric(K)
   alpha_new <- alpha
@@ -1086,8 +1112,8 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
       cols <- pats[[ip]]$cols; rows <- pats[[ip]]$rows
       if (!length(cols)) next
 
-      wk <- resp[rows, k]
-      sw <- sum(wk)
+      wk <- if (!moments) resp[rows, k]
+      sw <- if (moments) pm[[ip]]$sw[k] else sum(wk)
 
       ch <- .sn_chol(Sig[cols, cols, drop = FALSE])
       if (is.null(ch)) next
@@ -1103,10 +1129,14 @@ m_step.structured_normal <- function(model_state, X, resp, weights = NULL, ...) 
         # r_i = y_i - mu the posterior mean is G r_i, sum_i w_i B_i B_i' is
         # G C2 G', and sum_i w_i (y_i - Lambda_r B_i) is s1 - H c1 for
         # H = Lambda_r G. One pass over the pattern's rows, not ten.
-        Yp <- pats[[ip]]$Y
         mo <- mu[cols]
-        s1 <- as.vector(crossprod(Yp, wk))
-        S2 <- crossprod(Yp, wk * Yp)
+        ut <- pats[[ip]]$ut; cm <- pats[[ip]]$cm
+        Mk <- pm[[ip]]$M[, k]; nu <- nrow(ut)
+        s1c <- Mk[nu + seq_along(cols)]
+        S2 <- matrix(0, length(cols), length(cols))
+        S2[ut] <- S2[ut[, 2:1, drop = FALSE]] <- Mk[seq_len(nu)]
+        S2 <- S2 + tcrossprod(cm, s1c) + tcrossprod(s1c, cm) + sw * tcrossprod(cm)
+        s1 <- s1c + sw * cm
         c1 <- s1 - sw * mo
         if (q) {
           LrP <- Lr[cols, , drop = FALSE]

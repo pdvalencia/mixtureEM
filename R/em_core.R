@@ -29,7 +29,15 @@
 # actually seeds a restart is init_params(), per emission. Removed 2026-09-08.
 
 # E-step: Calculate responsibilities
-e_step <- function(model_state, X, Y = NULL) {
+#
+# `resp = TRUE` is the EM loop's form: it returns the posteriors themselves,
+# built from the same exponentials the log-sum-exp already takes, and the
+# unnormalised `log_prob` in place of `log_resp`, which the loop forms only
+# when it needs it. The normaliser is the same sum either way, so
+# `log_prob_norm` is identical to the bit; the posteriors agree with
+# `exp(log_resp)` to the last bit or so, and an n x K exponential and two
+# n x K copies an iteration are saved.
+e_step <- function(model_state, X, Y = NULL, resp = FALSE) {
   # 1. Measurement model likelihood
   log_prob <- log_likelihood(model_state$mm, X)
 
@@ -59,6 +67,13 @@ e_step <- function(model_state, X, Y = NULL) {
   # was over half the total runtime. The one behavioural difference is a row of
   # all -Inf -- a case with zero likelihood under every class -- which used to
   # come back NaN and is now -Inf, the correct value.
+  if (resp) {
+    m  <- .row_max(log_prob)
+    m[m == -Inf] <- 0
+    ex <- exp(log_prob - m)
+    s  <- rowSums(ex)
+    return(list(resp = ex / s, log_prob_norm = m + log(s), log_prob = log_prob))
+  }
   log_prob_norm <- logsumexp(log_prob, MARGIN = 1)
 
   # Recycles down the columns exactly as sweep(MARGIN = 1) did, without
@@ -230,9 +245,10 @@ e_step <- function(model_state, X, Y = NULL) {
   model_state
 }
 
-# M-step: Update model parameters
-m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL) {
-  resp <- exp(log_resp)
+# M-step: Update model parameters. `resp`, when given, is the posteriors
+# themselves (e_step(resp = TRUE)), and `log_resp` is not read.
+m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL, resp = NULL) {
+  resp <- resp %||% exp(log_resp)
 
   # --- BAYESIAN PRIOR (Class Weights) ---
   # The strength comes from the model's own `bayes_constants`, which is also
@@ -1385,14 +1401,14 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
 
   for (iter in if (is.null(sq)) 1:max_iter else integer(0)) {
     # 1. E-STEP
-    e_res <- e_step(model_state, X, Y)
+    e_res <- e_step(model_state, X, Y, resp = TRUE)
 
     # A start that has reached a degenerate spike is stopped there: fit_em()
     # sets it aside whatever it does next, and from here it only creeps on
     # towards the floor, for thousands of iterations. Checked on the
     # parameters the E-step just used, so the state returned is consistent.
     if (!is.null(spike_at) && iter %% .em_spike_every == 0L &&
-        spike_at(model_state, e_res$log_resp)) {
+        spike_at(model_state, e_res$log_prob - e_res$log_prob_norm)) {
       log_prob_vector <- e_res$log_prob_norm
       n_iter <- iter
       model_state$spike_stopped <- TRUE
@@ -1421,7 +1437,7 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
     }
 
     # 3. M-STEP: Update parameters
-    model_state <- m_step_core(model_state, X, Y, e_res$log_resp)
+    model_state <- m_step_core(model_state, X, Y, NULL, resp = e_res$resp)
 
     # Prepare for next iteration
     prev_total_ll <- current_total_ll
@@ -1431,7 +1447,7 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
   model_state$converged <- converged
   model_state$n_iter <- n_iter
   model_state$lower_bound <- log_prob_vector # Ensure the vector is returned
-  model_state$log_resp <- e_res$log_resp
+  model_state$log_resp <- e_res$log_resp %||% (e_res$log_prob - e_res$log_prob_norm)
 
   # L-BFGS refinement per restart so all restarts compete on PM likelihood.
   # With analytical gradients this is fast (~0.3s at n=5000), so the n_init-fold
@@ -1468,7 +1484,7 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
                         objective) {
   lay <- .qn_mixture_layout(model_state, Y)
   if (is.null(lay)) return(NULL)
-  em   <- function(s) m_step_core(s, X, Y, e_step(s, X, Y)$log_resp)
+  em   <- function(s) m_step_core(s, X, Y, NULL, resp = e_step(s, X, Y, resp = TRUE)$resp)
   pack <- function(s) .qn_mixture_layout(s, Y)$par
   st <- model_state
   f0 <- objective(st)

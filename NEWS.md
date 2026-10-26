@@ -137,8 +137,15 @@ to the exact curvature where it crawls. Without growth covariates, each
 EM iteration now reads the data once per class and missingness pattern,
 through the pattern's class-weighted totals, instead of building
 residuals case by case, and the log-density of every class comes from one
-matrix product per pattern. On 30,000 cases a 25-start three-class model
-went from 575 to 43 seconds and on 1,000 cases from 50 to 6.4 seconds. On
+matrix product per pattern. Each EM iteration also takes the class
+posteriors from the E-step's own exponentials instead of computing them a
+second time, which every model estimated by the shared EM loop gains; for
+a growth mixture, the squares and cross-products of each case's
+observations, taken about its missingness pattern's means, are computed
+once per data set, so that the log-density and the M-step's weighted totals
+are each a single matrix product for every class. On 30,000 cases a
+25-start three-class model went from 575 to 29 seconds and on 1,000 cases
+from 50 to 5.8 seconds. On
 simulated data with weakly separated classes, a 5% class, a slope variance
 near zero in one class, a strongly negative intercept-slope covariance,
 dropout, unequal spacing, n = 400 and n = 30,000, the reported maximum
