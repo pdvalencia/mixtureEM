@@ -79,6 +79,8 @@
 # (tests/testthat/test-lta-ri.R:577) and the finite-difference Hessian
 # differentiates only the second.
 .lta_ri_logB <- function(state, X) {
+  # A frozen finish's tables, built once (.qn_finish_lta()).
+  if (!is.null(state$logB_fixed)) return(state$logB_fixed)
   K  <- state$n_statuses
   Tn <- state$n_times
   R  <- state$n_items

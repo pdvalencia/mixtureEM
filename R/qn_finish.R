@@ -135,6 +135,14 @@
 .qn_newton_hessians <- 2L
 .qn_newton_keep     <- 0.1
 
+# EM iterations a two-step's step 2 runs before the finish takes over. Its
+# measurement model is held fixed and it has one start, step 1's own solution,
+# so EM is only walking it into the structural maximum the finish would reach
+# anyway, at ~0.3 s an iteration on the ENPOL joint models: 31 iterations there
+# against a finish of nine. Handed over after five, the finish reaches the
+# same maximum (RECORDS.md, "Part 74 row 19, second pass").
+.lta_twostep_em_iter <- 5L
+
 .qn_fd_grad <- function(f, par) {
   h <- 1e-5 * pmax(1, abs(par))
   vapply(seq_along(par), function(i) {
@@ -460,6 +468,7 @@
        max_gradient = if (length(free)) max(abs(g)) else 0,
        converged = !length(free) || max(abs(g)) < .qn_gtol * sw,
        iterations = it, n_held = length(x) - length(free),
+       n_walled = length(x) - length(free) - length(fixed),
        n_hessian = n_hess)
 }
 
@@ -1044,6 +1053,21 @@
       } else pr <- NULL
     }
     X_rows <- if (is.null(pr)) X else pr$X
+    # A frozen measurement model gives every point the same emission tables, so
+    # they are built once and every pass reads them (`logB_fixed`): on the ENPOL
+    # joint models they were a fifth of each pass. Kept only where moving every
+    # free coordinate leaves them identical -- a step-3 distal outcome, say, is
+    # emission and estimated.
+    if (frozen) {
+      lb <- function(st) if (is.null(st$ri)) .lta_emission_loglik(st$mm, X_rows) else
+        .lta_ri_logB(st, X_rows)
+      r1 <- r0; mv <- setdiff(seq_along(r0), fixed); r1[mv] <- r1[mv] + 0.01
+      lb0 <- lb(at_st(r0))
+      if (identical(lb0, lb(at_st(r1)))) {
+        at_lb <- at_st
+        at_st <- function(r) { st <- at_lb(r); st$logB_fixed <- lb0; st }
+      }
+    }
     cache <- NULL; ll_cache <- NULL
     case_ll <- function(r) {
       if (!is.null(ll_cache) && identical(ll_cache$r, r)) return(ll_cache$ll)
@@ -1094,6 +1118,7 @@
   out$n_iter    <- state$n_iter
   out$refined_lbfgs <- state$refined_lbfgs
   out$qn_finish <- list(iterations = res$iterations, n_held = res$n_held,
+                        n_walled = res$n_walled,
                         max_gradient = res$max_gradient, converged = res$converged,
                         gain = res$value - start)
   out

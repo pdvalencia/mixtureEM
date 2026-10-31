@@ -75,12 +75,34 @@
 # zero.
 .lta_log_delta <- function(state) {
   if (is.null(state$delta_beta)) return(log(pmax(state$delta, 1e-300)))
+  u <- if (!isTRUE(state$z_distinct)) .lta_design_rows(state$Z_delta, "lta_z_delta")
+  if (!is.null(u)) {
+    st <- state; st$Z_delta <- state$Z_delta[u$rows, , drop = FALSE]
+    st$z_distinct <- TRUE
+    return(.lta_log_delta(st)[u$idx, , drop = FALSE])
+  }
   P <- softmax_rows(state$Z_delta %*% t(state$delta_beta))
   keep <- .lta_delta_keep(state)
   if (length(keep) < state$n_statuses) {
     full <- matrix(0, nrow(P), state$n_statuses); full[, keep] <- P; P <- full
   }
   log(pmax(P, 1e-300))
+}
+
+# The distinct rows of a covariate design (`rows`) and which of them each case
+# has (`idx`), kept per matrix (.one_hot_memo()). The initial-status and
+# transition tables are functions of a case's design row alone, so they are
+# built once per distinct row and copied out: a binary covariate makes two rows
+# of a 15,809-row pattern table. NULL when more than a quarter of the rows are
+# distinct, where the copy would cost about what it saves. One slot per row
+# count, so the pattern table and the full sample do not evict each other.
+.lta_design_rows <- function(Z, tag) {
+  if (NROW(Z) < 2L) return(NULL)
+  .one_hot_memo(paste0(tag, NROW(Z)), Z, NULL, NULL, function() {
+    p <- .pattern_index(Z)
+    rows <- which(p$rep_row)
+    if (length(rows) > 0.25 * NROW(Z)) NULL else list(rows = rows, idx = p$idx)
+  })
 }
 
 # The statuses a case can start in. A status no case starts in is the padded
@@ -104,6 +126,13 @@
 .lta_log_tau <- function(state) {
   if (is.null(state$tau_beta))
     return(lapply(state$tau, function(m) log(pmax(m, 1e-300))))
+  u <- if (!isTRUE(state$z_distinct)) .lta_design_rows(state$Z_tau, "lta_z_tau")
+  if (!is.null(u)) {
+    st <- state; st$Z_tau <- state$Z_tau[u$rows, , drop = FALSE]
+    st$z_distinct <- TRUE
+    return(lapply(.lta_log_tau(st), function(o)
+      lapply(o, function(m) m[u$idx, , drop = FALSE])))
+  }
 
   Tn <- state$n_times
   K  <- state$n_statuses

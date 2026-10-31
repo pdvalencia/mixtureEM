@@ -231,16 +231,28 @@ one_hot <- function(X, max_val, cats = NULL)
 # build, so a matrix that fails them is never kept. Tables above 1e7 cells
 # are not kept, so a fit on very large data does not leave its expansion
 # pinned in the session.
+#
+# A tag keeps its last few matrices, most recent first, up to 1e7 cells in
+# all: a latent transition model asks for each occasion's block in turn, and
+# with one entry the occasions evicted each other, so every request rebuilt
+# its table (18% of an ordinal random-intercept fit over three occasions).
 .one_hot_cache <- new.env(parent = emptyenv())
 
 .one_hot_memo <- function(tag, X, a, b, build) {
-  hit <- .one_hot_cache[[tag]]
-  if (!is.null(hit) && identical(hit$a, a) && identical(hit$b, b) &&
-      identical(hit$X, X))
-    return(hit$out)
+  hits <- .one_hot_cache[[tag]]
+  for (i in seq_along(hits)) {
+    h <- hits[[i]]
+    if (identical(h$a, a) && identical(h$b, b) && identical(h$X, X)) {
+      if (i > 1L) .one_hot_cache[[tag]] <- c(hits[i], hits[-i])
+      return(h$out)
+    }
+  }
   out <- build()
-  .one_hot_cache[[tag]] <- if (length(out) <= 1e7)
-    list(X = X, a = a, b = b, out = out)
+  if (length(out) <= 1e7) {
+    keep  <- c(list(list(X = X, a = a, b = b, out = out)), hits)
+    cells <- cumsum(vapply(keep, function(h) as.numeric(length(h$out)), 0))
+    .one_hot_cache[[tag]] <- keep[cells <= 1e7 & seq_along(keep) <= 8L]
+  }
   out
 }
 

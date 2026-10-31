@@ -66,10 +66,13 @@
 .lta_forward_backward <- function(logB, log_delta, log_tau, weights,
                                   keep_pairwise = FALSE) {
   shared <- !length(log_tau) || !any(vapply(log_tau, is.list, logical(1)))
-  if (shared)
-    .lta_fb_scaled(logB, log_delta, log_tau, weights, keep_pairwise)
-  else
+  fb <- .lta_fb_scaled(logB, log_delta, log_tau, weights, keep_pairwise)
+  # Case-varying transitions can be extreme enough (a covariate slope far out)
+  # that a case's scaled alpha underflows to zero where its log-space one does
+  # not; the log-space recursion then answers for the whole pass.
+  if (!shared && !all(is.finite(fb$ll)))
     .lta_fb_log(logB, log_delta, log_tau, weights, keep_pairwise)
+  else fb
 }
 
 # The scaled forward-backward recursion (Rabiner 1989, sec. V.A; the device is
@@ -93,6 +96,13 @@
 # model with fifty items is as safe as one with five. The per-occasion
 # normalisation then keeps alpha away from zero for the rest of the recursion,
 # which is exactly what the scaling device is for.
+#
+# A covariate-transition model gives each case its own transition matrix
+# (`log_tau[[t]]` a list over origins of n x K matrices). The recursion is the
+# same, with each matrix product written as a sum over origins of a column
+# times that origin's n x K block: K multiplications where the log-space form
+# makes K logsumexp() calls of an n x K exponential each. On the ENPOL joint
+# models that was a third of the two-step finish.
 .lta_fb_scaled <- function(logB, log_delta, log_tau, weights,
                            keep_pairwise = FALSE) {
   Tn <- length(logB)
@@ -110,7 +120,20 @@
     mB[, t]  <- m
     B[[t]]   <- exp(logB[[t]] - m)
   }
-  Tau <- lapply(log_tau, exp)
+  Tau <- lapply(log_tau, function(m) if (is.list(m)) lapply(m, exp) else exp(m))
+  # a %*% Tau[[t]] and g %*% t(Tau[[t]]), row by row where Tau varies by case.
+  fwd <- function(a, t) {
+    Tt <- Tau[[t]]
+    if (!is.list(Tt)) return(a %*% Tt)
+    x <- a[, 1L] * Tt[[1L]]
+    for (k in seq_len(K)[-1L]) x <- x + a[, k] * Tt[[k]]
+    x
+  }
+  bwd <- function(g, t) {
+    Tt <- Tau[[t]]
+    if (!is.list(Tt)) return(g %*% t(Tt))
+    matrix(vapply(seq_len(K), function(k) rowSums(Tt[[k]] * g), numeric(n)), n, K)
+  }
 
   d1 <- if (is.matrix(log_delta)) exp(log_delta) else
     matrix(exp(log_delta), n, K, byrow = TRUE)
@@ -122,7 +145,7 @@
   csafe   <- function(v) ifelse(v > 0, v, 1)
   la[[1]] <- x / csafe(cs[, 1])
   if (Tn > 1L) for (t in 2:Tn) {
-    x <- (la[[t - 1]] %*% Tau[[t - 1]]) * B[[t]]
+    x <- fwd(la[[t - 1]], t - 1L) * B[[t]]
     cs[, t] <- rowSums(x)
     la[[t]] <- x / csafe(cs[, t])
   }
@@ -132,7 +155,7 @@
   lb <- vector("list", Tn)
   lb[[Tn]] <- matrix(1, n, K)
   if (Tn > 1L) for (t in (Tn - 1):1)
-    lb[[t]] <- ((B[[t + 1]] * lb[[t + 1]]) %*% t(Tau[[t]])) / csafe(cs[, t + 1])
+    lb[[t]] <- bwd(B[[t + 1]] * lb[[t + 1]], t) / csafe(cs[, t + 1])
 
   gamma <- lapply(seq_len(Tn), function(t) la[[t]] * lb[[t]])
 
@@ -143,6 +166,12 @@
     # divided by its scaling constant, so the pairwise probability is
     # alpha_t[i, k] * Tau[k, l] * G[i, l] and the totals are one matrix product.
     G <- (B[[t + 1]] * lb[[t + 1]]) / csafe(cs[, t + 1])
+    if (is.list(Tau[[t]])) {
+      blocks <- lapply(seq_len(K), function(k) Tau[[t]][[k]] * G * la[[t]][, k])
+      xi[[t]] <- do.call(rbind, lapply(blocks, function(b) colSums(b * weights)))
+      if (keep_pairwise) pair[[t]] <- blocks
+      next
+    }
     xi[[t]] <- Tau[[t]] * (t(la[[t]] * weights) %*% G)
     if (keep_pairwise)
       pair[[t]] <- lapply(seq_len(K), function(k)
@@ -1164,7 +1193,7 @@
 .lta_ll_case_state <- function(st, X) {
   if (!is.null(st$ri)) return(.lta_ri_ll_case(st, X))
   C  <- st$n_classes %||% 1L
-  logB <- .lta_emission_loglik(st$mm, X)
+  logB <- st$logB_fixed %||% .lta_emission_loglik(st$mm, X)
   if (C == 1L)
     return(.lta_forward_backward(logB, .lta_log_delta(st), .lta_log_tau(st),
                                  st$weights_vec)$ll)

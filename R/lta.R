@@ -1814,9 +1814,15 @@ fit_lta <- function(indicators,
     out <- try(.lta_refine_lbfgs(cand, X_fit, alpha = alpha), silent = TRUE)
     if (inherits(out, "try-error")) cand else out
   }
+  # A two-step's step 2 hands its one start to the finish after
+  # `.lta_twostep_em_iter` EM iterations (R/qn_finish.R); EM runs on to its own
+  # rule only where the finish does not take the fit further.
+  em_cap <- if (finish_on && is.null(start_writer) && is.null(fixed_mm) &&
+                "mm" %in% state$frozen) .lta_twostep_em_iter
   cands <- .par_lapply(starts, function(s) {
     cand <- try(.lta_em(s, X_fit,
-                        max_iter = if (staged) min(250L, max_iter) else max_iter,
+                        max_iter = if (staged) min(250L, max_iter) else
+                          min(em_cap %||% max_iter, max_iter),
                         tol = if (staged) 1e-7 else tol, alpha = alpha),
                 silent = TRUE)
     if (staged) cand else polish(cand)
@@ -1919,11 +1925,10 @@ fit_lta <- function(indicators,
   # finish -- is not finished again: EM continues it under this fit's
   # objective, and the finish only crawled along a ridge flat to 1e-3, 400
   # iterations for 0.0015 at n = 3000 (RECORDS.md, Part 71).
-  if (finish_on && is.null(start_writer) && .qn_lta_supported(best)) {
+  finish <- function(pool) {
     pool <- Filter(function(cd) !inherits(cd, "try-error") &&
                      identical(!is.null(.categorical_boundary(cd, X_fit)),
-                               best_degenerate),
-                   if (staged) survivors else cands)
+                               best_degenerate), pool)
     if (!length(pool)) pool <- list(best)
     pick <- .qn_pick(vapply(pool, score_of, numeric(1)),
                      lapply(pool, `[[`, "ll_case"), best$weights_vec)
@@ -1932,9 +1937,30 @@ fit_lta <- function(indicators,
     fins <- .par_lapply(pool[pick], function(cd)
       .qn_finish_lta(cd, X_fit, alpha, rank_marg), n_cores = n_cores)
     for (fin in fins) {
-      if (!is.null(fin) && score_of(fin) > best_score) {
-        best <- fin; best_score <- score_of(fin)
+      # A finish from a capped EM that walls a structural coefficient is set
+      # aside: such a coefficient is on its way to infinity, and where it is
+      # held depends on how far EM had carried it, so the hand-over would
+      # move the reported point (a transition logit of 25 against EM's 33 on
+      # the reading two-step, its other coefficients 7e-4 apart).
+      if (!is.null(fin) && score_of(fin) > best_score &&
+          (is.null(em_cap) || identical(fin$qn_finish$n_walled, 0L))) {
+        best <<- fin; best_score <<- score_of(fin); em_cap <<- NULL
       }
+    }
+  }
+  run_finish <- finish_on && is.null(start_writer) && .qn_lta_supported(best)
+  if (run_finish) finish(if (staged) survivors else cands)
+  # Where the finish did not take the capped run on, EM runs to its own rule
+  # from where it stopped -- the path it would have taken uncapped -- and the
+  # finish then starts from there as it always did.
+  if (!is.null(em_cap)) {
+    em_cap <- NULL
+    cont <- try(.lta_em(best, X_fit, max_iter = max_iter, tol = tol,
+                        alpha = alpha), silent = TRUE)
+    if (!inherits(cont, "try-error") && is.finite(cont$loglik)) {
+      cont$n_iter <- best$n_iter + cont$n_iter
+      best <- cont; best_score <- score_of(best)
+      if (run_finish) finish(list(best))
     }
   }
 
@@ -3090,7 +3116,10 @@ fit_lta <- function(indicators,
   n  <- nrow(X)
   if (!.lta_scores_supported(state, shared_ok)) return(NULL)
 
-  logB <- .lta_emission_loglik(state$mm, X)
+  # A random-intercept fit builds its own per-node emissions in
+  # .lta_ri_e_step() below; `logB_fixed` is a frozen finish's (.qn_finish_lta()).
+  logB <- if (is.null(state$ri))
+    state$logB_fixed %||% .lta_emission_loglik(state$mm, X)
 
   scores <- list(); blocks <- list(); pos <- 0L
   add_block <- function(s, probs, ref, name) {

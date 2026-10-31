@@ -295,6 +295,31 @@ grouping in the same order, eight times faster on 61,000 cases. On the
 covariates, step 2 with no association went from 16 to 12 seconds and with
 association from 18 to 15.5 seconds. Every estimate is unchanged.
 
+Step 2 of a two-step model now runs five EM iterations from step 1 and hands
+the structural parameters to the Newton-type finish, which takes them to
+the same maximum EM was approaching; where the finish would hold a
+coefficient at its bound, step 2 runs EM to convergence first, as before.
+The finish computes the frozen measurement model's response densities once
+instead of at every point it evaluates. The forward-backward pass of a
+latent transition model with covariates on the transitions now runs in the
+probability scale with per-occasion rescaling, as models without covariates
+already did, and falls back to the log scale for a pass in which a case
+would underflow; initial-status and transition probabilities are computed
+once per distinct covariate pattern. On the 61,000-case joint model, step 2
+now takes 5 seconds with or without association (12 to 17 before); on
+30,000 cases with one continuous covariate, a 25-start latent transition
+model went from 67 to 66 seconds and a 50-start one on 1,000 cases from 5.9
+to 5.2. Estimates agree with the previous ones to 1e-9 and standard errors
+to 2e-5, except for a coefficient already diverging to infinity (a
+transition logit beyond 30), which can stop a few hundredths further along.
+
+The expansion of categorical and ordinal items into indicator columns is
+now kept for the last several data blocks rather than the last one, so a
+latent transition model no longer rebuilds it for every occasion at every
+iteration. A random-intercept latent transition model with three-category
+items over three occasions went from 82 to 66 seconds on 1,000 cases and
+from 1,124 to 897 seconds on 30,000. No number changes.
+
 The items' observed means and variances, which centre the default priors,
 are now computed once per data set instead of at every EM iteration of a
 model with missing cells or mixed item types. On 30,000 cases with three
