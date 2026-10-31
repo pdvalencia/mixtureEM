@@ -25,9 +25,9 @@
 # so column m of the score matrix is coordinate m of the packed vector. A
 # parameter the packing holds once for several places (an item or a parameter
 # equal across groups, a variance equal across classes) sums its places'
-# terms. Anything without scores here -- latent class growth (R/lcga.R),
-# which carries few parameters and a cheap likelihood -- returns NULL, and the
-# finish differences that fit as before; no fit is ever part analytic, part
+# terms. Anything without scores here -- latent class growth (R/lcga.R) other
+# than the zero-inflated Poisson, which carries few parameters and a cheap
+# likelihood -- returns NULL, and the finish differences that fit as before; no fit is ever part analytic, part
 # differenced. Every family is checked
 # against central differences to 1e-5 (tests/testthat/test-qn-mixture-scores.R).
 
@@ -51,6 +51,9 @@
     return(list(S = .qn_bg_scores(emis, X, R), item = NA_integer_, part = "p"))
   if (fam == "structured_normal")
     return(list(S = .qn_sn_scores(emis, X, R), item = NA_integer_, part = "p"))
+  if (fam == "lcga")
+    return(if (identical(emis$fam$name, "zip"))
+      list(S = .qn_lcga_zip_scores(emis, X, R), item = NA_integer_, part = "p"))
   K   <- emis$n_components
   n   <- nrow(X)
   p   <- emis$parameters
@@ -163,6 +166,39 @@
         S[rows, ci] <- S[rows, ci] + Tt
       }
     }
+  }
+  S
+}
+
+# Zero-inflated Poisson growth (R/lcga.R), in .qn_pack_lcga()'s order: the
+# K x P trajectory coefficients, then the K x Q inflation logits, each column
+# by column. With z the share of an observed zero that is structural,
+# pi / (pi + (1 - pi) e^-mu), and 0 for a positive count, a cell's
+# log-density moves by y - (1 - z) mu in its log rate and by z - pi in its
+# inflation logit, each times its row of the design. A rate on its 1e-15
+# floor or an inflation on its clamp does not move, as in
+# log_likelihood.lcga().
+.qn_lcga_zip_scores <- function(ms, X, R) {
+  X   <- as.matrix(X)
+  o   <- .qn_obs(X)
+  K   <- ms$n_components
+  D   <- ms$design; Dz <- ms$inflation_design
+  P   <- ncol(D); Q <- ncol(Dz)
+  eta <- D %*% t(ms$parameters$coefs)                         # T x K
+  pz0 <- .lcga_inflation(ms)                                  # K x T
+  zero <- o$M * (o$X == 0)
+  S   <- matrix(0, nrow(X), K * (P + Q))
+  for (k in seq_len(K)) {
+    mu  <- pmax(exp(eta[, k]), 1e-15)
+    pz  <- pmin(pmax(pz0[k, ], 1e-15), 1 - 1e-15)
+    rpz <- rep(pz, each = nrow(X))
+    z   <- zero * rep(pz / (pz + (1 - pz) * exp(-mu)), each = nrow(X))
+    G   <- (o$X - o$M * (1 - z) * rep(mu, each = nrow(X))) *
+      rep(exp(eta[, k]) > 1e-15, each = nrow(X))
+    H   <- (z - o$M * rpz) *
+      rep(pz0[k, ] > 1e-15 & pz0[k, ] < 1 - 1e-15, each = nrow(X))
+    S[, (seq_len(P) - 1L) * K + k]     <- R[, k] * (G %*% D)
+    S[, K * P + (seq_len(Q) - 1L) * K + k] <- R[, k] * (H %*% Dz)
   }
   S
 }

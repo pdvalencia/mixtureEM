@@ -716,7 +716,7 @@
   # same E-step as the case log-likelihood: the finish asks for both at one
   # point, so that pass is cached, and the scores are built only when asked
   # for, not at every trial point of the line search. Central differences for
-  # the rest -- latent class growth.
+  # the rest -- latent class growth other than the zero-inflated Poisson.
   s0 <- .qn_mixture_scores(pr$unpack(par0), lay, X, Yp)
   if (!is.null(s0)) {
     cache <- NULL

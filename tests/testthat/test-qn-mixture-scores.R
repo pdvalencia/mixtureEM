@@ -222,6 +222,26 @@ test_that("growth mixture scores equal central differences", {
             "growth, class regression")
 })
 
+test_that("zero-inflated growth scores equal central differences", {
+  # Two classes, one with many structural zeros; missing occasions; the
+  # inflation constant and linear in time; plain ML and the default prior
+  # (which the finish differences: growth has no prior gradient written out).
+  set.seed(7)
+  n  <- 300
+  cl <- rep(1:2, c(120, 180))
+  mu <- exp(rbind(c(.2, .15), c(1.2, -.1))[cl, 1] +
+              outer(rbind(c(.2, .15), c(1.2, -.1))[cl, 2], 0:4))
+  Y  <- matrix(rpois(n * 5, mu), n)
+  Y[matrix(runif(n * 5) < c(.4, .05)[cl], n, 5)] <- 0
+  Ym <- Y; Ym[sample(length(Ym), 80)] <- NA
+  zg <- function(Y, ...) .sc_q(fit_lcga(Y, times = 5, n_classes = 2, family = "zip",
+                                        n_init = 2, random_state = 1, n_cores = 1, ...))
+  off <- list(latent = 0, categorical = 0, poisson = 0, variances = 0)
+  .sc_check(zg(Y, bayes_constants = off), "zip growth", prior = FALSE)
+  .sc_check(zg(Ym, bayes_constants = off), "zip growth NA", prior = FALSE)
+  .sc_check(zg(Ym, inflation_degree = 1), "zip growth, linear inflation", prior = FALSE)
+})
+
 test_that("growth mixture curvature equals differenced scores", {
   # The finish's closed-form Hessian (.qn_sn_hessian()) against central
   # differences of the analytic gradient, at the fit and off it, over the

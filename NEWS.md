@@ -118,6 +118,17 @@ class, a class with almost no structural zeros, dropout, four classes and
 unequal spacing, log-likelihoods agree with the previous fit to 1e-10 and
 estimates to 2e-6, with the same numbers of replicated starts.
 
+A `fit_lcga(family = "zip")` start still climbing after 50 EM iterations
+is now handed to the Newton-type finish, which takes each case's
+derivatives in closed form instead of differencing the likelihood twice per
+parameter. EM crawls on this model, about 700 iterations a start where the
+classes are weakly separated. On the same simulated sets and 30,000 cases,
+log-likelihoods are unchanged, estimates move by at most 3e-5 (where EM had
+stopped short of the maximum), and each fit is 1.1 to 6.3 times faster: a
+50-start three-class model on 1,000 cases went from 10.7 to 1.7 seconds,
+and on 30,000 cases a 25-start one from 11.9 to 4.0. The weakly separated
+set with a 1% class now reaches its maximum from all 50 starts instead of 5.
+
 `fit_lcga(family = "negbin")` fits each class's event rate the same way:
 its kernel is linear in the counts, and every case at an occasion shares
 that occasion's overdispersion, so the rate needs only each occasion's

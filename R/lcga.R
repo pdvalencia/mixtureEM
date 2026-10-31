@@ -85,6 +85,17 @@ lcga_model <- function(n_components, design, family = "binomial",
     # class sits near probability 0 or 1, along the flat ridge such a class
     # has.
     em_squarem   = if (identical(family, "gaussian")) "unconditional",
+    # A zero-inflated start still climbing after 50 EM iterations is handed to
+    # the Newton-type finish (fit_single_init(), R/em_core.R), which has this
+    # family's scores in closed form (R/qn_scores.R): EM crawls here, ~700
+    # iterations a start on a weakly separated set. On simulated sets with
+    # weak separation, a 1% and a 5% class, a class with almost no structural
+    # zeros, dropout, four classes, unequal spacing and 30,000 cases, every
+    # log-likelihood is plain EM's and every estimate within 3e-5 of it (the
+    # largest where plain EM had stopped short); replicated starts are equal
+    # or higher, 5 -> 50 of 50 on the weakest set; each fit 1.1-6.3x faster
+    # (RECORDS.md, "Part 74 row 12: analytic ZIP scores and the hand-over").
+    em_finish_after = if (identical(family, "zip")) 50L,
     parameters   = list()
     # No `em_tol` here: refine_lbfgs() does not cover this emission, and
     # fit_single_init() gives every unpolished emission the tighter stopping
