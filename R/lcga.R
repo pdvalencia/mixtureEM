@@ -249,9 +249,8 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
   # and design row, so the rate is fitted to each occasion's total weight and
   # weighted mean, as the other families' are. The prior rows are Poisson
   # rows (alpha 0), so the count prior is the Poisson family's.
-  lng   <- .lcga_long(model_state, X)
   prior <- .lcga_prior_rows(model_state, .lcga_marginal(X, weights))
-  y_obs <- replace(lng$y, !lng$observed, 0)
+  Tn    <- ncol(X)
   coefs <- model_state$parameters$coefs
   od    <- model_state$parameters$overdispersion
   obs   <- !is.na(X)
@@ -267,19 +266,27 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
                                start = coefs[k, ])
 
   # One alpha per occasion pools that occasion's records over the classes; one
-  # per class pools the class's records over the occasions.
-  occ <- rep(seq_len(lng$Tn), each = lng$n)
-  MU  <- exp(lng$D %*% t(coefs))                          # (n T) x K
-  W   <- resp[rep(seq_len(lng$n), lng$Tn), , drop = FALSE] * lng$observed
+  # per class pools the class's records over the occasions. Either way the
+  # objective reaches the records only through each class's total weight on
+  # each count at each occasion, so those totals are what is passed on.
+  MU  <- exp(D %*% t(coefs))                              # T x K
+  tot <- lapply(seq_len(Tn), function(t) {
+    o <- obs[, t]
+    g <- rowsum(resp[o, , drop = FALSE], X[o, t])
+    list(y = as.numeric(rownames(g)), w = g)
+  })
   if (identical(model_state$dispersion_structure, "class")) {
     for (k in seq_len(K))
-      od[k, ] <- .nb_alpha_fit(y_obs, MU[, k], W[, k])
+      od[k, ] <- .nb_alpha_fit(
+        unlist(lapply(tot, `[[`, "y")),
+        unlist(lapply(seq_len(Tn), function(t)
+          rep(MU[t, k], length(tot[[t]]$y)))),
+        unlist(lapply(tot, function(g) g$w[, k])))
   } else {
-    for (t in seq_len(lng$Tn)) {
-      r <- occ == t
-      od[, t] <- .nb_alpha_fit(rep(y_obs[r], K), as.vector(MU[r, ]),
-                               as.vector(W[r, ]))
-    }
+    for (t in seq_len(Tn))
+      od[, t] <- .nb_alpha_fit(rep(tot[[t]]$y, K),
+                               rep(MU[t, ], each = length(tot[[t]]$y)),
+                               as.vector(tot[[t]]$w))
   }
 
   model_state$parameters$coefs      <- coefs
@@ -411,6 +418,46 @@ m_step.lcga <- function(model_state, X, resp, weights = NULL, ...) {
   model_state
 }
 
+# The NB2 log density summed over a case's observed occasions, n x K, for all
+# the classes at once. Every case at occasion t in class k shares one mean mu
+# and one alpha a, and a whole count y enters only through
+#   log f(y) = sum_{j < y} [log1p(a j) - log1p(a mu)] + y log mu - log y!
+#              - log1p(a mu) / a,
+# lgamma(y + 1/a) - lgamma(1/a) being written as the product it is for a whole
+# y, which stays accurate as a falls towards the Poisson boundary (below 1e-12
+# the Poisson density itself, as .nb_log_dens()). So each (occasion, class)
+# needs one table over 0..max(y), and the cases read their cells off it: the
+# same value as .nb_log_dens() cell by cell, to rounding, without its search
+# for distinct cells, which was most of an NB fit's time. NULL where the
+# largest count would make the tables larger than the data, for the
+# cell-by-cell path.
+.lcga_nb_log_eps <- function(X0, obs, mu, alpha) {
+  n  <- nrow(X0); Tn <- ncol(X0); K <- ncol(mu)
+  X0 <- round(X0)
+  ym <- max(X0)
+  if (ym > max(1e4, n)) return(NULL)
+  y   <- 0:ym
+  lf  <- lgamma(y + 1)
+  nt  <- Tn * (ym + 1)
+  # A missing cell reads the table's last slot, which is 0.
+  idx <- X0 + 1 + rep((seq_len(Tn) - 1) * (ym + 1), each = n)
+  idx[!obs] <- nt + 1
+  out <- matrix(0, n, K)
+  for (k in seq_len(K)) {
+    tab <- numeric(nt + 1)
+    for (t in seq_len(Tn)) {
+      m <- mu[t, k]; a <- alpha[k, t]
+      v <- if (a < 1e-12) y * log(m) - lf - m else {
+        l1 <- log1p(a * m)
+        c(0, cumsum(log1p(a * (seq_len(ym) - 1)) - l1)) + y * log(m) - lf - l1 / a
+      }
+      tab[(t - 1) * (ym + 1) + y + 1] <- v
+    }
+    out[, k] <- rowSums(matrix(tab[idx], n, Tn))
+  }
+  out
+}
+
 # The probability of a structural zero, K x T.
 .lcga_inflation <- function(mm)
   t(stats::plogis(mm$inflation_design %*% t(mm$parameters$inflation)))
@@ -451,11 +498,15 @@ log_likelihood.lcga <- function(model_state, X, ...) {
   # Hessian of the standard errors then differentiates. A class with a term
   # that is not finite takes the cell-by-cell path below, whose guard
   # handles it.
-  if (fam$name %in% c("binomial", "poisson", "zip")) {
+  if (fam$name %in% c("binomial", "poisson", "zip", "negbin")) {
     obs <- !is.na(X)
     X0  <- replace(X, !obs, 0)
     mu  <- fam$linkinv(eta)
-    if (fam$name == "binomial") {
+    if (fam$name == "negbin") {
+      log_eps <- .lcga_nb_log_eps(X0, obs, pmax(mu, 1e-15),
+                                  model_state$parameters$overdispersion)
+      if (is.null(log_eps)) log_eps <- matrix(Inf, n, K)
+    } else if (fam$name == "binomial") {
       mu <- pmin(pmax(mu, 1e-15), 1 - 1e-15)
       log_eps <- X0 %*% log(mu) + (obs - X0) %*% log1p(-mu)
     } else if (fam$name == "poisson") {

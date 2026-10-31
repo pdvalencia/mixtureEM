@@ -126,6 +126,22 @@ On 30,000 cases a 25-start three-class model went from 113 to 37 seconds
 and on 1,000 cases from 21 to 10 seconds, with identical
 log-likelihoods, class sizes and numbers of replicated starts.
 
+That model's log-density is now evaluated from one table per
+class and occasion over the observed counts, which every case reads its
+cells off, instead of cell by cell through `dnbinom()`; the
+overdispersion is fitted to each class's total weight on each count at
+each occasion instead of to every record. The table writes the gamma-function ratio
+as the product it is for a whole count, so it stays exact as the
+overdispersion approaches the Poisson boundary, where `dnbinom()` falls
+back on an approximation that was off by up to 1e-8 per cell. A 125-start
+four-class quadratic model of the SRQ-20 scores (2,052 cases) went from
+133 to 54 seconds, and the three-class models on 30,000 and 1,000 cases
+from 38 to 12 and from 10 to 4 seconds. Log-likelihoods agree with the
+previous fit to 2e-10, estimates to 3e-9, with the same numbers of
+replicated starts; "robust" and "hessian" standard errors can move in the
+fifth significant digit, the rounding noise of their numerically
+differentiated Hessian.
+
 `fit_gmm(psi = "free")`, whose classes each have their own growth-factor
 covariance, hands a start that EM has not converged after 300 iterations
 to the Newton-type finish, as the binary growth mixture does after 500;
