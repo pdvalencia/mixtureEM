@@ -44,6 +44,14 @@ decision is the same; on 30,000 cases with class-specific variances it
 was a fifth of a fit's time, and a 25-start four-class profile model went
 from 14 to 11.5 seconds.
 
+The warm start of a multiple-group model whose measurement differs by
+group (`group_effects = "both"` or `"measurement"`) fits a pooled model and
+one per group first; those searches now run their starts on `n_cores` as
+the main search does, instead of on one core. Results are identical to the
+bit; a 50-start three-class configural model on 1,000 cases went from 17.5
+to 7.9 seconds on 8 cores, and on 30,000 cases a 25-start one from 8.4 to
+3.7.
+
 When the package is installed outside the default library (a project
 library, for instance), the workers of `n_cores` now load that same
 installation. They used to load whichever copy the default library held,

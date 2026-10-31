@@ -3948,7 +3948,10 @@ fit_mixture <- function(indicators = NULL,
       # invariance test compares against, so this is what makes the comparison a
       # test rather than a lower bound. Fitted before X_use is padded and
       # `measurement_engine` is overwritten below, since both are needed as they
-      # stand here.
+      # stand here. Each sub-search runs its starts on the caller's `n_cores`:
+      # on one core the three of them were 12 of a 50-start configural fit's 18
+      # seconds at n = 1,000, and a start's result does not depend on the
+      # worker that runs it.
       .sub_fit <- function(rows) {
         args <- c(list(X = if (is.null(rows)) X_use else X_use[rows, , drop = FALSE],
                        Y = NULL, n_components = n_classes,
@@ -3961,7 +3964,8 @@ fit_mixture <- function(indicators = NULL,
                        strata  = if (is.null(rows)) strata  else strata[rows],
                        cluster = if (is.null(rows)) cluster else cluster[rows],
                        refine = refine, bayes_constants = bayes_constants,
-                       se = se, variances_equal = isTRUE(variances_equal)),
+                       se = se, n_cores = n_cores,
+                       variances_equal = isTRUE(variances_equal)),
                   cat_args, list(...))
         out <- try(suppressWarnings(suppressMessages(
           do.call(fit_mixture_internal, args))), silent = TRUE)
