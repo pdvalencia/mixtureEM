@@ -273,6 +273,14 @@
 # rather than where BFGS's relative tolerance let it stop, so the iterates
 # move towards that maximum; where Newton fails (a separated cell) the old
 # BFGS update runs unchanged.
+#
+# Inside EM (.lta_em(), `newton = "one"`) each regression takes one halved
+# Newton step from the previous coefficients rather than being solved: a
+# generalised EM, which still raises the objective every iteration and has
+# the same fixed points, but skips the steps that only confirm a maximum the
+# next E-step moves anyway. Most of a covariate LTA's EM iteration is the
+# transition regression over every case and origin, so that is most of what
+# is saved.
 
 # The `alpha` one transition regression is handed, so that .fit_mnl()'s
 # alpha / (K U0) comes out at alpha / (K^2 U) per pattern, origin and
@@ -362,12 +370,13 @@
 
 # Initial status: an ordinary weighted multinomial logit on the Time 1
 # posteriors, which already sum to one across statuses.
-.lta_mstep_delta_cov <- function(state, gamma1, augment = TRUE, alpha = 0) {
+.lta_mstep_delta_cov <- function(state, gamma1, augment = TRUE, alpha = 0,
+                                 newton = "warm") {
   keep <- .lta_delta_keep(state)
   fit <- .fit_mnl(state$Z_delta, gamma1[, keep, drop = FALSE],
                   weights = state$weights_vec,
                   start = state$delta_beta, augment = augment, alpha = alpha,
-                  newton = "warm")
+                  newton = newton)
   state$delta_beta    <- fit$beta
   state$delta_hessian <- fit$hessian
   state$delta         <- numeric(state$n_statuses)
@@ -384,7 +393,7 @@
 # the shared fitter free of special cases. `average = FALSE` leaves the
 # reported average tables (below) to the caller, as .lta_em() does.
 .lta_mstep_tau_cov <- function(state, fb, augment = TRUE, alpha = 0,
-                               average = TRUE) {
+                               average = TRUE, newton = "warm") {
   K  <- state$n_statuses
   Tn <- state$n_times
   w  <- state$weights_vec
@@ -418,7 +427,7 @@
         }
         f <- .fit_mnl(Zs, resp[, keep, drop = FALSE], weights = wt,
                       start = state$tau_beta[[m]][[k]], augment = augment,
-                      alpha = a_reg, newton = "warm")
+                      alpha = a_reg, newton = newton)
         bk[[k]] <- f$beta; hk[[k]] <- f$hessian
       }
       betas[[m]] <- bk; hess[[m]] <- hk
@@ -451,7 +460,7 @@
       }
       f <- .fit_mnl(Zs, resp[, keep, drop = FALSE], weights = wt,
                     start = state$tau_beta[[m]],
-                    augment = augment, alpha = a_reg, newton = "warm")
+                    augment = augment, alpha = a_reg, newton = newton)
       betas[[m]] <- f$beta; hess[[m]] <- f$hessian
     }
   }

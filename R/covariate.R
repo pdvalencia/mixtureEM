@@ -58,7 +58,10 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 # same Newton fit with the fallback BFGS started from `start`, which is the
 # fit the latent transition M-steps ran before they used Newton, so a
 # regression Newton cannot solve (a separated transition) still gets exactly
-# the update it always got.
+# the update it always got. `newton = "one"` takes a single halved Newton
+# step from `start` and stops there: the M-step of a generalised EM, which
+# needs the objective raised, not maximised. Without a usable `start`, or
+# when that step fails, it is the "warm" fit.
 #
 # Estimation runs on the table of unique covariate patterns whenever fewer than
 # half the rows are distinct, which is the ordinary case for a grouping
@@ -138,11 +141,21 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   # and gradient, so each point's probabilities are computed once instead of
   # two to four times: the same numbers, and on a transition regression over
   # every case most of the M-step.
+  #
+  # Under a generalised EM (`newton = "one"`) the next M-step starts where
+  # this one stopped, over the same design, so the point a step ends at is
+  # kept across calls (.one_hot_memo(), R/categorical.R) and the next
+  # M-step's first evaluation reads it instead of recomputing it.
   last_par  <- NULL
   last_prob <- NULL
+  memo_prob <- identical(newton, "one")
   prob_at <- function(pars) {
     if (!identical(pars, last_par)) {
-      last_prob <<- probs_for(rbind(matrix(pars, K - 1, D, byrow = TRUE), 0), Z_aug)
+      build <- function()
+        probs_for(rbind(matrix(pars, K - 1, D, byrow = TRUE), 0), Z_aug)
+      last_prob <<- if (memo_prob)
+        .one_hot_memo(paste0("mnl_prob_", ncol(Z_aug)), Z_aug, pars, NULL,
+                      build) else build()
       last_par  <<- pars
     }
     last_prob
@@ -190,7 +203,12 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
     H
   }
 
-  fit <- if (!isFALSE(newton)) .mnl_newton(par0, nll_func, nll_grad, nll_hess)
+  one  <- identical(newton, "one") && !is.null(start) &&
+    identical(dim(start), c(K, D))
+  fit <- if (one) .mnl_newton(par0, nll_func, nll_grad, nll_hess, one_step = TRUE)
+  one <- !is.null(fit)
+  if (is.null(fit) && !isFALSE(newton))
+    fit <- .mnl_newton(par0, nll_func, nll_grad, nll_hess)
   if (is.null(fit))
     fit <- optim(par = if (isTRUE(newton)) rep(0, (K - 1) * D) else par0,
                  fn = nll_func, gr = nll_grad, method = "BFGS")
@@ -220,9 +238,11 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 
   # Where Newton's last step was taken over these same rows its Hessian is
   # this one, negated, to rounding: on a transition regression over every
-  # case that was a tenth of the M-step.
+  # case that was a tenth of the M-step. After a single step it is the
+  # curvature one step back, which inside EM is a step of the size of EM's
+  # own last change; only print()'s fallback reads it there.
   if ((prior_rows || same_rows) && !is.null(last_hpar) &&
-      identical(fit$par, last_hpar)) {
+      (one || identical(fit$par, last_hpar))) {
     H <- -last_hess
   } else {
     H <- matrix(0, (K - 1) * D, (K - 1) * D)
@@ -270,7 +290,11 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 # the previous iteration's coefficients Newton needs two or three steps, and it
 # stops at the maximum itself rather than where BFGS's relative tolerance
 # (1e-8 of the objective) lets it stop.
-.mnl_newton <- function(par0, fn, gr, hess, max_iter = 50L) {
+#
+# `one_step = TRUE` returns the point after the first accepted step instead:
+# an improvement on `par0` rather than the maximum, which is all a
+# generalised EM asks of its M-step (see .fit_mnl()'s `newton = "one"`).
+.mnl_newton <- function(par0, fn, gr, hess, max_iter = 50L, one_step = FALSE) {
   par <- par0
   f   <- fn(par)
   if (!is.finite(f)) return(NULL)
@@ -290,6 +314,7 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
       if (t < 1e-10) return(NULL)
     }
     par <- np; f <- fn_new
+    if (one_step) return(list(par = par, value = f))
   }
   NULL
 }

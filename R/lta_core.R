@@ -555,7 +555,7 @@
       # exclusive (fit_lta() refuses the combination), so `c` is always 1 here.
       if (has_delta_cov) {
         state <- .lta_mstep_delta_cov(state, es$gamma[[1]], augment = alpha > 0,
-                                       alpha = alpha)
+                                       alpha = alpha, newton = "one")
         state$delta_c[[c]] <- state$delta
       } else if (isTRUE(state$tie_initial_status) && C > 1L) {
         state$delta_c[[c]] <- delta_tied
@@ -575,7 +575,8 @@
       # exist, and at 30,000 cases they cost a quarter of each iteration.
       if (Tn > 1L && has_tau_cov) {
         state <- .lta_mstep_tau_cov(state, es, augment = alpha > 0,
-                                     alpha = alpha, average = FALSE)
+                                     alpha = alpha, average = FALSE,
+                                     newton = "one")
         tau_stale <- TRUE
       } else if (Tn > 1L) {
         Xi <- .lta_pair_counts(es, wc, K, Tn, C)

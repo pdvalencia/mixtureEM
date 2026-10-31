@@ -287,6 +287,22 @@ higher. Such a model's statuses keep the labels their regressions give
 them, so the same solution can still be reported under a different
 labelling from one search to another.
 
+Inside EM, each of these regressions now takes one Newton step from the
+previous iteration's coefficients instead of being solved to its maximum
+at every iteration: a generalised EM, which still raises the
+log-likelihood at every iteration and has the same maxima, and whose last
+point the Newton-type finish takes to the maximum as before. The fitted
+probabilities at the point a step ends at are kept for the next step to
+start from. On 30,000 cases the 25-start model above went from 58 to 42
+seconds, and on 1,000 cases a 50-start fit from 5.1 to 4.2 seconds. On
+eight simulated sets, one with 10% of item responses missing and 15% of
+cases missing every response at the second occasion, log-likelihoods are
+unchanged to 2e-7, estimated probabilities to 4e-7 and the numbers of
+replicated starts are the same. On a ninth, a small sample whose
+transition regression is separated (its maximum lies at infinite
+coefficients), the two forms stop at different points along the same
+ridge, 0.0014 apart in log-likelihood.
+
 A multiple-group latent class model whose measurement differs by group
 (`group_effects = "both"` or `"measurement"`) with binary, categorical or
 ordinal items is now estimated on the table of distinct response patterns,
