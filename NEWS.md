@@ -64,6 +64,16 @@ sizes by at most 4e-7, and estimates, standard errors and the number of
 replicated starts are unchanged; the same configural model went from 7.9
 to about 5.5 seconds.
 
+A latent profile model (continuous indicators, no covariates on class
+membership) no longer polishes every random start with L-BFGS before the
+starts are compared; the Newton-type finish takes the leading starts to the
+maximum, as it already did. On seven simulated sets (weak separation, a 5%
+class, a nearly collapsed variance, missing data, five classes, 30,000
+cases), with and without the default priors, the log-likelihood moves by at
+most 4e-7, every estimate by at most 3e-7 and the number of replicated
+starts not at all. A 25-start four-profile model with class-specific
+variances on 30,000 cases went from 9.7 to 5.0 seconds on 8 cores.
+
 When the package is installed outside the default library (a project
 library, for instance), the workers of `n_cores` now load that same
 installation. They used to load whichever copy the default library held,

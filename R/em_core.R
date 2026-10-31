@@ -329,6 +329,11 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL, resp = NULL) 
                        "gaussian_diag", "gaussian_diag_nan",
                        "gaussian_unit", "gaussian_unit_nan")
 
+# The refinable emissions whose starts fit_single_init() does not polish when
+# no structural model is estimated with them: the Newton-type finish after the
+# search (R/qn_finish.R) takes the leaders to the same maximum.
+.em_polish_skip <- c("gaussian_diag", "gaussian_diag_nan")
+
 # Would refine_lbfgs() climb from wherever EM stops to the penalised optimum for
 # this emission? A block model is refinable when its sub-model is (the flat view
 # maps the blocks onto one wide parameter matrix); a nested model never is,
@@ -1509,7 +1514,16 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
                               maxit = closed$start_maxit %||% 500L)
     if (!is.null(fin)) { fin$n_iter <- n_iter; model_state <- fin }
   }
-  if (isTRUE(refine)) model_state <- refine_lbfgs(model_state, X, Y)
+  #
+  # A profile model -- Gaussian items, no structural model estimated alongside
+  # -- skips the per-start polish: the finish takes the leading starts to the
+  # maximum, and on a profile model every start's polish was a third of the
+  # search for no change in where the fit ends, which start leads or how many
+  # replicate it (graded on seven stress sets, missing data among them).
+  polish <- isTRUE(refine) &&
+    !(class(model_state$mm)[1] %in% .em_polish_skip &&
+        (is.null(Y) || is.null(model_state$sm)))
+  if (polish) model_state <- refine_lbfgs(model_state, X, Y)
 
   return(model_state)
 }
