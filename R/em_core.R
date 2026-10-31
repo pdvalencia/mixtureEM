@@ -698,8 +698,11 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL, resp = NULL) 
   pooled <- .em_group_pooled_prior(mm)
   val    <- 0
 
+  # Built only if a prior term reads it: with the constants at zero no term
+  # does, and the stacked copy was most of this function's cost every
+  # iteration of a multiple-group fit.
   if (length(inv) || pooled) {
-    X_pool  <- .strip_block_prefix(.stack_blocks(X, J, Bn))
+    delayedAssign("X_pool", .strip_block_prefix(.stack_blocks(X, J, Bn)))
     wt_pool <- if (is.null(wt)) NULL else rep(wt, Bn)
   }
   if (length(free)) {
@@ -844,6 +847,32 @@ m_step_core <- function(model_state, X, Y, log_resp, alpha = NULL, resp = NULL) 
   fam_val <- .em_family_log_prior(mm, X, K, marginals, model_state$sample_weights)
   if (is.na(fam_val)) return(NA_real_)
   val + fam_val
+}
+
+# Is .em_log_prior() plus the structural prior zero at every parameter value?
+# So it is when every Bayes constant is zero on families whose prior terms are
+# each scaled by, and skipped at, their constant (the flat and per-item terms
+# above, .qn_sm_prior()): a fit with the priors switched off, as plain ML
+# asks. fit_single_init() then stops re-evaluating a zero every iteration --
+# on a multiple-group fit the stacked data the per-item terms are handed was
+# rebuilt each time. The growth families are left out: their priors are
+# written elsewhere (.lcga_log_prior()).
+.em_prior_zero_families <- c("bernoulli", "bernoulli_nan", "bernoulli_dif",
+                             "multinoulli", "multinoulli_nan",
+                             "ordinal", "ordinal_nan", "ordinal_dif",
+                             "poisson", "poisson_nan", "zip", "zip_nan",
+                             "negbin", "negbin_nan",
+                             "gaussian_diag", "gaussian_diag_nan",
+                             "gaussian_unit", "gaussian_unit_nan")
+.em_prior_is_zero <- function(model_state) {
+  mm   <- model_state$mm
+  subs <- if (inherits(mm, "blocks")) mm$models else list(mm)
+  zero <- function(x, nm) all(vapply(nm, function(n) .bayes_alpha(x, n) == 0, TRUE))
+  consts <- c("latent", "categorical", "poisson", "variances")
+  zero(mm, consts) &&
+    all(vapply(subs, function(s)
+      class(s)[1] %in% .em_prior_zero_families && zero(s, consts), TRUE)) &&
+    (is.null(model_state$sm) || zero(model_state$sm, c("latent", "categorical")))
 }
 
 # L-BFGS refinement after EM convergence — Penalised Maximum Likelihood (PM).
@@ -1393,6 +1422,7 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
     tryCatch(.em_log_prior(st, X, Y, prior_marg) + sm_prior(st$sm),
              error = function(e) NA_real_)
   use_pen <- !is.na(log_prior_of(model_state))
+  if (use_pen && .em_prior_is_zero(model_state)) log_prior_of <- function(st) 0
   spike_at <- .em_spike_check(model_state, X)
 
   # An emission whose EM crawls may ask for it to be accelerated

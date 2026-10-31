@@ -203,10 +203,20 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
     H
   }
 
+  # A saturated design -- as many distinct covariate rows as coefficients per
+  # class, which is what a grouping variable alone gives -- has its maximum in
+  # closed form, so the mixture M-step (`newton = TRUE`, which asks for the
+  # maximum itself) takes it directly instead of iterating to it. Not under
+  # the ghost, whose rows sit at the column means rather than on a pattern.
+  sat <- if (isTRUE(newton) && agg && nrow(Z_d) == D &&
+             (prior_rows || !isTRUE(augment)))
+    .mnl_saturated(Z_d, resp_d, w_d, if (prior_rows) w_prior else 0)
+
   one  <- identical(newton, "one") && !is.null(start) &&
     identical(dim(start), c(K, D))
-  fit <- if (one) .mnl_newton(par0, nll_func, nll_grad, nll_hess, one_step = TRUE)
-  one <- !is.null(fit)
+  fit <- if (!is.null(sat)) list(par = sat) else
+    if (one) .mnl_newton(par0, nll_func, nll_grad, nll_hess, one_step = TRUE)
+  one <- one && !is.null(fit)
   if (is.null(fit) && !isFALSE(newton))
     fit <- .mnl_newton(par0, nll_func, nll_grad, nll_hess)
   if (is.null(fit))
@@ -256,6 +266,26 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   }
 
   list(beta = beta, hessian = H, prob = prob)
+}
+
+# The maximum of the multinomial logit on a saturated design, in closed form.
+# With one free coefficient per class per distinct covariate row, each row's
+# probabilities are free on the simplex, so the maximum sets them to the row's
+# weighted mean responsibility -- plus `a`, the prior's pseudo-case per class
+# and row (alpha / (K U0), see .fit_mnl()) -- and the coefficients are the
+# log-odds against the last class solved through the square design `Z_d`.
+# Returned in .fit_mnl()'s parameter order (class-major, covariate fastest).
+# NULL where that maximum is not finite -- a class with no weight on some row,
+# whose coefficients go to infinity -- or `Z_d` is singular, and the caller
+# then iterates as it always did.
+.mnl_saturated <- function(Z_d, resp_d, w_d, a) {
+  K <- ncol(resp_d)
+  p <- (resp_d * w_d + a) / (w_d + K * a)
+  if (!all(is.finite(p)) || any(p <= 0)) return(NULL)
+  B <- tryCatch(solve(Z_d, log(p[, -K, drop = FALSE]) - log(p[, K])),
+                error = function(e) NULL)
+  if (is.null(B) || !all(is.finite(B))) return(NULL)
+  as.vector(B)
 }
 
 # Which rows of a covariate design are copies of which: `u` marks each
@@ -319,14 +349,29 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   NULL
 }
 
+# The class regression's design: the covariates, completed where missing, with
+# the intercept column. Both the E- and the M-step build it from the same data
+# every iteration, so with complete covariates -- where completion is a no-op
+# -- the last one is kept (.one_hot_memo(), R/categorical.R). Incomplete
+# covariates are completed on every call, as before, which keeps the
+# completion's own warnings where they were.
+.covariate_design <- function(model_state, X) {
+  X <- as.matrix(X)
+  if (anyNA(X)) {
+    X <- complete_covariates(X)
+    return(if (model_state$intercept) cbind(1, X) else X)
+  }
+  if (!model_state$intercept) return(X)
+  .one_hot_memo("covariate_design", X, NULL, NULL, function() cbind(1, X))
+}
+
 #' @exportS3Method
 m_step.covariate <- function(model_state, X, resp, weights = NULL, ...) {
   # Missing covariates are completed under the class-invariant Gaussian marginal
   # (endogenous-constrained-x; Sterba, 2014) so every case is retained rather
   # than dropped or filled with an unconditional column mean. With complete
   # covariates this is a no-op.
-  X <- complete_covariates(as.matrix(X))
-  X_mat <- if(model_state$intercept) cbind(1, X) else X
+  X_mat <- .covariate_design(model_state, X)
   K <- model_state$n_components
   D <- ncol(X_mat)
   w_vec <- if(!is.null(weights)) weights else rep(1, nrow(X_mat))
@@ -524,8 +569,7 @@ init_params.covariate <- function(model_state, X, resp, ...) {
 log_likelihood.covariate <- function(model_state, X, ...) {
   # 1. Prepare Matrix (completing any missing covariates under the shared,
   #    class-invariant Gaussian marginal; a no-op when covariates are complete).
-  X <- complete_covariates(as.matrix(X))
-  X_mat <- if(model_state$intercept) cbind(1, X) else X
+  X_mat <- .covariate_design(model_state, X)
 
   # A case's class log-probabilities depend on its own covariate row only, so
   # where the covariates take few distinct values (a grouping variable, a

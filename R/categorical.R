@@ -98,7 +98,7 @@ m_step.bernoulli <- function(model_state, X, resp, weights = NULL, alpha = NULL,
   # once and must carry that many occasions' prior with it.
   prior_obs <- prior_scale * alpha / K
 
-  pis <- t(resp) %*% X
+  pis <- crossprod(resp, X)
 
   # Add Dirichlet prior to numerator (proportional to marginal probability)
   pis <- sweep(pis, 2, prior_obs * marginal_prob, "+")
@@ -136,8 +136,9 @@ n_parameters.bernoulli_nan <- n_parameters.bernoulli
 m_step.bernoulli_nan <- function(model_state, X, resp, weights = NULL, alpha = NULL,
                                  prior_scale = 1, ...) {
   alpha <- alpha %||% .bayes_alpha(model_state, "categorical")
+  # sweep(MARGIN = 1) written as the product it is (a weight per row).
   if (!is.null(weights)) {
-    resp <- sweep(resp, 1, weights, "*")
+    resp <- resp * weights
   }
 
   K <- model_state$n_components
@@ -156,7 +157,7 @@ m_step.bernoulli_nan <- function(model_state, X, resp, weights = NULL, alpha = N
         marg_prob <- mean(X[valid, j])
       }
 
-      num <- t(resp_valid) %*% X[valid, j] + (prior_obs * marg_prob)
+      num <- crossprod(resp_valid, X[valid, j]) + (prior_obs * marg_prob)
       den <- colSums(resp_valid) + prior_obs
       pis[, j] <- num / den
     }

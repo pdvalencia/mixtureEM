@@ -225,19 +225,28 @@ m_step.blocks <- function(model_state, X, resp, weights = NULL, ...) {
   # 1 / Bn of the item's prior mass.
   if (!all_invariant) {
     pooled <- .em_group_pooled_prior(model_state)
+    # The pooled answers and each block's empty rows are functions of the data
+    # alone, so they are built once per data (.one_hot_memo(),
+    # R/categorical.R) rather than every iteration.
     if (pooled) {
-      X_all <- .strip_block_prefix(X[, .time_block_cols(1L, J), drop = FALSE])
-      for (b in seq_len(Bn)[-1L]) {
-        blk  <- X[, .time_block_cols(b, J), drop = FALSE]
-        fill <- is.na(X_all) & !is.na(blk)
-        X_all[fill] <- blk[fill]
-      }
+      pz <- .one_hot_memo("group_pooled_X", X, J, Bn, function() {
+        X_all <- .strip_block_prefix(X[, .time_block_cols(1L, J), drop = FALSE])
+        for (b in seq_len(Bn)[-1L]) {
+          blk  <- X[, .time_block_cols(b, J), drop = FALSE]
+          fill <- is.na(X_all) & !is.na(blk)
+          X_all[fill] <- blk[fill]
+        }
+        list(X_all = X_all, empty = lapply(seq_len(Bn), function(b)
+          rowSums(!is.na(X[, .time_block_cols(b, J), drop = FALSE])) == 0L))
+      })
+      X_all <- pz$X_all
     }
     for (b in seq_len(Bn)) {
-      X_sub <- .strip_block_prefix(X[, .time_block_cols(b, J), drop = FALSE])
+      if (!pooled)
+        X_sub <- .strip_block_prefix(X[, .time_block_cols(b, J), drop = FALSE])
       model_state$models[[b]] <- if (pooled) {
         r_b <- resp_at(b)
-        r_b[rowSums(!is.na(X_sub)) == 0L, ] <- 0
+        r_b[pz$empty[[b]], ] <- 0
         m_step(model_state$models[[b]], X_all, r_b, weights = weights,
                prior_scale = 1 / Bn, ...)
       } else if (!is.null(model_state$prior_statuses)) {

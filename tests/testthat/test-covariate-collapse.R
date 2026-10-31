@@ -210,3 +210,37 @@ test_that("the step-one Hessian on the pattern table is the rows' Hessian", {
     Y, n_classes = 2, measurement = "continuous", n_init = 1, random_state = 1)))
   expect_null(.step1_patterns(gfit, Y, rep(1, 200)))
 })
+
+test_that("a saturated class regression takes its maximum in closed form", {
+  # A grouping variable alone gives as many distinct design rows as
+  # coefficients per class, and .fit_mnl() then sets each row's
+  # probabilities to its weighted mean responsibility instead of iterating.
+  # The Newton fit (`newton = "warm"` never takes the closed form) lands on
+  # the same coefficients, curvature and probabilities, with and without the
+  # Dirichlet prior's pseudo-rows.
+  set.seed(4)
+  n <- 400; K <- 3
+  g <- sample(3, n, TRUE)
+  Z <- cbind(1, g == 2, g == 3)
+  resp <- matrix(stats::rexp(n * K), n); resp <- resp / rowSums(resp)
+  w <- stats::runif(n, 0.5, 2)
+  for (alpha in c(0, 1)) {
+    cf <- .fit_mnl(Z, resp, w, augment = alpha > 0, alpha = alpha, newton = TRUE)
+    nt <- .fit_mnl(Z, resp, w, augment = alpha > 0, alpha = alpha, newton = "warm")
+    expect_equal(cf$beta, nt$beta, tolerance = 1e-6)
+    expect_equal(cf$hessian, nt$hessian, tolerance = 1e-6)
+    expect_equal(cf$prob, nt$prob, tolerance = 1e-6)
+    # Each group's fitted probabilities are its weighted mean responsibility
+    # (plus the prior's alpha / (K U0) pseudo-case per class).
+    a  <- alpha / (K * 3)
+    pg <- (rowsum(resp * w, g) + a) / (as.vector(rowsum(w, g)) + K * a)
+    expect_equal(cf$prob[!duplicated(g), ][order(g[!duplicated(g)]), ],
+                 unname(pg), tolerance = 1e-12, ignore_attr = TRUE)
+  }
+  # A class with no weight in one group has no finite maximum: no closed form,
+  # and .fit_mnl() iterates as before.
+  r0 <- resp; r0[g == 1, 1] <- 0; r0 <- r0 / rowSums(r0)
+  pz <- .mnl_patterns(Z)
+  expect_null(.mnl_saturated(Z[pz$u, ], rowsum(r0 * w, pz$idx) /
+                as.vector(rowsum(w, pz$idx)), as.vector(rowsum(w, pz$idx)), 0))
+})

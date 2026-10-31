@@ -52,6 +52,18 @@ bit; a 50-start three-class configural model on 1,000 cases went from 17.5
 to 7.9 seconds on 8 cores, and on 30,000 cases a 25-start one from 8.4 to
 3.7.
 
+An EM iteration of a multiple-group model costs less: the pooled answers
+the group blocks share, and the class regression's design, are built once
+per fit instead of every iteration, and a prior whose constants are all zero
+is no longer re-evaluated at every iteration. When a class regression has
+as many distinct covariate rows as coefficients per class (a grouping
+variable alone), its M-step now takes the maximum in closed form, each
+row's fitted probabilities being its weighted mean posterior, where Newton
+stopped just short of it. Log-likelihoods move by at most 5e-10, class
+sizes by at most 4e-7, and estimates, standard errors and the number of
+replicated starts are unchanged; the same configural model went from 7.9
+to about 5.5 seconds.
+
 When the package is installed outside the default library (a project
 library, for instance), the workers of `n_cores` now load that same
 installation. They used to load whichever copy the default library held,
