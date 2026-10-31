@@ -173,6 +173,24 @@ and down on one, and on the 1,000-case set from 36 of 50 to 28.
 Models with `psi = "equal"` or `"variances"` keep their search; their
 iterations are faster and agree with the previous ones to rounding.
 
+The finish of `fit_gmm(psi = "free")` without growth covariates or a class
+regression now has the model's exact curvature, computed in closed form
+from one pass over the data (Louis's identity, with the normal's second
+derivatives summed per class and missingness pattern) rather than by
+differencing the scores, and takes Newton steps on it wherever it is
+negative definite. A start is therefore handed to the finish after 50 EM
+iterations instead of 300, and a start whose finish has not reached a
+maximum after 25 iterations is left where it is; the leading starts are
+finished in full as before. On 30,000 cases a 25-start three-class model
+went from 29 to 15 seconds, on 1,000 cases from 5.8 to 1.4 seconds, and
+on the simulated sets above from 6-26 to 1-8 seconds. The reported maximum
+and every estimate are unchanged on seven of the eight sets; on the set
+with a 5% class the search now reports a higher maximum (by 0.22), with a
+1% class whose intercept variance is negative. Newton steps take each start
+to the maximum nearest it, so fewer starts reach the reported one: 183
+over the eight sets against 214, and 26 of 50 against 28 on the 1,000-case
+set.
+
 `fit_gmm(psi = "variances", fix = )` no longer stops with a type error
 when a growth-factor variance is fixed in one class.
 

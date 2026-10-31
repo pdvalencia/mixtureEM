@@ -129,8 +129,13 @@
 # An emission may set its own schedule by carrying `qn_curvature` (`after`,
 # `hessians`, and `modified`, which takes the modified Newton step where the
 # exact curvature is not negative definite instead of setting it aside). The
-# binary growth mixture does (R/gmm_binary.R); every other model runs the
-# schedule above.
+# binary growth mixture does (R/gmm_binary.R). The continuous growth mixture
+# with free class covariances (R/structured_normal.R) carries the curvature
+# itself (`information`, built in closed form from one pass over the data rather
+# than by 2p differenced gradients, .qn_sn_hessian_hook()), and with it
+# `refresh`, which rebuilds the curvature at every point a Newton step reaches
+# instead of keeping the first, and `radius`, its own cap on a step. Every
+# other model runs the schedule above.
 .qn_newton_after    <- 100L
 .qn_newton_hessians <- 2L
 .qn_newton_keep     <- 0.1
@@ -277,6 +282,8 @@
   newton_after <- curvature$after %||% .qn_newton_after
   newton_hess  <- curvature$hessians %||% .qn_newton_hessians
   modified     <- isTRUE(curvature$modified)
+  refresh      <- isTRUE(curvature$refresh)
+  radius       <- curvature$radius %||% .qn_radius
   scores <- scores %||% function(p, idx) .qn_fd_scores(case_ll, p, idx)
   kind   <- kind %||% rep("logit", length(par0))
   value  <- function(p) {
@@ -355,11 +362,15 @@
     if (is.null(H) && analytic && n_hess < newton_hess &&
         it >= next_hess) {
       n_hess <- n_hess + 1L
-      Hn <- vapply(seq_along(free), function(i) {
-        e <- rep(0, length(x)); e[free[i]] <- 1e-5
-        (grad_at(x + e) - grad_at(x - e)) / 2e-5
-      }, numeric(length(free)))
-      Hn <- -(Hn + t(Hn)) / 2
+      info <- curvature[["information"]]
+      Hn <- if (is.function(info)) info(x, free)
+      if (is.null(Hn)) {
+        Hn <- vapply(seq_along(free), function(i) {
+          e <- rep(0, length(x)); e[free[i]] <- 1e-5
+          (grad_at(x + e) - grad_at(x - e)) / 2e-5
+        }, numeric(length(free)))
+        Hn <- -(Hn + t(Hn)) / 2
+      }
       lam_n <- if (all(is.finite(Hn)))
         eigen(Hn, symmetric = TRUE, only.values = TRUE)$values
       if (!is.null(lam_n) && min(lam_n) > 0) {
@@ -387,7 +398,7 @@
     lam <- pmax(e$values, 1e-10 * max(e$values, 1e-300))
     d  <- as.vector(e$vectors %*% (crossprod(e$vectors, g) / lam))
     big <- max(abs(d))
-    if (big > .qn_radius) d <- d * .qn_radius / big
+    if (big > radius) d <- d * radius / big
 
     # A step is judged on its gain summed case by case, not on the difference
     # of two totals. Near the maximum a Newton step along a coordinate with a
@@ -445,6 +456,10 @@
                    gain < .qn_newton_keep * 0.5 * sum(g * d))) {
       H <- NULL
       next_hess <- it + newton_after
+    } else if (newton && refresh) {
+      # A curvature cheap enough to rebuild is rebuilt at the new point.
+      H <- NULL
+      next_hess <- it + 1L
     }
     # A step that no longer moves any coordinate beyond its last few digits
     # leaves the point where it is, and so would every step after it -- unless
@@ -668,8 +683,8 @@
 # the start left the reported fit's quadrature check (R/gmm_binary.R) at
 # -0.82, and the rounds took it to -0.11. The state returned carries no rule
 # of its own, so its log-likelihood is the one its parameters give.
-.qn_finish_mixture <- function(model_state, X, Y) {
-  fin <- .qn_finish_mixture_once(model_state, X, Y)
+.qn_finish_mixture <- function(model_state, X, Y, maxit = 500L) {
+  fin <- .qn_finish_mixture_once(model_state, X, Y, maxit)
   if (is.null(fin) || is.null(fin$mm$node_rule)) return(fin)
   w <- fin$sample_weights %||% 1
   release <- function(st) {
@@ -683,14 +698,14 @@
     moved <- abs(sum(w * (rel$lower_bound - fin$lower_bound)))
     fin <- rel
     if (!is.finite(moved) || moved < 1e-4) return(fin)
-    nxt <- .qn_finish_mixture_once(fin, X, Y)
+    nxt <- .qn_finish_mixture_once(fin, X, Y, maxit)
     if (is.null(nxt)) return(fin)
     fin <- nxt
   }
   release(fin)
 }
 
-.qn_finish_mixture_once <- function(model_state, X, Y) {
+.qn_finish_mixture_once <- function(model_state, X, Y, maxit = 500L) {
   pr <- .qn_mixture_problem(model_state, X, Y)
   if (is.null(pr)) return(NULL)
   lay <- pr$lay; par0 <- pr$par; Yp <- pr$Yp; wt <- pr$wt
@@ -742,10 +757,30 @@
   # mixture target was graded at (RECORDS.md, "Part 53 graded"): the tighter
   # analytic rule took m_free (group prevalence, p = 76) from 33 iterations to
   # 340 for 2e-8 of log-likelihood (RECORDS.md, Part 56).
+  # Where the emission asks for its closed-form curvature, the pass that builds
+  # it gives the scores too, and both are cached at the point.
+  # Where it does not apply, the finish runs the default schedule.
+  curvature <- model_state$mm$qn_curvature
+  hook <- if (isTRUE(curvature$analytic) && !is.null(s0))
+    .qn_sn_hessian_hook(model_state, lay, X, pr, prior_grad)
+  if (isTRUE(curvature$analytic) && is.null(hook)) curvature <- NULL
+  if (!is.null(hook)) {
+    scores <- function(p, idx) {
+      if (is.null(at(p)$S)) {
+        hs <- hook$pass(cache)
+        cache$S <<- hs$S; cache$H <<- hs$H
+      }
+      cache$S[, idx, drop = FALSE]
+    }
+    curvature[["information"]] <- function(p, free) {
+      scores(p, 1L)
+      hook$info(cache, free)
+    }
+  }
   res <- .qn_finish(case_ll, pr$w, par0, pr$prior, scores,
-                    gtol_stop = .qn_gtol_stop_fd, kind = lay$kind,
+                    gtol_stop = .qn_gtol_stop_fd, maxit = maxit, kind = lay$kind,
                     fixed = pr$fixed, prior_grad = prior_grad,
-                    curvature = model_state$mm$qn_curvature)
+                    curvature = curvature)
   if (is.null(res) || res$value <= start) return(NULL)
   if (.qn_scale_collapsed(par0, res$par, lay$kind)) return(NULL)
 
@@ -770,6 +805,47 @@
                        max_gradient = res$max_gradient, converged = res$converged,
                        gain = res$value - start)
   st
+}
+
+# The growth mixture's closed-form curvature (.qn_sn_hessian(), R/qn_scores.R),
+# for an emission that asks for it (`qn_curvature$analytic`, R/structured_normal.R)
+# where it applies: nothing estimated alongside the growth model -- no
+# structural model, no block held fixed -- and no growth covariates. Returns
+# the emission's `qn_curvature`, or NULL.
+.qn_closed_curvature <- function(model_state, Y) {
+  cv <- model_state$mm$qn_curvature
+  if (!isTRUE(cv$analytic) || !inherits(model_state$mm, "structured_normal") ||
+      (!is.null(Y) && !is.null(model_state$sm)) || length(model_state$frozen) ||
+      .sn_m(model_state$mm) > 0L)
+    return(NULL)
+  cv
+}
+
+# That curvature as the finish asks for it: `pass(c0)` takes the cached E-step
+# at a point to the Hessian and score matrix there, and `info(c0, free)` the
+# information over the free coordinates, the prior's included. The growth
+# mixture has no measurement prior (.qn_flat_prior_gh()), so the prior is the
+# class sizes' alone, alpha / K sum_k log pi_k, whose curvature in the logits
+# is -alpha (diag(pi) - pi pi'). NULL wherever it does not apply, and the
+# finish then runs its default schedule.
+.qn_sn_hessian_hook <- function(model_state, lay, X, pr, prior_grad) {
+  if (is.null(.qn_closed_curvature(model_state, if (lay$has_sm) pr$Yp)) ||
+      is.null(prior_grad) || is.null(lay$idx$weights))
+    return(NULL)
+  w  <- rep_len(pr$w %||% 1, nrow(as.matrix(X)))
+  al <- .bayes_alpha(model_state$mm, "latent")
+  iw <- lay$idx$weights
+  list(
+    pass = function(c0) .qn_sn_hessian(c0$st$mm, X, c0$R, w, c0$st$weights),
+    info = function(c0, free) {
+      H <- c0$H
+      if (al > 0) {
+        q <- c0$st$weights[-c0$st$n_components]
+        H[iw, iw] <- H[iw, iw] - al * (diag(q, length(q)) - tcrossprod(q))
+      }
+      I <- -H[free, free, drop = FALSE]
+      (I + t(I)) / 2
+    })
 }
 
 # Finish the leading EM solutions of a multi-start search and return the best.

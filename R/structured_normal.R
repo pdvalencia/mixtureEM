@@ -205,7 +205,30 @@ structured_normal_model <- function(n_components, design,
     # 50 instead, one set moved to a different maximum.
     em_finish_after        = if (identical(psi, "free") && is.null(psi_fixed) &&
                                  isTRUE(residual_equal) &&
-                                 is.null(growth_covariates)) 300L
+                                 is.null(growth_covariates)) 300L,
+    # Where nothing else is estimated alongside (no class regression, no
+    # outcome, not a two-step's held measurement model), the finish has the
+    # model's exact curvature in closed form (.qn_sn_hessian(),
+    # R/qn_scores.R), one pass over the data, and takes Newton steps on it from
+    # its first iteration wherever it is negative definite, rebuilt at every
+    # point; BHHH steps elsewhere, up to 4 units per coordinate. With that, a
+    # start is handed over after 50 EM iterations instead of 300, and its
+    # finish is cut off after 25 iterations: Newton reaches a maximum in five
+    # to eight, and a start still short of one by then is in a basin that
+    # loses (the leading starts are finished again in full, .qn_finish_search()).
+    # On the eight stress sets above and one more of 1,000 cases, every
+    # estimate is the 300-iteration schedule's on seven; on the 5%-class set
+    # the search reports a higher maximum, its small class's intercept
+    # variance further below zero; the 30,000-case fit 2x faster and the
+    # 1,000-case one 4x. Newton settles each start on the maximum nearest it,
+    # so fewer starts reach the reported one: 183 replicated over the eight
+    # sets against 214 (40 iterations: 191, 60: 194, each slower)
+    # (RECORDS.md, "Part 74 row 14: the closed-form Newton finish").
+    qn_curvature           = if (identical(psi, "free") && is.null(psi_fixed) &&
+                                 isTRUE(residual_equal) &&
+                                 is.null(growth_covariates))
+      list(analytic = TRUE, em_finish_after = 50L, start_maxit = 25L,
+           after = 1L, hessians = 500L, refresh = TRUE, radius = 4)
   )
   class(state) <- c("structured_normal", "emission")
   state

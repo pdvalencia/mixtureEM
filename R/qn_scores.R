@@ -120,36 +120,14 @@
   L  <- ms$design; p <- ncol(L)
   q  <- length(ms$r_cols); Lr <- L[, ms$r_cols, drop = FALSE]
   m  <- .sn_m(ms); Z <- .sn_z(ms, n)
-  th <- .qn_sn_theta_dims(ms); nr <- length(th$rows)
-  np <- length(.qn_pack_sn(ms)$par)
-  off_th <- np - nr * length(th$cols)
-  off_psi <- K * p + if (m > 0L) (if (isTRUE(ms$gamma_equal)) 1L else K) * p * m
-             else 0L
+  lo <- .qn_sn_layout(ms)
+  th <- lo$th; nr <- lo$nr; np <- lo$np; off_th <- lo$off_th
+  off_psi <- lo$off_psi; li <- lo$li; fl <- lo$fl
   S  <- matrix(0, n, np)
-
-  # Each lower-triangle slot's coordinate in the Psi block, class by class
-  # (NA where the element is fixed), and its multiplier.
-  if (q) {
-    li <- which(lower.tri(diag(q), diag = TRUE), arr.ind = TRUE)
-    nl <- nrow(li); dg <- li[, 1L] == li[, 2L]
-    fl <- ifelse(dg, 0.5, 1) * (ms$qn_psi_unit %||% .qn_sn_psi_unit(ms))[li]
-    type <- .sn_psi_type(ms)
-    sl <- if (!is.null(ms$psi_fixed)) .sn_psi_slots(ms)
-    psi_col <- function(k) {
-      if (!is.null(sl)) return(sl$id[k, ])
-      if (identical(type, "variances") && q > 1L) {
-        out <- integer(nl)
-        out[dg]  <- (li[dg, 1L] - 1L) * K + k
-        out[!dg] <- K * q + seq_len(sum(!dg))
-        return(out)
-      }
-      if (identical(type, "equal")) seq_len(nl) else (k - 1L) * nl + seq_len(nl)
-    }
-  }
 
   for (k in seq_len(K)) {
     Sig <- .sn_sigma(ms, k); mu <- .sn_mu(ms, k)
-    pc  <- if (q) psi_col(k)
+    pc  <- if (q) lo$psi_col(k)
     tr  <- if (nr == 1L) 1L else k
     gb  <- K * p + if (isTRUE(ms$gamma_equal)) 0L else (k - 1L) * p * m
     for (pat in .sn_patterns(X)) {
@@ -187,6 +165,166 @@
     }
   }
   S
+}
+
+# Where .qn_pack_sn() puts each piece: the offsets of the Psi and Theta
+# blocks, and, for the Psi block, each lower-triangle slot's coordinate class
+# by class (NA where the element is fixed) with its multiplier `fl`. A slot
+# (a, b) moves Sigma by fl (l_a l_b' + l_b l_a'), l_a column a of Lambda_r,
+# which is half its unit on the diagonal and the whole unit off it.
+.qn_sn_layout <- function(ms) {
+  K  <- ms$n_components
+  p  <- ncol(ms$design); q <- length(ms$r_cols); m <- .sn_m(ms)
+  th <- .qn_sn_theta_dims(ms); nr <- length(th$rows)
+  np <- length(.qn_pack_sn(ms)$par)
+  out <- list(th = th, nr = nr, np = np, off_th = np - nr * length(th$cols),
+              off_psi = K * p + if (m > 0L)
+                (if (isTRUE(ms$gamma_equal)) 1L else K) * p * m else 0L)
+  if (!q) return(out)
+  li <- which(lower.tri(diag(q), diag = TRUE), arr.ind = TRUE)
+  nl <- nrow(li); dg <- li[, 1L] == li[, 2L]
+  type <- .sn_psi_type(ms)
+  sl <- if (!is.null(ms$psi_fixed)) .sn_psi_slots(ms)
+  c(out, list(
+    li = li,
+    fl = ifelse(dg, 0.5, 1) * (ms$qn_psi_unit %||% .qn_sn_psi_unit(ms))[li],
+    psi_col = function(k) {
+      if (!is.null(sl)) return(sl$id[k, ])
+      if (identical(type, "variances") && q > 1L) {
+        out <- integer(nl)
+        out[dg]  <- (li[dg, 1L] - 1L) * K + k
+        out[!dg] <- K * q + seq_len(sum(!dg))
+        return(out)
+      }
+      if (identical(type, "equal")) seq_len(nl) else (k - 1L) * nl + seq_len(nl)
+    }))
+}
+
+# The growth mixture's Hessian in closed form, for the finish's Newton steps
+# (R/qn_finish.R), over .qn_pack_sn()'s coordinates and then the class-size
+# logits: what differencing the scores 2p times would give, from one pass
+# over the data instead. Case i's log-likelihood is
+# l_i = log sum_k pi_k f_k(y_i), and with l_ik = log pi_k + log f_k(y_i), g_ik
+# its gradient, r_ik the posterior and s_i = sum_k r_ik g_ik the score row,
+#
+#   d2 l_i = sum_k r_ik (d2 l_ik + g_ik g_ik') - s_i s_i'
+#
+# (Louis, 1982). The second part takes each class's own score rows. The first
+# is the normal's Hessian. Within a class and a pattern of observed
+# occasions, with a = Sigma^-1 (y - mu), a mean coordinate moving mu by m_a
+# and a covariance coordinate moving Sigma by D_b (and, for a log standard
+# deviation, by D_bb in its own second derivative):
+#
+#   mean, mean  -m_a' Sigma^-1 m_b
+#   mean, cov   -m_a' Sigma^-1 D_b a
+#   cov, cov     tr(Sigma^-1 D_b Sigma^-1 D_c) / 2 - a' D_b Sigma^-1 D_c a
+#                + [b = c] (a' D_bb a - tr(Sigma^-1 D_bb)) / 2
+#
+# Summed over the pattern's cases with weights r_ik w_i these need only
+# N = sum r w, abar = sum r w a and Q = sum r w a a': T x T arithmetic per
+# class and pattern. A class's score rows touch only its own coordinates and the shared ones, so they are built
+# here on those alone, and the score matrix, sum_k r_ik g_ik, is the same
+# rows summed, so it is returned too (`S`, in .qn_mixture_score_matrix()'s
+# order) and the finish needs no second pass for it. Without growth
+# covariates only; NULL otherwise. `w` is the case weights.
+.qn_sn_hessian <- function(ms, X, R, w, weights) {
+  if (.sn_m(ms) > 0L) return(NULL)
+  X  <- as.matrix(X)
+  K  <- ms$n_components
+  L  <- ms$design; p <- ncol(L)
+  q  <- length(ms$r_cols); Lr <- L[, ms$r_cols, drop = FALSE]
+  lo <- .qn_sn_layout(ms)
+  np <- lo$np; nt <- np + K - 1L
+  one_col <- length(lo$th$cols) == 1L
+  iw <- np + seq_len(K - 1L)
+  pats <- .sn_patterns(X)
+  H  <- matrix(0, nt, nt)
+  S  <- matrix(0, nrow(X), nt)
+  for (k in seq_len(K)) {
+    Sig <- .sn_sigma(ms, k); mu <- .sn_mu(ms, k)
+    pc  <- if (q) lo$psi_col(k)
+    tr  <- if (lo$nr == 1L) 1L else k
+    th  <- ms$parameters$theta[k, ]
+    rk  <- R[, k] * w
+    im  <- (seq_len(p) - 1L) * K + k
+    ek  <- -weights[-K]; if (k < K) ek[k] <- ek[k] + 1
+    for (pat in pats) {
+      cols <- pat$cols; rows <- pat$rows
+      if (!length(cols)) next
+      ch <- .sn_chol(Sig[cols, cols, drop = FALSE])
+      if (is.null(ch)) next
+      Si <- chol2inv(ch)
+      To <- length(cols)
+      rw <- rk[rows]
+      N  <- sum(rw)
+      A  <- .sn_resid(X, mu, rows, cols, pat$Y) %*% Si
+      ab <- colSums(rw * A); Q <- crossprod(A, rw * A)
+      Lo <- L[cols, , drop = FALSE]
+      # The covariance coordinates this class and pattern move: their place
+      # in the packing, D_b, and D_bb (zero for a Psi element).
+      id <- integer(0); D <- list(); D2 <- list()
+      if (q) {
+        Ll <- Lr[cols, , drop = FALSE]
+        for (j in which(!is.na(pc))) {
+          a <- lo$li[j, 1L]; b <- lo$li[j, 2L]
+          id <- c(id, lo$off_psi + pc[j])
+          D[[length(D) + 1L]]  <- lo$fl[j] * (tcrossprod(Ll[, a], Ll[, b]) +
+                                              tcrossprod(Ll[, b], Ll[, a]))
+          D2[[length(D)]] <- matrix(0, To, To)
+        }
+      }
+      if (one_col) {
+        id <- c(id, lo$off_th + tr)
+        D[[length(D) + 1L]] <- diag(2 * th[cols], To)
+        D2[[length(D)]]     <- diag(4 * th[cols], To)
+      } else for (t in seq_along(cols)) {
+        id <- c(id, lo$off_th + (cols[t] - 1L) * lo$nr + tr)
+        E  <- matrix(0, To, To); E[t, t] <- 1
+        D[[length(D) + 1L]] <- 2 * th[cols[t]] * E
+        D2[[length(D)]]     <- 4 * th[cols[t]] * E
+      }
+      nc  <- length(D)
+      SD  <- lapply(D, function(Db) Si %*% Db)
+      Hcc <- matrix(0, nc, nc)
+      for (b in seq_len(nc)) for (c in b:nc) {
+        v <- N / 2 * sum(SD[[b]] * t(SD[[c]])) - sum((D[[b]] %*% SD[[c]]) * Q)
+        if (b == c) v <- v + (sum(D2[[b]] * Q) - N * sum(Si * D2[[b]])) / 2
+        Hcc[b, c] <- Hcc[c, b] <- v
+      }
+      Hmc <- -crossprod(Lo, vapply(SD, function(M) as.vector(M %*% ab),
+                                   numeric(To)))
+      Hmm <- -N * crossprod(Lo, Si %*% Lo)
+      H[im, im] <- H[im, im] + Hmm
+      H[im, id] <- H[im, id] + Hmc
+      H[id, im] <- H[id, im] + t(Hmc)
+      H[id, id] <- H[id, id] + Hcc
+      # The class's own score rows on its coordinates -- a' m_a for a mean,
+      # (a' D_b a - tr(Sigma^-1 D_b)) / 2 for a covariance, every quadratic
+      # form one product of the cases' a a' with the stacked D_b, and
+      # 1[k] - pi, the same for every case, for the class-size logits -- and
+      # their outer products weighted by r_ik w_i.
+      # Each D_b is symmetric, so the quadratic forms need the upper triangle
+      # of a a' only, an off-diagonal cell counted twice.
+      ut <- which(upper.tri(diag(To), diag = TRUE), arr.ind = TRUE)
+      Dm <- matrix(vapply(D, function(Db) Db[ut] * (2 - (ut[, 1L] == ut[, 2L])),
+                          numeric(nrow(ut))), nrow(ut))
+      qf <- (A[, ut[, 1L], drop = FALSE] * A[, ut[, 2L], drop = FALSE]) %*% Dm
+      G  <- cbind(A %*% Lo, (qf - rep(vapply(D, function(Db) sum(Si * Db),
+                                              numeric(1)), each = nrow(qf))) / 2)
+      ix <- c(im, id)
+      cw <- colSums(rw * G)
+      H[ix, ix] <- H[ix, ix] + crossprod(G, rw * G)
+      H[ix, iw] <- H[ix, iw] + outer(cw, ek)
+      H[iw, ix] <- H[iw, ix] + outer(ek, cw)
+      H[iw, iw] <- H[iw, iw] + N * tcrossprod(ek)
+      S[rows, ix] <- S[rows, ix] + R[rows, k] * G
+    }
+  }
+  S[, iw] <- sweep(R[, -K, drop = FALSE], 2, weights[-K], "-")
+  # log pi_k in the logits: -(diag(pi) - pi pi'), the same for every class.
+  pw <- weights[-K]
+  H[iw, iw] <- H[iw, iw] - sum(w) * (diag(pw, K - 1L) - tcrossprod(pw))
+  list(H = H - crossprod(S, w * S), S = S)
 }
 
 # A sub-model of a composite model, flat or mixed (`nested`), with its items

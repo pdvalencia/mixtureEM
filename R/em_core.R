@@ -1344,9 +1344,13 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
     rel_tol <- em_tol$rel
   }
   # And it may hand a search's starts to the finish after a fixed number of
-  # iterations (`em_finish_after`, below the loop); a bootstrap replicate,
-  # which skips the finish, runs EM to the ceiling as before.
-  finish_after <- if (isTRUE(refine)) model_state$mm$em_finish_after
+  # iterations (`em_finish_after`, below the loop), sooner where the finish has
+  # the model's curvature in closed form (.qn_closed_curvature(),
+  # R/qn_finish.R); a bootstrap replicate, which skips the finish, runs EM to
+  # the ceiling as before.
+  closed <- if (isTRUE(refine)) .qn_closed_curvature(model_state, Y)
+  finish_after <- if (isTRUE(refine))
+    closed$em_finish_after %||% model_state$mm$em_finish_after
   if (!is.null(finish_after)) max_iter <- min(max_iter, finish_after)
 
   if (is.null(init_state)) {
@@ -1471,7 +1475,8 @@ fit_single_init <- function(model_state, X, Y, max_iter = 1000,
   # Newton-type finish (R/qn_finish.R) there, and competes on where the finish
   # takes it; a start that EM converged leaves as it always did.
   if (!is.null(finish_after) && !converged) {
-    fin <- .qn_finish_mixture(model_state, X, Y)
+    fin <- .qn_finish_mixture(model_state, X, Y,
+                              maxit = closed$start_maxit %||% 500L)
     if (!is.null(fin)) { fin$n_iter <- n_iter; model_state <- fin }
   }
   if (isTRUE(refine)) model_state <- refine_lbfgs(model_state, X, Y)

@@ -221,3 +221,81 @@ test_that("growth mixture scores equal central differences", {
   .sc_check(gm(Y, predictors = data.frame(x = x), n_steps = 1),
             "growth, class regression")
 })
+
+test_that("growth mixture curvature equals differenced scores", {
+  # The finish's closed-form Hessian (.qn_sn_hessian()) against central
+  # differences of the analytic gradient, at the fit and off it, over the
+  # packings it covers; then the finish's own hook, the class-size prior's
+  # curvature included, and the models it leaves to the default schedule.
+  set.seed(6)
+  n  <- 240
+  Y  <- outer(rnorm(n, rep(c(0, 3), each = n / 2)), 0:3 * .5, "+") +
+    rnorm(n, 0, .3) * outer(rep(1, n), 0:3) + matrix(rnorm(n * 4, sd = .5), n)
+  Ym <- Y; Ym[sample(length(Ym), 60)] <- NA
+  fx <- data.frame(parameter = "growth_variance", item = "linear", class = 2,
+                   value = 0.05)
+  off <- list(latent = 0, categorical = 0, poisson = 0, variances = 0)
+  gm <- function(Y, ...) .sc_q(fit_gmm(Y, times = 4, n_classes = 2, n_init = 2,
+                                       random_state = 1, n_cores = 1, ...))
+  grad <- function(pr, X, p) {
+    st <- pr$unpack(p)
+    e  <- .qn_mixture_estep(st, pr$lay, X, NULL)
+    colSums(.qn_mixture_score_matrix(st, pr$lay, X, NULL, e$R))
+  }
+  fd_hess <- function(f, p) {
+    H <- vapply(seq_along(p), function(i) {
+      h <- 1e-5 * max(1, abs(p[i]))
+      a <- p; a[i] <- a[i] + h; b <- p; b[i] <- b[i] - h
+      (f(a) - f(b)) / (2 * h)
+    }, numeric(length(p)))
+    (H + t(H)) / 2
+  }
+  check <- function(fit, label) {
+    X  <- fit$data
+    pr <- .qn_mixture_problem(fit, X, NULL)
+    set.seed(11)
+    for (at in c("fit", "off")) {
+      p  <- if (at == "fit") pr$par else pr$par + rnorm(length(pr$par), sd = 0.02)
+      st <- pr$unpack(p)
+      e  <- .qn_mixture_estep(st, pr$lay, X, NULL)
+      hs <- .qn_sn_hessian(st$mm, X, e$R, rep(1, nrow(X)), st$weights)
+      lab <- paste(label, at)
+      expect_lt(max(abs(hs$S - .qn_mixture_score_matrix(st, pr$lay, X, NULL, e$R))),
+                1e-10, label = paste(lab, "scores"))
+      Hd <- fd_hess(function(q) grad(pr, X, q), p)
+      expect_lt(max(abs(hs$H - Hd)) / max(abs(Hd)), 1e-7, label = lab)
+    }
+  }
+  check(gm(Y, bayes_constants = off), "growth curvature, psi equal")
+  check(gm(Ym, psi = "free", bayes_constants = off), "growth curvature, psi free NA")
+  check(gm(Y, psi = "variances", fix = fx, bayes_constants = off),
+        "growth curvature, psi variances fixed")
+  check(gm(Ym, psi = "free", residual = "constant", residual_equal = FALSE,
+           bayes_constants = off), "growth curvature, residual constant by class")
+
+  # The hook, with the default class-size prior: the information it hands the
+  # finish is minus the Hessian of the penalised objective.
+  fit <- gm(Ym, psi = "free")
+  X   <- fit$data
+  pr  <- .qn_mixture_problem(fit, X, NULL)
+  pg  <- .qn_mixture_prior_grad(fit, pr$lay, X, NULL, pr$wt)
+  pgp <- function(p) pg(pr$unpack(p))
+  expect_gt(.bayes_alpha(fit$mm, "latent"), 0)
+  hook <- .qn_sn_hessian_hook(fit, pr$lay, X, pr, pgp)
+  expect_false(is.null(hook))
+  st <- pr$unpack(pr$par)
+  e  <- .qn_mixture_estep(st, pr$lay, X, NULL)
+  c0 <- c(list(st = st, R = e$R), hook$pass(list(st = st, R = e$R)))
+  free <- seq_along(pr$par)
+  I  <- hook$info(c0, free)
+  Hd <- fd_hess(function(q) grad(pr, X, q) + pgp(q)$g, pr$par)
+  expect_lt(max(abs(I + Hd)) / max(abs(Hd)), 1e-7)
+
+  # Left to the default schedule: growth covariates, a class regression.
+  x <- rnorm(n)
+  expect_null(.qn_closed_curvature(gm(Y, psi = "free", growth_predictors = cbind(x)),
+                                   NULL))
+  fr <- gm(Y, psi = "free", predictors = data.frame(x = x), n_steps = 1)
+  expect_null(.qn_closed_curvature(fr, fr$Y))
+  expect_false(is.null(.qn_closed_curvature(fit, NULL)))
+})
