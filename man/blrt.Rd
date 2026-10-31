@@ -17,7 +17,8 @@ blrt(
   verbose = TRUE,
   ...,
   from_fit = NULL,
-  X = NULL
+  X = NULL,
+  fits = NULL
 )
 
 calc_blrt(
@@ -56,7 +57,8 @@ of the full test where 99 draws recover about 0.83 (and only about 0.60 at
 \eqn{\alpha = .01}). See \code{vignette("estimation")}.}
 
 \item{n_init_base}{Random restarts when fitting the observed-data models.
-Default \code{20}, as elsewhere in the package.}
+Default \code{20}, as elsewhere in the package. Not used when \code{fits}
+is given.}
 
 \item{n_init_boot}{Random restarts for the alternative model on each
 bootstrap replicate (the null model's replicate fit is seeded from the
@@ -97,6 +99,17 @@ models and every replicate. \code{k_small} and \code{k_large} still say
 which class counts to compare; everything else comes from the fit.}
 
 \item{X}{Deprecated alias for \code{indicators}.}
+
+\item{fits}{Optional: the observed-data fits as \code{list(small, large)},
+models with \code{k_small} and \code{k_large} classes already fitted to
+these data with the specification the bootstrap uses (the one
+\code{from_fit}, or \code{measurement} and \code{...}, give). They are
+used as they are instead of being refitted with \code{n_init_base}
+restarts. Besides saving those two searches, this keeps the observed
+statistic at the maxima you have already found: a refit with fewer
+restarts than the original search can stop the larger model at a poorer
+local maximum and understate the statistic. With \code{fits} and a growth
+model, \code{from_fit} defaults to \code{fits[[1]]}.}
 }
 \value{
 An object of class \code{blrt_test}: a list with \code{p_value},

@@ -684,6 +684,27 @@ test_that("the BLRT runs end to end on a growth model", {
   expect_true(is.finite(res$p_value))
 })
 
+test_that("blrt(fits =) uses the observed fits as they are", {
+  skip_on_cran()
+  set.seed(149)
+  Y  <- .sim_gmm(n = 200)
+  f1 <- fit_gmm(Y, times = 4, n_classes = 1, n_init = 3, random_state = 1)
+  f2 <- fit_gmm(Y, times = 4, n_classes = 2, n_init = 3, random_state = 1)
+
+  res <- suppressMessages(suppressWarnings(
+    blrt(k_small = 1, k_large = 2, fits = list(f1, f2), n_reps = 2,
+         n_init_boot = 2, verbose = FALSE)))
+  expect_equal(res$ll_small, f1$metrics$ll)
+  expect_equal(res$ll_large, f2$metrics$ll)
+  expect_equal(res$obs_diff, 2 * (f2$metrics$ll - f1$metrics$ll))
+  expect_length(res$null_dist, 2L)
+
+  expect_error(blrt(k_small = 1, k_large = 2, fits = list(f2, f1), n_reps = 2),
+               "has 2 and 1 classes")
+  expect_error(blrt(k_small = 1, k_large = 2, fits = list(f1), n_reps = 2),
+               "list of two fitted models")
+})
+
 test_that("a weighted growth-model BLRT rescales by the null model's design effect", {
   set.seed(149)
   Y <- .sim_gmm(n = 200)

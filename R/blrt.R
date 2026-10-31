@@ -270,7 +270,18 @@ generate_synthetic_data <- function(mm, classes, N) {
 #'   of the full test where 99 draws recover about 0.83 (and only about 0.60 at
 #'   \eqn{\alpha = .01}). See \code{vignette("estimation")}.
 #' @param n_init_base Random restarts when fitting the observed-data models.
-#'   Default \code{20}, as elsewhere in the package.
+#'   Default \code{20}, as elsewhere in the package. Not used when \code{fits}
+#'   is given.
+#' @param fits Optional: the observed-data fits as \code{list(small, large)},
+#'   models with \code{k_small} and \code{k_large} classes already fitted to
+#'   these data with the specification the bootstrap uses (the one
+#'   \code{from_fit}, or \code{measurement} and \code{...}, give). They are
+#'   used as they are instead of being refitted with \code{n_init_base}
+#'   restarts. Besides saving those two searches, this keeps the observed
+#'   statistic at the maxima you have already found: a refit with fewer
+#'   restarts than the original search can stop the larger model at a poorer
+#'   local maximum and understate the statistic. With \code{fits} and a growth
+#'   model, \code{from_fit} defaults to \code{fits[[1]]}.
 #' @param n_init_boot Random restarts for the alternative model on each
 #'   bootstrap replicate (the null model's replicate fit is seeded from the
 #'   observed-data null fit's own parameters and runs no random restarts at
@@ -380,7 +391,14 @@ generate_synthetic_data <- function(mm, classes, N) {
 blrt <- function(indicators, k_small, k_large, measurement,
                  n_reps = 100, n_init_base = 20, n_init_boot = 10,
                  n_cores = .default_n_cores(),
-                 verbose = TRUE, ..., from_fit = NULL, X = NULL) {
+                 verbose = TRUE, ..., from_fit = NULL, X = NULL,
+                 fits = NULL) {
+
+  if (!is.null(fits)) {
+    fits <- .blrt_check_fits(fits, k_small, k_large)
+    if (is.null(from_fit) && inherits(fits[[1L]], c("gmm", "lcga")))
+      from_fit <- fits[[1L]]
+  }
 
   supplied            <- !missing(indicators)
   measurement_missing <- missing(measurement)
@@ -431,8 +449,14 @@ blrt <- function(indicators, k_small, k_large, measurement,
 
   # The two observed fits run before the replicate loop and are the only fits
   # here with a restart budget worth spreading, so they get the caller's cores.
-  null_model <- fit_engine(Xd, k_small, n_init = n_init_base, n_cores = n_cores)
-  alt_model  <- fit_engine(Xd, k_large, n_init = n_init_base, n_cores = n_cores)
+  null_model <- fits[[1L]] %||%
+    fit_engine(Xd, k_small, n_init = n_init_base, n_cores = n_cores)
+  alt_model  <- fits[[2L]] %||%
+    fit_engine(Xd, k_large, n_init = n_init_base, n_cores = n_cores)
+  if (!is.null(fits) && any(vapply(fits, function(f)
+    !is.null(f$data) && NROW(f$data) != NROW(Xd), logical(1))))
+    stop("`fits` must be fitted to the data the bootstrap is drawn for: ",
+         "their number of cases differs from it.", call. = FALSE)
 
   # The bootstrap null below is drawn i.i.d. -- no weights, no clustering --
   # while a weighted or design-based observed fit's statistic is a
@@ -555,6 +579,23 @@ blrt <- function(indicators, k_small, k_large, measurement,
   )
   class(result) <- c("blrt_test", "list")
   result
+}
+
+# `fits` as blrt() takes it: two fitted models, with k_small and k_large
+# classes, in that order.
+.blrt_check_fits <- function(fits, k_small, k_large) {
+  ok <- is.list(fits) && !is.data.frame(fits) && length(fits) == 2L &&
+    all(vapply(fits, function(f) is.list(f) && !is.null(f$n_components),
+               logical(1)))
+  if (!ok)
+    stop("`fits` takes a list of two fitted models: the k_small-class fit, ",
+         "then the k_large-class fit.", call. = FALSE)
+  k <- vapply(fits, function(f) as.integer(f$n_components), integer(1))
+  if (!identical(k, as.integer(c(k_small, k_large))))
+    stop(sprintf(paste0("`fits` has %d and %d classes, but k_small and ",
+                        "k_large are %d and %d."), k[1L], k[2L], k_small,
+                 k_large), call. = FALSE)
+  fits
 }
 
 # A Monte Carlo p-value can only take the values 1/(B+1), 2/(B+1), ..., 1, so at

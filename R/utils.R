@@ -211,8 +211,14 @@ logsumexp <- function(x, MARGIN = 1) {
 # Row-wise softmax of a matrix of logits, stabilised by the row maximum.
 # max.col() rather than apply() because this sits inside the inner loop of the
 # multinomial-logit fitter, which an EM algorithm calls once per iteration.
+#
+# The clamp rewrites every cell, and a fitted regression's logits are almost
+# never near it, so it runs only when the range says some cell is past it (or
+# is missing): the same values, without two passes that copy the matrix.
 softmax_rows <- function(logits, clamp = 50) {
-  logits <- pmax(pmin(logits, clamp), -clamp)
+  r <- range(logits)
+  if (anyNA(r) || r[1L] < -clamp || r[2L] > clamp)
+    logits <- pmax(pmin(logits, clamp), -clamp)
   max_l  <- logits[cbind(seq_len(nrow(logits)),
                          max.col(logits, ties.method = "first"))]
   e <- exp(logits - max_l)

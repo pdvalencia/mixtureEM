@@ -573,8 +573,10 @@ structured_normal_model <- function(n_components, design,
     P <- ms$parameters$psi[[k]]
     a <- if (is.null(act)) seq_len(nrow(P)) else act[[k]]
     if (!length(a)) return(Inf)
-    min(eigen((((P + t(P)) / 2) / U)[a, a, drop = FALSE], symmetric = TRUE,
-              only.values = TRUE)$values)
+    S <- (((P + t(P)) / 2) / U)[a, a, drop = FALSE]
+    # A single random effect's eigenvalue is its own scaled variance.
+    if (length(S) == 1L) S[1L] else
+      min(eigen(S, symmetric = TRUE, only.values = TRUE)$values)
   }, numeric(1)) < .sn_edge_ratio)
 }
 
@@ -948,12 +950,20 @@ log_likelihood.structured_normal <- function(model_state, X, ...) {
   # is a sum of outer products), and NaN is what makes the finish's line
   # search refuse the step, where .sn_chol()'s ridge would quietly score a
   # point that does not exist.
-  live <- vapply(seq_len(K), function(k)
-    !(length(model_state$r_cols) &&
-        is.null(tryCatch(chol(Sig[[k]]), error = function(e) NULL)) &&
+  # The factor taken for that check is the one a pattern observing every
+  # occasion needs, so it is kept for it (`full`) rather than taken again.
+  full <- vector("list", K)
+  live <- vapply(seq_len(K), function(k) {
+    if (!length(model_state$r_cols)) return(TRUE)
+    full[[k]] <<- tryCatch(chol(Sig[[k]]), error = function(e) NULL)
+    !(is.null(full[[k]]) &&
         min(eigen(model_state$parameters$psi[[k]], symmetric = TRUE,
-                  only.values = TRUE)$values) < 0), logical(1))
+                  only.values = TRUE)$values) < 0)
+  }, logical(1))
   log_eps[, !live] <- NaN
+  chol_at <- function(k, cols)
+    if (length(cols) == ncol(Sig[[k]]) && !is.null(full[[k]])) full[[k]] else
+      .sn_chol(Sig[[k]][cols, cols, drop = FALSE])
 
   for (pat in pats) {
     cols <- pat$cols; rows <- pat$rows
@@ -974,7 +984,7 @@ log_likelihood.structured_normal <- function(model_state, X, ...) {
       off <- ifelse(ut[, 1L] == ut[, 2L], 1, 2)
       cf <- list(); cst <- numeric(0); ks <- integer(0)
       for (k in which(live)) {
-        ch <- .sn_chol(Sig[[k]][cols, cols, drop = FALSE])
+        ch <- chol_at(k, cols)
         if (is.null(ch)) { log_eps[rows, k] <- -1e10; next }
         P   <- chol2inv(ch)
         d   <- mu[[k]][cols] - pat$cm
@@ -994,7 +1004,7 @@ log_likelihood.structured_normal <- function(model_state, X, ...) {
     }
 
     for (k in which(live)) {
-      ch <- .sn_chol(Sig[[k]][cols, cols, drop = FALSE])
+      ch <- chol_at(k, cols)
       if (is.null(ch)) { log_eps[rows, k] <- -1e10; next }
 
       R <- .sn_resid(X, mu[[k]], rows, cols, pat$Y)

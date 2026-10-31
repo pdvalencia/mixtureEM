@@ -342,6 +342,30 @@ model with missing cells or mixed item types. On 30,000 cases with three
 binary and three continuous items, a 25-start three-class fit went from 11
 to 9 seconds. No number changes.
 
+The softmax behind every class-membership and transition regression now
+clamps its logits only when one is out of range, and the regression
+reports the curvature Newton-Raphson computed at its last step instead of
+computing it again. On 30,000 cases with one continuous covariate, a
+25-start latent transition model went from 66 to 58 seconds. No estimate
+or standard error changes.
+
+## `blrt()` can test the fits you already have
+
+`blrt(fits = list(small, large))` takes the two observed-data models,
+already fitted with `k_small` and `k_large` classes, and bootstraps from
+them instead of refitting both with `n_init_base` restarts. Beyond the
+time those two searches cost, this keeps the observed statistic at the
+maxima the analysis found: on the SRQ-20 data (2,052 cases), refitting a
+four-class growth mixture with the default 20 restarts stopped 8 units of
+log-likelihood short of the 125-start fit and understated the statistic
+(93.9 instead of 110.0). With a growth model, `from_fit` defaults to the
+first of the two fits. Without `fits`, nothing changes.
+
+A growth mixture model now factors the covariance of a case observing
+every occasion once per E-step instead of twice, and reads a single random
+effect's variance directly where it took an eigenvalue; on the SRQ-20
+growth mixture a bootstrap draw is 4% faster. No number changes.
+
 ## `predict()` scores new cases from multiple-group models
 
 `predict()` now classifies new cases from a `fit_mixture(group = )` fit:

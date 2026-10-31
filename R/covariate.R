@@ -170,7 +170,12 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
 
   # The Hessian of nll_func, in the same parameter order (class-major,
   # covariate fastest): block (k, j) is Z' diag(w p_k (1{k = j} - p_j)) Z.
+  # The last Hessian is kept: Newton stops at the point where it was just
+  # taken, which is where the reported curvature below is wanted.
+  last_hpar <- NULL
+  last_hess <- NULL
   nll_hess <- function(pars) {
+    if (!is.null(last_hpar) && identical(pars, last_hpar)) return(last_hess)
     prob <- prob_at(pars)
     H    <- matrix(0, (K - 1) * D, (K - 1) * D)
     for (k in seq_len(K - 1)) for (j in k:(K - 1)) {
@@ -180,6 +185,8 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
       H[ik, ij] <- Hb
       if (j != k) H[ij, ik] <- t(Hb)
     }
+    last_hpar <<- pars
+    last_hess <<- H
     H
   }
 
@@ -211,12 +218,20 @@ covariate_model <- function(n_components, tol = 1e-6, max_iter = 500, intercept 
   w_h    <- if (prior_rows) w_aug else w_d
   prob_h <- if (prior_rows || same_rows) prob_at(fit$par) else probs_for(beta, Z_h)
 
-  H <- matrix(0, (K - 1) * D, (K - 1) * D)
-  for (k in seq_len(K - 1)) {
-    for (j in seq_len(K - 1)) {
-      W    <- prob_h[, k] * ((if (k == j) 1 else 0) - prob_h[, j]) * w_h
-      H_kj <- -t(Z_h) %*% (Z_h * W)
-      H[((k - 1) * D + 1):(k * D), ((j - 1) * D + 1):(j * D)] <- H_kj
+  # Where Newton's last step was taken over these same rows its Hessian is
+  # this one, negated, to rounding: on a transition regression over every
+  # case that was a tenth of the M-step.
+  if ((prior_rows || same_rows) && !is.null(last_hpar) &&
+      identical(fit$par, last_hpar)) {
+    H <- -last_hess
+  } else {
+    H <- matrix(0, (K - 1) * D, (K - 1) * D)
+    for (k in seq_len(K - 1)) {
+      for (j in seq_len(K - 1)) {
+        W    <- prob_h[, k] * ((if (k == j) 1 else 0) - prob_h[, j]) * w_h
+        H_kj <- -t(Z_h) %*% (Z_h * W)
+        H[((k - 1) * D + 1):(k * D), ((j - 1) * D + 1):(j * D)] <- H_kj
+      }
     }
   }
 
