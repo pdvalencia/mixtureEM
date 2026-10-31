@@ -353,6 +353,14 @@ test_that("a Psi outside the cone with a positive definite Sigma is a valid fit,
   # and the class reads NaN, which is what makes the finish refuse the step.
   mm$parameters$psi[[1]][2, 2] <- -0.2
   expect_true(all(is.nan(log_likelihood(mm, Y)[, 1])))
+
+  # The same in the last class, the others untouched.
+  mm$parameters$psi[[1]][2, 2] <- -0.004
+  ok <- log_likelihood(mm, Y)[, 1]
+  mm$parameters$psi[[2]][2, 2] <- -0.2
+  ll <- log_likelihood(mm, Y)
+  expect_true(all(is.nan(ll[, 2])))
+  expect_identical(ll[, 1], ok)
 })
 
 test_that("EM at the edge of the cone steps across it and stays monotone", {

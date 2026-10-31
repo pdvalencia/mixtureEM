@@ -952,10 +952,13 @@ log_likelihood.structured_normal <- function(model_state, X, ...) {
   # point that does not exist.
   # The factor taken for that check is the one a pattern observing every
   # occasion needs, so it is kept for it (`full`) rather than taken again.
+  # `full[k] <<- list(.)`, not `full[[k]] <<- .`: assigning NULL through `[[`
+  # deletes the slot, which shifted the later classes' factors down one and,
+  # for the last class, left nothing to read.
   full <- vector("list", K)
   live <- vapply(seq_len(K), function(k) {
     if (!length(model_state$r_cols)) return(TRUE)
-    full[[k]] <<- tryCatch(chol(Sig[[k]]), error = function(e) NULL)
+    full[k] <<- list(tryCatch(chol(Sig[[k]]), error = function(e) NULL))
     !(is.null(full[[k]]) &&
         min(eigen(model_state$parameters$psi[[k]], symmetric = TRUE,
                   only.values = TRUE)$values) < 0)
