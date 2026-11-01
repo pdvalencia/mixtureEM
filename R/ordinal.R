@@ -399,10 +399,17 @@ n_parameters.ordinal_nan <- n_parameters.ordinal
 # node's joint status/node posterior under an RI). Returns an n x (K*(Sj-1))
 # matrix, already weighted by `resp_weight`, ready to accumulate across
 # occasions/nodes exactly as the binary branch accumulates `resid`.
-.ordinal_theta_score_block <- function(theta_j, shift, xj, resp_weight, Sj) {
+#
+# Every case in one category has the same derivative row, so the rows are
+# worked out once per category and read off by the case's category. With case
+# weights `w` the n rows come back summed under them instead, a 1-row matrix:
+# the per-category sums of w * resp_weight times those rows, never forming the
+# n-row matrix (.lta_score_matrix()'s `weights`).
+.ordinal_theta_score_block <- function(theta_j, shift, xj, resp_weight, Sj,
+                                       w = NULL) {
   n   <- length(xj)
   K   <- nrow(theta_j)
-  out <- matrix(0, n, K * (Sj - 1L))
+  out <- matrix(0, if (is.null(w)) n else 1L, K * (Sj - 1L))
   obs <- !is.na(xj)
   if (Sj < 2L || !any(obs)) return(out)
 
@@ -413,37 +420,43 @@ n_parameters.ordinal_nan <- n_parameters.ordinal
   Fmat <- cbind(1, plogis(th + shift), 0)             # K x (Sj + 1)
   pmat <- pmax(Fmat[, seq_len(Sj), drop = FALSE] -
                  Fmat[, seq_len(Sj) + 1L, drop = FALSE], 1e-12)
-  # Which cases sit in category m + 1 and m, the same for every status, so
-  # found once rather than K times.
-  plus  <- lapply(seq_len(Sj - 1L), function(m) which(obs & (xj == (m + 1L))))
-  minus <- lapply(seq_len(Sj - 1L), function(m) which(obs & (xj == m)))
+  xo <- xj[obs]
+  # The weighted posterior of each status in each category, for the sum.
+  if (!is.null(w)) {
+    N  <- rowsum(w[obs] * resp_weight[obs, , drop = FALSE], xo)
+    at <- as.integer(rownames(N))
+  }
 
   for (k in seq_len(K)) {
     Fk <- Fmat[k, ]
     dF <- Fk * (1 - Fk)
     pk <- pmat[k, ]
     # d log p_s / d th[, m] = (1{m == s-1} dF[s] - 1{m == s} dF[s+1]) / p_s,
-    # in terms of boundary index c = m + 1 (Fk[c] is the boundary at column m).
-    g <- matrix(0, n, Sj - 1L)
+    # in terms of boundary index c = m + 1 (Fk[c] is the boundary at column m);
+    # row s is a case in category s.
+    g <- matrix(0, Sj, Sj - 1L)
     for (m in seq_len(Sj - 1L)) {
-      pl <- plus[[m]]; mi <- minus[[m]]
-      if (length(pl)) g[pl, m] <- g[pl, m] + dF[m + 1L] / pk[m + 1L]
-      if (length(mi)) g[mi, m] <- g[mi, m] - dF[m + 1L] / pk[m]
+      g[m + 1L, m] <- g[m + 1L, m] + dF[m + 1L] / pk[m + 1L]
+      g[m, m]      <- g[m, m] - dF[m + 1L] / pk[m]
     }
     # Chain rule to the increment scale: eta_1 (the raw first threshold) gets
     # every m's contribution; eta_u, u >= 2, gets -exp(eta_u) times the sum of
     # every m >= u's contribution (th[, m] = eta_1 - sum_{u=2}^{m} exp(eta_u)).
-    e <- matrix(0, n, Sj - 1L)
+    e <- matrix(0, Sj, Sj - 1L)
     e[, 1] <- rowSums(g)
     if (Sj > 2L) {
-      cs <- matrix(0, n, Sj - 1L)   # cs[, u] = sum_{m=u}^{Sj-1} g[, m]
+      cs <- matrix(0, Sj, Sj - 1L)  # cs[, u] = sum_{m=u}^{Sj-1} g[, m]
       cs[, Sj - 1L] <- g[, Sj - 1L]
       if (Sj > 3L)
         for (u in (Sj - 2L):2L) cs[, u] <- cs[, u + 1L] + g[, u]
       for (u in 2:(Sj - 1L)) e[, u] <- -exp(theta_j[k, u]) * cs[, u]
     }
     cols <- (seq_len(Sj - 1L) - 1L) * K + k
-    out[, cols] <- e * resp_weight[, k]
+    if (is.null(w)) {
+      out[obs, cols] <- e[xo, , drop = FALSE] * resp_weight[obs, k]
+    } else {
+      out[1L, cols] <- colSums(N[, k] * e[at, , drop = FALSE])
+    }
   }
   out
 }

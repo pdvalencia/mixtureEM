@@ -2943,8 +2943,8 @@ fit_lta <- function(indicators,
   # The scores read the coefficients, never a covariate model's case-averaged
   # tables, so those are not rebuilt at each of the 2p points.
   grad_at <- function(p)
-    colSums(w * .lta_score_matrix(.lta_par_unpack(p, state, layout, average = FALSE),
-                                  X)$S)
+    .lta_score_matrix(.lta_par_unpack(p, state, layout, average = FALSE), X,
+                      weights = w)$S[1L, ]
   Hd <- vapply(seq_along(par), function(j) {
     h <- 1e-5 * max(1, abs(par[j]))
     e <- numeric(length(par)); e[j] <- h
@@ -3114,7 +3114,15 @@ fit_lta <- function(indicators,
 # The forward-backward pass is run here rather than read off `state`, so the
 # scores describe the parameters currently in `state` even when no E-step has
 # been taken at them. At a converged fit the two agree by construction.
-.lta_score_matrix <- function(state, X, shared_ok = FALSE, measurement = TRUE) {
+#
+# With case `weights`, `S` is the 1 x p matrix of the scores summed under them,
+# the gradient, for a caller that only ever sums: the ordinal item blocks then
+# sum within each response category and the regression blocks take one
+# cross-product with their design, so neither forms its n rows, which were
+# most of a pass on the ENPOL joint models; every other block is summed as it
+# is added.
+.lta_score_matrix <- function(state, X, shared_ok = FALSE, measurement = TRUE,
+                              weights = NULL) {
   K  <- state$n_statuses
   Tn <- state$n_times
   C  <- state$n_classes %||% 1L
@@ -3128,12 +3136,22 @@ fit_lta <- function(indicators,
     state$logB_fixed %||% .lta_emission_loglik(state$mm, X)
 
   scores <- list(); blocks <- list(); pos <- 0L
-  add_block <- function(s, probs, ref, name) {
+  # The rows of a block built summed under `weights`, and `summed`: a block
+  # already built that way.
+  nr <- if (is.null(weights)) n else 1L
+  add_block <- function(s, probs, ref, name, summed = FALSE) {
+    if (!is.null(weights) && !summed) s <- matrix(colSums(weights * s), 1L)
     scores[[length(scores) + 1L]] <<- s
     blocks[[length(blocks) + 1L]] <<- list(
       cols = pos + seq_len(ncol(s)), probs = probs, ref = ref, name = name)
     pos <<- pos + ncol(s)
   }
+  # A regression's score: the (observed - predicted) residual `R` times the
+  # design row, cbind(R[, 1] * Z, R[, 2] * Z, ...), or its sum under
+  # `weights`, one cross-product in place of the n rows.
+  by_design <- function(R, Z) if (is.null(weights))
+    do.call(cbind, lapply(seq_len(ncol(R)), function(d) R[, d] * Z)) else
+      matrix(crossprod(Z, weights * R), 1L)
 
   # One class runs the single chain unchanged: `fb$gamma` is the status
   # posterior directly and `state$tau_allowed` is already the collapsed
@@ -3178,9 +3196,9 @@ fit_lta <- function(indicators,
       # Over the statuses a case can start in (.lta_delta_keep()), the last
       # of them anchored.
       phat <- exp(.lta_log_delta(state))
-      s <- do.call(cbind, lapply(fd, function(k)
-        (gam[[1]][, k] - phat[, k]) * state$Z_delta))
-      add_block(s, NULL, NULL, "delta_beta")
+      s <- by_design(gam[[1]][, fd, drop = FALSE] - phat[, fd, drop = FALSE],
+                     state$Z_delta)
+      add_block(s, NULL, NULL, "delta_beta", summed = TRUE)
     } else {
       # delta: the score of the multinomial logit is gamma_1[i, k] - delta_k,
       # with the last status anchored.
@@ -3207,36 +3225,34 @@ fit_lta <- function(indicators,
         if (by_origin) {
           for (k in seq_len(K)) {
             Zk <- state$Z_tau
-            s  <- matrix(0, n, Kf * ncol(Zk))
+            s  <- matrix(0, nr, Kf * ncol(Zk))
             for (tt in ts) {
               phat_k <- exp(lt[[tt]][[k]])
               pk     <- fb$pairwise[[tt]][[k]]
               resid  <- pk[, fr, drop = FALSE] -
                 gam[[tt]][, k] * phat_k[, fr, drop = FALSE]
-              s <- s + do.call(cbind, lapply(seq_len(Kf), function(d)
-                resid[, d] * Zk))
+              s <- s + by_design(resid, Zk)
             }
             add_block(s, NULL, NULL,
                       sprintf("tau_beta%s[from %d]",
                               if (isTRUE(state$tau_homogeneous)) "" else
-                                paste0("(", i_mat, ")"), k))
+                                paste0("(", i_mat, ")"), k), summed = TRUE)
           }
         } else {
           D <- ncol(.lta_tau_design(state, 1L))
-          s <- matrix(0, n, Kf * D)
+          s <- matrix(0, nr, Kf * D)
           for (tt in ts) for (k in .lta_delta_keep(state)) {
             Zk     <- .lta_tau_design(state, k, tt)
             phat_k <- exp(lt[[tt]][[k]])
             pk     <- fb$pairwise[[tt]][[k]]
             resid  <- pk[, fr, drop = FALSE] -
               gam[[tt]][, k] * phat_k[, fr, drop = FALSE]
-            s <- s + do.call(cbind, lapply(seq_len(Kf), function(d)
-              resid[, d] * Zk))
+            s <- s + by_design(resid, Zk)
           }
           add_block(s, NULL, NULL,
                     sprintf("tau_beta%s",
                             if (isTRUE(state$tau_homogeneous)) "" else
-                              paste0("(", i_mat, ")")))
+                              paste0("(", i_mat, ")")), summed = TRUE)
         }
       }
     } else {
@@ -3375,7 +3391,8 @@ fit_lta <- function(indicators,
       # reads them (the two-step finish, R/qn_finish.R).
       if (!measurement) {
         zero <- function(width, name) if (width > 0L)
-          add_block(matrix(0, n, width), NULL, NULL, sprintf("%s[item %d]", name, j))
+          add_block(matrix(0, nr, width), NULL, NULL, sprintf("%s[item %d]", name, j),
+                    summed = TRUE)
         zero(K * (if (ordinal_ri) cats[j] - 1L else 1L),
              if (ordinal_ri) "theta" else "alpha")
         if (loading_free) zero(M, "lambda")
@@ -3386,8 +3403,8 @@ fit_lta <- function(indicators,
         Sj      <- cats[j]
         cols    <- .ordinal_theta_cols(cats, j)
         theta_j <- ri$theta[, cols, drop = FALSE]
-        s_theta  <- matrix(0, n, K * (Sj - 1L))
-        s_lambda <- matrix(0, n, M)
+        s_theta  <- matrix(0, nr, K * (Sj - 1L))
+        s_lambda <- matrix(0, nr, M)
         # With direct covariate effects the shift depends on the case's
         # covariate pattern as well as the node, so the node loop becomes a
         # node AND pattern loop. Two facts already in the code make the DIF
@@ -3399,7 +3416,7 @@ fit_lta <- function(indicators,
         # needs no mask.
         dif <- state$dif
         Dd  <- if (is.null(dif)) 0L else ncol(dif$Zu)
-        s_dif <- if (is.null(dif)) NULL else matrix(0, n, K * Dd)
+        s_dif <- if (is.null(dif)) NULL else matrix(0, nr, K * Dd)
         pats <- if (is.null(dif)) 1L else seq_len(dif$P)
         for (q in seq_len(Q)) {
           node <- sum(ri$L[j, ] * ri$Dnode[q, ])
@@ -3407,16 +3424,17 @@ fit_lta <- function(indicators,
             rows  <- if (is.null(dif)) seq_len(n) else dif$rows[[p]]
             shift <- if (is.null(dif)) node else
               node + .lta_dif_shift(dif, p)[, j]
-            blk   <- matrix(0, n, K * (Sj - 1L))
+            blk   <- matrix(0, nr, K * (Sj - 1L))
             for (tt in seq_len(Tn)) {
               xj <- X[, .time_block_cols(tt, J)[j]]
               # An occasion the item is not observed at (the joint model's
               # padding) adds a block of zeros.
               if (all(is.na(xj[rows]))) next
-              blk[rows, ] <- blk[rows, ] +
-                .ordinal_theta_score_block(theta_j, shift, xj[rows],
-                                           ri_G[[q]][[tt]][rows, , drop = FALSE],
-                                           Sj)
+              b <- .ordinal_theta_score_block(theta_j, shift, xj[rows],
+                                              ri_G[[q]][[tt]][rows, , drop = FALSE],
+                                              Sj, w = weights[rows])
+              if (is.null(weights)) blk[rows, ] <- blk[rows, ] + b else
+                blk <- blk + b
             }
             s_theta <- s_theta + blk
             base    <- blk[, seq_len(K), drop = FALSE]   # d log p / d shift_k
@@ -3427,12 +3445,13 @@ fit_lta <- function(indicators,
                   s_dif[, (dd - 1L) * K + seq_len(K)] + base * dif$Zu[p, dd]
           }
         }
-        add_block(s_theta, NULL, NULL, sprintf("theta[item %d]", j))
+        add_block(s_theta, NULL, NULL, sprintf("theta[item %d]", j), summed = TRUE)
         if (loading_free)
-          add_block(s_lambda, NULL, NULL, sprintf("lambda[item %d]", j))
+          add_block(s_lambda, NULL, NULL, sprintf("lambda[item %d]", j),
+                    summed = TRUE)
         if (!is.null(dif) && .lta_dif_len(dif, j) > 0L)
           add_block(.lta_dif_score(dif, j, s_dif), NULL, NULL,
-                    sprintf("dif[item %d]", j))
+                    sprintf("dif[item %d]", j), summed = TRUE)
         next
       }
       s_alpha  <- matrix(0, n, K)
@@ -3547,12 +3566,13 @@ fit_lta <- function(indicators,
         cols    <- .ordinal_theta_cols(cats, j)
         theta_j <- .ordinal_theta_from_pis(m$parameters$pis, cats)[, cols,
                                                                     drop = FALSE]
-        s <- matrix(0, n, K * (Sj - 1L))
+        s <- matrix(0, nr, K * (Sj - 1L))
         for (tt in grp) {
           xj <- X[, .time_block_cols(tt, J)[j]]
-          s  <- s + .ordinal_theta_score_block(theta_j, 0, xj, gam[[tt]], Sj)
+          s  <- s + .ordinal_theta_score_block(theta_j, 0, xj, gam[[tt]], Sj,
+                                               w = weights)
         }
-        add_block(s, NULL, NULL, sprintf("theta[item %d]", j))
+        add_block(s, NULL, NULL, sprintf("theta[item %d]", j), summed = TRUE)
       }
     }
   }

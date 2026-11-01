@@ -327,6 +327,39 @@ test_that("two-step: a step 1 handed over is reused, or continued from the two L
                "n_steps = 2")
 })
 
+test_that("two-step SEs: step 1's curvature is kept for the next model on that step 1 only", {
+  d <- sim_joint(400, 3, 2, 5, 4, seed = 35)
+  z <- data.frame(w = rbinom(400, 1, 0.5))
+  cache <- mixtureEM:::.lta_curvature_cache
+  real  <- mixtureEM:::.lta_shared_curvature_fit
+  runs  <- 0L
+  local_mocked_bindings(.lta_shared_curvature_fit = function(...) {
+    runs <<- runs + 1L
+    real(...)
+  })
+  fit <- function(...) fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
+                                         n_steps = 2, n_init = 3,
+                                         random_state = 4, n_cores = 1, ...)
+  rm(list = ls(cache), envir = cache)
+  f1 <- fit(predictors_cs = z)
+  expect_equal(runs, 1L)
+  # A second structural model on the same step 1 reads the kept curvature,
+  # and its variance is the one a cold call computes.
+  f2 <- fit(predictors_cs = z, cs_effects = c(w = "by_ca"), step1 = f1)
+  expect_equal(runs, 1L)
+  rm(list = ls(cache), envir = cache)
+  f2c <- fit(predictors_cs = z, cs_effects = c(w = "by_ca"), step1 = f1)
+  expect_equal(runs, 2L)
+  expect_identical(f2$se$vcov, f2c$se$vcov)
+  # Other smoothing is another step-1 objective, never the kept curvature.
+  s1 <- f1$step1
+  X  <- as.matrix(s1$data)
+  a  <- mixtureEM:::.lta_shared_curvature(s1, X, alpha = 0.25)
+  b  <- mixtureEM:::.lta_shared_curvature(s1, X, alpha = 2)
+  expect_equal(runs, 4L)
+  expect_false(isTRUE(all.equal(a$V, b$V)))
+})
+
 test_that("the default prior is spread over each variable's own classes, never the padding", {
   # Both directions: a smaller `cs` (padded destination) with fewer `cs`
   # items, and a smaller `ca` (padded origin) with fewer `ca` items. The

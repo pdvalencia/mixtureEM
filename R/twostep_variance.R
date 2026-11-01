@@ -560,9 +560,9 @@
 # NULL where the score blocks do not describe every coordinate.
 .lta_score_grad <- function(par, base, X, w, layout, src, shared_ok) {
   st <- .lta_par_unpack(par[src], base, layout, average = FALSE)
-  sc <- .lta_score_matrix(st, X, shared_ok = shared_ok)
+  sc <- .lta_score_matrix(st, X, shared_ok = shared_ok, weights = w)
   if (is.null(sc) || ncol(sc$S) != length(src)) return(NULL)
-  as.vector(rowsum(colSums(w * sc$S), src))
+  as.vector(rowsum(sc$S[1L, ], src))
 }
 
 # One worker's batch of .lta_score_hessian_cols(): for each probe (a set of
@@ -628,9 +628,42 @@
 # the prior's share, kept for a sandwich's meat. Used for the step-1 variance
 # of the joint model's two-step and for the standard errors of the joint
 # model with no association.
+#
+# The curvature depends on step 1 alone, and the step-2 models fitted on one
+# step 1 (the ENPOL joint models m0 ... m2x share theirs) would each pay for
+# it again: 166 of m0's 194 score passes. The last one is kept and handed back
+# when the same reduced model, data, weights and smoothing come in again,
+# compared whole by identical(). Left out of the comparison are only what the
+# curvature never reads -- the call, the reported fit summaries (`metrics`,
+# `n_params`, `n_iter`) and the joint model's labels, which a step 1 handed
+# over to a later fit recounts or carries and a fresh one does not --
+# and the data and per-case results the reduced model's parameters and `X`
+# already determine. A field missed here costs a recomputation, never a wrong
+# answer. Data above 1e7 cells is not kept, as .one_hot_memo() does not keep
+# it.
+.lta_curvature_cache <- new.env(parent = emptyenv())
+
 .lta_shared_curvature <- function(state, X, alpha, red = .qn_lta_reduction(state),
                                   n_cores = 1L) {
   if (is.null(red)) return(NULL)
+  s0  <- unclass(red$state)
+  skip <- c("call", "metrics", "n_params", "n_iter", "n_ca", "n_cs",
+            "n_items_ca", "n_items_cs", "joint_stacked", "joint_key",
+            "data", "gamma", "ll_case")
+  key <- list(state = s0[sort(setdiff(names(s0), skip))],
+              layout = red$layout, r0 = red$r0, src = red$src, X = X,
+              w = state$weights_vec, alpha = alpha)
+  hit <- .lta_curvature_cache$last
+  if (!is.null(hit) && identical(hit$key, key)) {
+    out <- hit$out; out$red <- red
+    return(out)
+  }
+  out <- .lta_shared_curvature_fit(state, X, alpha, red, n_cores)
+  if (length(X) <= 1e7) .lta_curvature_cache$last <- list(key = key, out = out)
+  out
+}
+
+.lta_shared_curvature_fit <- function(state, X, alpha, red, n_cores) {
   layout <- red$layout
   s1 <- red$state
   per_case <- !is.null(s1$Z_delta) || !is.null(s1$Z_tau) || !is.null(s1$dif)
