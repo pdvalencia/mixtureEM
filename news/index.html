@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.7.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.7.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -48,6 +48,26 @@
       <small>Source: <a href="https://github.com/pdvalencia/mixtureEM/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.7.1" id="mixtureem-071">mixtureEM 0.7.1<a class="anchor" aria-label="anchor" href="#mixtureem-071"></a></h2>
+<p>A follow-up to 0.7.0: the joint model’s latent variables get names of their own, <code><a href="../reference/report_methods.html">report_methods()</a></code> describes a structural model added afterwards correctly, and the reporting vignette shows the class profiles with standard errors.</p>
+<div class="section level3">
+<h3 id="fit_joint_classes-names-its-latent-variables-x-and-y-0-7-1">
+<code>fit_joint_classes()</code> names its latent variables <code>x</code> and <code>y</code>
+<a class="anchor" aria-label="anchor" href="#fit_joint_classes-names-its-latent-variables-x-and-y-0-7-1"></a></h3>
+<p><strong>This changes the interface released in 0.7.0, with no aliases.</strong> The two latent class variables of <code><a href="../reference/fit_joint_classes.html">fit_joint_classes()</a></code> were called <code>ca</code> and <code>cs</code>, names carried over from one analysis rather than chosen for the function. They are now <code>x</code> and <code>y</code>, the direction of the regression the model estimates: <code>y</code> on <code>x</code>. Every argument follows (<code>x_items</code>, <code>y_items</code>, <code>n_x</code>, <code>n_y</code>, <code>measurement_x</code>, <code>measurement_y</code>, <code>predictors_x</code>, <code>predictors_y</code>, <code>y_effects</code>, with <code>"by_x"</code> for a covariate acting by <code>x</code> class), and so does everything the fit reports: classes print as <code>X#k</code> and <code>Y#k</code>, coefficients as <code>"Y#j ON X#k"</code> and <code>"Y#j ON w | X#k"</code> (the names <code><a href="../reference/derived_estimates.html">derived_estimates()</a></code> and <code><a href="../reference/wald_test.html">wald_test()</a></code> read), <code><a href="../reference/joint_probabilities.html">joint_probabilities()</a></code> returns columns <code>x</code> and <code>y</code>, and the fit’s fields are <code>n_x</code>, <code>n_y</code>, <code>n_items_x</code> and <code>n_items_y</code>. A <code>step1 =</code> given as a list names its two analyses <code>x</code> and <code>y</code>. Nothing is estimated differently.</p>
+</div>
+<div class="section level3">
+<h3 id="report_methods-on-a-structural-model-added-afterwards-0-7-1">
+<code>report_methods()</code> on a structural model added afterwards<a class="anchor" aria-label="anchor" href="#report_methods-on-a-structural-model-added-afterwards-0-7-1"></a></h3>
+<p><code><a href="../reference/report_methods.html">report_methods()</a></code> on the result of <code><a href="../reference/add_covariates.html">add_covariates()</a></code> or <code><a href="../reference/add_outcome.html">add_outcome()</a></code> described the measurement model with facts that belonged to the third step. It said “a single start was used” where the measurement model’s search had run many, because the step-1 summary the structural model keeps did not carry the search; it now does, and the paragraph reports the measurement model’s starts and how many reached its best log-likelihood. The average posterior probabilities are now the measurement model’s, as the entropy beside them already was, where an ML correction had left the third step’s joint posteriors in their place. The closing line gives the call that rebuilds the structural model after the one that rebuilds the measurement model, and two sentences read better: the structural model is “relating class membership to the predictors”, and a third step that moved no case says so. The fitted model is unchanged.</p>
+</div>
+<div class="section level3">
+<h3 id="measurement_estimates-in-the-reporting-vignette-0-7-1">
+<code>measurement_estimates()</code> in the reporting vignette<a class="anchor" aria-label="anchor" href="#measurement_estimates-in-the-reporting-vignette-0-7-1"></a></h3>
+<p><code><a href="../articles/reporting.html">vignette("reporting")</a></code> now shows how to turn <code><a href="../reference/measurement_estimates.html">measurement_estimates()</a></code> into a table of class profiles with standard errors, which the README already pointed to, and what its <code>boundary</code>, <code>z</code> and <code>p_value</code> columns do and do not mean.</p>
+</div>
+</div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.7.0" id="mixtureem-070">mixtureEM 0.7.0<a class="anchor" aria-label="anchor" href="#mixtureem-070"></a></h2>
 <p>Count trajectories, two latent class variables in one model, and the inference that clustered survey data needs: zero-inflated and negative binomial counts in growth and cross-sectional models, with a zero-inflation probability that can change over time; <code><a href="../reference/fit_joint_classes.html">fit_joint_classes()</a></code>, with its tests of association and moderation, in one step or two; cluster-robust standard errors for growth models, three-step and BCH estimates, and the VLMR test for growth mixtures. Growth mixtures also take a binary outcome and several outcomes at once, and the transition models’ finish now reaches the maximum on ordinal random-intercept models.</p>

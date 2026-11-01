@@ -95,7 +95,7 @@ report_methods(cmp)
 #> cleanly cases are classified; they are not criteria for the number of
 #> classes (Masyn, 2013).
 #> 
-#> Models were estimated with the R package mixtureEM (version 0.7.0) in R
+#> Models were estimated with the R package mixtureEM (version 0.7.1) in R
 #> 4.6.2. Random starts were drawn with random_state = 1. The models are
 #> refitted by: compare_mixtures(X = items, k_range = 1:4, measurement =
 #> "binary", n_init = 20, random_state = 1)
@@ -135,6 +135,46 @@ To describe a different K than the BIC’s choice, pass `k`:
 `report_methods(cmp, k = 3)`. The enumeration paragraph then says that
 the reported model is not the lowest-BIC one.
 
+## The class profiles, with standard errors
+
+The results section usually needs a table of the item-response
+probabilities of each class.
+[`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
+prints them;
+[`measurement_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_estimates.md)
+returns them with their standard errors, one row per item and class,
+ready to be shaped into a table:
+
+``` r
+
+fit <- cmp$models[[cmp$best_k]]
+est <- measurement_estimates(fit)
+#> 4 probabilities sit at the boundary (column `boundary`); their standard errors are not interpretable. See ?measurement_estimates.
+prob <- est[est$parameter == "probability", ]
+tab <- tapply(sprintf("%.2f (%.2f)", prob$estimate, prob$se),
+              list(factor(prob$item, levels = unique(prob$item)), prob$class), c)
+noquote(tab[1:6, ])
+#>                      1           2           3           4          
+#> flirting             0.15 (0.04) 0.62 (0.08) 0.98 (0.02) 0.76 (0.06)
+#> romantic_partners    0.18 (0.04) 0.42 (0.08) 0.93 (0.03) 0.25 (0.06)
+#> emotional_bond       0.17 (0.04) 0.57 (0.09) 0.92 (0.03) 0.51 (0.07)
+#> romantic_involvement 0.09 (0.04) 0.43 (0.09) 0.92 (0.04) 0.39 (0.07)
+#> loved_another        0.11 (0.04) 0.40 (0.08) 0.77 (0.05) 0.20 (0.05)
+#> in_love              0.06 (0.03) 0.43 (0.09) 0.81 (0.05) 0.36 (0.07)
+```
+
+The default standard errors are robust (sandwich) ones; `se = "hessian"`
+gives the classical inverse-information ones, and a large gap between
+the two is a sign that the model is misspecified. Two columns need care.
+A probability that has run to 0 or 1 is flagged in `boundary`, and its
+standard error is not interpretable: the message above says how many
+there are, and the note under
+[`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
+names them. And `z` and `p_value` test each parameter against zero,
+which is meaningful for a logit but almost never for an item
+probability, so a results table normally reports the estimate and its
+standard error only.
+
 ## A trajectory model and the GRoLTS checklist
 
 [`grolts_report()`](https://pdvalencia.github.io/mixtureEM/reference/grolts_report.md)
@@ -169,7 +209,7 @@ grolts_report(traj)
 #>     No values were missing on the 4 occasions.
 #> 
 #> 5. Is the software mentioned?
-#>     R package mixtureEM 0.7.0, R 4.6.2.
+#>     R package mixtureEM 0.7.1, R 4.6.2.
 #> 
 #> 9. Is information reported about the number of random start values and
 #>     final iterations included?
@@ -203,7 +243,7 @@ grolts_report(traj)
 #>     50.6%, 49.4%.
 #> 
 #> 16. Are the syntax files available?
-#>     Models were estimated with the R package mixtureEM (version 0.7.0)
+#>     Models were estimated with the R package mixtureEM (version 0.7.1)
 #>     in R 4.6.2. Random starts were drawn with random_state = 1. The
 #>     models are refitted by: compare_longitudinal(indicators = y,
 #>     k_range = 1:3, model = "lcga", times = 4, verbose = FALSE, family =

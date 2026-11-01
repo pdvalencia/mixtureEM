@@ -218,7 +218,7 @@ classes being estimated rather than observed
 If you use mixtureEM in published research, please cite it as:
 
 > Valencia, P. D. (2026). mixtureEM: Latent class and profile analysis
-> via mixture modelling (Version 0.7.0) \[R package\].
+> via mixture modelling (Version 0.7.1) \[R package\].
 > <https://github.com/pdvalencia/mixtureEM>
 
 `citation("mixtureEM")` gives the same reference, and a BibTeX entry.

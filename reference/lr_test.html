@@ -27,8 +27,8 @@ fit_lta() with transition_invariance = &quot;full&quot; and &quot;none&quot;.
 Whether two latent class variables are associated (Hagenaars,
 1993): fit fit_joint_classes() with association = &quot;none&quot; and
 &quot;free&quot;. Whether a covariate moderates that association: the same
-model with the covariate acting on cs in common and by ca class
-(cs_effects).
+model with the covariate acting on y in common and by x class
+(y_effects).
 
 
 The models must be nested and fitted to the same data. That is not checked
@@ -78,8 +78,8 @@ fit_lta() with transition_invariance = &quot;full&quot; and &quot;none&quot;.
 Whether two latent class variables are associated (Hagenaars,
 1993): fit fit_joint_classes() with association = &quot;none&quot; and
 &quot;free&quot;. Whether a covariate moderates that association: the same
-model with the covariate acting on cs in common and by ca class
-(cs_effects).
+model with the covariate acting on y in common and by x class
+(y_effects).
 
 
 The models must be nested and fitted to the same data. That is not checked
@@ -109,7 +109,7 @@ case; refitting full with a larger n_init is the usual fix."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.7.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.7.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -179,8 +179,8 @@ parameters freed at every occasion after the first.</p></li>
 <li><p><strong>Whether two latent class variables are associated</strong> (Hagenaars,
 1993): fit <code><a href="fit_joint_classes.html">fit_joint_classes()</a></code> with <code>association = "none"</code> and
 <code>"free"</code>. Whether a covariate moderates that association: the same
-model with the covariate acting on <code>cs</code> in common and by <code>ca</code> class
-(<code>cs_effects</code>).</p></li>
+model with the covariate acting on <code>y</code> in common and by <code>x</code> class
+(<code>y_effects</code>).</p></li>
 </ul><p>The models must be nested and fitted to the same data. That is not checked
 beyond the parameter counts and sample size, so it remains the analyst's
 responsibility.</p>

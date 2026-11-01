@@ -1,5 +1,65 @@
 # Changelog
 
+## mixtureEM 0.7.1
+
+A follow-up to 0.7.0: the joint model’s latent variables get names of
+their own,
+[`report_methods()`](https://pdvalencia.github.io/mixtureEM/reference/report_methods.md)
+describes a structural model added afterwards correctly, and the
+reporting vignette shows the class profiles with standard errors.
+
+### `fit_joint_classes()` names its latent variables `x` and `y`
+
+**This changes the interface released in 0.7.0, with no aliases.** The
+two latent class variables of
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)
+were called `ca` and `cs`, names carried over from one analysis rather
+than chosen for the function. They are now `x` and `y`, the direction of
+the regression the model estimates: `y` on `x`. Every argument follows
+(`x_items`, `y_items`, `n_x`, `n_y`, `measurement_x`, `measurement_y`,
+`predictors_x`, `predictors_y`, `y_effects`, with `"by_x"` for a
+covariate acting by `x` class), and so does everything the fit reports:
+classes print as `X#k` and `Y#k`, coefficients as `"Y#j ON X#k"` and
+`"Y#j ON w | X#k"` (the names
+[`derived_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/derived_estimates.md)
+and
+[`wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_test.md)
+read),
+[`joint_probabilities()`](https://pdvalencia.github.io/mixtureEM/reference/joint_probabilities.md)
+returns columns `x` and `y`, and the fit’s fields are `n_x`, `n_y`,
+`n_items_x` and `n_items_y`. A `step1 =` given as a list names its two
+analyses `x` and `y`. Nothing is estimated differently.
+
+### `report_methods()` on a structural model added afterwards
+
+[`report_methods()`](https://pdvalencia.github.io/mixtureEM/reference/report_methods.md)
+on the result of
+[`add_covariates()`](https://pdvalencia.github.io/mixtureEM/reference/add_covariates.md)
+or
+[`add_outcome()`](https://pdvalencia.github.io/mixtureEM/reference/add_outcome.md)
+described the measurement model with facts that belonged to the third
+step. It said “a single start was used” where the measurement model’s
+search had run many, because the step-1 summary the structural model
+keeps did not carry the search; it now does, and the paragraph reports
+the measurement model’s starts and how many reached its best
+log-likelihood. The average posterior probabilities are now the
+measurement model’s, as the entropy beside them already was, where an ML
+correction had left the third step’s joint posteriors in their place.
+The closing line gives the call that rebuilds the structural model after
+the one that rebuilds the measurement model, and two sentences read
+better: the structural model is “relating class membership to the
+predictors”, and a third step that moved no case says so. The fitted
+model is unchanged.
+
+### `measurement_estimates()` in the reporting vignette
+
+[`vignette("reporting")`](https://pdvalencia.github.io/mixtureEM/articles/reporting.md)
+now shows how to turn
+[`measurement_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_estimates.md)
+into a table of class profiles with standard errors, which the README
+already pointed to, and what its `boundary`, `z` and `p_value` columns
+do and do not mean.
+
 ## mixtureEM 0.7.0
 
 Count trajectories, two latent class variables in one model, and the

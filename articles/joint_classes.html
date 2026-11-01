@@ -19,7 +19,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mixtureEM</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.7.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.7.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -100,8 +100,8 @@ adolescents there are six yes/no items about adverse childhood
 experiences (<code>a1</code> to <code>a6</code>) and five items about
 substance use, each answered never (1), sometimes (2) or often (3)
 (<code>s1</code> to <code>s5</code>). Behind them are two latent
-variables with three classes each: adversity (<code>ca</code>: low,
-household adversity, high) and substance use (<code>cs</code>: abstains,
+variables with three classes each: adversity (<code>x</code>: low,
+household adversity, high) and substance use (<code>y</code>: abstains,
 drinks, several substances). High adversity goes with several
 substances, and being a girl lowers the odds of several substances, most
 of all after high adversity. Three answers in a hundred are missing at
@@ -112,31 +112,31 @@ random.</p>
 <span><span class="va">female</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">1</span>, <span class="fl">0.5</span><span class="op">)</span></span>
 <span><span class="co"># Adversity class: 1 low, 2 household, 3 high; girls a little more often 2.</span></span>
 <span><span class="va">lp</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="fl">0</span>, <span class="op">-</span><span class="fl">0.6</span> <span class="op">+</span> <span class="fl">0.5</span> <span class="op">*</span> <span class="va">female</span>, <span class="op">-</span><span class="fl">1.2</span><span class="op">)</span></span>
-<span><span class="va">ca</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">lp</span><span class="op">)</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">lp</span><span class="op">)</span><span class="op">)</span>, <span class="fl">1</span>, <span class="kw">function</span><span class="op">(</span><span class="va">p</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, <span class="fl">1</span>, prob <span class="op">=</span> <span class="va">p</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">cx</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">lp</span><span class="op">)</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">lp</span><span class="op">)</span><span class="op">)</span>, <span class="fl">1</span>, <span class="kw">function</span><span class="op">(</span><span class="va">p</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, <span class="fl">1</span>, prob <span class="op">=</span> <span class="va">p</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co"># Substance-use class given adversity: 1 abstains, 2 drinks, 3 several</span></span>
 <span><span class="co"># substances. Logits against class 1, by adversity class; being female lowers</span></span>
 <span><span class="co"># the odds of several substances, most of all after high adversity.</span></span>
 <span><span class="va">assoc</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="op">-</span><span class="fl">0.4</span>, <span class="op">-</span><span class="fl">2.2</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.3</span>, <span class="op">-</span><span class="fl">0.6</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.6</span>, <span class="fl">0.9</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">lc</span> <span class="op">&lt;-</span> <span class="va">assoc</span><span class="op">[</span><span class="va">ca</span>, <span class="op">]</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0</span>, <span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.2</span>, <span class="fl">0.4</span>, <span class="fl">1.2</span><span class="op">)</span><span class="op">[</span><span class="va">ca</span><span class="op">]</span> <span class="op">*</span> <span class="va">female</span><span class="op">)</span></span>
-<span><span class="va">cs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">lc</span><span class="op">)</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">lc</span><span class="op">)</span><span class="op">)</span>, <span class="fl">1</span>, <span class="kw">function</span><span class="op">(</span><span class="va">p</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, <span class="fl">1</span>, prob <span class="op">=</span> <span class="va">p</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">lc</span> <span class="op">&lt;-</span> <span class="va">assoc</span><span class="op">[</span><span class="va">cx</span>, <span class="op">]</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0</span>, <span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.2</span>, <span class="fl">0.4</span>, <span class="fl">1.2</span><span class="op">)</span><span class="op">[</span><span class="va">cx</span><span class="op">]</span> <span class="op">*</span> <span class="va">female</span><span class="op">)</span></span>
+<span><span class="va">cy</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">lc</span><span class="op">)</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">lc</span><span class="op">)</span><span class="op">)</span>, <span class="fl">1</span>, <span class="kw">function</span><span class="op">(</span><span class="va">p</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, <span class="fl">1</span>, prob <span class="op">=</span> <span class="va">p</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co"># Six yes/no adversity items and five never/sometimes/often use items.</span></span>
 <span><span class="va">p_a</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">.10</span>, <span class="fl">.08</span>, <span class="fl">.12</span>, <span class="fl">.05</span>, <span class="fl">.10</span>, <span class="fl">.06</span><span class="op">)</span>,</span>
 <span>             <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">.70</span>, <span class="fl">.65</span>, <span class="fl">.55</span>, <span class="fl">.20</span>, <span class="fl">.15</span>, <span class="fl">.10</span><span class="op">)</span>,</span>
 <span>             <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">.80</span>, <span class="fl">.75</span>, <span class="fl">.70</span>, <span class="fl">.65</span>, <span class="fl">.60</span>, <span class="fl">.55</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">adversity</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="va">n</span> <span class="op">*</span> <span class="fl">6</span>, <span class="fl">1</span>, <span class="va">p_a</span><span class="op">[</span><span class="va">ca</span>, <span class="op">]</span><span class="op">)</span>, <span class="va">n</span>, <span class="fl">6</span>,</span>
+<span><span class="va">adversity</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="va">n</span> <span class="op">*</span> <span class="fl">6</span>, <span class="fl">1</span>, <span class="va">p_a</span><span class="op">[</span><span class="va">cx</span>, <span class="op">]</span><span class="op">)</span>, <span class="va">n</span>, <span class="fl">6</span>,</span>
 <span>                    dimnames <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="cn">NULL</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"a"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">6</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">use_level</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">2</span>, <span class="fl">2</span>, <span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">use</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="cn">NA_integer_</span>, <span class="va">n</span>, <span class="fl">5</span>, dimnames <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="cn">NULL</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"s"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">5</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="kw">for</span> <span class="op">(</span><span class="va">j</span> <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">5</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="va">hi</span> <span class="op">&lt;-</span> <span class="va">use_level</span><span class="op">[</span><span class="va">cs</span>, <span class="va">j</span><span class="op">]</span></span>
+<span>  <span class="va">hi</span> <span class="op">&lt;-</span> <span class="va">use_level</span><span class="op">[</span><span class="va">cy</span>, <span class="va">j</span><span class="op">]</span></span>
 <span>  <span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span></span>
 <span>  <span class="va">use</span><span class="op">[</span>, <span class="va">j</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fl">1</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">hi</span> <span class="op">==</span> <span class="fl">0</span>, <span class="op">(</span><span class="va">r</span> <span class="op">&gt;</span> <span class="fl">.80</span><span class="op">)</span> <span class="op">+</span> <span class="op">(</span><span class="va">r</span> <span class="op">&gt;</span> <span class="fl">.95</span><span class="op">)</span>,</span>
 <span>              <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">hi</span> <span class="op">==</span> <span class="fl">1</span>, <span class="op">(</span><span class="va">r</span> <span class="op">&gt;</span> <span class="fl">.30</span><span class="op">)</span> <span class="op">+</span> <span class="op">(</span><span class="va">r</span> <span class="op">&gt;</span> <span class="fl">.80</span><span class="op">)</span>, <span class="op">(</span><span class="va">r</span> <span class="op">&gt;</span> <span class="fl">.10</span><span class="op">)</span> <span class="op">+</span> <span class="op">(</span><span class="va">r</span> <span class="op">&gt;</span> <span class="fl">.40</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">}</span></span>
 <span><span class="va">adversity</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n</span> <span class="op">*</span> <span class="fl">6</span><span class="op">)</span> <span class="op">&lt;</span> <span class="fl">0.03</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">NA</span></span>
 <span><span class="va">use</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n</span> <span class="op">*</span> <span class="fl">5</span><span class="op">)</span> <span class="op">&lt;</span> <span class="fl">0.03</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">NA</span></span></code></pre></div>
-<p><code>ca</code> and <code>cs</code> are the truth the analysis will
-try to recover; a real analysis never has them. All it has is
+<p><code>cx</code> and <code>cy</code> are the true classes the analysis
+will try to recover; a real analysis never has them. All it has is
 <code>adversity</code>, <code>use</code> and <code>female</code>.</p>
 </div>
 <div class="section level2">
@@ -167,13 +167,13 @@ priors add and when to keep them.</p>
 </h2>
 <p>The first structural model has the association and
 <code>female</code> predicting both variables, its effect on
-<code>cs</code> the same in every adversity class
-(<code>cs_effects = "common"</code>, the default).</p>
+<code>y</code> the same in every adversity class
+(<code>y_effects = "common"</code>, the default).</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fem</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>female <span class="op">=</span> <span class="va">female</span><span class="op">)</span></span>
-<span><span class="va">m1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_joint_classes.html">fit_joint_classes</a></span><span class="op">(</span><span class="va">adversity</span>, <span class="va">use</span>, n_ca <span class="op">=</span> <span class="fl">3</span>, n_cs <span class="op">=</span> <span class="fl">3</span>,</span>
-<span>                        measurement_cs <span class="op">=</span> <span class="st">"ordinal"</span>,</span>
-<span>                        predictors_ca <span class="op">=</span> <span class="va">fem</span>, predictors_cs <span class="op">=</span> <span class="va">fem</span>,</span>
+<span><span class="va">m1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_joint_classes.html">fit_joint_classes</a></span><span class="op">(</span><span class="va">adversity</span>, <span class="va">use</span>, n_x <span class="op">=</span> <span class="fl">3</span>, n_y <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>                        measurement_y <span class="op">=</span> <span class="st">"ordinal"</span>,</span>
+<span>                        predictors_x <span class="op">=</span> <span class="va">fem</span>, predictors_y <span class="op">=</span> <span class="va">fem</span>,</span>
 <span>                        n_steps <span class="op">=</span> <span class="fl">2</span>, n_init <span class="op">=</span> <span class="fl">20</span>, random_state <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>                        smoothing <span class="op">=</span> <span class="va">ml</span><span class="op">$</span><span class="va">smoothing</span>,</span>
 <span>                        bayes_constants <span class="op">=</span> <span class="va">ml</span><span class="op">$</span><span class="va">bayes_constants</span><span class="op">)</span></span></code></pre></div>
@@ -186,8 +186,8 @@ under its own classes, beside the observed share of each answer:</p>
 <span><span class="co">#&gt;              MEASUREMENT MODEL PARAMETERS                </span></span>
 <span><span class="co">#&gt; =========================================================</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; ca: item response probabilities by ca class</span></span>
-<span><span class="co">#&gt; Indicator            | Overall |    CA#1 |    CA#2 |    CA#3</span></span>
+<span><span class="co">#&gt; x: item response probabilities by x class</span></span>
+<span><span class="co">#&gt; Indicator            | Overall |     X#1 |     X#2 |     X#3</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------------</span></span>
 <span><span class="co">#&gt; a1                   |   0.399 |   0.079 |   0.813 |   0.731</span></span>
 <span><span class="co">#&gt; a2                   |   0.384 |   0.103 |   0.629 |   0.811</span></span>
@@ -196,8 +196,8 @@ under its own classes, beside the observed share of each answer:</p>
 <span><span class="co">#&gt; a5                   |   0.196 |   0.070 |   0.219 |   0.493</span></span>
 <span><span class="co">#&gt; a6                   |   0.143 |   0.060 |   0.000 |   0.528</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; cs: item response probabilities by cs class</span></span>
-<span><span class="co">#&gt; Indicator            | Overall |    CS#1 |    CS#2 |    CS#3</span></span>
+<span><span class="co">#&gt; y: item response probabilities by y class</span></span>
+<span><span class="co">#&gt; Indicator            | Overall |     Y#1 |     Y#2 |     Y#3</span></span>
 <span><span class="co">#&gt; ------------------------------------------------------------</span></span>
 <span><span class="co">#&gt; s1 (Cat 1)           |   0.385 |   0.802 |   0.000 |   0.156</span></span>
 <span><span class="co">#&gt; s1 (Cat 2)           |   0.260 |   0.198 |   0.313 |   0.306</span></span>
@@ -217,15 +217,15 @@ under its own classes, beside the observed share of each answer:</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; A two-category item shows its second category: for an item coded 0/1, the probability of a 1.</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; At the boundary: a6 in class 2 (ca); s1 in class 2 (cs); s1 in class 1 (cs); s2 in class 3 (cs). These probabilities have run to 0 or 1, so the class is defined partly by an item every case in it gives the same answer to, and their standard errors are not interpretable. There are two ways on: read it substantively, since an item every member of a class answers identically is often the finding rather than a fault; or, if that parameter needs a standard error, refit with a stronger prior than the default of 1 - `bayes_constants = list(categorical = 2)` - which holds the estimate off the edge at the cost of shrinking it slightly toward the item's marginal.</span></span>
+<span><span class="co">#&gt; At the boundary: a6 in class 2 (x); s1 in class 2 (y); s1 in class 1 (y); s2 in class 3 (y). These probabilities have run to 0 or 1, so the class is defined partly by an item every case in it gives the same answer to, and their standard errors are not interpretable. There are two ways on: read it substantively, since an item every member of a class answers identically is often the finding rather than a fault; or, if that parameter needs a standard error, refit with a stronger prior than the default of 1 - `bayes_constants = list(categorical = 2)` - which holds the estimate off the edge at the cost of shrinking it slightly toward the item's marginal.</span></span>
 <span><span class="co">#&gt; =========================================================</span></span></code></pre></div>
 <p>The adversity classes are the three that were simulated:
-<code>CA#1</code> reports almost none of the six experiences,
-<code>CA#2</code> the first three (household adversity) and few of the
-rest, <code>CA#3</code> all six at around one half or more. The
-substance-use classes are too: <code>CS#1</code> mostly answers never,
-<code>CS#2</code> drinks often (<code>s1</code>) and sometimes uses the
-third substance, and <code>CS#3</code> uses the first three substances
+<code>X#1</code> reports almost none of the six experiences,
+<code>X#2</code> the first three (household adversity) and few of the
+rest, <code>X#3</code> all six at around one half or more. The
+substance-use classes are too: <code>Y#1</code> mostly answers never,
+<code>Y#2</code> drinks often (<code>s1</code>) and sometimes uses the
+third substance, and <code>Y#3</code> uses the first three substances
 often and the last two sometimes.</p>
 <p>Four probabilities have run to 0 or 1, and the note under the tables
 says how to read them. The household class never reporting
@@ -235,36 +235,36 @@ estimate of a rare answer can be zero.</p>
 <p>Now the association:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">m1</span></span>
-<span><span class="co">#&gt; Two latent class variables: ca (3 classes, 6 items), cs (3 classes, 5 items)</span></span>
+<span><span class="co">#&gt; Two latent class variables: x (3 classes, 6 items), y (3 classes, 5 items)</span></span>
 <span><span class="co">#&gt; Log-likelihood -10499.379, 60 free parameters, BIC 21437.551</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Two-step: item parameters fixed at the separate latent class analyses</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Association: log-odds of cs against its last class</span></span>
-<span><span class="co">#&gt;    cs      term   ca estimate    se      z        p</span></span>
-<span><span class="co">#&gt;  CS#1 Intercept       -0.0671 0.263 -0.255 7.98e-01</span></span>
-<span><span class="co">#&gt;  CS#1      CA#1 CA#1   2.3990 0.344  6.964 3.31e-12</span></span>
-<span><span class="co">#&gt;  CS#1      CA#2 CA#2   0.6601 0.404  1.634 1.02e-01</span></span>
-<span><span class="co">#&gt;  CS#1    female        0.6574 0.221  2.979 2.89e-03</span></span>
-<span><span class="co">#&gt;  CS#2 Intercept        0.6824 0.235  2.910 3.62e-03</span></span>
-<span><span class="co">#&gt;  CS#2      CA#1 CA#1   1.4005 0.329  4.253 2.11e-05</span></span>
-<span><span class="co">#&gt;  CS#2      CA#2 CA#2   0.0644 0.391  0.165 8.69e-01</span></span>
-<span><span class="co">#&gt;  CS#2    female        0.5165 0.220  2.349 1.88e-02</span></span>
+<span><span class="co">#&gt; Association: log-odds of y against its last class</span></span>
+<span><span class="co">#&gt;    y      term   x estimate    se      z        p</span></span>
+<span><span class="co">#&gt;  Y#1 Intercept      -0.0671 0.263 -0.255 7.98e-01</span></span>
+<span><span class="co">#&gt;  Y#1       X#1 X#1   2.3990 0.344  6.964 3.31e-12</span></span>
+<span><span class="co">#&gt;  Y#1       X#2 X#2   0.6601 0.404  1.634 1.02e-01</span></span>
+<span><span class="co">#&gt;  Y#1    female       0.6574 0.221  2.979 2.89e-03</span></span>
+<span><span class="co">#&gt;  Y#2 Intercept       0.6824 0.235  2.910 3.62e-03</span></span>
+<span><span class="co">#&gt;  Y#2       X#1 X#1   1.4005 0.329  4.253 2.11e-05</span></span>
+<span><span class="co">#&gt;  Y#2       X#2 X#2   0.0644 0.391  0.165 8.69e-01</span></span>
+<span><span class="co">#&gt;  Y#2    female       0.5165 0.220  2.349 1.88e-02</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Joint class probabilities P(ca, cs)</span></span>
-<span><span class="co">#&gt;       CS#1  CS#2  CS#3</span></span>
-<span><span class="co">#&gt; CA#1 0.297 0.218 0.023</span></span>
-<span><span class="co">#&gt; CA#2 0.103 0.110 0.039</span></span>
-<span><span class="co">#&gt; CA#3 0.055 0.109 0.045</span></span>
+<span><span class="co">#&gt; Joint class probabilities P(x, y)</span></span>
+<span><span class="co">#&gt;       Y#1   Y#2   Y#3</span></span>
+<span><span class="co">#&gt; X#1 0.297 0.218 0.023</span></span>
+<span><span class="co">#&gt; X#2 0.103 0.110 0.039</span></span>
+<span><span class="co">#&gt; X#3 0.055 0.109 0.045</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Conditional probabilities P(cs | ca)</span></span>
-<span><span class="co">#&gt;       CS#1  CS#2  CS#3</span></span>
-<span><span class="co">#&gt; CA#1 0.552 0.405 0.042</span></span>
-<span><span class="co">#&gt; CA#2 0.408 0.436 0.156</span></span>
-<span><span class="co">#&gt; CA#3 0.264 0.522 0.215</span></span></code></pre></div>
+<span><span class="co">#&gt; Conditional probabilities P(y | x)</span></span>
+<span><span class="co">#&gt;       Y#1   Y#2   Y#3</span></span>
+<span><span class="co">#&gt; X#1 0.552 0.405 0.042</span></span>
+<span><span class="co">#&gt; X#2 0.408 0.436 0.156</span></span>
+<span><span class="co">#&gt; X#3 0.264 0.522 0.215</span></span></code></pre></div>
 <p>Every log-odds is against the last class of each variable:
-<code>CS#1 ON CA#1</code> of 2.40 says that low adversity raises the
-odds of abstaining, rather than using several substances, by a factor of
+<code>Y#1 ON X#1</code> of 2.40 says that low adversity raises the odds
+of abstaining, rather than using several substances, by a factor of
 <code>exp(2.40) = 11</code> compared with high adversity. The
 conditional probabilities say the same thing on the probability scale:
 4% of the low-adversity class use several substances, 22% of the
@@ -279,9 +279,9 @@ variables independent given the covariates. Fitted on the same step 1
 likelihood-ratio test of the association, on (3 - 1) x (3 - 1) = 4
 degrees of freedom.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">m0</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_joint_classes.html">fit_joint_classes</a></span><span class="op">(</span><span class="va">adversity</span>, <span class="va">use</span>, n_ca <span class="op">=</span> <span class="fl">3</span>, n_cs <span class="op">=</span> <span class="fl">3</span>,</span>
-<span>                        measurement_cs <span class="op">=</span> <span class="st">"ordinal"</span>,</span>
-<span>                        predictors_ca <span class="op">=</span> <span class="va">fem</span>, predictors_cs <span class="op">=</span> <span class="va">fem</span>,</span>
+<code class="sourceCode R"><span><span class="va">m0</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_joint_classes.html">fit_joint_classes</a></span><span class="op">(</span><span class="va">adversity</span>, <span class="va">use</span>, n_x <span class="op">=</span> <span class="fl">3</span>, n_y <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>                        measurement_y <span class="op">=</span> <span class="st">"ordinal"</span>,</span>
+<span>                        predictors_x <span class="op">=</span> <span class="va">fem</span>, predictors_y <span class="op">=</span> <span class="va">fem</span>,</span>
 <span>                        association <span class="op">=</span> <span class="st">"none"</span>, n_steps <span class="op">=</span> <span class="fl">2</span>, step1 <span class="op">=</span> <span class="va">m1</span>,</span>
 <span>                        smoothing <span class="op">=</span> <span class="va">ml</span><span class="op">$</span><span class="va">smoothing</span>,</span>
 <span>                        bayes_constants <span class="op">=</span> <span class="va">ml</span><span class="op">$</span><span class="va">bayes_constants</span><span class="op">)</span></span>
@@ -298,16 +298,16 @@ degrees of freedom.</p>
 <div class="section level2">
 <h2 id="is-the-association-the-same-for-girls-and-boys">Is the association the same for girls and boys?<a class="anchor" aria-label="anchor" href="#is-the-association-the-same-for-girls-and-boys"></a>
 </h2>
-<p><code>cs_effects = c(female = "by_ca")</code> lets the effect of
+<p><code>y_effects = c(female = "by_x")</code> lets the effect of
 <code>female</code> on substance use differ by adversity class. Against
 <code>m1</code>, that is a test of whether sex moderates the
 association, again on four degrees of freedom: one more slope per
-<code>cs</code> logit for each adversity class but the last.</p>
+<code>y</code> logit for each adversity class but the last.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">m2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_joint_classes.html">fit_joint_classes</a></span><span class="op">(</span><span class="va">adversity</span>, <span class="va">use</span>, n_ca <span class="op">=</span> <span class="fl">3</span>, n_cs <span class="op">=</span> <span class="fl">3</span>,</span>
-<span>                        measurement_cs <span class="op">=</span> <span class="st">"ordinal"</span>,</span>
-<span>                        predictors_ca <span class="op">=</span> <span class="va">fem</span>, predictors_cs <span class="op">=</span> <span class="va">fem</span>,</span>
-<span>                        cs_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>female <span class="op">=</span> <span class="st">"by_ca"</span><span class="op">)</span>,</span>
+<code class="sourceCode R"><span><span class="va">m2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_joint_classes.html">fit_joint_classes</a></span><span class="op">(</span><span class="va">adversity</span>, <span class="va">use</span>, n_x <span class="op">=</span> <span class="fl">3</span>, n_y <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>                        measurement_y <span class="op">=</span> <span class="st">"ordinal"</span>,</span>
+<span>                        predictors_x <span class="op">=</span> <span class="va">fem</span>, predictors_y <span class="op">=</span> <span class="va">fem</span>,</span>
+<span>                        y_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>female <span class="op">=</span> <span class="st">"by_x"</span><span class="op">)</span>,</span>
 <span>                        n_steps <span class="op">=</span> <span class="fl">2</span>, step1 <span class="op">=</span> <span class="va">m1</span>,</span>
 <span>                        smoothing <span class="op">=</span> <span class="va">ml</span><span class="op">$</span><span class="va">smoothing</span>,</span>
 <span>                        bayes_constants <span class="op">=</span> <span class="va">ml</span><span class="op">$</span><span class="va">bayes_constants</span><span class="op">)</span></span>
@@ -321,7 +321,7 @@ association, again on four degrees of freedom: one more slope per
 <span><span class="co">#&gt;   The restriction is rejected: the full model fits significantly better.</span></span></code></pre></div>
 <p>The moderation is significant at the 5% level, if not by much. The
 coefficients of a moderated model are hard to read directly (each
-<code>female | CA#k</code> row is a difference from the last adversity
+<code>female | X#k</code> row is a difference from the last adversity
 class), so the result is best reported as the probabilities of each
 substance-use class given each adversity class, for boys and for girls.
 <code><a href="../reference/joint_probabilities.html">joint_probabilities()</a></code> computes them at fixed covariate
@@ -329,21 +329,21 @@ values, with delta-method standard errors:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">boys</span>  <span class="op">&lt;-</span> <span class="fu"><a href="../reference/joint_probabilities.html">joint_probabilities</a></span><span class="op">(</span><span class="va">m2</span>, at <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>female <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">girls</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/joint_probabilities.html">joint_probabilities</a></span><span class="op">(</span><span class="va">m2</span>, at <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>female <span class="op">=</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="va">boys</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ca"</span>, <span class="st">"cs"</span><span class="op">)</span><span class="op">]</span>, boys <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">boys</span><span class="op">$</span><span class="va">estimate</span>, <span class="fl">3</span><span class="op">)</span>,</span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="va">boys</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"x"</span>, <span class="st">"y"</span><span class="op">)</span><span class="op">]</span>, boys <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">boys</span><span class="op">$</span><span class="va">estimate</span>, <span class="fl">3</span><span class="op">)</span>,</span>
 <span>      girls <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">girls</span><span class="op">$</span><span class="va">estimate</span>, <span class="fl">3</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt;     ca   cs  boys girls</span></span>
-<span><span class="co">#&gt; 1 CA#1 CS#1 0.525 0.590</span></span>
-<span><span class="co">#&gt; 2 CA#1 CS#2 0.428 0.373</span></span>
-<span><span class="co">#&gt; 3 CA#1 CS#3 0.047 0.037</span></span>
-<span><span class="co">#&gt; 4 CA#2 CS#1 0.344 0.447</span></span>
-<span><span class="co">#&gt; 5 CA#2 CS#2 0.510 0.396</span></span>
-<span><span class="co">#&gt; 6 CA#2 CS#3 0.146 0.157</span></span>
-<span><span class="co">#&gt; 7 CA#3 CS#1 0.283 0.245</span></span>
-<span><span class="co">#&gt; 8 CA#3 CS#2 0.400 0.662</span></span>
-<span><span class="co">#&gt; 9 CA#3 CS#3 0.317 0.092</span></span></code></pre></div>
-<p>After high adversity (<code>CA#3</code>), 32% of boys are in the
+<span><span class="co">#&gt;     x   y  boys girls</span></span>
+<span><span class="co">#&gt; 1 X#1 Y#1 0.525 0.590</span></span>
+<span><span class="co">#&gt; 2 X#1 Y#2 0.428 0.373</span></span>
+<span><span class="co">#&gt; 3 X#1 Y#3 0.047 0.037</span></span>
+<span><span class="co">#&gt; 4 X#2 Y#1 0.344 0.447</span></span>
+<span><span class="co">#&gt; 5 X#2 Y#2 0.510 0.396</span></span>
+<span><span class="co">#&gt; 6 X#2 Y#3 0.146 0.157</span></span>
+<span><span class="co">#&gt; 7 X#3 Y#1 0.283 0.245</span></span>
+<span><span class="co">#&gt; 8 X#3 Y#2 0.400 0.662</span></span>
+<span><span class="co">#&gt; 9 X#3 Y#3 0.317 0.092</span></span></code></pre></div>
+<p>After high adversity (<code>X#3</code>), 32% of boys are in the
 several-substances class and 9% of girls; after low adversity
-(<code>CA#1</code>) both are under 5%. That is the moderation that was
+(<code>X#1</code>) both are under 5%. That is the moderation that was
 simulated: the link from adversity to using several substances is much
 stronger for boys.</p>
 <p>Any other function of the coefficients, with its standard error, is
@@ -356,12 +356,12 @@ names <code><a href="../reference/joint_coefficients.html">joint_coefficients()<
 <p>The same three models in one step, every parameter estimated at
 once:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">one</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>m0 <span class="op">=</span> <span class="st">"none"</span>, m1 <span class="op">=</span> <span class="st">"common"</span>, m2 <span class="op">=</span> <span class="st">"by_ca"</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">s</span><span class="op">)</span></span>
-<span>  <span class="fu"><a href="../reference/fit_joint_classes.html">fit_joint_classes</a></span><span class="op">(</span><span class="va">adversity</span>, <span class="va">use</span>, n_ca <span class="op">=</span> <span class="fl">3</span>, n_cs <span class="op">=</span> <span class="fl">3</span>,</span>
-<span>                    measurement_cs <span class="op">=</span> <span class="st">"ordinal"</span>,</span>
-<span>                    predictors_ca <span class="op">=</span> <span class="va">fem</span>, predictors_cs <span class="op">=</span> <span class="va">fem</span>,</span>
+<code class="sourceCode R"><span><span class="va">one</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>m0 <span class="op">=</span> <span class="st">"none"</span>, m1 <span class="op">=</span> <span class="st">"common"</span>, m2 <span class="op">=</span> <span class="st">"by_x"</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">s</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="../reference/fit_joint_classes.html">fit_joint_classes</a></span><span class="op">(</span><span class="va">adversity</span>, <span class="va">use</span>, n_x <span class="op">=</span> <span class="fl">3</span>, n_y <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>                    measurement_y <span class="op">=</span> <span class="st">"ordinal"</span>,</span>
+<span>                    predictors_x <span class="op">=</span> <span class="va">fem</span>, predictors_y <span class="op">=</span> <span class="va">fem</span>,</span>
 <span>                    association <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="va">s</span> <span class="op">==</span> <span class="st">"none"</span><span class="op">)</span> <span class="st">"none"</span> <span class="kw">else</span> <span class="st">"free"</span>,</span>
-<span>                    cs_effects <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="va">s</span> <span class="op">==</span> <span class="st">"by_ca"</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>female <span class="op">=</span> <span class="st">"by_ca"</span><span class="op">)</span> <span class="kw">else</span> <span class="st">"common"</span>,</span>
+<span>                    y_effects <span class="op">=</span> <span class="kw">if</span> <span class="op">(</span><span class="va">s</span> <span class="op">==</span> <span class="st">"by_x"</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>female <span class="op">=</span> <span class="st">"by_x"</span><span class="op">)</span> <span class="kw">else</span> <span class="st">"common"</span>,</span>
 <span>                    n_init <span class="op">=</span> <span class="fl">20</span>, random_state <span class="op">=</span> <span class="fl">1</span>, standard_errors <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>                    smoothing <span class="op">=</span> <span class="va">ml</span><span class="op">$</span><span class="va">smoothing</span>,</span>
 <span>                    bayes_constants <span class="op">=</span> <span class="va">ml</span><span class="op">$</span><span class="va">bayes_constants</span><span class="op">)</span><span class="op">)</span></span>
@@ -397,7 +397,7 @@ their association in one model; <code><a href="../reference/measurement_summary.
 what each variable’s classes are.</li>
 <li>
 <code>association = "none"</code> and
-<code>cs_effects = "by_ca"</code> give the restricted and the extended
+<code>y_effects = "by_x"</code> give the restricted and the extended
 models of the two natural tests, run by <code><a href="../reference/lr_test.html">lr_test()</a></code>.</li>
 <li>With <code>n_steps = 2</code>, fit step 1 once and hand it to every
 structural model with <code>step1 =</code>, so that all of them share
