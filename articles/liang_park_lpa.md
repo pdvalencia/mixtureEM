@@ -80,12 +80,12 @@ comp <- compare_mixtures(ind, k_range = 1:5, measurement = "continuous",
 #> Fitting 5-class model...
 #> 
 #> === Model Selection Summary ===
-#>  Classes         LL Params      BIC    SABIC     AIC3 Entropy
-#>        1 -2504.138      10 5065.314 5033.600 5038.276   1.000
-#>        2 -2218.115      16 4527.491 4476.748 4484.230   0.877
-#>        3 -2093.758      22 4312.999 4243.228 4253.516   0.900
-#>        4 -2066.064      28 4291.834 4203.034 4216.128   0.870
-#>        5 -2029.261      34 4252.450 4144.622 4160.521   0.877
+#>  Classes         LL Params      BIC    SABIC     AIC3 Entropy Separation
+#>        1 -2504.138      10 5065.314 5033.600 5038.276   1.000           
+#>        2 -2218.115      16 4527.491 4476.748 4484.230   0.877      4.336
+#>        3 -2093.758      22 4312.999 4243.228 4253.516   0.900      4.035
+#>        4 -2066.064      28 4291.834 4203.034 4216.128   0.870      3.065
+#>        5 -2029.261      34 4252.450 4144.622 4160.521   0.877      3.249
 #> 
 #> -> Best model according to BIC: 5 classes
 #>    print(x, columns = "all") adds AIC, CAIC, AWE, ICL, BF and cmP.
@@ -143,7 +143,7 @@ free_v_fixed
 #> =========================================================
 #> Classes Estimated  : 3
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 10 iterations)
+#> Converged          : TRUE (in 20 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -1929.58
 #>   Parameters     : 32
@@ -151,7 +151,7 @@ free_v_fixed
 #>   BIC            : 4041.69 (inflated by the variance collapse; see note below)
 #>   SABIC          : 3940.20
 #>   Rel. Entropy   : 0.8732
-#>   Best solution  : found by 26 of 30 starts
+#>   Best solution  : found by 1 of 30 starts - refit with n_init = 100 before reporting
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
 #>   Class 1: 41.20%

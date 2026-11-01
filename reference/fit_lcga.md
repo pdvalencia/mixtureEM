@@ -49,7 +49,9 @@ fit_lcga(
   n_classes = 2,
   times = NULL,
   degree = 1,
-  family = c("binomial", "gaussian", "poisson"),
+  family = c("binomial", "gaussian", "poisson", "zip", "negbin"),
+  dispersion = c("occasion", "class"),
+  inflation_degree = 0,
   time_scores = NULL,
   layout = c("time_major", "item_major"),
   id = NULL,
@@ -112,8 +114,47 @@ fit_lcga(
     warning is given only if every start did.
 
   - `"poisson"` — a count outcome, log link. The trajectory is a curve
-    in the event rate. Counts must be whole and non-negative;
-    over-dispersed or zero-inflated counts are not yet modelled as such.
+    in the event rate. Counts must be whole and non-negative. A Poisson
+    count's variance equals its mean; for counts that spread more, use
+    `"negbin"`.
+
+  - `"zip"` — a zero-inflated count, log link. A zero has two sources: a
+    structural zero, from a case that is not at risk of the event at
+    that occasion, and a Poisson zero, from a case that is at risk but
+    had no event (Lambert, 1992; Nagin & Land, 1993, call the first
+    intermittency). Each class has its own trajectory in the rate of the
+    at-risk part and its own probability of a structural zero, estimated
+    on the logit scale: constant over occasions, or linear in time with
+    `inflation_degree = 1`. Excess zeros fitted with `"poisson"` have
+    nowhere to go but extra classes, so where zeros pile up beyond what
+    the rate implies, compare the two families before reading the class
+    count.
+
+  - `"negbin"` — an overdispersed count, log link: the negative binomial
+    in its NB2 form, variance mu + alpha mu^2 (Cameron & Trivedi, 2013,
+    ch. 3), so alpha = 0 is the Poisson. Each class has its own
+    trajectory in the mean count; how alpha is shared is set by
+    `dispersion`. A Poisson fit can only absorb extra spread by adding
+    classes, so on overdispersed counts compare the two families before
+    reading the class count.
+
+- dispersion:
+
+  Character, `family = "negbin"` only. `"occasion"` (the default)
+  estimates one alpha per occasion, shared by the classes; `"class"`
+  estimates one alpha per class, constant over occasions.
+
+- inflation_degree:
+
+  `family = "zip"` only. Degree of the polynomial in time for the logit
+  of the structural-zero probability, in each class: `0` (the default)
+  holds the probability constant over occasions, `1` lets it rise or
+  fall linearly on the logit scale, which is how a share of cases that
+  stop or start being at risk with age is written (Nagin & Land, 1993).
+  Uses the same `time_scores` as the trajectory. Higher degrees are not
+  offered: a structural zero and a Poisson zero look alike at every
+  occasion, so the inflation curve is the weakest-identified part of the
+  model.
 
 - time_scores:
 
@@ -158,7 +199,15 @@ fit_lcga(
 An object of class `c("lcga", "mixture_model")`. In addition to the
 usual fields it carries `$growth`, holding the design matrix, time
 scores, family, per-class coefficients, the fitted trajectories, and —
-for `family = "gaussian"` — the per-class residual variance.
+for `family = "gaussian"` — the per-class residual variance, or — for
+`family = "zip"` — the per-class inflation logits (`inflation`, one
+column per inflation coefficient) and the probability of a structural
+zero they imply (`inflation_probability`: one per class, or a K x T
+matrix when `inflation_degree = 1`). The fitted trajectory of a `"zip"`
+fit is the at-risk rate; the expected count is that rate times one minus
+the inflation probability. A `"negbin"` fit carries `overdispersion`,
+the K x T matrix of alpha (repeated across the classes or the occasions
+it is shared by), and `dispersion`, the structure.
 
 ## References
 
@@ -186,6 +235,19 @@ Lee, T. K., Wickrama, K. A. S., & O'Neal, C. W. (2023). An introduction
 to growth mixture models (GMM). In *International Encyclopedia of
 Education* (4th ed., Vol. 14, pp. 646-655). Elsevier.
 [doi:10.1016/B978-0-12-818630-5.10076-4](https://doi.org/10.1016/B978-0-12-818630-5.10076-4)
+
+Cameron, A. C., & Trivedi, P. K. (2013). *Regression analysis of count
+data* (2nd ed.). Cambridge University Press.
+[doi:10.1017/CBO9781139013567](https://doi.org/10.1017/CBO9781139013567)
+
+Lambert, D. (1992). Zero-inflated Poisson regression, with an
+application to defects in manufacturing. *Technometrics*, *34*(1), 1-14.
+[doi:10.2307/1269547](https://doi.org/10.2307/1269547)
+
+Nagin, D. S., & Land, K. C. (1993). Age, criminal careers, and
+population heterogeneity: Specification and estimation of a
+nonparametric, mixed Poisson model. *Criminology*, *31*(3), 327-362.
+[doi:10.1111/j.1745-9125.1993.tb01133.x](https://doi.org/10.1111/j.1745-9125.1993.tb01133.x)
 
 Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
 identifying differences in longitudinal change among unobserved groups.

@@ -11,6 +11,12 @@ row-specific intercepts, followed by the covariate slopes, which are
 shared across origin statuses. With `"by_origin"` a separate table is
 printed per origin status.
 
+A transition coefficient whose logit has no finite maximum, because the
+fit expects almost no case (under 0.01, summed over cases) to make a
+transition it depends on, prints its standard error, z and p as `NA`.
+Under `"common"` the shared slopes stay identified; under `"by_origin"`
+the whole row of that origin is marked.
+
 ## Usage
 
 ``` r

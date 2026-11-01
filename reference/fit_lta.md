@@ -168,7 +168,9 @@ fit_lta(
   logical or 0/1 matrix, with `TRUE`/`1` marking a forbidden move, or a
   list of one matrix per pair of adjacent occasions. Forbidden cells are
   fixed at zero and do not count as estimated parameters (Collins &
-  Lanza, sec. 7.10).
+  Lanza, sec. 7.10). With `predictors_transition`, only whole
+  destinations can be forbidden (every move into a status, from every
+  origin): the transition regression then has no category for them.
 
 - n_classes:
 
@@ -544,7 +546,16 @@ fit_lta(
   across origins, which is the specification in Wang & Wang eq. 6.28 and
   by far the better-behaved one. `"by_origin"` fits a separate
   regression per origin status, which is saturated and often fails to
-  converge usefully when transitions are sparse.
+  converge usefully when transitions are sparse. A named character
+  vector sets it covariate by covariate, e.g.
+  `c(female = "by_origin", .default = "common")`: a covariate named
+  `"by_origin"` gets its own slopes in every origin status while the
+  others keep one slope shared across origins (a factor is named by its
+  variable name and all its dummies follow it). Unnamed covariates take
+  `.default`, itself `"common"` unless given. The by-origin slopes are
+  reported as the last origin status's slope (the covariate's own term)
+  and, for every other origin, its difference from that slope
+  (`from:k x covariate`).
 
 - group:
 
@@ -719,6 +730,13 @@ same condition that governs the attenuation above. The measurement
 parameters of a two-step fit report the step-1 fit's own standard
 errors, since that is the fit that estimated them.
 
+With `predictors_items`, step 1 also regresses the initial status and
+the transitions on the item covariates (one slope per covariate shared
+across origins), so the item slopes measure the direct effect on the
+item alone and do not absorb the covariate's association with the
+status. Step 2 then replaces that regression with the caller's
+structural model.
+
 Two costs come with it. The information matrices are differenced
 numerically, which is a few thousand likelihood evaluations and can take
 minutes on a large model; pass `standard_errors = FALSE` to skip it. And
@@ -810,9 +828,9 @@ intercepts, `n_classes > 1`, `mover_stayer` and `group` are refused.
 at every occasion is also regressed on the same covariates (without that
 regression the item slope would have to carry the whole association
 between the covariate and the status). Step 3 fits whatever
-`predictors_initial` and `predictors_transition` ask for. Step 1 has no
-standard errors in this case, so step 3's treat the classification error
-as known rather than adding step 1's uncertainty.
+`predictors_initial` and `predictors_transition` ask for. Step 3's
+standard errors carry step 1's uncertainty here too, item slopes and
+status regressions included.
 
 ## References
 

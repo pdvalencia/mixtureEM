@@ -136,8 +136,8 @@ report_methods(fit)
 #> cleanly cases are classified; they are not criteria for the number of
 #> classes (Masyn, 2013).
 #> 
-#> Models were estimated with the R package mixtureEM (version 0.6.0) in R
-#> 4.6.1. Random starts were drawn with random_state = 1. The model is
+#> Models were estimated with the R package mixtureEM (version 0.7.0) in R
+#> 4.6.2. Random starts were drawn with random_state = 1. The model is
 #> refitted by: fit_mixture(indicators = X, n_classes = 2, measurement =
 #> "binary", n_init = 5, random_state = 1)
 #> 

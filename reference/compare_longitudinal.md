@@ -60,6 +60,7 @@ compare_longitudinal(
   times = NULL,
   verbose = TRUE,
   vlmr = c("none", "standard", "robust", "both"),
+  alongside = NULL,
   ...
 )
 ```
@@ -101,6 +102,16 @@ compare_longitudinal(
   occasion rather than one class per case; those rows come back `NA`
   with a message.
 
+- alongside:
+
+  Optional fitted models to show beside the table without ranking them,
+  such as a gaussian LCGA next to a sweep of Poisson ones; one fit or a
+  named list. See
+  [`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md):
+  they print in a block of their own, take no part in the best-model
+  choice, and the block says why when they assume a different
+  within-class distribution.
+
 - ...:
 
   Further arguments passed to the fitting function, such as
@@ -121,9 +132,13 @@ compare_longitudinal(
 An object of class `mixture_comparison`, a list with `fit_table`
 (columns `Classes`, `LL`, `Params`, `AIC`, `BIC`, `CAIC`, `AWE`, `AIC3`,
 `ICL`, `SABIC`, `Entropy`, `Unreplicated`, `BF` and `cmP`, defined as in
-[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)),
-the fitted `models` (named `"K2"`, `"K3"`, ...) and `best_k`, the class
-count with the lowest BIC. It indexes exactly as a plain list;
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md);
+for an LTA whose indicators are all continuous, also `Separation`, the
+smallest distance between two statuses' means at any occasion, as
+[`classification_diagnostics()`](https://pdvalencia.github.io/mixtureEM/reference/classification_diagnostics.md)
+reports it by occasion), the fitted `models` (named `"K2"`, `"K3"`, ...)
+and `best_k`, the class count with the lowest BIC. It indexes exactly as
+a plain list;
 [`print.mixture_comparison()`](https://pdvalencia.github.io/mixtureEM/reference/print.mixture_comparison.md)
 shows the table (a short view by default, `columns = "all"` for every
 column), and

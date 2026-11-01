@@ -17,6 +17,8 @@ structured_normal_model(
   residual_equal = TRUE,
   growth_covariates = NULL,
   growth_covariates_equal = TRUE,
+  psi_fixed = NULL,
+  theta_pairs = NULL,
   ...
 )
 ```
@@ -35,7 +37,8 @@ structured_normal_model(
 - random_effects:
 
   Which growth factors vary within a class: `"none"`, `"intercept"`,
-  `"intercept_slope"`, or `"all"`.
+  `"intercept_slope"`, or `"all"`; or the columns of `design` that do,
+  as integers.
 
 - psi:
 
@@ -62,6 +65,23 @@ structured_normal_model(
 - growth_covariates_equal:
 
   Logical. Hold those regressions equal across classes.
+
+- psi_fixed:
+
+  Optional list of one matrix per class, the size of \\\Psi\\, holding
+  the values fixed in that class and `NA` where the element is
+  estimated. Built by
+  [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+  from its `fix` argument.
+
+- theta_pairs:
+
+  Optional two-column integer matrix, one row per pair of columns of the
+  outcome whose residuals covary, each pair once. The residual
+  covariance is then \\\Theta\\ with those cells free, shared by the
+  classes or not as `residual_equal` says. Built by
+  [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+  from its `residual_covariances` argument.
 
 - ...:
 

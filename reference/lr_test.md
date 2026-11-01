@@ -39,6 +39,13 @@ significantly better fit?"
   [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
   with `transition_invariance = "full"` and `"none"`.
 
+- **Whether two latent class variables are associated** (Hagenaars,
+  1993): fit
+  [`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)
+  with `association = "none"` and `"free"`. Whether a covariate
+  moderates that association: the same model with the covariate acting
+  on `cs` in common and by `ca` class (`cs_effects`).
+
 The models must be nested and fitted to the same data. That is not
 checked beyond the parameter counts and sample size, so it remains the
 analyst's responsibility.
@@ -101,6 +108,8 @@ A list of class `"lr_test"`.
 Collins, L. M., & Lanza, S. T. (2010). *Latent Class and Latent
 Transition Analysis: With Applications in the Social, Behavioral, and
 Health Sciences*. Wiley.
+
+Hagenaars, J. A. (1993). *Loglinear Models with Latent Variables*. Sage.
 
 Nylund-Gibson, K., Arch, D. A. N., & Carter, D. (2026). Latent
 transition analysis with auxiliary variables: A demonstration of the ML

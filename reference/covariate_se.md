@@ -177,8 +177,7 @@ binary, polytomous, Gaussian, count, mixed, and repeated-measures models
 qualify, and growth models
 ([`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md),
 [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md))
-qualify for the three-step term. A two-step fit on a growth step 1 does
-not carry it yet: there \\V_2\\ is reported instead, with a warning.
+qualify for both the three-step and the two-step term.
 
 ## References
 

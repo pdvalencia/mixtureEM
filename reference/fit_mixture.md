@@ -302,13 +302,16 @@ fit_mixture(
   measurement invariance (differential item functioning): a named list
   mapping an item to a one-sided formula or column names in `data`, e.g.
   `list(item3 = ~ female)`. Each named covariate shifts the log-odds of
-  endorsing that item for people in the same class. Unlike `predictors`,
-  which only changes who is in which class, this changes what an item
-  means. Binary indicators and one-step fits only; `n_steps` defaults to
-  1 when this is given. The covariates must be complete and take few
-  distinct values (see `options(mixtureEM.dif_max_patterns = )`). The
-  item probabilities the fit reports are those of a case with these
-  covariates at zero. The slopes are reported by
+  endorsing that item for people in the same class; for an ordinal item
+  it shifts every cumulative log-odds by the same amount (a
+  proportional-odds slope), so a positive slope moves responses towards
+  the higher categories. Unlike `predictors`, which only changes who is
+  in which class, this changes what an item means. Binary and ordinal
+  indicators and one-step fits only; `n_steps` defaults to 1 when this
+  is given. The covariates must be complete and take few distinct values
+  (see `options(mixtureEM.dif_max_patterns = )`). The item probabilities
+  the fit reports are those of a case with these covariates at zero. The
+  slopes are reported by
   [`dif_effects`](https://pdvalencia.github.io/mixtureEM/reference/dif_effects.md);
   compare nested fits with
   [`lr_test`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md).
@@ -525,9 +528,13 @@ fit_mixture(
   places on each block of parameters. Named `latent` (class weights and,
   in the transition models, the initial and transition probabilities),
   `categorical` (item-response probabilities), `poisson` (count rates),
-  and `variances` (class-specific variances of continuous indicators);
-  all default to `1`. Each is a number of pseudo-observations spread
-  over the classes, so its influence shrinks as the sample grows.
+  and `variances` (class-specific variances of continuous indicators,
+  and the random-effect variances of a binary growth mixture,
+  `fit_gmm(family = "binomial")`); all default to `1`. Each is a number
+  of pseudo-observations spread over the classes, so its influence
+  shrinks as the sample grows. A plain maximum-likelihood binary growth
+  mixture therefore needs `variances = 0` beside `categorical = 0` and
+  `latent = 0`.
 
   The default of one observation, and the fact that it is spread in
   agreement with each item's own observed marginal rather than uniformly
@@ -550,7 +557,17 @@ fit_mixture(
   rescaling an indicator rescales the prior with it. That invariance is
   the reason the penalised-likelihood literature recommends a
   data-scaled penalty over a constant one (Chen, Tan, & Zhang, 2008,
-  sec. 4).
+  sec. 4). On a binary growth mixture's random effects, which live on
+  the logit scale, it is centred instead on a variance that moves the
+  log-odds by one unit at the occasion where the random effect weighs
+  most, and it is placed on each variance and not on the covariance, so
+  a correlation of one stays allowed. A class that answers almost
+  constantly says little about how widely its log-odds vary, and without
+  the prior such a class's variance can grow without bound while the
+  likelihood creeps up; on simulated data with class-specific variances
+  it ran to 35-319 on five of seven sets where the generating values
+  were 0.05-4, and with the prior the largest error in any class's
+  variance fell from a median of 6.9 to 2.1 over the seven.
 
   Two uses. **An unregularized fit:** setting a constant to `0` removes
   that prior and gives plain maximum likelihood for that block. This is

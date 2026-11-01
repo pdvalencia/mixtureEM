@@ -95,8 +95,8 @@ report_methods(cmp)
 #> cleanly cases are classified; they are not criteria for the number of
 #> classes (Masyn, 2013).
 #> 
-#> Models were estimated with the R package mixtureEM (version 0.6.0) in R
-#> 4.6.1. Random starts were drawn with random_state = 1. The models are
+#> Models were estimated with the R package mixtureEM (version 0.7.0) in R
+#> 4.6.2. Random starts were drawn with random_state = 1. The models are
 #> refitted by: compare_mixtures(X = items, k_range = 1:4, measurement =
 #> "binary", n_init = 20, random_state = 1)
 #> 
@@ -169,7 +169,7 @@ grolts_report(traj)
 #>     No values were missing on the 4 occasions.
 #> 
 #> 5. Is the software mentioned?
-#>     R package mixtureEM 0.6.0, R 4.6.1.
+#>     R package mixtureEM 0.7.0, R 4.6.2.
 #> 
 #> 9. Is information reported about the number of random start values and
 #>     final iterations included?
@@ -203,8 +203,8 @@ grolts_report(traj)
 #>     50.6%, 49.4%.
 #> 
 #> 16. Are the syntax files available?
-#>     Models were estimated with the R package mixtureEM (version 0.6.0)
-#>     in R 4.6.1. Random starts were drawn with random_state = 1. The
+#>     Models were estimated with the R package mixtureEM (version 0.7.0)
+#>     in R 4.6.2. Random starts were drawn with random_state = 1. The
 #>     models are refitted by: compare_longitudinal(indicators = y,
 #>     k_range = 1:3, model = "lcga", times = 4, verbose = FALSE, family =
 #>     "gaussian", n_init = 5, random_state = 1)

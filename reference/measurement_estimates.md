@@ -30,10 +30,13 @@ measurement_estimates(fit, se = c("robust", "hessian", "opg"))
 
 A data frame with one row per parameter and class: `block` (the
 sub-model for a mixed or blocked measurement model, `NA` otherwise),
-`parameter` (`"probability"`, `"mean"`, `"variance"`, `"rate"` or
-`"class_logit"`), `item`, `category` (polytomous items only), `class`,
-`estimate`, `se`, `z`, `p_value` and `boundary`. The covariance matrix
-of the reported parameters is attached as the attribute `"vcov"`.
+`parameter` (`"probability"`, `"mean"`, `"variance"`, `"rate"`,
+`"inflation"` (a zero-inflated count's structural-zero probability),
+`"overdispersion"` (a negative binomial item's alpha, shared by the
+classes) or `"class_logit"`), `item`, `category` (polytomous items
+only), `class`, `estimate`, `se`, `z`, `p_value` and `boundary`. The
+covariance matrix of the reported parameters is attached as the
+attribute `"vcov"`.
 
 ## Details
 
@@ -121,30 +124,30 @@ fit <- fit_mixture(X, n_classes = 2, measurement = "continuous",
 measurement_estimates(fit)
 #>    block   parameter       item category class    estimate         se
 #> 1   <NA>        mean     Cont_1       NA     1 0.115005689 0.08965207
-#> 2   <NA>        mean     Cont_1       NA     2 2.162196420 0.10559643
-#> 3   <NA>        mean     Cont_2       NA     1 0.006602604 0.10315322
+#> 2   <NA>        mean     Cont_1       NA     2 2.162196420 0.10559642
+#> 3   <NA>        mean     Cont_2       NA     1 0.006602604 0.10315323
 #> 4   <NA>        mean     Cont_2       NA     2 2.031920995 0.12217526
 #> 5   <NA>        mean     Cont_3       NA     1 0.135073104 0.11388157
 #> 6   <NA>        mean     Cont_3       NA     2 1.953767073 0.10576491
-#> 7   <NA>    variance     Cont_1       NA     1 0.790528560 0.09592641
-#> 8   <NA>    variance     Cont_1       NA     2 0.790528560 0.09592641
+#> 7   <NA>    variance     Cont_1       NA     1 0.790528560 0.09592639
+#> 8   <NA>    variance     Cont_1       NA     2 0.790528560 0.09592639
 #> 9   <NA>    variance     Cont_2       NA     1 1.112948932 0.13183461
 #> 10  <NA>    variance     Cont_2       NA     2 1.112948932 0.13183461
-#> 11  <NA>    variance     Cont_3       NA     1 1.098648458 0.11896909
-#> 12  <NA>    variance     Cont_3       NA     2 1.098648458 0.11896909
+#> 11  <NA>    variance     Cont_3       NA     1 1.098648458 0.11896912
+#> 12  <NA>    variance     Cont_3       NA     2 1.098648458 0.11896912
 #> 13  <NA> class_logit log(p1/p2)       NA     1 0.113577140 0.15331913
 #>              z      p_value boundary
 #> 1   1.28280014 1.995621e-01    FALSE
-#> 2  20.47603757 3.521682e-93    FALSE
+#> 2  20.47603986 3.521516e-93    FALSE
 #> 3   0.06400773 9.489641e-01    FALSE
-#> 4  16.63119908 4.142210e-62    FALSE
-#> 5   1.18608394 2.355892e-01    FALSE
-#> 6  18.47273433 3.422988e-76    FALSE
-#> 7   8.24099013 1.707913e-16    FALSE
-#> 8   8.24099013 1.707913e-16    FALSE
-#> 9   8.44200907 3.119292e-17    FALSE
-#> 10  8.44200907 3.119292e-17    FALSE
-#> 11  9.23473860 2.589174e-20    FALSE
-#> 12  9.23473860 2.589174e-20    FALSE
-#> 13  0.74078909 4.588213e-01    FALSE
+#> 4  16.63119913 4.142206e-62    FALSE
+#> 5   1.18608397 2.355891e-01    FALSE
+#> 6  18.47273432 3.422989e-76    FALSE
+#> 7   8.24099142 1.707895e-16    FALSE
+#> 8   8.24099142 1.707895e-16    FALSE
+#> 9   8.44200876 3.119300e-17    FALSE
+#> 10  8.44200876 3.119300e-17    FALSE
+#> 11  9.23473631 2.589230e-20    FALSE
+#> 12  9.23473631 2.589230e-20    FALSE
+#> 13  0.74078912 4.588213e-01    FALSE
 ```

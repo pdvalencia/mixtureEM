@@ -20,9 +20,12 @@ wald_test(fit, constraints, rhs = 0, se = c("robust", "hessian", "opg"))
 - fit:
 
   A model from
-  [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+  [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md),
+  [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
   or
-  [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md),
+  [`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)
+  (labels as in
+  [`joint_coefficients()`](https://pdvalencia.github.io/mixtureEM/reference/joint_coefficients.md)),
   or a `mixture_model` with a covariate structural model.
 
 - constraints:

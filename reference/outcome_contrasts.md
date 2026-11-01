@@ -139,11 +139,15 @@ That covariance is stored by a one-step
 or
 [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
 outcome (the robust sandwich of
-[`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md))
-and by `add_outcome(correction = "ML")`; for other outcome models,
-including the BCH correction, `effect_size = TRUE` is an error. No
-thresholds such as "small" or "large" are attached: what size of
-difference matters depends on the outcome and the field.
+[`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)),
+by `add_outcome(correction = "ML")` and by
+`add_outcome(correction = "BCH")` for an outcome without covariates.
+Under both corrections it treats step 1's estimates as known, whatever
+`se` the outcome was fitted with; under BCH it is the sandwich of the
+BCH-weighted sizes, means and variances, and it is not formed under
+sampling weights. For other outcome models `effect_size = TRUE` is an
+error. No thresholds such as "small" or "large" are attached: what size
+of difference matters depends on the outcome and the field.
 
 ## Choosing an adjustment
 

@@ -60,16 +60,20 @@ fit_mixture_internal(
   Character string or named list specifying the measurement model type.
   Accepted strings: `"binary"` / `"bernoulli"`, `"categorical"` /
   `"multinoulli"`, `"continuous"` / `"gaussian_diag"`, `"gaussian"` /
-  `"gaussian_unit"`, `"count"` / `"poisson"`. Missing values are handled
-  automatically: any indicator column containing `NA` is estimated with
-  a full-information (FIML) variant that masks the missing cells under a
-  missing-at-random assumption, while complete columns use the faster
-  complete-data estimator. A single specification (e.g. `"binary"`)
-  therefore covers both complete and incomplete data, and the fitted
-  object reports any missingness it found. Cases missing on *every*
-  indicator are the exception: they carry no information about class
-  membership, so they are deleted before estimation and reported by
-  [`print()`](https://rdrr.io/r/base/print.html) and in
+  `"gaussian_unit"`, `"count"` / `"poisson"`, `"zip"` (zero-inflated
+  Poisson: per class and item, a rate for the cases at risk and a
+  probability of a structural zero), `"negbin"` (negative binomial, NB2:
+  per class and item, a mean; per item, an overdispersion alpha shared
+  by the classes, variance = mean + alpha mean^2). Missing values are
+  handled automatically: any indicator column containing `NA` is
+  estimated with a full-information (FIML) variant that masks the
+  missing cells under a missing-at-random assumption, while complete
+  columns use the faster complete-data estimator. A single specification
+  (e.g. `"binary"`) therefore covers both complete and incomplete data,
+  and the fitted object reports any missingness it found. Cases missing
+  on *every* indicator are the exception: they carry no information
+  about class membership, so they are deleted before estimation and
+  reported by [`print()`](https://rdrr.io/r/base/print.html) and in
   `$missing_data$n_empty_rows`. The explicit `"*_nan"` forms (e.g.
   `"binary_nan"`, `"continuous_nan"`) remain accepted as aliases that
   force the missing-data variant. Pass a named list to specify a mixed
@@ -314,7 +318,7 @@ summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.725  [    0.068,     7.783]     0.791
+#>   Intercept                0.725  [    0.068,     7.782]     0.791
 #>   V1                       0.780  [    0.303,     2.010]     0.607
 #> =========================================================
 ```

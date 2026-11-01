@@ -96,12 +96,12 @@ grolts_report(fit)
 #>     No values were missing on the 4 occasions.
 #> 
 #> 5. Is the software mentioned?
-#>     R package mixtureEM 0.6.0, R 4.6.1.
+#>     R package mixtureEM 0.7.0, R 4.6.2.
 #> 
 #> 9. Is information reported about the number of random start values and
 #>     final iterations included?
 #>     The search used 3 random starts; the best log-likelihood was
-#>     reached by 3 of them. The algorithm converged in 105 iterations.
+#>     reached by 3 of them. The algorithm converged in 87 iterations.
 #> 
 #> 12. Are the number of cases per class reported for each model?
 #>     Final model only: 75.9%, 24.1%. Pass the comparison for every
@@ -117,8 +117,8 @@ grolts_report(fit)
 #>     75.9%, 24.1%.
 #> 
 #> 16. Are the syntax files available?
-#>     Models were estimated with the R package mixtureEM (version 0.6.0)
-#>     in R 4.6.1. Random starts were drawn with random_state = 1. The
+#>     Models were estimated with the R package mixtureEM (version 0.7.0)
+#>     in R 4.6.2. Random starts were drawn with random_state = 1. The
 #>     model is refitted by: fit_lcga(indicator = y, n_classes = 2, times
 #>     = 4, family = "gaussian", n_init = 3, random_state = 1)
 #> 

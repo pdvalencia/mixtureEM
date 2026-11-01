@@ -7,7 +7,14 @@ occasions and there is no within-class random effect.
 ## Usage
 
 ``` r
-lcga_model(n_components, design, family = "binomial", ...)
+lcga_model(
+  n_components,
+  design,
+  family = "binomial",
+  dispersion_structure = "occasion",
+  inflation_design = NULL,
+  ...
+)
 ```
 
 ## Arguments
@@ -23,7 +30,21 @@ lcga_model(n_components, design, family = "binomial", ...)
 
 - family:
 
-  Character. `"binomial"`, `"gaussian"` or `"poisson"`.
+  Character. `"binomial"`, `"gaussian"`, `"poisson"`, `"zip"` or
+  `"negbin"`.
+
+- dispersion_structure:
+
+  Character. For `family = "negbin"`, whether the overdispersion is one
+  value per occasion shared by the classes (`"occasion"`) or one per
+  class constant over occasions (`"class"`). Ignored by the other
+  families.
+
+- inflation_design:
+
+  For `family = "zip"`, the design of the zero-inflation logit, one row
+  per occasion. `NULL`, the default, is a single constant column.
+  Ignored by the other families.
 
 - ...:
 

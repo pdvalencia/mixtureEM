@@ -80,6 +80,18 @@ assumes the structural model leaves the classes as step 1 defined them
 structural model is redefining the classes, and the one-step and
 two-step fits are the comparison to run.
 
+**Latent transition models**
+([`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md))
+get the same tables occasion by occasion, since a status is assigned at
+every occasion. The status separation is computed from each occasion's
+status means and variances, pooled with that occasion's prevalences (for
+a three-step fit, those of its step 1); it is not reported with random
+intercepts or item covariates. The cases moved by step 3 are counted at
+each occasion for
+`fit_lta(n_steps = 3, correction = "ML", assignment = "modal")`, where
+step 3 has one row per case. Each occasion's element of the returned
+list then carries `separation` and `class_shift` too.
+
 ## Usage
 
 ``` r

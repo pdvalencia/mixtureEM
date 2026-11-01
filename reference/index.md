@@ -10,6 +10,8 @@
   : Examine a Distal Outcome on a Fitted Model
 - [`analytical_wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/analytical_wald_test.md)
   : Analytical Wald Test for a Single Covariate
+- [`binary_growth_model()`](https://pdvalencia.github.io/mixtureEM/reference/binary_growth_model.md)
+  : Constructor for binary growth mixture models
 - [`bivariate_residuals()`](https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.md)
   : Bivariate Residuals
 - [`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)
@@ -37,12 +39,16 @@
   : Confidence Intervals for Odds Ratios in a Mixture Model
 - [`covariate_se`](https://pdvalencia.github.io/mixtureEM/reference/covariate_se.md)
   : Standard Errors for Covariate Effects in Three-Step Models
+- [`derived_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/derived_estimates.md)
+  : Derived Parameters with Standard Errors and Intervals
 - [`dif_effects()`](https://pdvalencia.github.io/mixtureEM/reference/dif_effects.md)
   : Direct covariate effects on the indicators
 - [`ecls_reading`](https://pdvalencia.github.io/mixtureEM/reference/ecls_reading.md)
   : Reading proficiency from kindergarten to first grade (ECLS-K)
 - [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
   : Growth Mixture Modeling
+- [`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)
+  : Fit a model with two associated latent class variables
 - [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
   : Latent Class Growth Analysis
 - [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
@@ -59,6 +65,10 @@
   : Answer the GRoLTS Reporting Checklist for a Trajectory Model
 - [`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)
   : Growth Mixture Parameter Estimates with Standard Errors
+- [`joint_coefficients()`](https://pdvalencia.github.io/mixtureEM/reference/joint_coefficients.md)
+  : Association coefficients of a two-latent-variable model
+- [`joint_probabilities()`](https://pdvalencia.github.io/mixtureEM/reference/joint_probabilities.md)
+  : Conditional Class Probabilities of a Two-Latent-Variable Model
 - [`lcga_model()`](https://pdvalencia.github.io/mixtureEM/reference/lcga_model.md)
   : Constructor for latent class growth models
 - [`liang_park_sim`](https://pdvalencia.github.io/mixtureEM/reference/liang_park_sim.md)
@@ -103,6 +113,7 @@
 - [`poisson_model()`](https://pdvalencia.github.io/mixtureEM/reference/poisson_model.md)
   : Constructor for Poisson (count) models
 - [`predict(`*`<mixture_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/predict.mixture_model.md)
+  [`predict(`*`<lta_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/predict.mixture_model.md)
   : Classify new cases from a fitted model
 - [`print(`*`<gmm>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/print.gmm.md)
   : Print a Fitted Growth Mixture Model
@@ -122,6 +133,8 @@
   : Write the Methods Paragraph for a Fitted Mixture Model
 - [`simulate(`*`<mixture_model>`*`)`](https://pdvalencia.github.io/mixtureEM/reference/simulate.mixture_model.md)
   : Simulate data sets from a fitted model
+- [`skew_kurtosis_test()`](https://pdvalencia.github.io/mixtureEM/reference/skew_kurtosis_test.md)
+  : Skewness and Kurtosis Tests of Model Fit
 - [`status_prevalences()`](https://pdvalencia.github.io/mixtureEM/reference/status_prevalences.md)
   : Latent Status Prevalences by Occasion
 - [`structured_normal_model()`](https://pdvalencia.github.io/mixtureEM/reference/structured_normal_model.md)
@@ -138,6 +151,8 @@
   : Covariance Matrix of the Class-Membership Coefficients
 - [`ventura_leon`](https://pdvalencia.github.io/mixtureEM/reference/ventura_leon.md)
   : Infidelity behavior patterns in Peruvian young adults
+- [`vlmr_test()`](https://pdvalencia.github.io/mixtureEM/reference/vlmr_test.md)
+  : Vuong-Lo-Mendell-Rubin Test of K Against K + 1 Classes
 - [`wald_omnibus_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_omnibus_test.md)
   : Bootstrap Wald Omnibus Test for a Covariate
 - [`wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_test.md)

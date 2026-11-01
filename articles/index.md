@@ -14,8 +14,12 @@
   Statuses](https://pdvalencia.github.io/mixtureEM/articles/lta.md):
 - [Random-Intercept LTA: Separating Traits from
   Transitions](https://pdvalencia.github.io/mixtureEM/articles/rilta.md):
+- [Two Latent Class Variables: Association, Covariates and
+  Moderation](https://pdvalencia.github.io/mixtureEM/articles/joint_classes.md):
 - [Trajectory Classes: LCGA and Growth Mixture
   Models](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.md):
+- [Count Trajectories: Poisson, Zero-Inflated and Negative Binomial
+  LCGA](https://pdvalencia.github.io/mixtureEM/articles/count_trajectories.md):
 - [LCA with Complex Survey
   Data](https://pdvalencia.github.io/mixtureEM/articles/survey_lca.md):
 - [Multiple-Group LCA: Do the Classes Differ by

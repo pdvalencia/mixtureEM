@@ -40,7 +40,8 @@ blrt(
   verbose = TRUE,
   ...,
   from_fit = NULL,
-  X = NULL
+  X = NULL,
+  fits = NULL
 )
 
 calc_blrt(
@@ -95,7 +96,7 @@ calc_blrt(
 - n_init_base:
 
   Random restarts when fitting the observed-data models. Default `20`,
-  as elsewhere in the package.
+  as elsewhere in the package. Not used when `fits` is given.
 
 - n_init_boot:
 
@@ -152,6 +153,18 @@ calc_blrt(
 
   Deprecated alias for `indicators`.
 
+- fits:
+
+  Optional: the observed-data fits as `list(small, large)`, models with
+  `k_small` and `k_large` classes already fitted to these data with the
+  specification the bootstrap uses (the one `from_fit`, or `measurement`
+  and `...`, give). They are used as they are instead of being refitted
+  with `n_init_base` restarts. Besides saving those two searches, this
+  keeps the observed statistic at the maxima you have already found: a
+  refit with fewer restarts than the original search can stop the larger
+  model at a poorer local maximum and understate the statistic. With
+  `fits` and a growth model, `from_fit` defaults to `fits[[1]]`.
+
 ## Value
 
 An object of class `blrt_test`: a list with `p_value`, `obs_diff` (the
@@ -184,8 +197,8 @@ weights, with and without clustering, the rescaled null came within
 about 10\\ distribution of the weighted statistic at its 95th
 percentile, where the unscaled one was about 35\\ slightly liberal.
 Frequency weights (`weight_type = "frequency"`) are not rescaled. A
-model for which the design effect cannot be computed (a growth
-measurement model, among others) is refused.
+model for which the design effect cannot be computed (a structural model
+with no unconstrained packing, among others) is refused.
 
 ## References
 

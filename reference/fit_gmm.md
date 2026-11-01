@@ -10,11 +10,55 @@ The model is \$\$y_i \mid c_i = k \sim N(\Lambda (\alpha_k + \Gamma_k
 x_i),\\ \Lambda_r \Psi_k \Lambda_r' + \Theta_k),\$\$ where \\\Lambda\\
 is the polynomial design in time, \\\alpha_k\\ the growth-factor means
 of class \\k\\, \\\Psi_k\\ the covariance of the growth factors that are
-allowed to vary within a class, and \\\Theta_k\\ the diagonal matrix of
-residual variances. Because the outcome is continuous the random effects
-integrate out in closed form, so no numerical integration is involved
-and the estimator is the ordinary EM algorithm the rest of the package
-uses.
+allowed to vary within a class, and \\\Theta_k\\ the residual
+covariance: diagonal, the residual variances, unless
+`residual_covariances` frees some of its cells. Because the outcome is
+continuous the random effects integrate out in closed form, so no
+numerical integration is involved and the estimator is the ordinary EM
+algorithm the rest of the package uses.
+
+**Several outcomes.** Give several outcomes measured at the same
+occasions (depression, anxiety and hostility at each wave, say) and each
+gets its own growth curve, fitted jointly: \\\Lambda\\ is then one
+polynomial block per outcome, the classes are defined by all the curves
+at once, and the growth factors of every outcome share one covariance
+\\\Psi\\, so a case's starting level on one outcome can go with its rate
+of change on another. This is the multivariate, or parallel-process,
+growth mixture model (Wickrama et al., 2022, ch. 9). The growth factors
+are named `"<factor>_<outcome>"` (`"intercept_DEP"`, `"linear_DEP"`,
+...), and the outcomes take their names from the columns. Residuals of
+two outcomes measured at the same occasion usually share
+occasion-specific influences, which `residual_covariances = "occasion"`
+lets them carry. With several outcomes, \\\Psi\\ and the residuals are
+held equal across classes, and `growth_predictors` and `fix` are not
+available yet.
+
+**A binary outcome.** With `family = "binomial"` the outcome is 0/1 and
+the trajectory is a curve in its log-odds, \$\$\mathrm{logit}\\P(y\_{it}
+= 1 \mid c_i = k, b_i) = \Lambda_t (\alpha_k + b_i), \qquad b_i \sim
+N(0, \Psi_k),\$\$ so cases in a class differ in where their log-odds
+start and how fast they change, about the class's own curve. There is no
+residual variance (on the logit scale it is fixed by the distribution),
+and the random effects no longer integrate out in closed form: the class
+likelihood is evaluated by Gauss-Hermite quadrature over the random
+effects, laid along each class's principal axes of the random effects
+(see `n_quadrature`), and maximised by EM with the random effects as
+missing data (Bock & Aitkin, 1981). With `random_effects = "none"` this
+is
+[`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)`(family = "binomial")`,
+which is the model to use. The reported trajectory is the probability
+averaged over the random effects – the share of the class expected to
+answer 1 at each occasion, which is what the observed class means
+estimate – and `fit$growth$fitted_at_mean` holds the probability at the
+class's mean growth factors, which is lower than the average where it is
+above one half and higher where it is below.
+
+A class whose cases answer exactly as its curve predicts, every one of
+them (all 1 early and all 0 late, say), has no finite maximum: its curve
+keeps steepening towards a step. Its log-odds are then held once they
+pass 15 in absolute value, as a response probability run to 0 or 1 is
+held in a latent class model, and such a class's estimates describe a
+near-deterministic group rather than a precise curve.
 
 \\\Gamma_k\\ is present only when `growth_predictors` are supplied, and
 is the within-class growth-factor regression: covariates shift a case's
@@ -88,6 +132,7 @@ fit_gmm(
   psi = c("equal", "variances", "free"),
   residual = c("occasion", "constant"),
   residual_equal = TRUE,
+  residual_covariances = NULL,
   time_scores = NULL,
   layout = c("time_major", "item_major"),
   id = NULL,
@@ -97,6 +142,9 @@ fit_gmm(
   predictors = NULL,
   growth_predictors = NULL,
   growth_predictors_equal = TRUE,
+  fix = NULL,
+  family = c("gaussian", "binomial"),
+  n_quadrature = 30,
   ...
 )
 ```
@@ -107,8 +155,13 @@ fit_gmm(
 
   The repeated outcome. Either a wide matrix or data frame with one
   column per occasion, a three-dimensional array with dimensions n by 1
-  by times, or a long data frame together with `id` and `time`. Exactly
-  one variable may be modelled.
+  by times, or a long data frame together with `id` and `time`. For
+  several outcomes (see Details), a wide matrix with one column per
+  outcome and occasion, ordered as `layout` says (`"time_major"`: every
+  outcome at the first occasion, then every outcome at the second, ...),
+  named like `"dep_1"`, `"anx_1"`, ... so the outcomes are named `"dep"`
+  and `"anx"`; an n by outcomes by times array; or a long data frame
+  with one column per outcome.
 
 - n_classes:
 
@@ -144,6 +197,12 @@ fit_gmm(
     residual variances free over occasions by default.
 
   - `"all"` — every growth factor, including a quadratic or higher term.
+
+  With several outcomes a keyword applies to each outcome's curve. Or
+  name the random growth factors one by one, as
+  `c("intercept_DEP", "linear_DEP", "intercept_ANX")`: a factor left out
+  has no variance and no covariances, so every case in a class shares
+  it, which is how a slope that does not vary is written.
 
 - psi:
 
@@ -192,6 +251,20 @@ fit_gmm(
 
   Logical. Hold the residual variances equal across classes (the
   conventional default).
+
+- residual_covariances:
+
+  Residual covariances to estimate, held equal across classes: `NULL`
+  (the default) for none; `"occasion"` for every pair of outcomes
+  measured at the same occasion; a pair of data columns, as
+  `c("DEP@T3", "DEP@T4")` or `"DEP@T3 with DEP@T4"`, for one cell, such
+  as an outcome's residuals at two adjacent occasions; or a list of
+  these. Columns are named `"<outcome>@<occasion>"`, as
+  `colnames(fit$data)` shows them. Needs `residual = "occasion"`. The
+  likelihood depends on the residual covariance only through each
+  class's covariance of the repeated measures, which the fit keeps
+  positive definite; if the residual covariance itself is not, a warning
+  says so.
 
 - time_scores:
 
@@ -242,6 +315,52 @@ fit_gmm(
   which asks whether a covariate matters differently in different
   trajectory groups.
 
+- fix:
+
+  Optional data frame of growth-factor variances and covariances to hold
+  at a given value in a given class, one row per value, with columns
+  `parameter` (`"growth_variance"` or `"growth_covariance"`), `item` (a
+  growth factor such as `"linear"`, or a pair such as
+  `"intercept with linear"`), `class` and `value` – the names
+  [`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)
+  prints. Fixing every variance of one class at zero makes it a class
+  with no variation around its own trajectory beside classes that have
+  some (a partially constrained growth mixture); a variance fixed at
+  zero needs its covariances fixed at zero too. Elements not fixed
+  follow `psi`, so under `"equal"` a free element is shared by the
+  classes where it is free. Classes are numbered by size after fitting,
+  as always, and the fixed values move with their class;
+  `fit$growth$fix` shows where they ended. Fixed values have no standard
+  error, and
+  [`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)
+  refuses such a fit.
+
+- family:
+
+  Distribution of the outcome given class and random effects:
+  `"gaussian"` (the default) for a continuous outcome, `"binomial"` for
+  a binary one in `{0, 1}`, modelled on the logit scale (see Details).
+  `residual`, `residual_equal`, `growth_predictors` and `fix` apply to
+  the continuous outcome only.
+
+- n_quadrature:
+
+  `family = "binomial"` only: the density of the Gauss-Hermite rule over
+  the random effects. With one random effect it is the number of nodes.
+  With two or more, the rule is laid along each class's principal axes
+  of the random effects, and each axis gets `2 * n_quadrature / 3` nodes
+  per unit of the log-odds standard deviation it carries (at least
+  `n_quadrature / 10`), scaled down where needed to keep within
+  `n_quadrature^q` nodes for q random effects. A nearly singular
+  growth-factor covariance, wide along one axis and narrow along the
+  other, then gets its nodes where the likelihood needs them. The
+  default, 30, puts the log-likelihood within about 0.003 of its limit
+  at growth-factor variances up to 6 on the logit scale, and usually
+  within 0.0005. Every fit is rescored at `n_quadrature + 10`
+  (`fit$growth$quadrature_check`), and a warning says so when the two
+  differ by more than 0.01, which happens when a variance is much wider
+  than that; refit with a larger `n_quadrature` then.
+
 - ...:
 
   Further arguments passed to
@@ -259,6 +378,11 @@ growth-factor covariance of each class, the residual variances and, when
 growth-factor-by-covariate matrix per class.
 
 ## References
+
+Bock, R. D., & Aitkin, M. (1981). Marginal maximum likelihood estimation
+of item parameters: Application of an EM algorithm. *Psychometrika*,
+*46*(4), 443-459.
+[doi:10.1007/BF02293801](https://doi.org/10.1007/BF02293801)
 
 Muthen, B., & Shedden, K. (1999). Finite mixture modeling with mixture
 outcomes using the EM algorithm. *Biometrics*, *55*(2), 463-469.
@@ -292,6 +416,11 @@ Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
 identifying differences in longitudinal change among unobserved groups.
 *International Journal of Behavioral Development*, *33*(6), 565-576.
 [doi:10.1177/0165025409343765](https://doi.org/10.1177/0165025409343765)
+
+Wickrama, K. A. S., Lee, T. K., O'Neal, C. W., & Lorenz, F. O. (2022).
+*Higher-order growth curves and mixture modeling with Mplus: A practical
+guide* (2nd ed.). Routledge.
+[doi:10.4324/9781003158769](https://doi.org/10.4324/9781003158769)
 
 ## See also
 
@@ -343,7 +472,7 @@ fit
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 162 iterations)
+#> Converged          : TRUE (in 45 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -2598.50
 #>   Parameters     : 12

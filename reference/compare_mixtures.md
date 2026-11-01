@@ -1,9 +1,9 @@
 # Compare Mixture Models Across a Range of Class Numbers
 
-Fits a sequence of measurement-only mixture models, one for each value
-of `k` in `k_range`, and returns a table of fit indices to guide class
-enumeration. The best model according to BIC is identified
-automatically.
+Fits a sequence of mixture models, one for each value of `k` in
+`k_range`, and returns a table of fit indices to guide class
+enumeration. The models are measurement-only unless `predictors` is
+given. The best model according to BIC is identified automatically.
 
 ## Usage
 
@@ -12,10 +12,12 @@ compare_mixtures(
   X,
   k_range = 1:5,
   measurement,
+  predictors = NULL,
   n_init = 10,
   n_steps = 1,
   vlmr = c("none", "standard", "robust", "both"),
   n_cores = .default_n_cores(),
+  alongside = NULL,
   ...
 )
 ```
@@ -37,6 +39,24 @@ compare_mixtures(
   Required; see
   [`fit_mixture`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
   for the accepted values and for why there is no default.
+
+- predictors:
+
+  Optional covariates of class membership: a matrix, data frame or
+  vector with one row per row of `X`. Every model with two or more
+  classes is then fitted in one step with a multinomial-logit regression
+  of class on them, which is a different sweep from the default: each
+  K's classes are estimated together with the covariates' effects, so
+  the covariates help define them. The one-class model has no
+  regression, since there is no second class to predict. Cases missing a
+  predictor are dropped once, before any K is fitted, so every row of
+  the table describes the same sample (`missing_predictors = "mean"`,
+  passed through `...`, completes them instead). Requires `n_steps = 1`.
+  The default sweep without covariates is the usual first step (Masyn,
+  2013): with direct effects of a covariate on the items left out of the
+  model, enumeration with covariates suggested too many classes when
+  those effects were strong and the sample large (Arch & Nylund-Gibson,
+  2026). Default `NULL`.
 
 - n_init:
 
@@ -61,6 +81,25 @@ compare_mixtures(
   over, within each K. Default `1` (sequential), or the value of
   `options(mixtureEM.n_cores = )` where that has been set; an argument
   given here overrides the option.
+
+- alongside:
+
+  Optional fitted models to show beside the table without ranking them:
+  one fit, or a list of fits whose names label the rows. They print in a
+  block of their own with their log-likelihood, parameter count, `BIC`,
+  `SABIC`, `AIC3` and `Entropy`, and they take no part in `BF`, `cmP`,
+  VLMR or the best-model choice, which come from the sweep alone. This
+  is the place for a fit that assumes a different within-class
+  distribution, such as a normal fit next to a sweep of Poisson fits.
+  Its criteria are printed, but the two are not ranked, because
+  information criteria do not choose between distributions reliably:
+  under skewed data the lowest `BIC` across families belonged to a
+  symmetric model that found spurious classes almost every time
+  (Guerra-Pena et al., 2020). The choice of distribution is a modelling
+  decision made on substantive and distributional grounds – is the scale
+  bounded, are the counts zero-heavy, are there outliers – not a
+  fit-index decision, and the block says so when its family differs.
+  Returned as `alongside` in the result.
 
 - ...:
 
@@ -89,9 +128,14 @@ elements, which can be indexed exactly as a plain list.
   so it changes when the range of K does (Masyn, 2013). The
   `-> Best model` line and `best_k` below are always chosen by `BIC`
   alone; the other indices are printed for comparison, not used to pick
-  a model. With `vlmr` set it also carries `VLMR_LR` and one p-value
-  column per requested form (`VLMR_p`, `VLMR_p_robust`); each row tests
-  its own K against the next one in the table, so the last row is `NA`.
+  a model. When every indicator is continuous it also carries
+  `Separation`, the smallest distance between two classes' means in
+  pooled within-class standard deviations (the class separation of
+  [`classification_diagnostics()`](https://pdvalencia.github.io/mixtureEM/reference/classification_diagnostics.md),
+  which explains how to read it; `NA` for one class), and prints it.
+  With `vlmr` set it also carries `VLMR_LR` and one p-value column per
+  requested form (`VLMR_p`, `VLMR_p_robust`); each row tests its own K
+  against the next one in the table, so the last row is `NA`.
 
 - `models` Named list of fitted `mixture_model` objects, one per K
   (names are `"K1"`, `"K2"`, etc.).
@@ -103,6 +147,10 @@ elements, which can be indexed exactly as a plain list.
   the mean and standard deviation of the reference distribution
   alongside the p-value. Those two moments are what say which
   distribution produced a given p-value, and are not printed.
+
+- `alongside` Present only when `alongside` is set: a data frame with
+  one row per fit, its label (`Model`), its within-class distribution
+  (`Family`) and the criteria printed for it.
 
 The table is printed when the fits finish and the object is returned
 invisibly; [`print()`](https://rdrr.io/r/base/print.html) shows it again
@@ -238,6 +286,11 @@ normal mixture". *Biometrika*, *90*(4), 991-994.
 
 Imhof, J. P. (1961). Computing the distribution of quadratic forms in
 normal variables. *Biometrika*, *48*(3/4), 419-426.
+
+Guerra-Pena, K., Garcia-Batista, Z. E., Depaoli, S., & Garrido, L. E.
+(2020). Class enumeration false positive in skew-t family of continuous
+growth mixture models. *PLoS ONE*, *15*(4), e0231525.
+[doi:10.1371/journal.pone.0231525](https://doi.org/10.1371/journal.pone.0231525)
 
 Kim, S., Kirby, J., Evudottir, S., Wang, Y., Tong, X., Goretzko, D.,
 Ferron, J., & Jing, S. (2026). A small latent class in growth mixture

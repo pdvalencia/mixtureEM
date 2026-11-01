@@ -25,6 +25,9 @@ measurement_summary(object, ...)
 # S3 method for class 'lcga'
 measurement_summary(object, ...)
 
+# S3 method for class 'joint_classes'
+measurement_summary(object, ...)
+
 measurement_summary(object, ...)
 
 # Default S3 method

@@ -3,9 +3,11 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/LICENSE-text.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/LICENSE.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/articles/class_enumeration.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/articles/count_trajectories.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/articles/estimation.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/articles/index.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/articles/joint_classes.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/articles/liang_park_lpa.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/articles/lta.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/articles/mglca_yrbs.html</loc></url>
@@ -21,6 +23,7 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/add_covariates.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/add_outcome.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/analytical_wald_test.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/binary_growth_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/bivariate_residuals.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/blrt.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/bootstrap_covariates.html</loc></url>
@@ -34,9 +37,11 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/confint.mixture_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/covariate_se.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/derived_estimates.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/dif_effects.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/ecls_reading.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/fit_lta.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.html</loc></url>
@@ -46,6 +51,8 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/grolts_report.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/index.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/joint_coefficients.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/joint_probabilities.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/lcga_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/liang_park_sim.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/link_models.html</loc></url>
@@ -77,6 +84,7 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/random_intercept_scores.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/report_methods.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/simulate.mixture_model.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/skew_kurtosis_test.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/status_prevalences.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/structured_normal_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/summary.lta_model.html</loc></url>
@@ -85,6 +93,7 @@
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/transition_patterns.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/vcov.mixture_model.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/ventura_leon.html</loc></url>
+<url><loc>https://pdvalencia.github.io/mixtureEM/reference/vlmr_test.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/wald_omnibus_test.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/wald_test.html</loc></url>
 <url><loc>https://pdvalencia.github.io/mixtureEM/reference/yrbs2005.html</loc></url>

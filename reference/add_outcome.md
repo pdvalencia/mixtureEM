@@ -118,9 +118,12 @@ add_outcome(
   maximising the full likelihood, every case's class probabilities
   recomputed under the joint model at each iteration. No classification
   step, no correction. See `n_steps` in
-  [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md);
-  for a distal outcome the two-step's standard errors do not yet carry
-  the step-1 uncertainty, and the printed output says so.
+  [`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md).
+  Without `covariates`, the two-step's standard errors carry step 1's
+  uncertainty under `se = "corrected"` (Bakk and Kuha, 2018), the class
+  sizes included; `"hessian"` gives step 2's observed information alone
+  and `"robust"` its sandwich. An outcome with `covariates` keeps the
+  M-step's standard errors.
 
 - se:
 

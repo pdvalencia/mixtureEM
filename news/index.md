@@ -1,5 +1,1377 @@
 # Changelog
 
+## mixtureEM 0.7.0
+
+Count trajectories, two latent class variables in one model, and the
+inference that clustered survey data needs: zero-inflated and negative
+binomial counts in growth and cross-sectional models, with a
+zero-inflation probability that can change over time;
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md),
+with its tests of association and moderation, in one step or two;
+cluster-robust standard errors for growth models, three-step and BCH
+estimates, and the VLMR test for growth mixtures. Growth mixtures also
+take a binary outcome and several outcomes at once, and the transition
+models’ finish now reaches the maximum on ordinal random-intercept
+models.
+
+### Two new vignettes
+
+[`vignette("count_trajectories")`](https://pdvalencia.github.io/mixtureEM/articles/count_trajectories.md)
+works through trajectory classes of a count outcome: choosing between
+the Poisson, zero-inflated Poisson and negative binomial families on
+what the outcome is, then the number of classes within the chosen
+family, on simulated absence counts where a Poisson fit keeps adding
+classes and the negative binomial recovers the three that were
+simulated.
+[`vignette("joint_classes")`](https://pdvalencia.github.io/mixtureEM/articles/joint_classes.md)
+fits two latent class variables and their association with
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md),
+tests the association and its moderation by a covariate, and reports the
+moderated association as conditional probabilities, in two steps and in
+one.
+
+### Item profiles of a model with two latent class variables
+
+[`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
+now reports a
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)
+model in its own terms: one table per latent variable, its items under
+their own names and its classes as `CA#k` or `CS#k`, each probability
+beside the observed share of that answer. It used to fall through to the
+transition-model report, which spoke of occasions and numbered the
+items. The table is also returned, one row per item, category and class.
+
+[`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
+of an ordinal latent class analysis now names each row by item and
+category (`s1 (Cat 2)`) and shows the observed share of each category,
+where it numbered the rows `Item_1`, `Item_2`, … across all categories.
+No estimate changes.
+
+### Transition models whose finish runs out of iterations are taken on by EM
+
+After EM, every latent transition model (and every model fitted through
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md),
+such as
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md))
+ends with a Newton-type finish. Where EM stops on a nearly flat ridge,
+the finish can spend its whole budget of 500 iterations crawling along
+it and stop short of the maximum. Such a fit now goes back to EM, which
+runs to a strict rule from where the finish stopped, and is finished
+again from there. A two-latent-class-variable model with no association,
+fitted to 1,500 simulated cases, moved from a log-likelihood of
+-10539.167 to -10539.158, the maximum a long EM run reaches; its
+likelihood-ratio test of the association moved from 83.680 to 83.662.
+Fits whose finish converged, which is nearly all of them, are unchanged.
+
+### Growth mixture models of several outcomes at once
+
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+now takes several continuous outcomes measured at the same occasions and
+fits one growth curve to each, jointly: the classes are defined by all
+the curves at once, and the growth factors of every outcome share one
+covariance, so a case’s starting level on one outcome can go with its
+rate of change on another. Name the outcomes’ columns `"dep_1"`,
+`"anx_1"`, … (time-major, or `layout = "item_major"`) and the growth
+factors come out as `"intercept_dep"`, `"linear_anx"`, and so on.
+
+Two arguments come with it, and both work for a single outcome too.
+`residual_covariances` frees residual covariances, held equal across
+classes: `"occasion"` for every pair of outcomes measured at the same
+occasion, or named cells such as `"DEP@T3 with DEP@T4"` for an outcome’s
+residuals at two adjacent waves. `random_effects` also takes the names
+of the random growth factors, so that a slope with no variance in one
+outcome (and therefore no covariances) is written by leaving it out. The
+residual covariances are reported by
+[`print()`](https://rdrr.io/r/base/print.html),
+[`measurement_summary()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_summary.md)
+and
+[`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)
+(with standard errors), and
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md) and
+[`predict()`](https://rdrr.io/r/stats/predict.html) carry them. With
+several outcomes the growth-factor covariance and the residuals are held
+equal across classes, and `growth_predictors` and `fix` are not
+available yet.
+
+Missing answers are handled by maximum likelihood as before. Each M-step
+fills in a case’s unobserved outcomes from its observed ones (Little &
+Rubin, 2002, ch. 11), so its cost does not grow with the number of
+missingness patterns. On the published three-outcome example (436 cases,
+two to four classes), plain maximum-likelihood fits (priors off)
+reproduce the published log-likelihoods, BIC and class sizes to the
+printed digit, and the two- and three-class estimates and standard
+errors to the printed three decimals. Nothing changes for models fitted
+before.
+
+The fit and its standard errors are fast. Each M-step’s update of the
+growth-factor covariance, the residual variances and the residual
+covariances is a Newton iteration on the exact curvature, which reaches
+the maximum a general-purpose optimiser reached in two or three steps;
+the filled-in moments come from one product of the data with the
+posteriors for every class at once; and EM is accelerated as it already
+was for the single-outcome model with a shared covariance. On simulated
+sets of three outcomes the search returns the same estimates as before
+to seven decimals, and a 30,000-case fit with its standard errors went
+from four minutes to ten seconds.
+
+### Exact information for growth mixture standard errors
+
+[`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)
+on a growth mixture of continuous outcomes, fitted without growth
+predictors, a class regression or an outcome, now builds the observed
+information in closed form, in one pass over the data, instead of
+differencing the case scores twice over. Standard errors move only in
+the fifth significant digit, the differencing’s own error, and take a
+fraction of a second where a model of several outcomes with missing data
+took up to four minutes.
+
+### Ordinal random-intercept transition models are taken to the maximum by the finish
+
+A latent transition model with ordinal items and a freely loading random
+intercept now ends with the Newton-type finish, as the binary-item model
+already did, instead of a long EM run and a quasi-Newton polish. The
+finish used to hold any threshold past 15 on the logit scale as heading
+for a boundary, which with a random intercept is wrong: an item’s first
+threshold is read against the intercept’s shift at every node, so with a
+loading of 4.6 a threshold of 13 is an ordinary value. The edge is now
+placed past the largest shift the item’s loading gives a node that
+carries mass. On seven simulated sets (large loadings, far thresholds, a
+rare category, weak separation, 300 cases, missing responses) every
+estimate is the same as before to 1e-4 in the log-likelihood, and on
+30,000 cases a 25-start fit went from 897 to 407 seconds. On the Dating
+data’s five-status model the log-likelihood rose by 5e-4, to
+-16040.5661, with one threshold of a nearly flat direction moving, and
+the fit took a seventh of the time.
+
+The finish of an ordinal transition model with the default prior no
+longer differences the prior at every iteration: the thresholds’ and
+loadings’ prior curvature is now in closed form. The finish lands on the
+same point (to 1e-11 in the log-likelihood) in a quarter to a sixth of
+the time.
+
+### Faster latent class models on large samples
+
+Ordinal items, and items with direct covariate effects
+(`predictors_items`), are now estimated on the table of distinct
+response patterns (with the covariates in the key), as binary and
+categorical items already were. On 61,000 cases with ten items one start
+of a five-class ordinal model fell from 31 to 2 seconds, with a class
+covariate from 63 to 5 seconds, and with five item covariates from 94 to
+9 seconds. The class-membership regression of a one-step model is now
+maximised by Newton-Raphson from the previous iteration’s coefficients,
+which stops at the maximum of each M-step instead of near it, at a
+fraction of the cost. Multi-start fits on several cores (`n_cores`) send
+each worker only what a start needs: every start used to carry a copy of
+the whole data with it, 40 MB at that sample size. The
+response-indicator table is computed once per fit instead of twice per
+iteration. On the six large-sample fits checked, with 100 starts on 8
+cores, a plain five-class model went from 43 to 15 seconds and a model
+with a class covariate and three item covariates from 129 to 79 seconds.
+Their log-likelihoods and numbers of replicated starts are unchanged;
+where the class regression’s M-step is now exact, the reported start
+took a few iterations fewer. A coefficient of an uncorrected step-3
+regression can move in the fifth decimal, to the regression’s maximum.
+
+The M-step of an ordinal item with direct covariate effects is now a
+Newton-Raphson fit with the exact Hessian of the cumulative logit,
+started from the previous iteration’s values, with the bounded
+quasi-Newton fit as the fallback where Newton cannot proceed. It ends at
+the item’s maximum rather than near it. The class probabilities of a
+one-step class regression are computed once per distinct covariate row
+and copied to the cases, and the items’ observed marginals once per fit.
+With 100 starts on 8 cores the five-class model with a class covariate
+went from 48 to 25 seconds, and the models with item covariates from 134
+to 43 and from 79 to 29 seconds. Log-likelihoods and numbers of
+replicated starts are unchanged; on a simulated set whose slope sits on
+a nearly flat ridge the reported slope moved by 1e-4, at a
+log-likelihood higher by 8e-6.
+
+The check EM runs every ten iterations for a class sitting on one value
+of data its own variance governs no longer groups every distinct value
+of a continuous indicator when no value carries enough weight to pass
+it: a class’s mass on a value is at most the weight of the cases holding
+it. The decision is the same; on 30,000 cases with class-specific
+variances it was a fifth of a fit’s time, and a 25-start four-class
+profile model went from 14 to 11.5 seconds.
+
+The warm start of a multiple-group model whose measurement differs by
+group (`group_effects = "both"` or `"measurement"`) fits a pooled model
+and one per group first; those searches now run their starts on
+`n_cores` as the main search does, instead of on one core. Results are
+identical to the bit; a 50-start three-class configural model on 1,000
+cases went from 17.5 to 7.9 seconds on 8 cores, and on 30,000 cases a
+25-start one from 8.4 to 3.7.
+
+An EM iteration of a multiple-group model costs less: the pooled answers
+the group blocks share, and the class regression’s design, are built
+once per fit instead of every iteration, and a prior whose constants are
+all zero is no longer re-evaluated at every iteration. When a class
+regression has as many distinct covariate rows as coefficients per class
+(a grouping variable alone), its M-step now takes the maximum in closed
+form, each row’s fitted probabilities being its weighted mean posterior,
+where Newton stopped just short of it. Log-likelihoods move by at most
+5e-10, class sizes by at most 4e-7, and estimates, standard errors and
+the number of replicated starts are unchanged; the same configural model
+went from 7.9 to about 5.5 seconds.
+
+A latent profile model (continuous indicators, no covariates on class
+membership) no longer polishes every random start with L-BFGS before the
+starts are compared; the Newton-type finish takes the leading starts to
+the maximum, as it already did. On seven simulated sets (weak
+separation, a 5% class, a nearly collapsed variance, missing data, five
+classes, 30,000 cases), with and without the default priors, the
+log-likelihood moves by at most 4e-7, every estimate by at most 3e-7 and
+the number of replicated starts not at all. A 25-start four-profile
+model with class-specific variances on 30,000 cases went from 9.7 to 5.0
+seconds on 8 cores.
+
+When the package is installed outside the default library (a project
+library, for instance), the workers of `n_cores` now load that same
+installation. They used to load whichever copy the default library held,
+which could be an older release.
+
+### Faster repeated-measures latent class and continuous growth models
+
+[`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md)
+with binary, categorical or ordinal items is now estimated on the table
+of distinct response patterns, as a latent class model of the same items
+already was. On 30,000 cases with four binary items at three occasions,
+a 25-start three-class model went from 11 to 1.7 seconds with the items
+held equal over time, and from 7.0 to 1.2 seconds with them free.
+Log-likelihoods, estimates, class probabilities and numbers of
+replicated starts are unchanged. The “robust” and “hessian” standard
+errors can move in the fourth or fifth significant digit: they rest on a
+numerically differentiated Hessian, which carries that much rounding
+noise between a pattern table and the rows it summarises, as a latent
+class model’s always has.
+
+`fit_lcga(family = "gaussian")` now updates each class’s trajectory from
+the class’s total weight and weighted mean at each occasion, which is
+all its weighted least-squares fit uses, instead of refitting the
+regression to every case at every occasion, and evaluates the normal
+log-density directly instead of cell by cell.
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+keeps each pattern of observed occasions, and the block of data it
+selects, once per fit instead of rebuilding them on every E- and M-step.
+On 30,000 cases at five occasions a 25-start three-class LCGA went from
+101 to 14 seconds and a three-class growth mixture model from 28.5 to
+17.4 seconds. The growth mixture results are identical; the LCGA’s agree
+to rounding (log-likelihood to 1e-11, estimates to 1e-12, standard
+errors to the seventh significant digit), with the same numbers of
+replicated starts.
+
+The Gaussian LCGA, and the growth mixture model with a random intercept
+and slope whose covariance and occasion-specific residual variances are
+shared by the classes, are now estimated by EM accelerated by squared
+extrapolation (SQUAREM; Varadhan & Roland, 2008), as the binary growth
+mixture already was, when no class regression or growth covariate is
+estimated with them. A start that crept along the growth covariance for
+hundreds of EM iterations now gets there in a fraction of them. On
+simulated data with weakly separated classes, a 5% class, a slope
+variance at its boundary, dropout, four classes and unequal spacing, the
+reported maximum and every estimate are those of plain EM (to 1e-8), and
+the number of starts that replicate it is the same or higher. On 30,000
+cases the LCGA went from 14 to 4.4 seconds and the growth mixture model
+from 17.4 to 9.2 seconds. Other growth structures, and these two with
+covariates, run plain EM as before.
+
+[`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
+with a binary or Poisson outcome now updates each class’s trajectory the
+same way, from the class’s total weight and weighted number of events at
+each occasion, by Newton-Raphson from the previous iteration’s
+coefficients instead of a call to
+[`glm.fit()`](https://rdrr.io/r/stats/glm.html) per class, and evaluates
+the binomial and Poisson log-densities directly. Each M-step now ends at
+its maximum rather than at
+[`glm.fit()`](https://rdrr.io/r/stats/glm.html)’s deviance stop. On
+30,000 cases at five occasions a 25-start three-class model went from
+4.9 to 1.5 seconds with a binary outcome and from 33.7 to 3.8 seconds
+with a count; on 1,500 cases a weakly separated count model fell from
+133 to 12 seconds. On simulated sets with weak separation, a 5% class, a
+class whose probability or rate is near zero, dropout, four classes and
+unequal spacing, log-likelihoods agree with the previous fit to 1e-10
+and estimates to 1e-6 or better, with the same numbers of replicated
+starts. These two families keep plain EM: squared extrapolation reached
+the same maxima but replicated fewer starts where a class sits near
+probability 0 or 1.
+
+`fit_lcga(family = "zip")` is updated the same way. The share of each
+zero that is structural depends only on the class and the occasion, so
+both of a class’s regressions, the event rate and the logit of a
+structural zero, are fitted to its weight, weighted count and weight on
+zeros at each occasion. On 30,000 cases a 25-start three-class model
+went from 287 to 13 seconds, and on 1,500 cases with weakly separated
+classes from 366 to 19 seconds. On simulated sets with weak separation,
+a 5% class, a class with almost no structural zeros, dropout, four
+classes and unequal spacing, log-likelihoods agree with the previous fit
+to 1e-10 and estimates to 2e-6, with the same numbers of replicated
+starts.
+
+A `fit_lcga(family = "zip")` start still climbing after 50 EM iterations
+is now handed to the Newton-type finish, which takes each case’s
+derivatives in closed form instead of differencing the likelihood twice
+per parameter. EM crawls on this model, about 700 iterations a start
+where the classes are weakly separated. On the same simulated sets and
+30,000 cases, log-likelihoods are unchanged, estimates move by at most
+3e-5 (where EM had stopped short of the maximum), and each fit is 1.1 to
+6.3 times faster: a 50-start three-class model on 1,000 cases went from
+10.7 to 1.7 seconds, and on 30,000 cases a 25-start one from 11.9 to
+4.0. The weakly separated set with a 1% class now reaches its maximum
+from all 50 starts instead of 5.
+
+`fit_lcga(family = "negbin")` fits each class’s event rate the same way:
+its kernel is linear in the counts, and every case at an occasion shares
+that occasion’s overdispersion, so the rate needs only each occasion’s
+weight and weighted mean. The overdispersion itself is fitted as before.
+On 30,000 cases a 25-start three-class model went from 113 to 37 seconds
+and on 1,000 cases from 21 to 10 seconds, with identical
+log-likelihoods, class sizes and numbers of replicated starts.
+
+That model’s log-density is now evaluated from one table per class and
+occasion over the observed counts, which every case reads its cells off,
+instead of cell by cell through
+[`dnbinom()`](https://rdrr.io/r/stats/NegBinomial.html); the
+overdispersion is fitted to each class’s total weight on each count at
+each occasion instead of to every record. The table writes the
+gamma-function ratio as the product it is for a whole count, so it stays
+exact as the overdispersion approaches the Poisson boundary, where
+[`dnbinom()`](https://rdrr.io/r/stats/NegBinomial.html) falls back on an
+approximation that was off by up to 1e-8 per cell. A 125-start
+four-class quadratic model of the SRQ-20 scores (2,052 cases) went from
+133 to 54 seconds, and the three-class models on 30,000 and 1,000 cases
+from 38 to 12 and from 10 to 4 seconds. Log-likelihoods agree with the
+previous fit to 2e-10, estimates to 3e-9, with the same numbers of
+replicated starts; “robust” and “hessian” standard errors can move in
+the fifth significant digit, the rounding noise of their numerically
+differentiated Hessian.
+
+`fit_gmm(psi = "free")`, whose classes each have their own growth-factor
+covariance, hands a start that EM has not converged after 300 iterations
+to the Newton-type finish, as the binary growth mixture does after 500;
+such starts used to run 2,000 to 4,600 EM iterations. The finish now
+computes each case’s score on the growth mixture’s parameters exactly
+rather than by differencing the log-likelihood, which makes it several
+times cheaper on every continuous growth mixture model and lets it
+switch to the exact curvature where it crawls. Without growth
+covariates, each EM iteration now reads the data once per class and
+missingness pattern, through the pattern’s class-weighted totals,
+instead of building residuals case by case, and the log-density of every
+class comes from one matrix product per pattern. Each EM iteration also
+takes the class posteriors from the E-step’s own exponentials instead of
+computing them a second time, which every model estimated by the shared
+EM loop gains; for a growth mixture, the squares and cross-products of
+each case’s observations, taken about its missingness pattern’s means,
+are computed once per data set, so that the log-density and the M-step’s
+weighted totals are each a single matrix product for every class. On
+30,000 cases a 25-start three-class model went from 575 to 29 seconds
+and on 1,000 cases from 50 to 5.8 seconds. On simulated data with weakly
+separated classes, a 5% class, a slope variance near zero in one class,
+a strongly negative intercept-slope covariance, dropout, unequal
+spacing, n = 400 and n = 30,000, the reported maximum and every estimate
+are those of the previous fit on seven of the eight sets; on the n = 400
+set the search now reports a higher maximum, with a 2% class whose
+intercept variance is slightly negative. The number of starts that reach
+the reported maximum went up on five of the eight sets and down on one,
+and on the 1,000-case set from 36 of 50 to 28. Models with
+`psi = "equal"` or `"variances"` keep their search; their iterations are
+faster and agree with the previous ones to rounding.
+
+The finish of `fit_gmm(psi = "free")` without growth covariates or a
+class regression now has the model’s exact curvature, computed in closed
+form from one pass over the data (Louis’s identity, with the normal’s
+second derivatives summed per class and missingness pattern) rather than
+by differencing the scores, and takes Newton steps on it wherever it is
+negative definite. A start is therefore handed to the finish after 50 EM
+iterations instead of 300, and a start whose finish has not reached a
+maximum after 25 iterations is left where it is; the leading starts are
+finished in full as before. On 30,000 cases a 25-start three-class model
+went from 29 to 15 seconds, on 1,000 cases from 5.8 to 1.4 seconds, and
+on the simulated sets above from 6-26 to 1-8 seconds. The reported
+maximum and every estimate are unchanged on seven of the eight sets; on
+the set with a 5% class the search now reports a higher maximum (by
+0.22), with a 1% class whose intercept variance is negative. Newton
+steps take each start to the maximum nearest it, so fewer starts reach
+the reported one: 183 over the eight sets against 214, and 26 of 50
+against 28 on the 1,000-case set.
+
+`fit_gmm(psi = "variances", fix = )` no longer stops with a type error
+when a growth-factor variance is fixed in one class.
+
+### Growth mixture models for a binary outcome
+
+`fit_gmm(family = "binomial")` fits a growth mixture model to a 0/1
+outcome measured repeatedly: each class has its own trajectory in the
+log-odds, and cases vary about it through normal random growth factors,
+with the same `random_effects` and `psi` choices as the continuous model
+(`"equal"`, `"variances"`, `"free"`). The random effects are integrated
+out by Gauss-Hermite quadrature, and the model is estimated by EM with
+the random effects as missing data, accelerated by squared
+extrapolation, then taken to the maximum by the Newton-type finish with
+exact scores. With one random effect the rule has `n_quadrature` nodes
+(30 by default). With two or more, it is laid along each class’s
+principal axes of the random effects, and each axis gets nodes in
+proportion to the spread of log-odds it carries (20 per unit of standard
+deviation at the default, at least 3), within the `n_quadrature^q` nodes
+of a square grid, with negligible corner nodes dropped. A growth-factor
+covariance with a correlation near one is wide along one axis and almost
+flat along the other, and a square grid on the standardised random
+effects spends half its nodes on the flat one: on simulated data of that
+shape the square grid’s search climbed to a point where the integral was
+1.5 units off and found a maximum of the rule’s error 0.64 below the
+true one, which the principal-axis rule finds (within 0.012 of the
+integral’s limit at such points, and 0.004 at the maxima). Every fit is
+rescored at `n_quadrature + 10` (`fit$growth$quadrature_check`), and a
+warning says when the two differ by more than 0.01, which is the sign
+that a variance is too wide for the rule and the integral has to be
+refined before models are compared. A class whose answers follow its
+curve without exception has no finite maximum, so each class’s log-odds
+at the first and last occasions (at evenly spaced occasions for a curve
+of higher degree) are kept within 37, where the probability is 1 in
+double precision. The bound is on the log-odds and not on the growth
+coefficients, so a class that answers 1 until late in the time range
+keeps its switch where the data put it, whatever intercept that takes.
+[`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md),
+[`wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_test.md),
+[`predict()`](https://rdrr.io/r/stats/predict.html),
+[`class_assignments()`](https://pdvalencia.github.io/mixtureEM/reference/class_assignments.md),
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md),
+[`simulate()`](https://rdrr.io/r/stats/simulate.html),
+[`report_methods()`](https://pdvalencia.github.io/mixtureEM/reference/report_methods.md),
+[`print()`](https://rdrr.io/r/base/print.html) and
+[`plot()`](https://rdrr.io/r/graphics/plot.default.html) all take the
+new fits; the reported trajectory is the probability averaged over the
+random effects, with the probability at the class’s mean growth factors
+in `fit$growth$fitted_at_mean`. Small classes whose curves are close to
+steps (cases that switch from 1 to 0, or answer 1 throughout in a sample
+that mostly answers 0) lie far from the pooled trajectory, so the random
+starts are drawn two ways: half from the latent class growth model
+fitted first at the same number of classes (on at most 20 starts), and
+half from the pooled trajectory with some classes replaced by a curve
+through one observed response pattern. `growth_predictors` and `fix` are
+not yet available with a binary outcome. The `variances` Bayes constant
+also places its weak prior on each random-effect variance of a binary
+growth mixture, centred on a variance that moves the log-odds by one
+unit at the occasion where that random effect weighs most, and on the
+variances only, so a correlation of one stays allowed. A class whose
+cases answer almost constantly says little about how widely its log-odds
+vary, and under class-specific variances such a class’s variance grew
+without bound while the likelihood crept up: on five of seven simulated
+data sets it reached 35 to 319 where the generating values were 0.05 to
+4. With the prior at its default the largest error in any class’s
+variance fell from a median of 6.9 to 2.1, and a 30,000-case fit fell
+from 257 to 91 seconds. A plain maximum-likelihood fit needs
+`variances = 0` beside `categorical = 0` and `latent = 0`, and is
+unchanged. Nothing else changes.
+
+### Faster growth models of a binary or count outcome
+
+`fit_gmm(family = "binomial")` and
+[`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
+with a binary or count outcome are now estimated on the table of
+distinct response patterns, each weighted by the cases that gave it, as
+categorical latent class models already were. The likelihood and the
+starts are the same as on the full rows, so a fit lands where it did;
+the cost of an iteration no longer grows with the sample. On 50,000
+cases with 32 distinct patterns one start of a four-class binary growth
+mixture fell from about three minutes to 40 seconds and one start of a
+four-class binary
+[`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
+from five minutes to under two seconds. The Newton-type finish now also
+takes a binary growth class close to a step the rest of the way to its
+edge, where it used to be left to EM’s slow climb.
+
+A binary growth mixture start that EM has not converged after 500
+iterations is now handed to the Newton-type finish there, and the starts
+compete on where the finish takes them. Along the ridge where a class
+trades its size against its level the finish now uses the exact
+curvature, rebuilt every 20 iterations, with the modified Newton step
+where that curvature is not negative definite; it used to fall back on
+the outer product of scores and crawl as EM did. On 50,000 cases a
+50-start four-class fit fell from 542 to 74 seconds, all 50 starts
+reached the reported maximum, and its log-likelihood rose by 0.007. On
+nine smaller simulated sets the reported log-likelihood is the same or
+higher (by at most 0.002 where the variances are shared), and the fits
+take up to five times less time where starts used to crawl and the same
+time where EM converged them. With class-specific variances the reported
+maximum can move to a different point of the same ridge. Starts that EM
+converges, and every other model, are unchanged. Fitting on several
+cores also hands the starts to the workers one at a time instead of in
+bundles of three or four, so a worker that draws two slow starts no
+longer holds up the rest; no number changes.
+
+### Faster latent transition models with covariates, multiple-group and three-step models
+
+The regressions of a latent transition model’s initial status and
+transitions on covariates (`predictors_initial`,
+`predictors_transition`) are now maximised by Newton-Raphson from the
+previous iteration’s coefficients, with the quasi-Newton fit they used
+before as the fallback where Newton cannot proceed, so each M-step ends
+at its maximum instead of near it. The case-averaged status and
+transition tables these models report are computed once, at the end of
+EM, instead of at every iteration, and the Newton-type finish and the
+standard errors no longer rebuild them at every point they evaluate; a
+fit without priors no longer evaluates its zero prior there. On 30,000
+cases with one covariate, a 25-start model with three statuses over two
+occasions went from 413 to 68 seconds. On seven simulated sets the
+log-likelihood is unchanged to 2e-12, the estimated probabilities to
+6e-11 and the numbers of replicated starts are the same or higher. Such
+a model’s statuses keep the labels their regressions give them, so the
+same solution can still be reported under a different labelling from one
+search to another.
+
+Inside EM, each of these regressions now takes one Newton step from the
+previous iteration’s coefficients instead of being solved to its maximum
+at every iteration: a generalised EM, which still raises the
+log-likelihood at every iteration and has the same maxima, and whose
+last point the Newton-type finish takes to the maximum as before. The
+fitted probabilities at the point a step ends at are kept for the next
+step to start from. On 30,000 cases the 25-start model above went from
+58 to 42 seconds, and on 1,000 cases a 50-start fit from 5.1 to 4.2
+seconds. On eight simulated sets, one with 10% of item responses missing
+and 15% of cases missing every response at the second occasion,
+log-likelihoods are unchanged to 2e-7, estimated probabilities to 4e-7
+and the numbers of replicated starts are the same. On a ninth, a small
+sample whose transition regression is separated (its maximum lies at
+infinite coefficients), the two forms stop at different points along the
+same ridge, 0.0014 apart in log-likelihood.
+
+A multiple-group latent class model whose measurement differs by group
+(`group_effects = "both"` or `"measurement"`) with binary, categorical
+or ordinal items is now estimated on the table of distinct response
+patterns, a case’s group being part of its pattern. On 30,000 cases a
+25-start three-class configural model went from 115 to 9 seconds.
+Estimates, log-likelihoods and numbers of replicated starts are
+unchanged.
+
+The step-one variance behind the corrected standard errors of three-step
+and two-step models now sums the step-one log-likelihood over the
+distinct response patterns when the items are binary, categorical or
+ordinal. Estimates are unchanged and standard errors move by at most a
+few parts in a million, the rounding of the numerical derivative. On
+30,000 cases the third step with a covariate went from 6.5 to 2.5
+seconds.
+
+Two-step joint latent class models (`fit_joint_classes(n_steps = 2)`)
+and two-step latent transition models no longer compute the scores of
+the measurement parameters, which step 2 holds fixed, at each iteration
+of the Newton-type finish. Grouping cases into distinct response
+patterns builds an integer key column by column instead of a text key
+per case, the same grouping in the same order, eight times faster on
+61,000 cases. On the 61,000-case joint model of two latent class
+variables with item and class covariates, step 2 with no association
+went from 16 to 12 seconds and with association from 18 to 15.5 seconds.
+Every estimate is unchanged.
+
+Step 2 of a two-step model now runs five EM iterations from step 1 and
+hands the structural parameters to the Newton-type finish, which takes
+them to the same maximum EM was approaching; where the finish would hold
+a coefficient at its bound, step 2 runs EM to convergence first, as
+before. The finish computes the frozen measurement model’s response
+densities once instead of at every point it evaluates. The
+forward-backward pass of a latent transition model with covariates on
+the transitions now runs in the probability scale with per-occasion
+rescaling, as models without covariates already did, and falls back to
+the log scale for a pass in which a case would underflow; initial-status
+and transition probabilities are computed once per distinct covariate
+pattern. On the 61,000-case joint model, step 2 now takes 5 seconds with
+or without association (12 to 17 before); on 30,000 cases with one
+continuous covariate, a 25-start latent transition model went from 67 to
+66 seconds and a 50-start one on 1,000 cases from 5.9 to 5.2. Estimates
+agree with the previous ones to 1e-9 and standard errors to 2e-5, except
+for a coefficient already diverging to infinity (a transition logit
+beyond 30), which can stop a few hundredths further along.
+
+The standard errors of two-step joint latent class models and two-step
+latent transition models, which are computed by default, took over 80
+minutes on the 61,000-case joint model; they now take 8 to 10 seconds,
+and 23 to 29 seconds with eleven continuous covariates, on 8 cores. A
+further model fitted on the same step 1 reuses step 1’s curvature, which
+the session keeps from the previous fit, and takes 4 to 5 seconds, or 19
+to 24 with the covariates. The curvatures they need are now differences
+of the analytic gradient along one parameter at a time instead of
+differences of the log-likelihood along every pair of parameters, and
+the prior’s comes from its closed-form gradient. The gradient passes run
+on the distinct (responses, covariates) patterns and on `n_cores`, and
+where step 1 fits the two latent variables as independent models one
+pass moves a parameter of each. Each pass sums the scores as it goes, by
+response category for ordinal items and by one cross-product for the
+class and transition regressions, instead of building a row per case and
+pattern. The observed information of the whole model, which the two-step
+variance replaces, is no longer computed first. The joint model with no
+association takes its standard errors the same way. The scores of
+ordinal items locate each response category once instead of once per
+class, which also shortens the fits: step 2 of the 61,000-case joint
+model with association went from 5.3 to 4.4 seconds. Estimates are
+unchanged; standard errors agree with the previous computation to 1.3e-5
+relative, the rounding of the numerical derivative.
+
+The expansion of categorical and ordinal items into indicator columns is
+now kept for the last several data blocks rather than the last one, so a
+latent transition model no longer rebuilds it for every occasion at
+every iteration. A random-intercept latent transition model with
+three-category items over three occasions went from 82 to 66 seconds on
+1,000 cases and from 1,124 to 897 seconds on 30,000. No number changes.
+
+The items’ observed means and variances, which centre the default
+priors, are now computed once per data set instead of at every EM
+iteration of a model with missing cells or mixed item types. On 30,000
+cases with three binary and three continuous items, a 25-start
+three-class fit went from 11 to 9 seconds. No number changes.
+
+The softmax behind every class-membership and transition regression now
+clamps its logits only when one is out of range, and the regression
+reports the curvature Newton-Raphson computed at its last step instead
+of computing it again. On 30,000 cases with one continuous covariate, a
+25-start latent transition model went from 66 to 58 seconds. No estimate
+or standard error changes.
+
+### `blrt()` can test the fits you already have
+
+`blrt(fits = list(small, large))` takes the two observed-data models,
+already fitted with `k_small` and `k_large` classes, and bootstraps from
+them instead of refitting both with `n_init_base` restarts. Beyond the
+time those two searches cost, this keeps the observed statistic at the
+maxima the analysis found: on the SRQ-20 data (2,052 cases), refitting a
+four-class growth mixture with the default 20 restarts stopped 8 units
+of log-likelihood short of the 125-start fit and understated the
+statistic (93.9 instead of 110.0). With a growth model, `from_fit`
+defaults to the first of the two fits. Without `fits`, nothing changes.
+
+A growth mixture model now factors the covariance of a case observing
+every occasion once per E-step instead of twice, and reads a single
+random effect’s variance directly where it took an eigenvalue; on the
+SRQ-20 growth mixture a bootstrap draw is 4% faster. No number changes.
+
+### `predict()` scores new cases from multiple-group models
+
+[`predict()`](https://rdrr.io/r/stats/predict.html) now classifies new
+cases from a `fit_mixture(group = )` fit: each case is scored with its
+own group’s class sizes and, where the measurement differs by group, its
+own group’s item parameters, under every `group_effects` setting and
+with `group_prevalence_equal`. The new `group` argument takes the cases’
+groups as a vector or as the name of a `newdata` column; a group the
+model was not fitted with is an error and a missing one gives `NA`. On a
+one-step fit’s estimation sample the posteriors equal
+[`class_assignments()`](https://pdvalencia.github.io/mixtureEM/reference/class_assignments.md).
+No fitted value changes.
+
+[`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md)
+fits are scored too, from one column per item and occasion in the order
+of the wide data the model was fitted on, plus any `predictors` by name;
+a binary item the fit recoded to 0/1 is recoded the same way in the new
+data, for which the fit now keeps the mapping. A
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+fit with `growth_predictors` is scored from the new cases’ own covariate
+values, which shift each case’s class means as they did in the fit.
+
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+fits without predictors, groups or a random intercept are scored too,
+mover-stayer and other mixtures of chains included: one column per item
+and occasion, and a status per occasion in
+[`class_assignments()`](https://pdvalencia.github.io/mixtureEM/reference/class_assignments.md)’s
+formats. Each occasion’s posterior conditions on every occasion the case
+was observed at, which is what
+[`class_assignments()`](https://pdvalencia.github.io/mixtureEM/reference/class_assignments.md)
+reports for the estimation sample.
+
+### Status separation and step-3 moves for latent transition models
+
+[`compare_longitudinal()`](https://pdvalencia.github.io/mixtureEM/reference/compare_longitudinal.md)
+now carries `Separation` for an LTA whose indicators are all continuous:
+the smallest distance between two statuses’ means, in pooled
+within-status standard deviations, at any occasion. The LTA
+[`classification_diagnostics()`](https://pdvalencia.github.io/mixtureEM/reference/classification_diagnostics.md)
+prints that distance occasion by occasion and, for a three-step fit with
+the ML correction and modal assignment, how many cases changed modal
+status between step 1 and step 3 at each occasion, with the
+cross-tabulation, as the cross-sectional method already did. No estimate
+or index changes.
+
+### `compare_mixtures()` shows the class separation
+
+For a comparison whose indicators are all continuous, the table now
+carries `Separation`, the smallest distance between two classes’ means
+in pooled within-class standard deviations, beside the fit indices, and
+prints it. It is the class separation
+[`classification_diagnostics()`](https://pdvalencia.github.io/mixtureEM/reference/classification_diagnostics.md)
+already reported for a single fit, now visible while choosing the number
+of classes, where it matters most. Other comparisons are unchanged.
+
+### `predict()` scores new cases from growth models
+
+[`predict()`](https://rdrr.io/r/stats/predict.html) now classifies new
+cases from a
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+or
+[`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
+fit, holding every parameter fixed. `newdata` has one column per
+occasion, in the order of the wide data the model was fitted on, plus
+any `predictors` by name; a missing occasion drops out of the case’s
+likelihood as it did in the fit. On the estimation sample it equals
+[`class_assignments()`](https://pdvalencia.github.io/mixtureEM/reference/class_assignments.md).
+Growth models with `growth_predictors` and
+[`fit_rmlca()`](https://pdvalencia.github.io/mixtureEM/reference/fit_rmlca.md)
+fits are still refused.
+
+### `growth_estimates()` reports one-step class regressions and categorical outcomes
+
+A
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+or
+[`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
+fit with `predictors` estimated in one step (`n_steps = 1`) now gets its
+class regression in
+[`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md):
+rows `"class_regression"`, one per class and term, each class’s
+multinomial-logit coefficients against the last class, with standard
+errors from the same sandwich as the growth parameters. A categorical
+`outcome` fitted in one step gets rows `"outcome_logit"`, each class’s
+log-odds of every category against the lowest. Both can be named in
+[`wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_test.md),
+and a coefficient against any other reference class is a difference of
+these rows, with its standard error from the attached covariance. A
+probability estimated at 0 or 1 is now held fixed in these standard
+errors, as
+[`measurement_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_estimates.md)
+already did, so that one class whose outcome never takes a value no
+longer leaves every standard error of the fit `NA`. No estimate changes,
+and the standard errors of a fit with no probability at 0 or 1 are
+unchanged.
+
+### Faster latent transition models with covariates and item covariates
+
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+already searched a plain categorical model on one row per distinct
+response pattern. A model with covariates on the statuses, item
+covariates (`predictors_items`) or ordinal items searched every case. It
+now searches one row per distinct combination of responses and covariate
+values, weighted by how many cases share it, once the random starts have
+been drawn on the full sample, so the starts are those of before. The
+log-likelihood is a weighted sum over cases either way. When more than
+one restart is taken on to the Newton-type finish, the finishes run on
+the worker processes side by side. On a one-step joint model of 60,784
+cases (`fit_joint_classes(n_steps = 1)`, 20 restarts on four cores) a
+fit takes 31 minutes where it took 82, at the same log-likelihood.
+Results can differ in the last digits, from the order in which the sums
+are added; on a surface that the finish cannot climb to convergence
+within its iteration cap, the point reported can move along that flat
+stretch.
+
+### Joint latent classes: step 1 of the two-step fitted once, as two LCAs
+
+`fit_joint_classes(n_steps = 2)` searched step 1 as one model over pairs
+of starts for both variables, and every structural model compared
+searched it again. Step 1 has no association, so its likelihood is the
+sum of one latent class analysis per variable: it is now searched as
+those two analyses, each with its own `n_init` restarts through
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md),
+and continued as one model from their solution. The new argument `step1`
+hands a step 1 over instead: a previous two-step fit of the same items,
+whose step 1 is reused as it stands, or `list(ca = , cs = )`, the two
+analyses already fitted. A sequence of structural models then fits the
+measurement model once. On data of 61,000 cases with item slopes, a
+two-step model given its step 1 now takes one to eight minutes, where
+the first such model had not finished in seventy-five. Step 1 reaches
+the same maximum as before; the log-likelihoods of every graded two-step
+fit are unchanged to the fourth decimal, though the classes of a fit may
+come out numbered differently, which changes which class is the
+reference of the association coefficients. Fits with arguments passed in
+`...`, such as `weights`, search step 1 as before.
+
+### Faster finish for ordinal items with item covariates
+
+The Newton-type finish of
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)
+took each case’s score by central differences when ordinal items had
+direct covariate effects (`predictors_items`), at two passes over the
+data per parameter and iteration. Those scores are now computed from one
+E-step, as for every other family, and a prior that is zero everywhere
+is no longer differenced. The finish reaches the same point; a
+five-class model of ten ordinal items on 61,000 cases went from 24 to
+12.5 minutes. No estimate changes.
+
+### Faster finish for latent transition and joint latent class models
+
+The Newton-type finish of
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+and
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)
+computed the case scores at every point its line search tried, though
+only the log-likelihood is needed there. It now runs the likelihood’s
+forward pass alone for those trials and computes the scores once per
+iteration, at the point accepted. The log-likelihood is the same to the
+last bit, so the finish takes the same steps to the same point; a
+one-step joint model with ordinal DIF items, whose finish runs some 400
+iterations along a nearly flat ridge, finished in 226 seconds instead of
+318 on 3,000 cases. No estimate changes.
+
+The same finish now also runs on one row per distinct combination of
+responses and covariate values, each carrying its count, where the
+search before it cannot (covariates on the statuses, item covariates,
+ordinal items); the log-likelihood, its gradient and its curvature are
+sums over cases, so they are unchanged. And the line search of every
+finish,
+[`fit_mixture()`](https://pdvalencia.github.io/mixtureEM/reference/fit_mixture.md)’s
+included, starts from twice the last accepted step length and lengthens
+it while it is accepted, rather than starting from a full step each
+time; it settles on the same length in fewer trials. On the same 3,000
+cases the finish took the same 409 steps to the same point in 110
+seconds rather than 226, and on 20,000 cases in 8 minutes rather than
+38. No estimate changes.
+
+### Two-step latent transition models: step 1 regresses the statuses beside the item slopes
+
+`fit_lta(n_steps = 2, predictors_items = )` fitted step 1 with the
+direct covariate effects on the items but without letting the same
+covariates predict the statuses. Any association between a covariate and
+the statuses then had nowhere to go but the item slopes, which were
+inflated, and step 2 inherited that measurement model. Step 1 now also
+regresses the initial status and the transitions on the item covariates,
+as the three-step’s step 1 and
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)’s
+two-step already did. Every two-step latent transition fit with
+`predictors_items` changes: its item slopes, thresholds, step-2
+estimates and standard errors. Fits without `predictors_items`, one-step
+and three-step fits are unchanged.
+
+### Joint latent classes: the default prior covers each variable’s own classes
+
+When the two variables of
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)
+have different numbers of classes, or different numbers of items, the
+model is fitted with the smaller one padded to the larger one’s shape.
+The default prior on the item probabilities, and on the regression of
+`cs` on `ca`, was spread over the padding too, so each real class
+received a smaller share than in a latent class analysis of that
+variable alone, and the reported log-prior included terms for cells no
+case could reach. Each variable’s prior is now spread over its own
+classes and its own items only. Under the default priors the log-prior
+and the restart ranking change, and the estimates move in their fourth
+decimal or less. Fits with `smoothing = 0` and
+`bayes_constants = list(categorical = 0)`, joint fits whose two
+variables have the same shape, and every other model are unchanged.
+
+### Joint latent classes: `ca` may have fewer classes than `cs`
+
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)
+no longer refuses `n_ca < n_cs`. Before, it asked for the two variables
+to be swapped, which is the same model only without covariates: with
+covariates on `cs` the regression of `cs` on `ca` is not the regression
+of `ca` on `cs`. A smaller `ca` is now fitted as it is written, one-step
+and two-step, with covariates on either variable and with or without the
+association. No fit that was allowed before changes.
+
+### Class enumeration with covariates in the model
+
+[`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+gains `predictors`. With it, every model with two or more classes is
+fitted in one step with a regression of class membership on the
+covariates, the one-class model is the measurement model, and cases
+missing a predictor are dropped once so that every row, and every VLMR
+test between rows, describes the same sample. It requires `n_steps = 1`.
+Without `predictors` the sweep is unchanged, and remains the recommended
+first step.
+
+### The VLMR test on latent transition models
+
+[`vlmr_test()`](https://pdvalencia.github.io/mixtureEM/reference/vlmr_test.md)
+now takes two
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+fits that differ by one status, one status against two included, in both
+its versions. Before, it refused every LTA. The scores of a one-status
+chain, which has no status posterior, are taken by central differences;
+every other LTA uses the analytic scores the standard errors already
+use. Fit both models with `smoothing = 0` and
+`bayes_constants = list(categorical = 0)` for a plain maximum-likelihood
+test. No existing result changes.
+
+### Two-step standard errors for a distal outcome
+
+A two-step distal outcome without covariates (`add_outcome(steps = 2)`,
+or `fit_mixture(n_steps = 2, outcome = )`) now reports the pseudo-ML
+standard errors of Bakk & Kuha (2018). Under `se = "corrected"` they
+carry step 1’s uncertainty, the class sizes included, and `"hessian"`
+and `"robust"` give step 2’s observed information and its sandwich.
+Before, these fits kept the M-step’s own standard errors, which treat
+every case’s class probabilities as known and miss both parts. **Numbers
+move**: on one simulated two-class growth set the old SEs sat 2 to 4%
+below step 2’s observed information. With weakly separated classes the
+step-1 term adds the most: the step-2-only SE was 0.63 to 1.00 of the
+corrected one. The class covariance now reaches
+[`outcome_contrasts()`](https://pdvalencia.github.io/mixtureEM/reference/outcome_contrasts.md),
+effect sizes included. Estimates do not change, and outcomes with
+covariates are unchanged.
+
+### Two-step standard errors and weighted likelihood-ratio tests on a growth step 1
+
+A two-step class-predictor model (`add_covariates(steps = 2)`) on a
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+or
+[`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
+step 1 now carries step 1’s uncertainty in its corrected standard errors
+(Bakk & Kuha, 2018), as it already did on every other measurement model.
+Before, these fits reported step 2’s observed information alone and
+warned. **Numbers move**: on simulated two-class growth data the
+uncorrected intercept SE was 0.37 to 0.96 of the corrected one, the
+slope SE 0.71 to 1.00; the lower ends are weakly separated classes.
+`se = "hessian"` still gives the step-2-only figure, unchanged.
+
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+now computes the scaling correction for growth mixtures fitted under
+sampling weights or a survey design, where it refused before, and
+[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md) now
+runs on them too, rescaling its bootstrap null by the smaller model’s
+design effect as it does for every other model. No existing result
+changes.
+
+### Fixed growth-factor variances in a growth mixture
+
+`fit_gmm(fix = )` holds chosen growth-factor variances and covariances
+at a given value in a given class, written as rows of the parameter
+table (`parameter`, `item`, `class`, `value`). Its main use is a class
+with no variation around its own trajectory beside classes that have
+some, a partially constrained growth mixture. Elements left free follow
+`psi` as before, fixed values carry no standard error, and
+`fit$growth$fix` reports them under the classes’ final numbers. No
+existing fit changes.
+
+### Two associated latent class variables in one model
+
+**New:
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)**
+fits two latent class variables at once, each measured by its own items
+and with its own number of classes, linked by a multinomial logistic
+regression of one on the other (Hagenaars, 1993). The items may be
+binary or ordinal; covariates may predict either variable, and on the
+second one each covariate acts in common or separately within each class
+of the first (`cs_effects`), which is how a moderated association is
+written. The fit reports the association in reference-class form
+([`joint_coefficients()`](https://pdvalencia.github.io/mixtureEM/reference/joint_coefficients.md),
+with standard errors), the joint class probabilities and the
+probabilities of each class of the second variable given the first. The
+parameter count, and every information criterion and likelihood-ratio
+test built on it, counts only parameters that touch the data. Not yet
+available: fewer classes on the first variable than on the second.
+
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+now accepts `forbidden_transitions` together with
+`predictors_transition` when the forbidden cells are whole destinations,
+a status nobody can move into from anywhere: the transition regression
+is fitted over the remaining statuses, the last of them the reference.
+Any other forbidden pattern is still refused, since a logistic
+regression cannot hold a single probability at exactly zero. No existing
+fit changes.
+
+`fit_joint_classes(n_steps = 2)` is the two-step estimator (Bakk & Kuha,
+2018): step 1 fits each variable’s measurement model on its own, as two
+separate latent class analyses, and step 2 holds those item parameters
+fixed while it estimates the association and the covariate effects. The
+standard errors carry step 1’s uncertainty. Along the way,
+`fit_lta(n_steps = 2)` with a per-covariate `transition_effects` no
+longer stops in step 1 with “needs `predictors_transition`”; no number
+from any fit that ran before changes.
+
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)
+takes `predictors_items`: direct covariate effects on items of either
+variable (uniform differential item functioning), one proportional-odds
+slope per item, the same in every class, given as a named list such as
+`list(a3 = data.frame(female))`. With `n_steps = 2`, step 1 regresses
+each variable on the item covariates beside the slopes, and step 2 holds
+the slopes fixed with the rest of the measurement model.
+
+Fixed: `fit_lta(n_steps = 2)` with `predictors_items` started step 2
+with the item slopes at zero and held them there, so its step-2
+estimates, standard errors and log-likelihood were those of a model
+without the slopes. Step 2 now keeps step 1’s slopes, which changes
+every number such a fit reports; `refine_from` likewise now continues a
+donor’s item slopes.
+
+Fixed: with ordinal items and a different number of items on the two
+variables,
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)
+without priors failed with “Every random start failed”. The padding’s
+unanswered item was normalised as 0/0; an item no case answers is now
+held flat in the ordinal M-step, which changes no fit that ran before.
+
+Standard errors of
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+and
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)
+with covariates are computed faster: about three times faster without
+priors, a third faster with the default priors. Every estimate and
+standard error is unchanged.
+
+`fit_joint_classes(association = "none")` fits the model with the
+association removed: the two class variables are independent given the
+covariates, which still act on both. It is the restricted model of the
+test of association, so `lr_test(fit_none, fit_free)` asks whether the
+two variables are related at all, on (K1 - 1)(K2 - 1) degrees of
+freedom, and `cs_effects = "by_ca"` against `"common"` asks whether a
+covariate moderates the association. Both forms work one-step and
+two-step; two two-step fits are compared when they share step 1, which
+they do when fitted with the same `random_state`. Without covariates the
+model is the two separate latent class analyses, and its two-step form
+is step 1 itself. The fit’s `step1` now counts its parameters without
+the padding too, so it can serve as the restricted model of a test of
+every structural parameter at once.
+
+Fixed:
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)
+with ordinal items paired, item by item, with items that have fewer
+categories gave the smaller items an empty extra category. Its
+thresholds were counted as parameters (149 instead of 133 on a 5 x 4
+model with three-category items on one side only) and, under the default
+priors, priced by the item prior. Each item now keeps its own number of
+categories. The log-likelihood without priors is unchanged; the
+parameter count, every information criterion, and the estimates under
+the default priors change for such fits.
+
+**New:
+[`derived_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/derived_estimates.md)**
+estimates functions of a fit’s parameters, each with a standard error, a
+z test and a confidence interval: a weighted sum given as a named vector
+of weights (its variance exact), or any smooth function of the named
+estimates (delta method). It takes the parameter labels of
+[`wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_test.md),
+which now also accepts a
+[`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md)
+fit, labelling its association rows `"CS#j Intercept"`,
+`"CS#j ON CA#k"`, `"CS#j ON x"` and `"CS#j ON x | CA#k"`. **New:
+[`joint_probabilities()`](https://pdvalencia.github.io/mixtureEM/reference/joint_probabilities.md)**,
+the conditional class probabilities P(cs \| ca) at given covariate
+values, with delta-method standard errors: the probabilities among men
+and among women when sex moderates the association.
+[`joint_coefficients()`](https://pdvalencia.github.io/mixtureEM/reference/joint_coefficients.md)
+keeps each row’s gradient over the packed parameters as an attribute.
+
+**New: `vlmr_test(restricted, full)`**, the Vuong-Lo-Mendell-Rubin test
+of K against K + 1 classes on two fits already in hand, growth mixtures
+from
+[`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md)
+included, with Lo, Mendell & Rubin’s (2001) adjusted statistic LR / (1 +
+1 / (df ln n)) and its p-value beside the unadjusted one. The comparison
+tables’ per-K detail (`$vlmr`) carries the adjusted statistic too; their
+columns are unchanged.
+
+**New: `skew_kurtosis_test(fit)`**, a check of whether a mixture of
+normal outcomes reproduces the skewness and kurtosis of the data
+(Muthén, 2003): each outcome’s skewness and excess kurtosis, and
+Mardia’s (1970) multivariate skewness and kurtosis of every pair of
+outcomes and of all of them, set against their distribution in data
+simulated from the fit, with two-sided p-values. Each simulated data set
+is generated from its own draw of the parameters from their estimated
+sampling distribution, so the reference distribution carries the
+uncertainty of the estimates as well as that of a new sample; holding
+the parameters fixed makes the skewness statistics’ distribution
+markedly too narrow.
+
+Changed: the robust VLMR reference distribution keeps its orientation
+when its weights sum to a negative number, which happens when the
+smaller model is badly misspecified; it was flipped, as the standard
+form still is. Such a pair’s robust mean changes sign and its p-value
+can change.
+
+Fixed: a one-class growth mixture (`fit_gmm(n_classes = 1)`, and an LCGA
+with Gaussian outcomes) skipped the Newton-type finish every larger
+model gets, and EM alone cannot carry the growth-factor covariance
+outside the positive semi-definite cone. Where the maximum lies there
+(an implied correlation above one), the fit stopped short of it: 0.145
+below on one simulated set. Such fits now reach the maximum and carry
+the usual warning about the covariance; their log-likelihood, every
+criterion built on it, and every VLMR, BLRT or likelihood-ratio test
+against them can change.
+
+`outcome_contrasts(effect_size = TRUE)` now works under the BCH
+correction for a continuous outcome without covariates: Cohen’s d for
+every contrast and the LTB-omega, with delta-method standard errors from
+the sandwich of the BCH-weighted class sizes, means and variances. As
+under ML, step 1’s estimates are treated as known in these standard
+errors. Not available under sampling weights.
+
+Fixed: under the BCH correction, the class variances of a continuous
+outcome without covariates were taken with the absolute values of the
+BCH weights, which inflates them wherever weights are negative and
+leaves them off the maximum of the weighted log-likelihood the
+correction is defined by (one simulated three-class set: .901 for a
+variance of .824). They now take the signed weights, as the outcome
+models with covariates already did. Every such fit with negative weights
+reports different variances and step-3 log-likelihood; the class means
+and their standard errors do not change.
+
+[`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md)
+no longer stops when one random start ends with a log-likelihood that is
+not a number: that start is set aside like a start that failed, the fit
+goes on with the others, and the count is reported as
+`metrics$n_nonfinite_starts`. No fit that ran before changes.
+
+### Three-step latent transition SEs with item covariates carry step 1’s uncertainty
+
+**Standard errors grow for
+`fit_lta(n_steps = 3, predictors_items = )`.** With direct covariate
+effects on the items, step 3’s standard errors treated the
+classification error as known: the first-order correction of Bakk,
+Oberski and Vermunt (2014), which every other three-step fit already
+carried, was skipped. It now covers these fits, the item slopes and the
+per-occasion status regressions of step 1 included. The estimates do not
+change. The step-3-only variance is still kept as `$se$threestep_V2`. On
+a two-occasion, four-status example with one item slope, the standard
+errors of the initial-status logits doubled and those of the transition
+logits grew by up to a third.
+
+### Multiple-group models with mixed item types reach their maximum
+
+**Estimates move slightly for multiple-group fits whose measurement
+differs by group (`group_effects = "both"` or `"measurement"`) and whose
+items are of more than one type.** Their log-prior could not be
+evaluated, so the Newton-type finish that ends every other fit was
+skipped and EM stopped on its tolerance, short of the maximum when item
+probabilities sit near 0 or 1: on a published two-group, three-class
+example the joint fit was 0.005 below the sum of the two separate group
+fits, which is the same model. It now reaches that sum to the last
+printed digit. The restarts are also ranked on the full penalised
+objective for these models now, as for every other.
+
+### Class order in multiple-group models with mixed item types
+
+**A multiple-group model whose measurement differs by group and whose
+items are of more than one type** (`group =` with
+`group_effects = "both"` or `"measurement"` and a mixed `measurement`
+list) left each group’s item parameters in the estimation order when the
+classes were sorted by size at the end of the fit, while the class
+sizes, posteriors and structural parameters were sorted. Whenever the
+sort moved a class, the printed item profiles,
+[`measurement_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_estimates.md)
+and anything recomputed from the fitted parameters belonged to the wrong
+classes. The sort now reaches every group’s sub-models. Single-type and
+group-invariant models were not affected.
+
+### Frequency weights in the two-step and BCH latent transition variances
+
+**Standard errors change for frequency-weighted fits**
+(`weight_type = "frequency"`) in three places that still treated a
+frequency weight as a sampling weight, counting each row’s score w^2
+times instead of once per counted case: the two-step sandwich
+(`n_steps = 2, se = "robust"`), the outer-product step-1 variance inside
+corrected step-3 standard errors (used for large measurement models),
+and the BCH step 3 of a latent transition model. Each now equals the
+unweighted fit on the data expanded to one row per case. Sampling
+weights and unweighted fits do not change.
+
+### The bootstrap likelihood-ratio test under frequency weights
+
+**[`blrt()`](https://pdvalencia.github.io/mixtureEM/reference/blrt.md)
+p-values change for fits with `weight_type = "frequency"`.** The
+bootstrap drew each null sample with one case per data row rather than
+one per counted case, and re-attached the frequency weights to the
+synthetic rows, so a table of patterns with counts was bootstrapped as
+if it were a small sample of weighted people. The null samples now have
+`sum(weights)` cases and are fitted unweighted, and a frequency-weighted
+table gives the same test, draw for draw, as the same data written out
+case by case. Sampling weights and survey designs are unchanged.
+
+### Clustered standard errors of growth and measurement parameters, and of BCH means
+
+**Standard errors change for fits with `cluster =` or `strata =`.** Two
+sandwiches ignored part of the survey design:
+
+- `growth_estimates(se = "robust")` and
+  `measurement_estimates(se = "robust")` summed the scores within
+  clusters but applied no finite-cluster factor and ignored strata. They
+  now use the same linearisation as every other clustered variance in
+  the package, with the factor C/(C - 1) per stratum (Binder, 1983;
+  Williams, 2000), so their clustered standard errors rise by about
+  sqrt(G / (G - 1)) for G clusters: 5.4% at 10 clusters, 2.6% at 20, 1%
+  at 50. On simulated clustered growth mixtures they now agree with the
+  linearisation estimator to within 0.3%.
+- The bias-adjusted (BCH) class means of a continuous outcome, under any
+  `se` other than `"corrected"`, treated every case as its own cluster.
+  With clusters their standard errors were far too small (a quarter to a
+  half of the clustered value with 10 to 20 clusters); they now take the
+  clustered joint sandwich that `se = "corrected"` already used, without
+  its step-1 term.
+
+Fits without `cluster` or `strata` do not change.
+
+### Covariates acting by origin for some transition regressors only
+
+`fit_lta(transition_effects =)` also takes a named vector, so one
+covariate can act on the transitions by origin status while the others
+keep one slope shared across origins,
+e.g. `c(female = "by_origin", .default = "common")`. The fit is the
+shared-slope regression with the named covariates multiplied by the
+origin indicators: the covariate’s own term is the last origin’s slope
+and `from:k x covariate` is origin k’s difference from it, which is how
+[`lta_covariate_summary()`](https://pdvalencia.github.io/mixtureEM/reference/lta_covariate_summary.md)
+prints them. A factor is named by its variable. Naming every covariate
+`"by_origin"` gives the by-origin model and naming none the common one.
+Not available with a `group` acting on the transitions; enter the group
+as a transition covariate instead. Nothing changes for existing fits.
+
+### Direct covariate effects on ordinal indicators
+
+`fit_mixture(measurement = "ordinal", predictors_items =)` now fits
+differential item functioning on ordinal items: a covariate shifts every
+cumulative logit of the item by the same amount, for people in the same
+class (a proportional-odds slope; positive means higher categories),
+either once for all classes or, with `predictors_items_by_class`, per
+class. The item thresholds stay free in every class, so with no slopes
+the model is the ordinal latent class model, and an item with two
+categories is the binary model.
+[`dif_effects()`](https://pdvalencia.github.io/mixtureEM/reference/dif_effects.md)
+reports the slopes with standard errors from the observed information of
+the one-step likelihood; the categorical prior is applied, as for binary
+items, to the category probabilities of a case whose item covariates are
+zero. Nothing changes for existing fits.
+
+### A zero-inflation probability that changes over time
+
+`fit_lcga(family = "zip", inflation_degree = 1)` lets each class’s
+probability of a structural zero rise or fall over the occasions,
+linearly on the logit scale and on the same time scores as the
+trajectory, so a share of cases that stop (or start) being at risk with
+age can be modelled rather than averaged (Nagin & Land, 1993). The
+default, `inflation_degree = 0`, is the constant probability fitted
+before. With the slope, [`print()`](https://rdrr.io/r/base/print.html)
+shows the structural-zero probability by occasion,
+[`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)
+reports the inflation intercept and slope with standard errors, and
+`blrt(from_fit =)` carries the inflation design into its replicates. A
+two-class model has nine free parameters: two rate and two inflation
+coefficients per class, and one class logit. Nothing changes for any
+existing fit.
+
+`blrt(from_fit =)` on a negative binomial growth fit with
+`dispersion = "class"` bootstrapped the model with one alpha per
+occasion instead; it now keeps the fit’s dispersion structure.
+
+### The count prior weighs events, not cases
+
+The default prior on a count item’s class rates was alpha / K
+pseudo-cases at the item’s mean, which is the item mean times alpha / K
+pseudo-events: the higher an item’s counts, the harder the prior pulled
+each class towards the item mean. It is now alpha / K pseudo-events at
+the observed rate, (alpha / K) \[log lambda - lambda / m\], whatever the
+item’s scale, the form
+[`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md)
+already used. **Default-prior estimates of every cross-sectional count
+fit change** (`measurement = "count"`, `"zip"`, `"negbin"`, and count
+items inside mixed or blocked models): rates move away from the item
+means, by little for Poisson items (on a three-class, five-item example
+the log-likelihood moved 0.11 and no rate more than 1%) and by up to a
+standard error for a small negative binomial class, where the old prior
+was strongest. Fits with `bayes_constants = list(poisson = 0)` and
+growth models do not change.
+
+### Negative binomial counts
+
+`fit_lcga(family = "negbin")` and `fit_mixture(measurement = "negbin")`
+fit counts that spread more than a Poisson allows, with the NB2 variance
+mean + alpha mean^2 (Cameron & Trivedi, 2013), so alpha = 0 is the
+Poisson. In a growth model `dispersion = "occasion"` (the default)
+estimates one alpha per occasion shared by the classes, and
+`dispersion = "class"` one per class constant over occasions;
+cross-sectionally each item has one alpha shared by the classes.
+Estimation is ECM: the class means at the current alpha, then alpha at
+the new means. The Poisson family can only absorb extra spread by adding
+classes, so on one-class overdispersed data its BIC keeps falling while
+the negative binomial’s picks one class.
+
+Alpha is reported by [`print()`](https://rdrr.io/r/base/print.html),
+[`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)
+and
+[`measurement_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_estimates.md)
+(as `overdispersion`). The class means carry the Poisson family’s prior;
+alpha has none. Nothing changes numerically for any existing family.
+
+### Zero-inflated Poisson counts
+
+`fit_lcga(family = "zip")` and `fit_mixture(measurement = "zip")` fit
+counts whose zeros have two sources: a structural zero, from a case not
+at risk of the event, and a Poisson zero, from a case at risk that had
+none (Lambert, 1992; Nagin & Land, 1993). In a growth model each class
+has its own trajectory in the at-risk rate and its own probability of a
+structural zero, constant over occasions; cross-sectionally each class
+has a rate and an inflation probability per item. Estimation is EM with
+an inner step that splits every observed zero between the two sources.
+The Poisson family can only absorb excess zeros by adding classes, so on
+one-class zero-inflated data its BIC keeps falling while the
+zero-inflated model’s picks one class.
+
+The inflation is reported by
+[`print()`](https://rdrr.io/r/base/print.html),
+[`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md)
+(as `inflation_logit`) and
+[`measurement_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/measurement_estimates.md)
+(as `inflation`, flagged in `boundary` when an item has no excess zeros
+in a class). The count part carries the Poisson family’s prior; the
+inflation has none. Nothing changes numerically for any existing family.
+
+### Numerical second derivatives on a step that does not round
+
+Where a standard error needs the curvature of a log-likelihood and no
+closed form is available, mixtureEM differences the log-likelihood
+twice. Every one of those second differences now uses a relative step of
+2e-4 instead of 1e-5. A second difference of a whole-sample
+log-likelihood loses about eps \* \|LL\| / h^2 to rounding, and \|LL\|
+grows with the sample: at 1e-5 and \|LL\| near 10,000 that was enough to
+move a standard error by up to 1.3% on a latent transition step 1 and by
+up to 2.7% in the inverse of the VLMR test’s information matrix, and to
+differ between platforms. At 2e-4 the curvature agrees with its
+extrapolated limit to about 1e-7 across binary, continuous, item-DIF and
+latent transition models from a few hundred to 50,000 cases. The latent
+transition variance code already used this step for its own second
+differences; the rest of the package now does too.
+
+What moves: the step-1 term of corrected three-step and two-step
+standard errors, the VLMR test’s statistic and p-value, the continuous
+local-dependence statistics,
+[`dif_effects()`](https://pdvalencia.github.io/mixtureEM/reference/dif_effects.md)
+standard errors, the scaling factor of
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)
+on latent transition fits, and the latent transition three-step, BCH and
+distal-outcome standard errors. On the models measured the change is
+below 3e-5 in a binary or continuous LCA standard error and up to 1.3e-3
+on a latent transition step 1; a latent transition three-step fit whose
+data are duplicated case by case, which should leave every standard
+error where it was, now does so to 2e-5 where it used to drift by 7e-3.
+No estimate or log-likelihood changes.
+
+### Transition coefficients with no finite maximum print no standard error
+
+When a latent transition model with covariates has a transition that the
+fit expects almost no case to make (a status nobody returns from, say),
+the logits that depend on that cell have no finite maximum: the EM stops
+climbing toward infinity wherever its tolerance says, and the
+information has no curvature in that direction.
+[`lta_covariate_summary()`](https://pdvalencia.github.io/mixtureEM/reference/lta_covariate_summary.md)
+used to print whatever standard error the inversion left there, which on
+simulated data ranged from 0.000 (with z in the hundreds of thousands)
+to 167. Those rows now print `NA` for the standard error, z and p, with
+a note under the table. Which rows are marked follows from the design:
+under `transition_effects = "common"` an intercept or origin contrast is
+marked only when the transitions that do occur cannot determine it, and
+the shared slopes never are; under `"by_origin"` the whole row of that
+origin is. On eight simulated two-occasion models the marked rows were
+exactly the ones with no finite maximum, a rare transition that does
+occur was left alone, and the slopes and the identified intercepts kept
+stable standard errors under both the observed information and the
+sandwich, so nothing else needed to change. No estimate, log-likelihood
+or unmarked standard error moves.
+
+### Fits from another family, shown beside a comparison
+
+- [`compare_mixtures()`](https://pdvalencia.github.io/mixtureEM/reference/compare_mixtures.md)
+  and
+  [`compare_longitudinal()`](https://pdvalencia.github.io/mixtureEM/reference/compare_longitudinal.md)
+  take `alongside`: fitted models shown in a block of their own beside
+  the comparison table, with their criteria but no ranking. A fit that
+  assumes a different within-class distribution (a normal fit beside
+  Poisson ones, say) is labelled and never ranked against the sweep,
+  because information criteria do not choose between distributions
+  reliably; that choice is made on substantive and distributional
+  grounds. Nothing changes without `alongside`, and no fitted number
+  moves.
+
 ## mixtureEM 0.6.0
 
 Growth mixture models you can report, and the post-fit tools every
@@ -2484,8 +3856,9 @@ a single-class binary-random-intercept fit’s other standard errors widen
 slightly, since they are no longer conditional on the node masses. No
 point estimate anywhere moves, and non-random-intercept fits are
 bit-identical. The robust sandwich, the MLR scaling factor,
-`vlmr_test()` and the post-EM L-BFGS refinement remain off for every
-random-intercept fit, unchanged.
+[`vlmr_test()`](https://pdvalencia.github.io/mixtureEM/reference/vlmr_test.md)
+and the post-EM L-BFGS refinement remain off for every random-intercept
+fit, unchanged.
 
 ### `fit_lta()` reports standard errors for a tied mover-stayer fit
 
@@ -2983,7 +4356,7 @@ internally. `sort_model_classes()` does not guarantee that, so on a fit
 where the reference class landed elsewhere, packing kept the wrong row
 of coefficients and discarded a real one before computing the scaled
 test’s information matrix. This only affected
-[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)/`vlmr_test()`
+[`lr_test()`](https://pdvalencia.github.io/mixtureEM/reference/lr_test.md)/[`vlmr_test()`](https://pdvalencia.github.io/mixtureEM/reference/vlmr_test.md)
 comparisons involving a
 `fit_mixture(..., group_effects = "prevalence"/"both", n_steps = 1)` fit
 under sampling weights or a survey design; unweighted comparisons and

@@ -123,7 +123,7 @@ transition_matrix(fit_lta0)
 #> from           Status 1     Status 2   Status 3
 #>   Status 1 3.382792e-01 6.493230e-01 0.01239781
 #>   Status 2 5.355704e-04 6.517031e-01 0.34776137
-#>   Status 3 1.388794e-11 1.153347e-11 1.00000000
+#>   Status 3 1.388794e-11 9.189912e-12 1.00000000
 #> 
 #> $`T2 -> T3`
 #>           to
@@ -474,8 +474,8 @@ lr_test(fit_pov_ri, fit_pov_tr)
 #> Likelihood-ratio test for nested models
 #> ---------------------------------------------------------
 #>   Restricted : LL =  -20127.6888   parameters = 41
-#>   Full       : LL =  -20106.2311   parameters = 47
-#>   -2 x diff  : 42.9153   df = 6   p = 1.212e-07
+#>   Full       : LL =  -20106.2316   parameters = 47
+#>   -2 x diff  : 42.9144   df = 6   p = 1.213e-07
 #>   The restriction is rejected: the full model fits significantly better.
 ```
 
@@ -499,37 +499,41 @@ lta_covariate_summary(fit_pov_tr)
 #> PREDICTING TRANSITIONS
 #> 
 #>   [occasion 1 -> 2]
-#>       Status      Term Estimate    SE          z      p           OR
-#>  to Status 1 Intercept  -13.761 0.170     -80.85 <1e-16        0.000
-#>  to Status 1    from:1   16.625 0.170      97.67 <1e-16 16601639.261
-#>  to Status 1    from:2   -9.556 0.000 -389415.77 <1e-16        0.000
-#>  to Status 1   poverty    0.004 0.527       0.01  0.994        1.004
-#>  to Status 2 Intercept  -13.746 0.220     -62.58 <1e-16        0.000
-#>  to Status 2    from:1   18.257 0.274      66.56 <1e-16 84927993.192
-#>  to Status 2    from:2   15.032 0.367      40.95 <1e-16  3375822.556
-#>  to Status 2   poverty   -0.650 0.525      -1.24  0.216        0.522
+#>       Status      Term Estimate    SE     z     p           OR
+#>  to Status 1 Intercept  -30.564    NA    NA    NA 0.000000e+00
+#>  to Status 1    from:1   33.432    NA    NA    NA 3.306627e+14
+#>  to Status 1    from:2    7.219    NA    NA    NA 1.364840e+03
+#>  to Status 1   poverty   -0.001 0.527  0.00 0.999 9.990000e-01
+#>  to Status 2 Intercept  -28.890    NA    NA    NA 0.000000e+00
+#>  to Status 2    from:1   33.407    NA    NA    NA 3.225714e+14
+#>  to Status 2    from:2   30.184    NA    NA    NA 1.283941e+13
+#>  to Status 2   poverty   -0.655 0.526 -1.25 0.213 5.190000e-01
 #> 
 #>   [occasion 2 -> 3]
-#>       Status      Term Estimate      SE     z        p           OR
-#>  to Status 1 Intercept   -5.112   1.104 -4.63 3.64e-06        0.006
-#>  to Status 1    from:1    7.325   1.212  6.04 1.52e-09     1517.366
-#>  to Status 1    from:2   -0.047   2.398 -0.02    0.984        0.954
-#>  to Status 1   poverty    1.869   0.453  4.13 3.64e-05        6.481
-#>  to Status 2 Intercept  -13.813 123.252 -0.11    0.911        0.000
-#>  to Status 2    from:1   17.453 123.253  0.14    0.887 37998249.289
-#>  to Status 2    from:2   16.413 123.252  0.13    0.894 13432728.407
-#>  to Status 2   poverty    0.108   0.359  0.30    0.765        1.114
+#>       Status      Term Estimate    SE     z        p           OR
+#>  to Status 1 Intercept   -5.111 1.104 -4.63 3.67e-06 6.000000e-03
+#>  to Status 1    from:1    7.323 1.213  6.04 1.55e-09 1.514444e+03
+#>  to Status 1    from:2   -0.045 2.393 -0.02    0.985 9.560000e-01
+#>  to Status 1   poverty    1.870 0.453  4.13 3.63e-05 6.485000e+00
+#>  to Status 2 Intercept  -32.920    NA    NA       NA 0.000000e+00
+#>  to Status 2    from:1   36.560    NA    NA       NA 7.546237e+15
+#>  to Status 2    from:2   35.520    NA    NA       NA 2.668479e+15
+#>  to Status 2   poverty    0.108 0.359  0.30    0.764 1.114000e+00
 #> 
 #>   [occasion 3 -> 4]
-#>       Status      Term Estimate    SE           z        p         OR
-#>  to Status 1 Intercept   -4.816 0.814       -5.91 3.34e-09      0.008
-#>  to Status 1    from:1    3.823 0.912        4.19 2.78e-05     45.729
-#>  to Status 1    from:2   -0.774 0.962       -0.80    0.421      0.461
-#>  to Status 1   poverty    0.182 0.456        0.40    0.689      1.200
-#>  to Status 2 Intercept  -15.959 0.265      -60.27  < 1e-16      0.000
-#>  to Status 2    from:1   -6.974 0.000 -1500390.36  < 1e-16      0.001
-#>  to Status 2    from:2   11.578 0.265       43.72  < 1e-16 106700.252
-#>  to Status 2   poverty    1.103 0.741        1.49    0.137      3.013
+#>       Status      Term Estimate    SE     z        p           OR
+#>  to Status 1 Intercept   -4.816 0.815 -5.91 3.37e-09 8.000000e-03
+#>  to Status 1    from:1    3.821 0.913  4.19 2.83e-05 4.563000e+01
+#>  to Status 1    from:2   -0.774 0.962 -0.81    0.421 4.610000e-01
+#>  to Status 1   poverty    0.184 0.457  0.40    0.688 1.202000e+00
+#>  to Status 2 Intercept  -36.880    NA    NA       NA 0.000000e+00
+#>  to Status 2    from:1   21.189    NA    NA       NA 1.593213e+09
+#>  to Status 2    from:2   32.509    NA    NA       NA 1.313044e+14
+#>  to Status 2   poverty    1.097 0.737  1.49    0.137 2.994000e+00
+#> 
+#> SE NA: the fit expects almost no case to make a transition this coefficient
+#> depends on, so its logit has no finite maximum and no standard error. The
+#> other coefficients' standard errors are unaffected.
 #> 
 #> PREDICTING THE RANDOM INTERCEPT (linear regression, residual variance fixed at 1)
 #> The factor's sign is fixed by making the largest loading positive;
@@ -551,12 +555,12 @@ the odds of stopping at early word reading, but its interval is wide
 enough to include no effect at all, so the data do not settle it. The
 `from:` terms are origin-status intercepts, several of them for cells
 almost nobody occupies, such as moving back from comprehension. Their
-estimates run off towards the edge of the logit scale, and their
-standard errors, either very large or printed as 0.000, mean only that
-the data carry no information about those cells. A coefficient estimated
-alongside them, such as the summer effect of poverty on reaching early
-word reading, inherits some of that instability, so read its standard
-error with care.
+estimates run off towards the edge of the logit scale, where the
+likelihood has no finite maximum, so they print no standard error: the
+data carry no information about those cells, and the note under the
+table says so. A coefficient estimated alongside them, such as the
+summer effect of poverty on reaching early word reading, inherits some
+of that instability, so read its standard error with care.
 
 The final model was fitted with standard errors, so the loadings now
 come with theirs:
@@ -565,11 +569,11 @@ come with theirs:
 
 random_intercept_loadings(fit_pov_tr)
 #>        item  loading         se        z
-#> 1   letters 3.100185 0.13852613 22.37979
-#> 2 beginning 2.440890 0.08803800 27.72542
-#> 3    ending 2.309170 0.07667911 30.11471
-#> 4     sight 3.414121 0.14932218 22.86413
-#> 5   context 3.469876 0.16449055 21.09468
+#> 1   letters 3.100603 0.13850042 22.38696
+#> 2 beginning 2.441256 0.08801736 27.73608
+#> 3    ending 2.309455 0.07666247 30.12498
+#> 4     sight 3.415089 0.14930346 22.87347
+#> 5   context 3.470466 0.16447333 21.10048
 ```
 
 [`random_intercept_scores()`](https://pdvalencia.github.io/mixtureEM/reference/random_intercept_scores.md)

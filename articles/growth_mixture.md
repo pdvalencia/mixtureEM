@@ -77,7 +77,7 @@ fit_lcga2
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 22 iterations)
+#> Converged          : TRUE (in 15 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -6245.41
 #>   Parameters     : 7
@@ -136,7 +136,7 @@ fit_gmm2
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 50 iterations)
+#> Converged          : TRUE (in 3 iterations)
 #> ---------------------------------------------------------
 #>   Log-Likelihood : -5570.91
 #>   Parameters     : 13
@@ -194,15 +194,15 @@ normal; `se = "hessian"` gives the model-based one:
 est <- growth_estimates(fit_gmm2)
 est[est$parameter %in% c("growth_mean", "growth_variance"),
     c("parameter", "item", "class", "estimate", "se")]
-#>         parameter      item class    estimate          se
-#> 1     growth_mean intercept     1  1.89764005 0.058099807
-#> 2     growth_mean intercept     2  6.01585549 0.071905850
-#> 3     growth_mean    linear     1  0.08906937 0.017518578
-#> 4     growth_mean    linear     2 -0.72402202 0.022234878
-#> 5 growth_variance intercept     1  0.76543604 0.075246580
-#> 6 growth_variance intercept     2  0.76543604 0.075246580
-#> 7 growth_variance    linear     1  0.05595402 0.007760327
-#> 8 growth_variance    linear     2  0.05595402 0.007760327
+#>         parameter      item class    estimate         se
+#> 1     growth_mean intercept     1  1.89764005 0.05809981
+#> 2     growth_mean intercept     2  6.01585549 0.07190585
+#> 3     growth_mean    linear     1  0.08906937 0.01751858
+#> 4     growth_mean    linear     2 -0.72402202 0.02223488
+#> 5 growth_variance intercept     1  0.76543604 0.07524666
+#> 6 growth_variance intercept     2  0.76543604 0.07524666
+#> 7 growth_variance    linear     1  0.05595402 0.00776034
+#> 8 growth_variance    linear     2  0.05595402 0.00776034
 ```
 
 The growth-factor variances are the same in both classes because the
@@ -253,8 +253,8 @@ results  <- summary(fit_cov)
 #>                               OR         [95% CI]         P-Value
 #> 
 #> Class 2 ON
-#>   Intercept                0.562  [    0.470,     0.673]    < .001
-#>   x_member                 1.817  [    1.536,     2.149]    < .001
+#>   Intercept                0.590  [    0.495,     0.703]    < .001
+#>   x_member                 1.696  [    1.454,     1.978]    < .001
 #> =========================================================
 ```
 
@@ -287,45 +287,45 @@ print(fit_gp)
 #> 
 #> GROWTH FACTOR INTERCEPTS
 #>         intercept linear
-#> Class 1     1.897  0.089
-#> Class 2     6.011 -0.723
+#> Class 1     1.898  0.089
+#> Class 2     6.016 -0.724
 #> 
 #> GROWTH FACTORS ON COVARIATES (held equal across classes)
 #>           x_growth
-#> intercept   -0.037
-#> linear       0.011
+#> intercept    0.021
+#> linear       0.003
 #> 
 #> GROWTH FACTOR (CO)VARIANCE (held equal across classes)
 #>           intercept linear
-#> intercept     0.766  0.010
-#> linear        0.010  0.055
+#> intercept     0.765  0.008
+#> linear        0.008  0.056
 #> 
 #> RESIDUAL VARIANCE (held equal across classes)
 #>             T1    T2    T3    T4    T5
-#> Variance 0.678 0.655 0.653 0.579 0.656
+#> Variance 0.676 0.655 0.653 0.579 0.656
 #> 
 #> FITTED TRAJECTORY (at the mean of the covariates)
 #>            T1    T2    T3    T4    T5
-#> Class 1 1.897 1.987 2.076 2.166 2.255
-#> Class 2 6.011 5.287 4.564 3.841 3.117
+#> Class 1 1.898 1.987 2.076 2.165 2.254
+#> Class 2 6.016 5.292 4.568 3.844 3.120
 #> =========================================================
 #>                   LATENT MIXTURE MODEL                   
 #> =========================================================
 #> Classes Estimated  : 2
 #> Estimation Method  : 1-step
-#> Converged          : TRUE (in 51 iterations)
+#> Converged          : TRUE (in 50 iterations)
 #> ---------------------------------------------------------
-#>   Log-Likelihood : -5570.48
+#>   Log-Likelihood : -5570.69
 #>   Parameters     : 15
-#>   AIC            : 11170.97
-#>   BIC            : 11239.23
-#>   SABIC          : 11191.61
-#>   Rel. Entropy   : 0.9110
+#>   AIC            : 11171.39
+#>   BIC            : 11239.66
+#>   SABIC          : 11192.03
+#>   Rel. Entropy   : 0.9115
 #>   Best solution  : found by 4 of 4 starts that ran to convergence (of 15 requested)
 #> ---------------------------------------------------------
 #> Class Weights (Sizes):
-#>   Class 1: 59.24%
-#>   Class 2: 40.76%
+#>   Class 1: 59.29%
+#>   Class 2: 40.71%
 #> =========================================================
 #> Type summary(model) for structural parameters or measurement_summary(model) for item parameters.
 ```
