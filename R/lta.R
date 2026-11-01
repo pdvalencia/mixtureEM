@@ -1963,6 +1963,25 @@ fit_lta <- function(indicators,
       if (run_finish) finish(list(best))
     }
   }
+  # A finish that spent its whole budget without converging was handed a point
+  # too far down a flat ridge: Newton refuses the ridge's null direction, so
+  # BHHH crawls it at a 1/256 step and ends short of the maximum long EM
+  # reaches. A two-variable model with no association stopped 0.009 short
+  # that way, with its gradient at 12.7. EM continues from the finish's point
+  # to a strict rule, as for the fixed-measurement continuation above, and
+  # the finish runs again from there. A finish that converged never comes here.
+  if (run_finish && isFALSE(best$qn_finish$converged) &&
+      isTRUE(best$qn_finish$iterations > .qn_maxit)) {
+    cont <- try(.lta_em(best, X_fit, max_iter = max(max_iter, 5000L),
+                        tol = min(tol, 1e-11), alpha = alpha), silent = TRUE)
+    if (!inherits(cont, "try-error") && is.finite(cont$loglik) &&
+        score_of(cont) >= best_score) {
+      cont$converged <- isTRUE(best$converged) || isTRUE(cont$converged)
+      cont$n_iter    <- best$n_iter + cont$n_iter
+      best <- cont; best_score <- score_of(best)
+      finish(list(best))
+    }
+  }
 
   # Back onto the full sample before anything per-case is read off the fit:
   # every posterior, the path entropy, the standard errors and the metrics

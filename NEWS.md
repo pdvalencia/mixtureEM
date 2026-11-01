@@ -1,5 +1,19 @@
 # mixtureEM (development version)
 
+## Transition models whose finish runs out of iterations are taken on by EM
+
+After EM, every latent transition model (and every model fitted through
+`fit_lta()`, such as `fit_joint_classes()`) ends with a Newton-type finish.
+Where EM stops on a nearly flat ridge, the finish can spend its whole budget
+of 500 iterations crawling along it and stop short of the maximum. Such a
+fit now goes back to EM, which runs to a strict rule from where the finish
+stopped, and is finished again from there. A two-latent-class-variable
+model with no association, fitted to 1,500 simulated cases, moved from a
+log-likelihood of -10539.167 to -10539.158, the maximum a long EM run
+reaches; its likelihood-ratio test of the association moved from 83.680 to
+83.662. Fits whose finish converged, which is nearly all of them, are
+unchanged.
+
 ## Growth mixture models of several outcomes at once
 
 `fit_gmm()` now takes several continuous outcomes measured at the same

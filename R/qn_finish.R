@@ -140,6 +140,11 @@
 .qn_newton_hessians <- 2L
 .qn_newton_keep     <- 0.1
 
+# The finish's iteration budget. A finish that spends it without converging
+# was crawling a ridge from too far off, and the LTA search hands it back to
+# EM (fit_lta()).
+.qn_maxit <- 500L
+
 # EM iterations a two-step's step 2 runs before the finish takes over. Its
 # measurement model is held fixed and it has one start, step 1's own solution,
 # so EM is only walking it into the structural maximum the finish would reach
@@ -283,7 +288,7 @@
 # caller can fall back to the EM solution.
 .qn_finish <- function(case_ll, w, par0, prior = function(p) 0,
                        scores = NULL, gtol_stop = .qn_gtol_stop,
-                       maxit = 500L, kind = NULL, fixed = integer(0),
+                       maxit = .qn_maxit, kind = NULL, fixed = integer(0),
                        prior_grad = NULL, curvature = NULL, reach = NULL) {
   analytic <- !is.null(scores)
   newton_after <- curvature$after %||% .qn_newton_after
