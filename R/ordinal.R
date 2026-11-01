@@ -413,6 +413,10 @@ n_parameters.ordinal_nan <- n_parameters.ordinal
   Fmat <- cbind(1, plogis(th + shift), 0)             # K x (Sj + 1)
   pmat <- pmax(Fmat[, seq_len(Sj), drop = FALSE] -
                  Fmat[, seq_len(Sj) + 1L, drop = FALSE], 1e-12)
+  # Which cases sit in category m + 1 and m, the same for every status, so
+  # found once rather than K times.
+  plus  <- lapply(seq_len(Sj - 1L), function(m) which(obs & (xj == (m + 1L))))
+  minus <- lapply(seq_len(Sj - 1L), function(m) which(obs & (xj == m)))
 
   for (k in seq_len(K)) {
     Fk <- Fmat[k, ]
@@ -422,10 +426,9 @@ n_parameters.ordinal_nan <- n_parameters.ordinal
     # in terms of boundary index c = m + 1 (Fk[c] is the boundary at column m).
     g <- matrix(0, n, Sj - 1L)
     for (m in seq_len(Sj - 1L)) {
-      plus  <- obs & (xj == (m + 1L))
-      minus <- obs & (xj == m)
-      if (any(plus))  g[plus, m]  <- g[plus, m]  + dF[m + 1L] / pk[m + 1L]
-      if (any(minus)) g[minus, m] <- g[minus, m] - dF[m + 1L] / pk[m]
+      pl <- plus[[m]]; mi <- minus[[m]]
+      if (length(pl)) g[pl, m] <- g[pl, m] + dF[m + 1L] / pk[m + 1L]
+      if (length(mi)) g[mi, m] <- g[mi, m] - dF[m + 1L] / pk[m]
     }
     # Chain rule to the increment scale: eta_1 (the raw first threshold) gets
     # every m's contribution; eta_u, u >= 2, gets -exp(eta_u) times the sum of

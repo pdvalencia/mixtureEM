@@ -2094,13 +2094,15 @@ fit_lta <- function(indicators,
     robust_se <- identical(standard_errors, "robust")
     best$se <- if (isTRUE(best$tau_independent) && is.null(best$tau_beta)) {
       if (n_steps == 2L) NULL
-      else .lta_shared_standard_errors(best, X, robust = robust_se, alpha = alpha)
+      else .lta_shared_standard_errors(best, X, robust = robust_se, alpha = alpha,
+                                       n_cores = n_cores)
     } else {
       se_state <- best
       if (isTRUE(best$tau_independent)) se_state$tau_regression_se <- TRUE
       .lta_standard_errors(
         se_state, X, robust = robust_se,
-        step1 = if (n_steps == 2L) step1 else NULL, alpha = alpha)
+        step1 = if (n_steps == 2L) step1 else NULL, alpha = alpha,
+        n_cores = n_cores)
     }
   }
 
@@ -2769,7 +2771,7 @@ fit_lta <- function(indicators,
 #
 # `alpha` is the fit's `smoothing`, which the curvature of the objective needs.
 .lta_standard_errors <- function(state, X, robust = FALSE, step1 = NULL,
-                                 alpha = 0) {
+                                 alpha = 0, n_cores = 1L) {
   sc <- .lta_score_matrix(state, X)
   if (is.null(sc)) return(NULL)
   S <- sc$S; blocks <- sc$blocks; conditional <- sc$conditional
@@ -2841,11 +2843,20 @@ fit_lta <- function(indicators,
   # the three-step's fixed emission before its own variance replaces this one)
   # keeps the outer-product estimator, with the survey meat when there is a
   # design. `method` says which estimator was used.
+  #
+  # A two-step fit's variance (below) replaces every block of the one formed
+  # here, so it is taken first and the curvature is formed only if it declines.
+  ts <- if (!is.null(step1) && !isTRUE(robust))
+    tryCatch(.lta_twostep_vcov(state, X, step1, alpha, n_cores),
+             error = function(e) NULL)
+  if (!is.null(ts) && ncol(S) != length(ts$idx1) + length(ts$idx2)) ts <- NULL
   robust_used <- FALSE
-  H <- if (.lta_par_packable(state))
+  H <- if (is.null(ts) && .lta_par_packable(state))
     tryCatch(.lta_penalised_hessian(state, X, alpha),
              error = function(e) NULL)
-  if (!is.null(H) && nrow(H$Ht) == ncol(S)) {
+  if (!is.null(ts)) {
+    V <- NULL; v_method <- NULL
+  } else if (!is.null(H) && nrow(H$Ht) == ncol(S)) {
     Ai <- .psd_pinv(-H$Ht)
     Ai <- (Ai + t(Ai)) / 2
     V  <- if (isTRUE(robust) || design_based)
@@ -2859,7 +2870,7 @@ fit_lta <- function(indicators,
       "Survey-linearized sandwich around the observed information"
     else if (robust_used) "Robust sandwich around the observed information"
     else "Observed information"
-  } else {
+  } else if (is.null(ts)) {
     V <- tryCatch(pinv(info), error = function(e) NULL)
     if (is.null(V)) return(NULL)
     if (design_based) V <- V %*% meat %*% V
@@ -2885,18 +2896,13 @@ fit_lta <- function(indicators,
   # choice for the same reason.
   twostep_used <- FALSE
   twostep_V2 <- NULL
-  if (!is.null(step1) && !isTRUE(robust)) {
-    ts <- tryCatch(.lta_twostep_vcov(state, X, step1, alpha),
-                   error = function(e) NULL)
-    if (!is.null(ts) && nrow(V) == length(ts$idx1) + length(ts$idx2)) {
-      Vt <- matrix(0, nrow(V), ncol(V))
-      Vt[ts$idx2, ts$idx2] <- ts$V
-      Vt[ts$idx1, ts$idx1] <- ts$S11
-      V <- Vt
-      twostep_used <- TRUE
-      twostep_V2   <- ts$V2
-      v_method     <- ts$method
-    }
+  if (!is.null(ts)) {
+    V <- matrix(0, ncol(S), ncol(S))
+    V[ts$idx2, ts$idx2] <- ts$V
+    V[ts$idx1, ts$idx1] <- ts$S11
+    twostep_used <- TRUE
+    twostep_V2   <- ts$V2
+    v_method     <- ts$method
   }
 
   # The paper's headline estimate is the RI loading with its standard error
@@ -3404,6 +3410,9 @@ fit_lta <- function(indicators,
             blk   <- matrix(0, n, K * (Sj - 1L))
             for (tt in seq_len(Tn)) {
               xj <- X[, .time_block_cols(tt, J)[j]]
+              # An occasion the item is not observed at (the joint model's
+              # padding) adds a block of zeros.
+              if (all(is.na(xj[rows]))) next
               blk[rows, ] <- blk[rows, ] +
                 .ordinal_theta_score_block(theta_j, shift, xj[rows],
                                            ri_G[[q]][[tt]][rows, , drop = FALSE],

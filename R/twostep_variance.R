@@ -442,6 +442,182 @@
   list(H22 = H22, H12 = H12)
 }
 
+# The prior's Hessian at `par`, by central differences of its closed-form
+# gradient `grad` (.lta_penalty()'s, which runs no forward-backward pass): 2p
+# evaluations where differencing the prior `lp` itself costs 2p(p + 1), 21 s
+# of the ENPOL joint model's 95 at p = 147. The gradient is used only where it
+# agrees with `lp`'s own differences at `par`; elsewhere, or where it cannot
+# be written down (NULL), `lp` is differenced as before.
+.lta_prior_hessian <- function(lp, grad, par) {
+  g0 <- tryCatch(grad(par), error = function(e) NULL)
+  ok <- length(g0) == length(par) && all(is.finite(g0))
+  if (ok) {
+    fd <- .qn_fd_grad2(lp, par)$g
+    ok <- max(abs(g0 - fd)) <= 1e-5 * (1 + max(abs(fd)))
+  }
+  if (!ok) return(.step1_fd_hessian(lp, par, .fd_hessian_step))
+  H <- vapply(seq_along(par), function(j) {
+    h <- 1e-5 * max(1, abs(par[j]))
+    e <- numeric(length(par)); e[j] <- h
+    (grad(par + e) - grad(par - e)) / (2 * h)
+  }, numeric(length(par)))
+  (H + t(H)) / 2
+}
+
+# Columns `cols` of the log-likelihood's Hessian on a packed vector `par`, by
+# central differences of its analytic gradient (the case scores summed under
+# the case weights): 2 x length(cols) score passes, where differencing the
+# log-likelihood itself costs four passes per entry. This is
+# .lta_penalised_hessian()'s construction (R/lta.R), on its step, restricted
+# to the columns a caller needs. `par` is the free vector; the packed vector
+# of `layout` is `par[src]`, so `src` also folds the score columns back onto
+# `par` where several of them share one free coordinate (the shared
+# prevalence vector of .qn_lta_reduction()), as the finish folds them.
+#
+# The passes run on one row per distinct (responses, covariates) pattern
+# (.qn_lta_pattern_rows()), unpacking straight onto it, kept only where that
+# table reproduces the full sample's log-likelihood at `par`; the scores are
+# sums over cases that merely repeat, so the derivatives are the full
+# sample's to the rounding of the sums. On the ENPOL joint models that is
+# 15,347 rows in 60,784. The columns are independent, so they are cut into
+# one batch per worker on `n_cores`; each batch carries the pattern table
+# only, and the answer is the same at every `n_cores`.
+#
+# `occasion`, for the whole Hessian only (`cols` every coordinate), names the
+# one occasion each coordinate's data comes from, 0 for a coordinate that
+# reaches more than one. Coordinates of different occasions of a fit whose
+# occasions are independent have no cross curvature, so one pass perturbs one
+# coordinate of each occasion at once and each occasion's rows of the
+# difference are that coordinate's column; a 0 coordinate gets a pass of its
+# own, and its rows in the others' columns are read off its column by
+# symmetry. The ENPOL joint models' step 1 is 83 + 64 coordinates: 83 passes
+# in place of 147 (.lta_shared_occasions()).
+#
+# NULL where the scores do not describe every coordinate (the caller then
+# differences the log-likelihood), and where a frozen fit's emission tables
+# are cached on the state, since a perturbed measurement parameter would not
+# move them.
+.lta_score_hessian_cols <- function(state, X, layout, par, cols,
+                                    src = seq_along(par), shared_ok = FALSE,
+                                    n_cores = 1L, occasion = NULL) {
+  if (!is.null(state$logB_fixed)) return(NULL)
+  base <- state; w <- state$weights_vec
+  pr <- .qn_lta_pattern_rows(state, X)
+  if (!is.null(pr)) {
+    rows_st <- pr$shrink(state)
+    full <- sum(w * .lta_ll_case_state(
+      .lta_par_unpack(par[src], state, layout, average = FALSE), X))
+    rows <- sum(pr$w * .lta_ll_case_state(
+      .lta_par_unpack(par[src], rows_st, layout, average = FALSE), pr$X))
+    if (isTRUE(abs(full - rows) <= 1e-8 * (1 + abs(full)))) {
+      base <- rows_st; X <- pr$X; w <- pr$w
+    }
+  }
+  # What each batch is sent. A fitted state carries its call, with the data
+  # inline when it came through do.call(), and the data again; neither is read
+  # by the scores, and on the ENPOL joint models they were 126 of the 129 MB
+  # a batch would otherwise carry to every worker.
+  base$call <- NULL; base$data <- NULL
+  if (is.null(.lta_score_grad(par, base, X, w, layout, src, shared_ok)))
+    return(NULL)
+  if (!identical(as.integer(cols), seq_along(par)) ||
+      length(occasion) != length(par)) occasion <- NULL
+  probes <- if (is.null(occasion)) as.list(cols) else {
+    by <- split(cols[occasion > 0L], occasion[occasion > 0L])
+    c(as.list(cols[occasion == 0L]),
+      lapply(seq_len(max(0L, lengths(by))), function(i)
+        unlist(lapply(by, function(v) if (i <= length(v)) v[i]),
+               use.names = FALSE)))
+  }
+  # The pool is sized by `n_cores`, as the fit's own search sized it, so the
+  # cached workers are reused; only the number of batches follows the passes.
+  n_b    <- max(1L, min(suppressWarnings(as.integer(n_cores)), length(probes)),
+                na.rm = TRUE)
+  batch  <- rep(seq_len(n_b), length.out = length(probes))
+  pieces <- split(probes, batch)
+  out <- .par_lapply(pieces, .lta_score_hessian_piece, n_cores = n_cores,
+                     base = base, Y = X, w = w, layout = layout, par = par,
+                     src = src, shared_ok = shared_ok)
+  if (any(vapply(out, is.null, logical(1)))) return(NULL)
+  D <- do.call(cbind, out)[, order(order(batch)), drop = FALSE]
+
+  h <- 1e-5 * pmax(1, abs(par))
+  M <- matrix(0, length(par), length(cols))
+  for (s in seq_along(probes)) for (j in probes[[s]]) {
+    rows <- if (is.null(occasion) || occasion[j] == 0L) seq_along(par) else
+      which(occasion == occasion[j])
+    M[rows, match(j, cols)] <- D[rows, s] / h[j]
+  }
+  z <- which(occasion == 0L)
+  if (length(z)) {
+    k <- which(occasion > 0L)
+    M[z, k] <- t(M[k, z, drop = FALSE])
+  }
+  M
+}
+
+# The summed scores at `par` (packed as `par[src]`, folded back by `src`), or
+# NULL where the score blocks do not describe every coordinate.
+.lta_score_grad <- function(par, base, X, w, layout, src, shared_ok) {
+  st <- .lta_par_unpack(par[src], base, layout, average = FALSE)
+  sc <- .lta_score_matrix(st, X, shared_ok = shared_ok)
+  if (is.null(sc) || ncol(sc$S) != length(src)) return(NULL)
+  as.vector(rowsum(colSums(w * sc$S), src))
+}
+
+# One worker's batch of .lta_score_hessian_cols(): for each probe (a set of
+# coordinates perturbed together, each on .lta_penalised_hessian()'s
+# relative step), half the central difference of the summed scores. The data
+# is `Y`, not `X`, which .par_lapply() would take for the list it maps over.
+.lta_score_hessian_piece <- function(probes, base, Y, w, layout, par, src,
+                                     shared_ok) {
+  D <- matrix(0, length(par), length(probes))
+  for (i in seq_along(probes)) {
+    j <- probes[[i]]
+    e <- numeric(length(par)); e[j] <- 1e-5 * pmax(1, abs(par[j]))
+    gp <- .lta_score_grad(par + e, base, Y, w, layout, src, shared_ok)
+    gm <- .lta_score_grad(par - e, base, Y, w, layout, src, shared_ok)
+    if (is.null(gp) || is.null(gm)) return(NULL)
+    D[, i] <- (gp - gm) / 2
+  }
+  D
+}
+
+# The occasion each coordinate of a transition-free fit's reduced vector
+# reads its data from, for .lta_score_hessian_cols()'s paired passes: the
+# initial-status blocks the first, the transition blocks the second, an item
+# block the one occasion the item is observed at (the joint model's items are
+# each one variable's, the other occasion padded with NA), and 0 for anything
+# else. NULL unless the occasions are independent: two of them, one class,
+# no random intercept. Item slopes on ordinal items run on the random
+# intercept's code with one node at zero and every loading fixed at zero
+# (R/lta_dif.R), which links nothing, so that one counts as none.
+.lta_shared_occasions <- function(red, X) {
+  st <- red$state
+  ri <- st$ri
+  linked <- !is.null(ri) && (NROW(ri$Dnode) != 1L || any(ri$Dnode != 0) ||
+                               any(ri$L != 0) || isTRUE(ri$loading_free))
+  if (!identical(as.integer(st$n_times), 2L) || (st$n_classes %||% 1L) != 1L ||
+      linked) return(NULL)
+  J  <- st$n_items
+  at <- lapply(seq_len(J), function(j)
+    which(vapply(1:2, function(t) any(!is.na(X[, .time_block_cols(t, J)[j]])),
+                 logical(1))))
+  g <- unlist(lapply(red$layout, function(b) {
+    o <- if (b$kind %in% c("delta", "delta_beta")) 1L
+    else if (b$kind %in% c("tau", "tau_beta")) 2L
+    else if (!is.null(b$j) && length(b$j) == 1L && length(at[[b$j]]) == 1L)
+      at[[b$j]]
+    else 0L
+    rep(o, b$len)
+  }))
+  if (length(g) != length(red$src)) return(NULL)
+  # A reduced coordinate that several packed columns share keeps an occasion
+  # only if they all agree.
+  vapply(split(g, red$src), function(v) if (all(v == v[1])) v[1] else 0L,
+         integer(1))
+}
+
 # The curvature of a transition-free fit's objective on the vector it actually
 # has. That model ties every origin row of an occasion to one prevalence
 # vector, which the ordinary packing does not describe, so it is read through
@@ -452,7 +628,8 @@
 # the prior's share, kept for a sandwich's meat. Used for the step-1 variance
 # of the joint model's two-step and for the standard errors of the joint
 # model with no association.
-.lta_shared_curvature <- function(state, X, alpha, red = .qn_lta_reduction(state)) {
+.lta_shared_curvature <- function(state, X, alpha, red = .qn_lta_reduction(state),
+                                  n_cores = 1L) {
   if (is.null(red)) return(NULL)
   layout <- red$layout
   s1 <- red$state
@@ -469,9 +646,24 @@
   lp <- function(r)
     .lta_log_prior(.lta_par_unpack(r[red$src], s1, layout, average = FALSE),
                    Xc, alpha)
+  lg <- function(r)
+    as.vector(rowsum(.lta_penalty(.lta_par_unpack(r[red$src], s1, layout,
+                                                  average = FALSE),
+                                  Xc, layout, alpha)$gradient, red$src))
   Hp <- if (.lta_prior_is_zero(s1, alpha) || is.na(lp(red$r0))) 0 else
-    .step1_fd_hessian(lp, red$r0, .fd_hessian_step)
-  V <- .psd_pinv(-(.step1_fd_hessian(ll, red$r0) + Hp))
+    .lta_prior_hessian(lp, lg, red$r0)
+  # The log-likelihood's curvature from the differenced scores, folded onto
+  # the reduced vector: 2 x length(r0) score passes in place of the
+  # log-likelihood differenced over every pair. The likelihood route stays
+  # for a fit the scores do not cover.
+  Hd <- tryCatch(.lta_score_hessian_cols(red$state, X, layout, red$r0,
+                                         seq_along(red$r0), red$src,
+                                         shared_ok = TRUE, n_cores = n_cores,
+                                         occasion = .lta_shared_occasions(red, X)),
+                 error = function(e) NULL)
+  Hd <- if (!is.null(Hd) && all(is.finite(Hd))) (Hd + t(Hd)) / 2 else
+    .step1_fd_hessian(ll, red$r0)
+  V <- .psd_pinv(-(Hd + Hp))
   list(V = (V + t(V)) / 2, Hp = Hp, red = red)
 }
 
@@ -484,8 +676,9 @@
 # onto the reduced vector, the prior's curvature taken out of the meat as in
 # .lta_standard_errors(). With a transition regression the origin-free design
 # packs as it is and .lta_standard_errors() serves the fit directly.
-.lta_shared_standard_errors <- function(state, X, robust = FALSE, alpha = 0) {
-  cv <- tryCatch(.lta_shared_curvature(state, X, alpha),
+.lta_shared_standard_errors <- function(state, X, robust = FALSE, alpha = 0,
+                                        n_cores = 1L) {
+  cv <- tryCatch(.lta_shared_curvature(state, X, alpha, n_cores = n_cores),
                  error = function(e) NULL)
   if (is.null(cv) || !all(is.finite(cv$V))) return(NULL)
   red <- cv$red
@@ -523,7 +716,7 @@
 #   label. Returning NULL rather than signalling is deliberate: a model the
 #   packing cannot describe keeps the estimator it already had, the way
 #   .lta_standard_errors()'s robust branch declines.
-.lta_twostep_vcov <- function(state, X, step1, alpha = 0) {
+.lta_twostep_vcov <- function(state, X, step1, alpha = 0, n_cores = 1L) {
   if (is.null(step1) || !inherits(step1, "lta_model")) return(NULL)
   # A transition-free step 1 (the joint model's, fit_joint_classes()) ties
   # every origin row to one prevalence vector, which the ordinary packing does
@@ -566,7 +759,8 @@
   # unless step 1 reads a covariate (item slopes, and the class regressions
   # that come with them), which makes every case its own pattern.
   if (indep) {
-    S1r <- .lta_shared_curvature(step1, as.matrix(step1$data), alpha, red)$V
+    S1r <- .lta_shared_curvature(step1, as.matrix(step1$data), alpha, red,
+                                 n_cores)$V
     j   <- red$src[idx1_s1]
     S11 <- S1r[j, j, drop = FALSE]
   } else {
@@ -579,7 +773,18 @@
     S11 <- se1$vcov[idx1_s1, idx1_s1, drop = FALSE]
   }
 
-  info <- .lta_twostep_information(state, X, state$weights_vec, layout, par,
+  # The columns along the structural coordinates of the Hessian, from the
+  # differenced scores: 2 x p2 score passes, against 4 x p1 x p2 passes of
+  # the log-likelihood for H12 alone, which ran past 80 minutes on the ENPOL
+  # joint models (n 60,784, p1 133). The likelihood route stays for a model
+  # the scores do not cover.
+  M <- tryCatch(.lta_score_hessian_cols(state, X, layout, par, idx2,
+                                        n_cores = n_cores),
+                error = function(e) NULL)
+  info <- if (!is.null(M) && all(is.finite(M))) {
+    H22 <- M[idx2, , drop = FALSE]
+    list(H22 = (H22 + t(H22)) / 2, H12 = M[idx1, , drop = FALSE])
+  } else .lta_twostep_information(state, X, state$weights_vec, layout, par,
                                   idx1, idx2)
   # Step 2 maximises the log-likelihood plus the structural prior, so its
   # information is that objective's: the prior's curvature joins H22. The
@@ -593,8 +798,13 @@
     .lta_log_prior(.lta_par_unpack(p, state, layout, average = FALSE), X,
                    alpha, marg)
   }
+  lg2 <- function(v) {
+    p <- par; p[idx2] <- v
+    .lta_penalty(.lta_par_unpack(p, state, layout, average = FALSE), X, layout,
+                 alpha)$gradient[idx2]
+  }
   Hp22 <- if (.lta_prior_is_zero(state, alpha) || is.na(lp2(par[idx2]))) 0 else
-    .step1_fd_hessian(lp2, par[idx2], .fd_hessian_step)
+    .lta_prior_hessian(lp2, lg2, par[idx2])
   V2 <- .psd_pinv(-(info$H22 + Hp22))
   V2 <- (V2 + t(V2)) / 2
   V1 <- V2 %*% t(info$H12) %*% S11 %*% info$H12 %*% V2

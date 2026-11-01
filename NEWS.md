@@ -404,6 +404,24 @@ to 5.2. Estimates agree with the previous ones to 1e-9 and standard errors
 to 2e-5, except for a coefficient already diverging to infinity (a
 transition logit beyond 30), which can stop a few hundredths further along.
 
+The standard errors of two-step joint latent class models and two-step
+latent transition models, which are computed by default, took over 80
+minutes on the 61,000-case joint model; they now take 16 to 21 seconds, and
+57 to 67 seconds with eleven continuous covariates. The curvatures they need
+are now differences of the analytic gradient along one parameter at a time
+instead of differences of the log-likelihood along every pair of
+parameters, and the prior's comes from its closed-form gradient. The
+gradient passes run on the distinct (responses, covariates) patterns and on
+`n_cores`, and where step 1 fits the two latent variables as independent
+models one pass moves a parameter of each. The observed information of the
+whole model, which the two-step variance replaces, is no longer computed
+first. The joint model with no association takes its standard errors the
+same way. The scores of ordinal items locate each response category once
+instead of once per class, which also shortens the fits: step 2 of the
+61,000-case joint model with association went from 5.3 to 4.4 seconds.
+Estimates are unchanged; standard errors agree with the previous
+computation to 1.3e-5 relative, the rounding of the numerical derivative.
+
 The expansion of categorical and ordinal items into indicator columns is
 now kept for the last several data blocks rather than the last one, so a
 latent transition model no longer rebuilds it for every occasion at every
