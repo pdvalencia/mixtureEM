@@ -75,6 +75,32 @@ To describe a different K than the BIC's choice, pass `k`:
 `report_methods(cmp, k = 3)`. The enumeration paragraph then says that the
 reported model is not the lowest-BIC one.
 
+## The class profiles, with standard errors
+
+The results section usually needs a table of the item-response probabilities
+of each class. `measurement_summary()` prints them; `measurement_estimates()`
+returns them with their standard errors, one row per item and class, ready to
+be shaped into a table:
+
+```{r estimates}
+fit <- cmp$models[[cmp$best_k]]
+est <- measurement_estimates(fit)
+prob <- est[est$parameter == "probability", ]
+tab <- tapply(sprintf("%.2f (%.2f)", prob$estimate, prob$se),
+              list(factor(prob$item, levels = unique(prob$item)), prob$class), c)
+noquote(tab[1:6, ])
+```
+
+The default standard errors are robust (sandwich) ones; `se = "hessian"`
+gives the classical inverse-information ones, and a large gap between the
+two is a sign that the model is misspecified. Two columns need care. A
+probability that has run to 0 or 1 is flagged in `boundary`, and its
+standard error is not interpretable: the message above says how many there
+are, and the note under `measurement_summary()` names them. And `z` and
+`p_value` test each parameter against zero, which is meaningful for a
+logit but almost never for an item probability, so a results table
+normally reports the estimate and its standard error only.
+
 ## A trajectory model and the GRoLTS checklist
 
 `grolts_report()` takes a growth model from `fit_gmm()` or `fit_lcga()`, or a
