@@ -647,8 +647,8 @@
                                   n_cores = 1L) {
   if (is.null(red)) return(NULL)
   s0  <- unclass(red$state)
-  skip <- c("call", "metrics", "n_params", "n_iter", "n_ca", "n_cs",
-            "n_items_ca", "n_items_cs", "joint_stacked", "joint_key",
+  skip <- c("call", "metrics", "n_params", "n_iter", "n_x", "n_y",
+            "n_items_x", "n_items_y", "joint_stacked", "joint_key",
             "data", "gamma", "ll_case")
   key <- list(state = s0[sort(setdiff(names(s0), skip))],
               layout = red$layout, r0 = red$r0, src = red$src, X = X,

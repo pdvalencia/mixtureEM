@@ -29,11 +29,11 @@
 #' transform its bounds with `plogis()`.
 #'
 #' For [`fit_joint_classes()`] the labels are those of
-#' [`joint_coefficients()`]: `"CS#j Intercept"`, `"CS#j ON CA#k"`, `"CS#j ON
-#' x"` and `"CS#j ON x | CA#k"`. A covariate `x` acting on `cs` by `ca` class
-#' has slope `"CS#j ON x"` in the last `ca` class and that plus `"CS#j ON x |
-#' CA#k"` in class k, so the association among cases with `x = 1` is
-#' `c("CS#j ON CA#k" = 1, "CS#j ON x | CA#k" = 1)`.
+#' [`joint_coefficients()`]: `"Y#j Intercept"`, `"Y#j ON X#k"`, `"Y#j ON
+#' w"` and `"Y#j ON w | X#k"`. A covariate `w` acting on `y` by `x` class
+#' has slope `"Y#j ON w"` in the last `x` class and that plus `"Y#j ON w |
+#' X#k"` in class k, so the association among cases with `w = 1` is
+#' `c("Y#j ON X#k" = 1, "Y#j ON w | X#k" = 1)`.
 #' [`joint_probabilities()`] builds the conditional class probabilities this
 #' way.
 #'
@@ -59,18 +59,18 @@
 #' set.seed(1)
 #' n  <- 800
 #' w  <- rbinom(n, 1, 0.5)
-#' ca <- sample(1:2, n, TRUE)
-#' cs <- ifelse(runif(n) < plogis(-1 + 2 * (ca == 1) + w * (ca == 1)), 1L, 2L)
-#' A  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(ca == 1, 0.85, 0.15)))
-#' S  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cs == 1, 0.85, 0.15)))
-#' fit <- fit_joint_classes(A, S, predictors_cs = data.frame(w = w),
-#'                          cs_effects = "by_ca", n_init = 5, random_state = 1)
-#' # The association among cases with w = 1, and the probability of cs class 1
-#' # for ca class 1 at w = 1.
+#' cx <- sample(1:2, n, TRUE)
+#' cy <- ifelse(runif(n) < plogis(-1 + 2 * (cx == 1) + w * (cx == 1)), 1L, 2L)
+#' A  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cx == 1, 0.85, 0.15)))
+#' S  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cy == 1, 0.85, 0.15)))
+#' fit <- fit_joint_classes(A, S, predictors_y = data.frame(w = w),
+#'                          y_effects = "by_x", n_init = 5, random_state = 1)
+#' # The association among cases with w = 1, and the probability of y class 1
+#' # for x class 1 at w = 1.
 #' derived_estimates(fit,
-#'   assoc_w1 = c("CS#1 ON CA#1" = 1, "CS#1 ON w | CA#1" = 1),
-#'   p_w1 = function(p) plogis(p[["CS#1 Intercept"]] + p[["CS#1 ON CA#1"]] +
-#'                             p[["CS#1 ON w"]] + p[["CS#1 ON w | CA#1"]]))
+#'   assoc_w1 = c("Y#1 ON X#1" = 1, "Y#1 ON w | X#1" = 1),
+#'   p_w1 = function(p) plogis(p[["Y#1 Intercept"]] + p[["Y#1 ON X#1"]] +
+#'                             p[["Y#1 ON w"]] + p[["Y#1 ON w | X#1"]]))
 #' }
 #' @export
 derived_estimates <- function(fit, ..., level = 0.95,
@@ -128,7 +128,7 @@ derived_estimates <- function(fit, ..., level = 0.95,
 #' Conditional Class Probabilities of a Two-Latent-Variable Model
 #'
 #' @description
-#' P(cs = j | ca = k) at given covariate values, from a
+#' P(y = j | x = k) at given covariate values, from a
 #' [`fit_joint_classes()`] fit, with delta-method standard errors and
 #' intervals ([`derived_estimates()`]). The fit's own `conditional` table
 #' averages over the sample's covariates; this one fixes them, which is how a
@@ -137,11 +137,11 @@ derived_estimates <- function(fit, ..., level = 0.95,
 #'
 #' @param fit A [`fit_joint_classes()`] fit.
 #' @param at A named list or vector of covariate values for the covariates on
-#'   `cs`. Covariates not named are held at 0. `NULL` (the default) holds all
+#'   `y`. Covariates not named are held at 0. `NULL` (the default) holds all
 #'   at 0.
 #' @param level Confidence level of the intervals.
 #'
-#' @return A data frame with columns `ca`, `cs`, `estimate`, `se`, `lower`,
+#' @return A data frame with columns `x`, `y`, `estimate`, `se`, `lower`,
 #'   `upper`, one row per pair of classes.
 #'
 #' @examples
@@ -149,34 +149,34 @@ derived_estimates <- function(fit, ..., level = 0.95,
 #' set.seed(1)
 #' n  <- 800
 #' w  <- rbinom(n, 1, 0.5)
-#' ca <- sample(1:2, n, TRUE)
-#' cs <- ifelse(runif(n) < plogis(-1 + 2 * (ca == 1) + w * (ca == 1)), 1L, 2L)
-#' A  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(ca == 1, 0.85, 0.15)))
-#' S  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cs == 1, 0.85, 0.15)))
-#' fit <- fit_joint_classes(A, S, predictors_cs = data.frame(w = w),
-#'                          cs_effects = "by_ca", n_init = 5, random_state = 1)
+#' cx <- sample(1:2, n, TRUE)
+#' cy <- ifelse(runif(n) < plogis(-1 + 2 * (cx == 1) + w * (cx == 1)), 1L, 2L)
+#' A  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cx == 1, 0.85, 0.15)))
+#' S  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cy == 1, 0.85, 0.15)))
+#' fit <- fit_joint_classes(A, S, predictors_y = data.frame(w = w),
+#'                          y_effects = "by_x", n_init = 5, random_state = 1)
 #' joint_probabilities(fit, at = list(w = 1))
 #' }
 #' @export
 joint_probabilities <- function(fit, at = NULL, level = 0.95) {
   stopifnot(inherits(fit, "joint_classes"))
-  K1 <- fit$n_ca; K2 <- fit$n_cs
+  K1 <- fit$n_x; K2 <- fit$n_y
   a  <- fit$association
-  covs <- setdiff(unique(a$term), c("Intercept", sprintf("CA#%d", seq_len(K1))))
+  covs <- setdiff(unique(a$term), c("Intercept", sprintf("X#%d", seq_len(K1))))
   at <- unlist(at)
   if (length(at) && (is.null(names(at)) || any(!names(at) %in% covs)))
-    stop("`at` must name covariates of `cs`: ",
+    stop("`at` must name covariates of `y`: ",
          if (length(covs)) paste(covs, collapse = ", ") else "this fit has none",
          ".", call. = FALSE)
   lab <- .joint_labels(a)
   get <- function(p, nm) if (nm %in% lab) p[[nm]] else 0
-  # The logit of cs class j (< K2) against the last, for ca class k.
+  # The logit of y class j (< K2) against the last, for x class k.
   logit <- function(p, k, j) {
-    v <- get(p, sprintf("CS#%d Intercept", j))
-    if (k < K1) v <- v + get(p, sprintf("CS#%d ON CA#%d", j, k))
+    v <- get(p, sprintf("Y#%d Intercept", j))
+    if (k < K1) v <- v + get(p, sprintf("Y#%d ON X#%d", j, k))
     for (x in names(at))
-      v <- v + at[[x]] * (get(p, sprintf("CS#%d ON %s", j, x)) +
-                          if (k < K1) get(p, sprintf("CS#%d ON %s | CA#%d", j, x, k))
+      v <- v + at[[x]] * (get(p, sprintf("Y#%d ON %s", j, x)) +
+                          if (k < K1) get(p, sprintf("Y#%d ON %s | X#%d", j, x, k))
                           else 0)
     v
   }
@@ -184,12 +184,12 @@ joint_probabilities <- function(fit, at = NULL, level = 0.95) {
     e <- exp(c(vapply(seq_len(K2 - 1L), function(i) logit(p, k, i), numeric(1)), 0))
     e[j] / sum(e)
   }
-  grid <- expand.grid(cs = seq_len(K2), ca = seq_len(K1))
+  grid <- expand.grid(y = seq_len(K2), x = seq_len(K1))
   defs <- stats::setNames(
-    lapply(seq_len(nrow(grid)), function(r) prob(grid$ca[r], grid$cs[r])),
-    sprintf("P(CS#%d | CA#%d)", grid$cs, grid$ca))
+    lapply(seq_len(nrow(grid)), function(r) prob(grid$x[r], grid$y[r])),
+    sprintf("P(Y#%d | X#%d)", grid$y, grid$x))
   d <- do.call(derived_estimates, c(list(fit), defs, list(level = level)))
-  data.frame(ca = sprintf("CA#%d", grid$ca), cs = sprintf("CS#%d", grid$cs),
+  data.frame(x = sprintf("X#%d", grid$x), y = sprintf("Y#%d", grid$y),
              estimate = d$estimate, se = d$se, lower = d$lower,
              upper = d$upper, stringsAsFactors = FALSE)
 }

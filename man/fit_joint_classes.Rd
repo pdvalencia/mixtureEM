@@ -5,15 +5,15 @@
 \title{Fit a model with two associated latent class variables}
 \usage{
 fit_joint_classes(
-  ca_items,
-  cs_items,
-  n_ca = 2,
-  n_cs = 2,
-  measurement_ca = c("binary", "ordinal"),
-  measurement_cs = c("binary", "ordinal"),
-  predictors_ca = NULL,
-  predictors_cs = NULL,
-  cs_effects = "common",
+  x_items,
+  y_items,
+  n_x = 2,
+  n_y = 2,
+  measurement_x = c("binary", "ordinal"),
+  measurement_y = c("binary", "ordinal"),
+  predictors_x = NULL,
+  predictors_y = NULL,
+  y_effects = "common",
   association = c("free", "none"),
   predictors_items = NULL,
   n_steps = 1,
@@ -28,40 +28,40 @@ fit_joint_classes(
 )
 }
 \arguments{
-\item{ca_items, cs_items}{The items measuring each latent variable, one row
+\item{x_items, y_items}{The items measuring each latent variable, one row
 per case, the same cases in the same order. Missing values are allowed.}
 
-\item{n_ca, n_cs}{Integer. Number of classes of each variable.}
+\item{n_x, n_y}{Integer. Number of classes of each variable.}
 
-\item{measurement_ca, measurement_cs}{\code{"binary"} (items coded 0/1) or
+\item{measurement_x, measurement_y}{\code{"binary"} (items coded 0/1) or
 \code{"ordinal"} (ordered categories coded from 0 or from 1). A binary and an
 ordinal side are fitted together as ordinal items, which for a two-category
 item is the same model.}
 
-\item{predictors_ca}{A data frame of covariates predicting \code{ca} class
+\item{predictors_x}{A data frame of covariates predicting \code{x} class
 membership, or \code{NULL}.}
 
-\item{predictors_cs}{A data frame of covariates predicting \code{cs} class
+\item{predictors_y}{A data frame of covariates predicting \code{y} class
 membership, or \code{NULL}.}
 
-\item{cs_effects}{How each covariate in \code{predictors_cs} acts: \code{"common"}
-(one slope per \code{cs} class, the default), \code{"by_ca"} (a slope per \code{ca}
+\item{y_effects}{How each covariate in \code{predictors_y} acts: \code{"common"}
+(one slope per \code{y} class, the default), \code{"by_x"} (a slope per \code{x}
 class for every covariate), or a named vector such as
-\code{c(female = "by_ca")}, the unnamed covariates acting in common.}
+\code{c(female = "by_x")}, the unnamed covariates acting in common.}
 
 \item{association}{\code{"free"} (the default) estimates the association;
 \code{"none"} holds the two variables independent given the covariates, so
-\code{cs_effects} cannot name \code{"by_ca"}.}
+\code{y_effects} cannot name \code{"by_x"}.}
 
 \item{predictors_items}{Direct effects of covariates on items (uniform
 differential item functioning): a named list, item name = a data frame of
 the covariates acting on that item, e.g. \code{list(a3 = data.frame(female))}.
 Each slope is one proportional-odds shift of the item's response, the same
 in every class; binary items take it on the logit of the second category.
-Items are named by the column names of \code{ca_items} and \code{cs_items}, which
+Items are named by the column names of \code{x_items} and \code{y_items}, which
 must then be unique across the two. Covariate patterns are limited as in
 \code{\link[=fit_lta]{fit_lta()}}. A DIF covariate should normally also predict the classes
-(\code{predictors_ca}, \code{predictors_cs}); with \code{n_steps = 2} step 1 does this
+(\code{predictors_x}, \code{predictors_y}); with \code{n_steps = 2} step 1 does this
 itself.}
 
 \item{n_steps}{\code{1} (the default) fits everything at once. \code{2} is the
@@ -86,7 +86,7 @@ continued as one model from their solution; arguments passed in \code{...}
 sequence of structural models shares one measurement model and fits it
 once: either a previous two-step fit of the same items with the same
 numbers of classes and item slopes, whose step 1 is reused as it stands,
-or \code{list(ca = , cs = )}, the two latent class analyses as
+or \code{list(x = , y = )}, the two latent class analyses as
 \code{\link[=fit_mixture]{fit_mixture()}} fits (classes on the item-slope covariates, with the
 same item slopes), from which step 1 is continued. \code{NULL} (the default)
 fits step 1.}
@@ -97,34 +97,34 @@ fits step 1.}
 }
 \value{
 An object of class \code{joint_classes} (inheriting from \code{lta_model}, so
-\code{\link[=lr_test]{lr_test()}} and the information criteria apply), with \code{n_ca}, \code{n_cs},
-\code{association} (from \code{\link[=joint_coefficients]{joint_coefficients()}}), \code{joint} (the \verb{n_ca x n_cs}
-joint class probabilities) and \code{conditional} (P(cs | ca), rows summing to
+\code{\link[=lr_test]{lr_test()}} and the information criteria apply), with \code{n_x}, \code{n_y},
+\code{association} (from \code{\link[=joint_coefficients]{joint_coefficients()}}), \code{joint} (the \verb{n_x x n_y}
+joint class probabilities) and \code{conditional} (P(y | x), rows summing to
 one).
 }
 \description{
 Fits two latent class variables at once, each measured by its own items:
-\code{ca} with \code{n_ca} classes and \code{cs} with \code{n_cs} classes, linked by a
-multinomial logistic regression of \code{cs} on \code{ca} (Hagenaars, 1993). The
+\code{x} with \code{n_x} classes and \code{y} with \code{n_y} classes, linked by a
+multinomial logistic regression of \code{y} on \code{x} (Hagenaars, 1993). The
 association is reported against the last class of each variable: the
-intercept of \code{cs} class j is its log-odds against the last \code{cs} class among
-members of the last \code{ca} class, and the coefficient of \code{ca} class k is how
-much membership in \code{ca} class k changes that log-odds. The joint class
-probabilities and the probabilities of each \code{cs} class given each \code{ca}
+intercept of \code{y} class j is its log-odds against the last \code{y} class among
+members of the last \code{x} class, and the coefficient of \code{x} class k is how
+much membership in \code{x} class k changes that log-odds. The joint class
+probabilities and the probabilities of each \code{y} class given each \code{x}
 class come with it.
 }
 \details{
-Covariates can predict either variable. On \code{cs} each covariate acts in
-common across the \code{ca} classes or separately within each, set per
-covariate by \code{cs_effects}; the second form is a covariate whose effect on
-\code{cs} is moderated by \code{ca}.
+Covariates can predict either variable. On \code{y} each covariate acts in
+common across the \code{x} classes or separately within each, set per
+covariate by \code{y_effects}; the second form is a covariate whose effect on
+\code{y} is moderated by \code{x}.
 
 \code{association = "none"} fits the same model with the association removed:
 the two variables are independent given the covariates. It is the
 restricted model of the test of association, so
 \code{lr_test(fit_none, fit_free)} asks whether the two class variables are
-related at all, on \eqn{(K_{ca} - 1)(K_{cs} - 1)} degrees of freedom; a
-covariate acting on \code{cs} by \code{ca} class against in common is the next test
+related at all, on \eqn{(K_{x} - 1)(K_{y} - 1)} degrees of freedom; a
+covariate acting on \code{y} by \code{x} class against in common is the next test
 in the same sequence. Without covariates the model is the two separate
 latent class analyses.
 }
@@ -132,11 +132,11 @@ latent class analyses.
 \donttest{
 set.seed(1)
 n  <- 600
-ca <- sample(1:2, n, TRUE)
-cs <- ifelse(runif(n) < ifelse(ca == 1, 0.8, 0.2), 1L, 2L)
-A  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(ca == 1, 0.85, 0.15)))
-S  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cs == 1, 0.85, 0.15)))
-fit <- fit_joint_classes(A, S, n_ca = 2, n_cs = 2, n_init = 5,
+cx <- sample(1:2, n, TRUE)
+cy <- ifelse(runif(n) < ifelse(cx == 1, 0.8, 0.2), 1L, 2L)
+A  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cx == 1, 0.85, 0.15)))
+S  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cy == 1, 0.85, 0.15)))
+fit <- fit_joint_classes(A, S, n_x = 2, n_y = 2, n_init = 5,
                          random_state = 1)
 fit
 }

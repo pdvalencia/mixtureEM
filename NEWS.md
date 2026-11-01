@@ -1,3 +1,21 @@
+# mixtureEM 0.7.1
+
+## `fit_joint_classes()` names its latent variables `x` and `y`
+
+**This changes the interface released in 0.7.0, with no aliases.** The two
+latent class variables of `fit_joint_classes()` were called `ca` and `cs`,
+names carried over from one analysis rather than chosen for the function.
+They are now `x` and `y`, the direction of the regression the model
+estimates: `y` on `x`. Every argument follows (`x_items`, `y_items`, `n_x`,
+`n_y`, `measurement_x`, `measurement_y`, `predictors_x`, `predictors_y`,
+`y_effects`, with `"by_x"` for a covariate acting by `x` class), and so does
+everything the fit reports: classes print as `X#k` and `Y#k`, coefficients
+as `"Y#j ON X#k"` and `"Y#j ON w | X#k"` (the names `derived_estimates()`
+and `wald_test()` read), `joint_probabilities()` returns columns `x` and
+`y`, and the fit's fields are `n_x`, `n_y`, `n_items_x` and `n_items_y`. A
+`step1 =` given as a list names its two analyses `x` and `y`. Nothing is
+estimated differently.
+
 # mixtureEM 0.7.0
 
 Count trajectories, two latent class variables in one model, and the

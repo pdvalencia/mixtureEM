@@ -9,17 +9,17 @@
 
 sim_joint <- function(n, K1, K2, Ja, Js, seed) {
   set.seed(seed)
-  ca <- sample(seq_len(K1), n, TRUE)
-  cs <- vapply(ca, function(a) sample(seq_len(K2), 1, prob = c(4, rep(1, K2 - 1))[
+  x <- sample(seq_len(K1), n, TRUE)
+  y <- vapply(x, function(a) sample(seq_len(K2), 1, prob = c(4, rep(1, K2 - 1))[
     (seq_len(K2) - a) %% K2 + 1]), integer(1))
-  A <- sapply(seq_len(Ja), function(j) rbinom(n, 1, c(0.85, 0.15, 0.5)[ca]))
-  S <- sapply(seq_len(Js), function(j) rbinom(n, 1, c(0.85, 0.15, 0.5)[cs]))
+  A <- sapply(seq_len(Ja), function(j) rbinom(n, 1, c(0.85, 0.15, 0.5)[x]))
+  S <- sapply(seq_len(Js), function(j) rbinom(n, 1, c(0.85, 0.15, 0.5)[y]))
   list(A = A, S = S)
 }
 
 test_that("unequal classes and items: same likelihood as the padded fit, padding not counted", {
   d <- sim_joint(500, 3, 2, 5, 4, seed = 21)
-  f <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2, n_init = 5,
+  f <- fit_joint_classes(d$A, d$S, n_x = 3, n_y = 2, n_init = 5,
                          random_state = 2, smoothing = 0,
                          bayes_constants = list(categorical = 0))
   X <- cbind(d$A, d$S, NA)
@@ -29,8 +29,8 @@ test_that("unequal classes and items: same likelihood as the padded fit, padding
                n_init = 5, random_state = 2, smoothing = 0,
                bayes_constants = list(categorical = 0), standard_errors = FALSE)
   expect_equal(f$metrics$ll, g$metrics$ll, tolerance = 1e-6)
-  # (3 - 1) ca + 3 x (2 - 1) association + 3 x 5 + 2 x 4 items = 28; the
-  # padded fit also counts the padded item (3) and the padded cs class (4).
+  # (3 - 1) x + 3 x (2 - 1) association + 3 x 5 + 2 x 4 items = 28; the
+  # padded fit also counts the padded item (3) and the padded y class (4).
   expect_equal(f$n_params, 28)
   expect_equal(g$n_params - f$n_params, 7)
   expect_equal(f$metrics$bic, -2 * f$metrics$ll + log(500) * 28)
@@ -41,41 +41,41 @@ test_that("unequal classes and items: same likelihood as the padded fit, padding
 
 test_that("the coefficients are the reference-class contrasts of the fitted table", {
   d <- sim_joint(500, 3, 3, 4, 4, seed = 22)
-  f <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 3, n_init = 5,
+  f <- fit_joint_classes(d$A, d$S, n_x = 3, n_y = 3, n_init = 5,
                          random_state = 3)
   a  <- f$association
   lt <- log(f$conditional)
   lo <- function(k, j) lt[k, j] - lt[k, 3]
   expect_equal(nrow(a), 6)
-  expect_equal(a$estimate[a$cs == "CS#2" & a$term == "Intercept"], lo(3, 2),
+  expect_equal(a$estimate[a$y == "Y#2" & a$term == "Intercept"], lo(3, 2),
                tolerance = 1e-8)
-  expect_equal(a$estimate[a$cs == "CS#1" & a$term == "CA#2"],
+  expect_equal(a$estimate[a$y == "Y#1" & a$term == "X#2"],
                lo(2, 1) - lo(3, 1), tolerance = 1e-8)
   expect_true(all(is.finite(a$se) & a$se > 0))
-  expect_output(print(f), "P\\(cs \\| ca\\)")
+  expect_output(print(f), "P\\(y \\| x\\)")
 })
 
-test_that("cs_effects names covariates and is checked", {
+test_that("y_effects names covariates and is checked", {
   d <- sim_joint(300, 2, 2, 4, 4, seed = 23)
   z <- data.frame(w = rnorm(300), x = rnorm(300))
-  f <- fit_joint_classes(d$A, d$S, n_ca = 2, n_cs = 2, predictors_cs = z,
-                         cs_effects = c(w = "by_ca"), n_init = 3,
+  f <- fit_joint_classes(d$A, d$S, n_x = 2, n_y = 2, predictors_y = z,
+                         y_effects = c(w = "by_x"), n_init = 3,
                          random_state = 4)
   a <- f$association
-  expect_setequal(a$term, c("Intercept", "CA#1", "w", "x"))
-  expect_equal(sum(a$term == "w"), 2)          # base and the CA#1 difference
-  expect_error(fit_joint_classes(d$A, d$S, predictors_cs = z,
-                                 cs_effects = c(v = "by_ca")), "not in")
+  expect_setequal(a$term, c("Intercept", "X#1", "w", "x"))
+  expect_equal(sum(a$term == "w"), 2)          # base and the X#1 difference
+  expect_error(fit_joint_classes(d$A, d$S, predictors_y = z,
+                                 y_effects = c(v = "by_x")), "not in")
 })
 
-test_that("a smaller ca: without covariates, the same model as the swap", {
+test_that("a smaller x: without covariates, the same model as the swap", {
   d <- sim_joint(500, 2, 3, 4, 5, seed = 25)
   args <- list(n_init = 5, random_state = 2, smoothing = 0,
                bayes_constants = list(categorical = 0), standard_errors = FALSE)
-  f <- do.call(fit_joint_classes, c(list(d$A, d$S, n_ca = 2, n_cs = 3), args))
-  g <- do.call(fit_joint_classes, c(list(d$S, d$A, n_ca = 3, n_cs = 2), args))
+  f <- do.call(fit_joint_classes, c(list(d$A, d$S, n_x = 2, n_y = 3), args))
+  g <- do.call(fit_joint_classes, c(list(d$S, d$A, n_x = 3, n_y = 2), args))
   expect_lt(abs(f$metrics$ll - g$metrics$ll), 1e-4)
-  # (2 - 1) ca + 2 x (3 - 1) association + 2 x 4 + 3 x 5 items = 28, and the
+  # (2 - 1) x + 2 x (3 - 1) association + 2 x 4 + 3 x 5 items = 28, and the
   # swap counts the same model the other way round.
   expect_equal(f$n_params, 28)
   expect_equal(g$n_params, 28)
@@ -85,14 +85,14 @@ test_that("a smaller ca: without covariates, the same model as the swap", {
                tolerance = 1e-3)
 })
 
-test_that("a smaller ca with covariates on both: the padded class is no category", {
+test_that("a smaller x with covariates on both: the padded class is no category", {
   d <- sim_joint(400, 2, 3, 4, 5, seed = 26)
   z <- data.frame(w = rbinom(400, 1, 0.5))
-  f <- fit_joint_classes(d$A, d$S, n_ca = 2, n_cs = 3, predictors_ca = z,
-                         predictors_cs = z, cs_effects = c(w = "by_ca"),
+  f <- fit_joint_classes(d$A, d$S, n_x = 2, n_y = 3, predictors_x = z,
+                         predictors_y = z, y_effects = c(w = "by_x"),
                          n_init = 3, random_state = 5)
-  # ca logit on [1, w] = 2; items 2 x 4 + 3 x 5 = 23; two cs logits on
-  # [1, CA#1, w, w x CA#1] = 8. 33 in all.
+  # x logit on [1, w] = 2; items 2 x 4 + 3 x 5 = 23; two y logits on
+  # [1, X#1, w, w x X#1] = 8. 33 in all.
   expect_equal(f$n_params, 33)
   expect_equal(dim(f$delta_beta), c(2L, 2L))
   expect_equal(dim(f$tau_beta[[1]]), c(3L, 4L))
@@ -103,19 +103,19 @@ test_that("a smaller ca with covariates on both: the padded class is no category
   expect_true(all(is.finite(a$se) & a$se > 0))
 })
 
-test_that("covariates on a smaller cs: the padded class has no category", {
+test_that("covariates on a smaller y: the padded class has no category", {
   d <- sim_joint(400, 3, 2, 5, 4, seed = 24)
   z <- data.frame(w = rbinom(400, 1, 0.5))
-  f <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2, predictors_cs = z,
+  f <- fit_joint_classes(d$A, d$S, n_x = 3, n_y = 2, predictors_y = z,
                          n_init = 3, random_state = 5)
-  # (3 - 1) ca + 3 x 5 + 2 x 4 items + one cs logit on [1, 2 CA, w] = 29.
+  # (3 - 1) x + 3 x 5 + 2 x 4 items + one y logit on [1, 2 X, w] = 29.
   expect_equal(f$n_params, 29)
   expect_equal(dim(f$tau_beta[[1]]), c(2L, 4L))
   lt <- .lta_log_tau(f)[[1]]
   expect_true(all(vapply(lt, function(M) all(exp(M[, 3]) < 1e-290), TRUE)))
   expect_equal(unname(rowSums(f$conditional)), rep(1, 3))
   a <- f$association
-  expect_equal(a$term, c("Intercept", "CA#1", "CA#2", "w"))
+  expect_equal(a$term, c("Intercept", "X#1", "X#2", "w"))
   expect_true(all(is.finite(a$se) & a$se > 0))
   # a forbidden move that is not a whole destination still has no logit form
   forb <- matrix(FALSE, 3, 3); forb[1, 3] <- TRUE
@@ -130,8 +130,8 @@ test_that("ordinal items with unequal item counts: the padded item stays finite"
   d <- sim_joint(400, 3, 2, 5, 4, seed = 25)
   d$A[, 1:2] <- d$A[, 1:2] + rbinom(400 * 2, 1, 0.3)     # three categories
   d$S[, 1:2] <- d$S[, 1:2] + rbinom(400 * 2, 1, 0.3)     # paired alike
-  f <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
-                         measurement_ca = "ordinal", measurement_cs = "ordinal",
+  f <- fit_joint_classes(d$A, d$S, n_x = 3, n_y = 2,
+                         measurement_x = "ordinal", measurement_y = "ordinal",
                          n_init = 2, random_state = 6, smoothing = 0,
                          bayes_constants = list(categorical = 0),
                          standard_errors = FALSE)
@@ -143,8 +143,8 @@ test_that("two-step: step 1 is the two separate LCAs, step 2 keeps their items",
   d <- sim_joint(500, 3, 2, 5, 4, seed = 25)
   z <- data.frame(w = rbinom(500, 1, 0.5))
   zero <- list(categorical = 0)
-  f <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2, n_steps = 2,
-                         predictors_cs = z, cs_effects = c(w = "by_ca"),
+  f <- fit_joint_classes(d$A, d$S, n_x = 3, n_y = 2, n_steps = 2,
+                         predictors_y = z, y_effects = c(w = "by_x"),
                          n_init = 5, random_state = 6, smoothing = 0,
                          bayes_constants = zero)
   # With no association the joint likelihood factorises, so step 1's is the
@@ -175,8 +175,8 @@ test_that("item slopes: step 1 is the two separate LCAs with their DIF, step 2 k
   px <- data.frame(x = x)
   zero <- list(categorical = 0)
   pi <- list(a2 = px, s3 = px)
-  f <- fit_joint_classes(d$A, d$S, n_steps = 2, predictors_ca = px,
-                         predictors_cs = px, predictors_items = pi,
+  f <- fit_joint_classes(d$A, d$S, n_steps = 2, predictors_x = px,
+                         predictors_y = px, predictors_items = pi,
                          n_init = 5, random_state = 3, smoothing = 0,
                          bayes_constants = zero)
   # Step 1 regresses each variable on x beside the item slopes, and without
@@ -197,10 +197,10 @@ test_that("item slopes: step 1 is the two separate LCAs with their DIF, step 2 k
   expect_true(all(diag(f$se$vcov)[idx2] >= diag(f$se$twostep_V2) - 1e-12))
 
   # One step: two slopes beyond the model without them.
-  g1 <- fit_joint_classes(d$A, d$S, predictors_ca = px, predictors_cs = px,
+  g1 <- fit_joint_classes(d$A, d$S, predictors_x = px, predictors_y = px,
                           predictors_items = pi, n_init = 5, random_state = 3,
                           smoothing = 0, bayes_constants = zero)
-  g0 <- fit_joint_classes(d$A, d$S, predictors_ca = px, predictors_cs = px,
+  g0 <- fit_joint_classes(d$A, d$S, predictors_x = px, predictors_y = px,
                           n_init = 5, random_state = 3, smoothing = 0,
                           bayes_constants = zero, standard_errors = FALSE)
   expect_equal(g1$n_params, g0$n_params + 2)
@@ -212,28 +212,28 @@ test_that("item slopes: step 1 is the two separate LCAs with their DIF, step 2 k
 })
 
 test_that("a binary item paired with a three-category one: no empty category", {
-  # Paired by position, the binary `cs` items would inherit the third
-  # category of the `ca` items beside them; the stacked layout gives each
+  # Paired by position, the binary `y` items would inherit the third
+  # category of the `x` items beside them; the stacked layout gives each
   # item its own.
   d <- sim_joint(400, 3, 2, 5, 4, seed = 30)
   d$A[, 1:2] <- d$A[, 1:2] + rbinom(400 * 2, 1, 0.3)
-  f <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
-                         measurement_ca = "ordinal", measurement_cs = "binary",
+  f <- fit_joint_classes(d$A, d$S, n_x = 3, n_y = 2,
+                         measurement_x = "ordinal", measurement_y = "binary",
                          n_init = 2, random_state = 7, smoothing = 0,
                          bayes_constants = list(categorical = 0),
                          standard_errors = FALSE)
   expect_true(f$joint_stacked)
-  # (3 - 1) ca + 3 x (2 - 1) association + 3 x (2 x 2 + 3) + 2 x 4 items.
+  # (3 - 1) x + 3 x (2 - 1) association + 3 x (2 x 2 + 3) + 2 x 4 items.
   expect_equal(f$n_params, 34)
 })
 
 test_that("no association: the two separate LCAs, tested on (K1 - 1)(K2 - 1) df", {
   d <- sim_joint(500, 3, 2, 5, 4, seed = 29)
   zero <- list(categorical = 0)
-  f0 <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2, association = "none",
+  f0 <- fit_joint_classes(d$A, d$S, n_x = 3, n_y = 2, association = "none",
                           n_init = 5, random_state = 8, smoothing = 0,
                           bayes_constants = zero)
-  f1 <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2, n_init = 5,
+  f1 <- fit_joint_classes(d$A, d$S, n_x = 3, n_y = 2, n_init = 5,
                           random_state = 8, smoothing = 0,
                           bayes_constants = zero)
   la <- fit_mixture(d$A, n_classes = 3, measurement = "binary", n_init = 5,
@@ -241,12 +241,12 @@ test_that("no association: the two separate LCAs, tested on (K1 - 1)(K2 - 1) df"
   ls <- fit_mixture(d$S, n_classes = 2, measurement = "binary", n_init = 5,
                     random_state = 8, smoothing = 0, bayes_constants = zero)
   expect_equal(f0$metrics$ll, la$metrics$ll + ls$metrics$ll, tolerance = 1e-5)
-  # (3 - 1) ca + (2 - 1) cs + 3 x 5 + 2 x 4 items.
+  # (3 - 1) x + (2 - 1) y + 3 x 5 + 2 x 4 items.
   expect_equal(f0$n_params, 26)
   lt <- lr_test(f0, f1)
   expect_equal(lt$df, 2)
   expect_equal(lt$statistic, 2 * (f1$metrics$ll - f0$metrics$ll))
-  # The cs share is one logit, its SE the observed information's.
+  # The y share is one logit, its SE the observed information's.
   expect_equal(f0$association$term, "Intercept")
   expect_equal(f0$association$estimate,
                log(f0$conditional[1, 1] / f0$conditional[1, 2]), tolerance = 1e-8)
@@ -254,8 +254,8 @@ test_that("no association: the two separate LCAs, tested on (K1 - 1)(K2 - 1) df"
   expect_equal(unname(f0$conditional[1, ]), unname(f0$conditional[3, ]))
   expect_output(print(f0), "No association")
   z <- data.frame(w = rbinom(500, 1, 0.5))
-  expect_error(fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
-                                 predictors_cs = z, cs_effects = "by_ca",
+  expect_error(fit_joint_classes(d$A, d$S, n_x = 3, n_y = 2,
+                                 predictors_y = z, y_effects = "by_x",
                                  association = "none"),
                "needs the association")
 })
@@ -264,12 +264,12 @@ test_that("no association, two-step: tested against the association on one step 
   d <- sim_joint(500, 3, 2, 5, 4, seed = 31)
   z <- data.frame(w = rbinom(500, 1, 0.5))
   zero <- list(categorical = 0)
-  fit <- function(...) fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
+  fit <- function(...) fit_joint_classes(d$A, d$S, n_x = 3, n_y = 2,
                                          n_steps = 2, n_init = 5,
                                          random_state = 9, smoothing = 0,
                                          bayes_constants = zero, ...)
-  f1 <- fit(predictors_cs = z)
-  f0 <- fit(predictors_cs = z, association = "none")
+  f1 <- fit(predictors_y = z)
+  f0 <- fit(predictors_y = z, association = "none")
   expect_identical(f0$mm$models, f1$mm$models)
   expect_true(isTRUE(f0$se$twostep))
   expect_setequal(f0$association$term, c("Intercept", "w"))
@@ -287,11 +287,11 @@ test_that("two-step: a step 1 handed over is reused, or continued from the two L
   d <- sim_joint(500, 3, 2, 5, 4, seed = 33)
   z <- data.frame(w = rbinom(500, 1, 0.5))
   zero <- list(categorical = 0)
-  fit <- function(...) fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
+  fit <- function(...) fit_joint_classes(d$A, d$S, n_x = 3, n_y = 2,
                                          n_steps = 2, n_init = 3,
                                          random_state = 4, smoothing = 0,
                                          bayes_constants = zero, ...)
-  f1 <- fit(predictors_cs = z)
+  f1 <- fit(predictors_y = z)
   # Step 1 searched as the two LCAs is still the joint step-1 model at their
   # solution, and an EM run from it moves nothing.
   la <- fit_mixture(d$A, n_classes = 3, measurement = "binary", n_init = 3,
@@ -305,8 +305,8 @@ test_that("two-step: a step 1 handed over is reused, or continued from the two L
   expect_lte(f1$step1$n_iter, 5)
 
   # A previous fit's step 1, reused: the same fit as one searching its own.
-  f2  <- fit(predictors_cs = z, cs_effects = c(w = "by_ca"))
-  f2r <- fit(predictors_cs = z, cs_effects = c(w = "by_ca"), step1 = f1)
+  f2  <- fit(predictors_y = z, y_effects = c(w = "by_x"))
+  f2r <- fit(predictors_y = z, y_effects = c(w = "by_x"), step1 = f1)
   expect_identical(f2r$step1$mm$models, f2$step1$mm$models)
   expect_equal(f2r$metrics$ll, f2$metrics$ll, tolerance = 1e-10)
   expect_equal(f2r$n_params, f2$n_params)
@@ -314,16 +314,16 @@ test_that("two-step: a step 1 handed over is reused, or continued from the two L
   expect_equal(lr_test(f1, f2r)$df, lr_test(f1, f2)$df)
 
   # The two LCAs, handed over.
-  f3 <- fit(predictors_cs = z, step1 = list(ca = la, cs = ls))
+  f3 <- fit(predictors_y = z, step1 = list(x = la, y = ls))
   expect_equal(f3$metrics$ll, f1$metrics$ll, tolerance = 1e-6)
   # The redirected no-association fit is step 1 itself.
   g0 <- fit(association = "none", step1 = f1)
   expect_equal(g0$metrics$ll, f1$step1$metrics$ll, tolerance = 1e-6)
 
-  expect_error(fit(predictors_cs = z, step1 = list(ca = ls, cs = la)), "n_ca")
-  expect_error(fit_joint_classes(d$A[, -1], d$S, n_ca = 3, n_cs = 2,
+  expect_error(fit(predictors_y = z, step1 = list(x = ls, y = la)), "n_x")
+  expect_error(fit_joint_classes(d$A[, -1], d$S, n_x = 3, n_y = 2,
                                  n_steps = 2, step1 = f1), "other items")
-  expect_error(fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2, step1 = f1),
+  expect_error(fit_joint_classes(d$A, d$S, n_x = 3, n_y = 2, step1 = f1),
                "n_steps = 2")
 })
 
@@ -337,18 +337,18 @@ test_that("two-step SEs: step 1's curvature is kept for the next model on that s
     runs <<- runs + 1L
     real(...)
   })
-  fit <- function(...) fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
+  fit <- function(...) fit_joint_classes(d$A, d$S, n_x = 3, n_y = 2,
                                          n_steps = 2, n_init = 3,
                                          random_state = 4, n_cores = 1, ...)
   rm(list = ls(cache), envir = cache)
-  f1 <- fit(predictors_cs = z)
+  f1 <- fit(predictors_y = z)
   expect_equal(runs, 1L)
   # A second structural model on the same step 1 reads the kept curvature,
   # and its variance is the one a cold call computes.
-  f2 <- fit(predictors_cs = z, cs_effects = c(w = "by_ca"), step1 = f1)
+  f2 <- fit(predictors_y = z, y_effects = c(w = "by_x"), step1 = f1)
   expect_equal(runs, 1L)
   rm(list = ls(cache), envir = cache)
-  f2c <- fit(predictors_cs = z, cs_effects = c(w = "by_ca"), step1 = f1)
+  f2c <- fit(predictors_y = z, y_effects = c(w = "by_x"), step1 = f1)
   expect_equal(runs, 2L)
   expect_identical(f2$se$vcov, f2c$se$vcov)
   # Other smoothing is another step-1 objective, never the kept curvature.
@@ -361,8 +361,8 @@ test_that("two-step SEs: step 1's curvature is kept for the next model on that s
 })
 
 test_that("the default prior is spread over each variable's own classes, never the padding", {
-  # Both directions: a smaller `cs` (padded destination) with fewer `cs`
-  # items, and a smaller `ca` (padded origin) with fewer `ca` items. The
+  # Both directions: a smaller `y` (padded destination) with fewer `y`
+  # items, and a smaller `x` (padded origin) with fewer `x` items. The
   # penalty's value and gradient must be the log-prior's, the fit must be
   # stationary on the penalised objective, and moving a padded cell -- a
   # padded class's item probabilities or a padded item column -- must leave
@@ -371,7 +371,7 @@ test_that("the default prior is spread over each variable's own classes, never t
                 list(K1 = 2, K2 = 3, Ja = 4, Js = 5))
   for (cc in cases) {
     d   <- sim_joint(400, cc$K1, cc$K2, cc$Ja, cc$Js, seed = 31)
-    fit <- fit_joint_classes(d$A, d$S, n_ca = cc$K1, n_cs = cc$K2, n_init = 3,
+    fit <- fit_joint_classes(d$A, d$S, n_x = cc$K1, n_y = cc$K2, n_init = 3,
                              random_state = 1, standard_errors = FALSE)
     X   <- as.matrix(fit$data)
     w   <- fit$weights_vec
@@ -403,17 +403,17 @@ test_that("the default prior is spread over each variable's own classes, never t
 })
 
 test_that("measurement_summary() reports each variable's items under its own classes", {
-  # Paired layout (binary items): block 1 holds ca's items, block 2 cs's.
+  # Paired layout (binary items): block 1 holds x's items, block 2 y's.
   d <- sim_joint(400, 3, 2, 4, 3, seed = 41)
   colnames(d$A) <- paste0("a", 1:4); colnames(d$S) <- paste0("s", 1:3)
-  f <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2, n_init = 2,
+  f <- fit_joint_classes(d$A, d$S, n_x = 3, n_y = 2, n_init = 2,
                          random_state = 3, standard_errors = FALSE)
   expect_false(f$joint_stacked)
   out <- capture.output(tab <- measurement_summary(f))
-  expect_true(any(grepl("CS#2", out)))
+  expect_true(any(grepl("Y#2", out)))
   expect_false(any(grepl("occasion|Item_", out)))
-  expect_equal(unique(tab$item[tab$block == "ca"]), paste0("a", 1:4))
-  expect_equal(unique(tab$item[tab$block == "cs"]), paste0("s", 1:3))
+  expect_equal(unique(tab$item[tab$block == "x"]), paste0("a", 1:4))
+  expect_equal(unique(tab$item[tab$block == "y"]), paste0("s", 1:3))
   expect_equal(nrow(tab), 4 * 3 + 3 * 2)
   pis <- f$mm$models
   r <- tab[tab$item == "a2" & tab$class == 3, ]
@@ -426,8 +426,8 @@ test_that("measurement_summary() reports each variable's items under its own cla
   # category of the three-category items, which sum to one in each class.
   d <- sim_joint(400, 3, 2, 5, 4, seed = 30)
   d$A[, 1:2] <- d$A[, 1:2] + rbinom(400 * 2, 1, 0.3)
-  g <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
-                         measurement_ca = "ordinal", measurement_cs = "binary",
+  g <- fit_joint_classes(d$A, d$S, n_x = 3, n_y = 2,
+                         measurement_x = "ordinal", measurement_y = "binary",
                          n_init = 2, random_state = 7, standard_errors = FALSE)
   expect_true(g$joint_stacked)
   out <- capture.output(tab <- measurement_summary(g))

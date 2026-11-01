@@ -39,8 +39,8 @@ The example is simulated, so that the answer is known. For 1,500
 adolescents there are six yes/no items about adverse childhood
 experiences (`a1` to `a6`) and five items about substance use, each
 answered never (1), sometimes (2) or often (3) (`s1` to `s5`). Behind
-them are two latent variables with three classes each: adversity (`ca`:
-low, household adversity, high) and substance use (`cs`: abstains, drinks,
+them are two latent variables with three classes each: adversity (`x`:
+low, household adversity, high) and substance use (`y`: abstains, drinks,
 several substances). High adversity goes with several substances, and
 being a girl lowers the odds of several substances, most of all after high
 adversity. Three answers in a hundred are missing at random.
@@ -51,23 +51,23 @@ n <- 1500
 female <- rbinom(n, 1, 0.5)
 # Adversity class: 1 low, 2 household, 3 high; girls a little more often 2.
 lp <- cbind(0, -0.6 + 0.5 * female, -1.2)
-ca <- apply(exp(lp) / rowSums(exp(lp)), 1, function(p) sample(1:3, 1, prob = p))
+cx <- apply(exp(lp) / rowSums(exp(lp)), 1, function(p) sample(1:3, 1, prob = p))
 # Substance-use class given adversity: 1 abstains, 2 drinks, 3 several
 # substances. Logits against class 1, by adversity class; being female lowers
 # the odds of several substances, most of all after high adversity.
 assoc <- rbind(c(0, -0.4, -2.2), c(0, 0.3, -0.6), c(0, 0.6, 0.9))
-lc <- assoc[ca, ] + cbind(0, 0, -c(0.2, 0.4, 1.2)[ca] * female)
-cs <- apply(exp(lc) / rowSums(exp(lc)), 1, function(p) sample(1:3, 1, prob = p))
+lc <- assoc[cx, ] + cbind(0, 0, -c(0.2, 0.4, 1.2)[cx] * female)
+cy <- apply(exp(lc) / rowSums(exp(lc)), 1, function(p) sample(1:3, 1, prob = p))
 # Six yes/no adversity items and five never/sometimes/often use items.
 p_a <- rbind(c(.10, .08, .12, .05, .10, .06),
              c(.70, .65, .55, .20, .15, .10),
              c(.80, .75, .70, .65, .60, .55))
-adversity <- matrix(rbinom(n * 6, 1, p_a[ca, ]), n, 6,
+adversity <- matrix(rbinom(n * 6, 1, p_a[cx, ]), n, 6,
                     dimnames = list(NULL, paste0("a", 1:6)))
 use_level <- rbind(c(0, 0, 0, 0, 0), c(2, 0, 1, 0, 0), c(2, 2, 2, 1, 1))
 use <- matrix(NA_integer_, n, 5, dimnames = list(NULL, paste0("s", 1:5)))
 for (j in 1:5) {
-  hi <- use_level[cs, j]
+  hi <- use_level[cy, j]
   r <- runif(n)
   use[, j] <- 1 + ifelse(hi == 0, (r > .80) + (r > .95),
               ifelse(hi == 1, (r > .30) + (r > .80), (r > .10) + (r > .40)))
@@ -76,7 +76,7 @@ adversity[runif(n * 6) < 0.03] <- NA
 use[runif(n * 5) < 0.03] <- NA
 ```
 
-`ca` and `cs` are the truth the analysis will try to recover; a real
+`cx` and `cy` are the true classes the analysis will try to recover; a real
 analysis never has them. All it has is `adversity`, `use` and `female`.
 
 ## One step or two
@@ -106,14 +106,14 @@ ml <- list(smoothing = 0, bayes_constants = list(categorical = 0))
 ## The association with covariates
 
 The first structural model has the association and `female` predicting
-both variables, its effect on `cs` the same in every adversity class
-(`cs_effects = "common"`, the default).
+both variables, its effect on `y` the same in every adversity class
+(`y_effects = "common"`, the default).
 
 ```{r m1, cache = TRUE}
 fem <- data.frame(female = female)
-m1 <- fit_joint_classes(adversity, use, n_ca = 3, n_cs = 3,
-                        measurement_cs = "ordinal",
-                        predictors_ca = fem, predictors_cs = fem,
+m1 <- fit_joint_classes(adversity, use, n_x = 3, n_y = 3,
+                        measurement_y = "ordinal",
+                        predictors_x = fem, predictors_y = fem,
                         n_steps = 2, n_init = 20, random_state = 1,
                         smoothing = ml$smoothing,
                         bayes_constants = ml$bayes_constants)
@@ -127,11 +127,11 @@ observed share of each answer:
 measurement_summary(m1)
 ```
 
-The adversity classes are the three that were simulated: `CA#1` reports
-almost none of the six experiences, `CA#2` the first three (household
-adversity) and few of the rest, `CA#3` all six at around one half or more.
-The substance-use classes are too: `CS#1` mostly answers never, `CS#2`
-drinks often (`s1`) and sometimes uses the third substance, and `CS#3`
+The adversity classes are the three that were simulated: `X#1` reports
+almost none of the six experiences, `X#2` the first three (household
+adversity) and few of the rest, `X#3` all six at around one half or more.
+The substance-use classes are too: `Y#1` mostly answers never, `Y#2`
+drinks often (`s1`) and sometimes uses the third substance, and `Y#3`
 uses the first three substances often and the last two sometimes.
 
 Four probabilities have run to 0 or 1, and the note under the tables says
@@ -145,7 +145,7 @@ Now the association:
 m1
 ```
 
-Every log-odds is against the last class of each variable: `CS#1 ON CA#1`
+Every log-odds is against the last class of each variable: `Y#1 ON X#1`
 of 2.40 says that low adversity raises the odds of abstaining, rather than
 using several substances, by a factor of `exp(2.40) = 11` compared with
 high adversity. The conditional probabilities say the same thing on the
@@ -160,9 +160,9 @@ restricted model of a likelihood-ratio test of the association, on
 (3 - 1) x (3 - 1) = 4 degrees of freedom.
 
 ```{r m0, cache = TRUE}
-m0 <- fit_joint_classes(adversity, use, n_ca = 3, n_cs = 3,
-                        measurement_cs = "ordinal",
-                        predictors_ca = fem, predictors_cs = fem,
+m0 <- fit_joint_classes(adversity, use, n_x = 3, n_y = 3,
+                        measurement_y = "ordinal",
+                        predictors_x = fem, predictors_y = fem,
                         association = "none", n_steps = 2, step1 = m1,
                         smoothing = ml$smoothing,
                         bayes_constants = ml$bayes_constants)
@@ -173,16 +173,16 @@ The two typologies are clearly associated.
 
 ## Is the association the same for girls and boys?
 
-`cs_effects = c(female = "by_ca")` lets the effect of `female` on
+`y_effects = c(female = "by_x")` lets the effect of `female` on
 substance use differ by adversity class. Against `m1`, that is a test of
 whether sex moderates the association, again on four degrees of freedom:
-one more slope per `cs` logit for each adversity class but the last.
+one more slope per `y` logit for each adversity class but the last.
 
 ```{r m2, cache = TRUE}
-m2 <- fit_joint_classes(adversity, use, n_ca = 3, n_cs = 3,
-                        measurement_cs = "ordinal",
-                        predictors_ca = fem, predictors_cs = fem,
-                        cs_effects = c(female = "by_ca"),
+m2 <- fit_joint_classes(adversity, use, n_x = 3, n_y = 3,
+                        measurement_y = "ordinal",
+                        predictors_x = fem, predictors_y = fem,
+                        y_effects = c(female = "by_x"),
                         n_steps = 2, step1 = m1,
                         smoothing = ml$smoothing,
                         bayes_constants = ml$bayes_constants)
@@ -191,7 +191,7 @@ lr_test(m1, m2)
 
 The moderation is significant at the 5% level, if not by much. The
 coefficients of a moderated model are hard to read directly (each
-`female | CA#k` row is a difference from the last adversity class), so
+`female | X#k` row is a difference from the last adversity class), so
 the result is best reported as the probabilities of each substance-use
 class given each adversity class, for boys and for girls.
 `joint_probabilities()` computes them at fixed covariate values, with
@@ -200,12 +200,12 @@ delta-method standard errors:
 ```{r probabilities}
 boys  <- joint_probabilities(m2, at = list(female = 0))
 girls <- joint_probabilities(m2, at = list(female = 1))
-cbind(boys[, c("ca", "cs")], boys = round(boys$estimate, 3),
+cbind(boys[, c("x", "y")], boys = round(boys$estimate, 3),
       girls = round(girls$estimate, 3))
 ```
 
-After high adversity (`CA#3`), 32% of boys are in the several-substances
-class and 9% of girls; after low adversity (`CA#1`) both are under 5%. That
+After high adversity (`X#3`), 32% of boys are in the several-substances
+class and 9% of girls; after low adversity (`X#1`) both are under 5%. That
 is the moderation that was simulated: the link from adversity to using
 several substances is much stronger for boys.
 
@@ -218,12 +218,12 @@ available from `derived_estimates()`, using the parameter names
 The same three models in one step, every parameter estimated at once:
 
 ```{r onestep, cache = TRUE}
-one <- lapply(list(m0 = "none", m1 = "common", m2 = "by_ca"), function(s)
-  fit_joint_classes(adversity, use, n_ca = 3, n_cs = 3,
-                    measurement_cs = "ordinal",
-                    predictors_ca = fem, predictors_cs = fem,
+one <- lapply(list(m0 = "none", m1 = "common", m2 = "by_x"), function(s)
+  fit_joint_classes(adversity, use, n_x = 3, n_y = 3,
+                    measurement_y = "ordinal",
+                    predictors_x = fem, predictors_y = fem,
                     association = if (s == "none") "none" else "free",
-                    cs_effects = if (s == "by_ca") c(female = "by_ca") else "common",
+                    y_effects = if (s == "by_x") c(female = "by_x") else "common",
                     n_init = 20, random_state = 1, standard_errors = FALSE,
                     smoothing = ml$smoothing,
                     bayes_constants = ml$bayes_constants))
@@ -242,7 +242,7 @@ model to the next.
 - `fit_joint_classes()` fits two latent class variables and their
   association in one model; `measurement_summary()` shows what each
   variable's classes are.
-- `association = "none"` and `cs_effects = "by_ca"` give the restricted and
+- `association = "none"` and `y_effects = "by_x"` give the restricted and
   the extended models of the two natural tests, run by `lr_test()`.
 - With `n_steps = 2`, fit step 1 once and hand it to every structural
   model with `step1 =`, so that all of them share one measurement model.

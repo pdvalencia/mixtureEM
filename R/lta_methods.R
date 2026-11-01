@@ -780,8 +780,8 @@ compare_longitudinal <- function(indicators, k_range = NULL,
 #'   \item **Whether two latent class variables are associated** (Hagenaars,
 #'     1993): fit [`fit_joint_classes()`] with `association = "none"` and
 #'     `"free"`. Whether a covariate moderates that association: the same
-#'     model with the covariate acting on `cs` in common and by `ca` class
-#'     (`cs_effects`).
+#'     model with the covariate acting on `y` in common and by `x` class
+#'     (`y_effects`).
 #' }
 #'
 #' The models must be nested and fitted to the same data. That is not checked

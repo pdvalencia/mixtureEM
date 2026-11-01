@@ -10,18 +10,18 @@ joint_coefficients(fit)
 \item{fit}{A \code{joint_classes} fit.}
 }
 \value{
-A data frame with columns \code{cs}, \code{term}, \code{ca}, \code{estimate}, \code{se},
+A data frame with columns \code{y}, \code{term}, \code{x}, \code{estimate}, \code{se},
 \code{z}, \code{p}. Each row is also a parameter of \code{\link[=wald_test]{wald_test()}} and
-\code{\link[=derived_estimates]{derived_estimates()}}, under the label \code{"CS#j Intercept"},
-\code{"CS#j ON CA#k"}, \code{"CS#j ON x"} or, for the difference of a covariate's
-slope in \code{ca} class k from the last class's, \code{"CS#j ON x | CA#k"}.
+\code{\link[=derived_estimates]{derived_estimates()}}, under the label \code{"Y#j Intercept"},
+\code{"Y#j ON X#k"}, \code{"Y#j ON x"} or, for the difference of a covariate's
+slope in \code{x} class k from the last class's, \code{"Y#j ON x | X#k"}.
 }
 \description{
-The multinomial logit of \code{cs} on \code{ca} from \code{\link[=fit_joint_classes]{fit_joint_classes()}}, in the
-reference-class form: every log-odds is against the last \code{cs} class, and
-\code{ca} enters as indicators against the last \code{ca} class. Rows are the
-intercept (\code{term = "Intercept"}, the log-odds among the last \code{ca} class),
-the \code{ca} effects (\code{term = "CA#k"}), and each covariate on \code{cs}: one row for
-a common slope, or, for a covariate acting by \code{ca} class, its slope in the
-last \code{ca} class (\code{ca = NA}) and the difference from it in each other class.
+The multinomial logit of \code{y} on \code{x} from \code{\link[=fit_joint_classes]{fit_joint_classes()}}, in the
+reference-class form: every log-odds is against the last \code{y} class, and
+\code{x} enters as indicators against the last \code{x} class. Rows are the
+intercept (\code{term = "Intercept"}, the log-odds among the last \code{x} class),
+the \code{x} effects (\code{term = "X#k"}), and each covariate on \code{y}: one row for
+a common slope, or, for a covariate acting by \code{x} class, its slope in the
+last \code{x} class (\code{x = NA}) and the difference from it in each other class.
 }

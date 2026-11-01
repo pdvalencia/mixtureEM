@@ -10,17 +10,17 @@ joint_probabilities(fit, at = NULL, level = 0.95)
 \item{fit}{A \code{\link[=fit_joint_classes]{fit_joint_classes()}} fit.}
 
 \item{at}{A named list or vector of covariate values for the covariates on
-\code{cs}. Covariates not named are held at 0. \code{NULL} (the default) holds all
+\code{y}. Covariates not named are held at 0. \code{NULL} (the default) holds all
 at 0.}
 
 \item{level}{Confidence level of the intervals.}
 }
 \value{
-A data frame with columns \code{ca}, \code{cs}, \code{estimate}, \code{se}, \code{lower},
+A data frame with columns \code{x}, \code{y}, \code{estimate}, \code{se}, \code{lower},
 \code{upper}, one row per pair of classes.
 }
 \description{
-P(cs = j | ca = k) at given covariate values, from a
+P(y = j | x = k) at given covariate values, from a
 \code{\link[=fit_joint_classes]{fit_joint_classes()}} fit, with delta-method standard errors and
 intervals (\code{\link[=derived_estimates]{derived_estimates()}}). The fit's own \code{conditional} table
 averages over the sample's covariates; this one fixes them, which is how a
@@ -32,12 +32,12 @@ women, say.
 set.seed(1)
 n  <- 800
 w  <- rbinom(n, 1, 0.5)
-ca <- sample(1:2, n, TRUE)
-cs <- ifelse(runif(n) < plogis(-1 + 2 * (ca == 1) + w * (ca == 1)), 1L, 2L)
-A  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(ca == 1, 0.85, 0.15)))
-S  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cs == 1, 0.85, 0.15)))
-fit <- fit_joint_classes(A, S, predictors_cs = data.frame(w = w),
-                         cs_effects = "by_ca", n_init = 5, random_state = 1)
+cx <- sample(1:2, n, TRUE)
+cy <- ifelse(runif(n) < plogis(-1 + 2 * (cx == 1) + w * (cx == 1)), 1L, 2L)
+A  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cx == 1, 0.85, 0.15)))
+S  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cy == 1, 0.85, 0.15)))
+fit <- fit_joint_classes(A, S, predictors_y = data.frame(w = w),
+                         y_effects = "by_x", n_init = 5, random_state = 1)
 joint_probabilities(fit, at = list(w = 1))
 }
 }

@@ -52,8 +52,8 @@ parameters freed at every occasion after the first.
 \item \strong{Whether two latent class variables are associated} (Hagenaars,
 1993): fit \code{\link[=fit_joint_classes]{fit_joint_classes()}} with \code{association = "none"} and
 \code{"free"}. Whether a covariate moderates that association: the same
-model with the covariate acting on \code{cs} in common and by \code{ca} class
-(\code{cs_effects}).
+model with the covariate acting on \code{y} in common and by \code{x} class
+(\code{y_effects}).
 }
 
 The models must be nested and fitted to the same data. That is not checked

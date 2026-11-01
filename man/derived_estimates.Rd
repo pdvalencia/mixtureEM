@@ -46,9 +46,9 @@ transformed back stays inside the unit interval; derive the logit, and
 transform its bounds with \code{plogis()}.
 
 For \code{\link[=fit_joint_classes]{fit_joint_classes()}} the labels are those of
-\code{\link[=joint_coefficients]{joint_coefficients()}}: \code{"CS#j Intercept"}, \code{"CS#j ON CA#k"}, \code{"CS#j ON x"} and \code{"CS#j ON x | CA#k"}. A covariate \code{x} acting on \code{cs} by \code{ca} class
-has slope \code{"CS#j ON x"} in the last \code{ca} class and that plus \code{"CS#j ON x | CA#k"} in class k, so the association among cases with \code{x = 1} is
-\code{c("CS#j ON CA#k" = 1, "CS#j ON x | CA#k" = 1)}.
+\code{\link[=joint_coefficients]{joint_coefficients()}}: \code{"Y#j Intercept"}, \code{"Y#j ON X#k"}, \code{"Y#j ON w"} and \code{"Y#j ON w | X#k"}. A covariate \code{w} acting on \code{y} by \code{x} class
+has slope \code{"Y#j ON w"} in the last \code{x} class and that plus \code{"Y#j ON w | X#k"} in class k, so the association among cases with \code{w = 1} is
+\code{c("Y#j ON X#k" = 1, "Y#j ON w | X#k" = 1)}.
 \code{\link[=joint_probabilities]{joint_probabilities()}} builds the conditional class probabilities this
 way.
 }
@@ -57,18 +57,18 @@ way.
 set.seed(1)
 n  <- 800
 w  <- rbinom(n, 1, 0.5)
-ca <- sample(1:2, n, TRUE)
-cs <- ifelse(runif(n) < plogis(-1 + 2 * (ca == 1) + w * (ca == 1)), 1L, 2L)
-A  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(ca == 1, 0.85, 0.15)))
-S  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cs == 1, 0.85, 0.15)))
-fit <- fit_joint_classes(A, S, predictors_cs = data.frame(w = w),
-                         cs_effects = "by_ca", n_init = 5, random_state = 1)
-# The association among cases with w = 1, and the probability of cs class 1
-# for ca class 1 at w = 1.
+cx <- sample(1:2, n, TRUE)
+cy <- ifelse(runif(n) < plogis(-1 + 2 * (cx == 1) + w * (cx == 1)), 1L, 2L)
+A  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cx == 1, 0.85, 0.15)))
+S  <- sapply(1:4, function(j) rbinom(n, 1, ifelse(cy == 1, 0.85, 0.15)))
+fit <- fit_joint_classes(A, S, predictors_y = data.frame(w = w),
+                         y_effects = "by_x", n_init = 5, random_state = 1)
+# The association among cases with w = 1, and the probability of y class 1
+# for x class 1 at w = 1.
 derived_estimates(fit,
-  assoc_w1 = c("CS#1 ON CA#1" = 1, "CS#1 ON w | CA#1" = 1),
-  p_w1 = function(p) plogis(p[["CS#1 Intercept"]] + p[["CS#1 ON CA#1"]] +
-                            p[["CS#1 ON w"]] + p[["CS#1 ON w | CA#1"]]))
+  assoc_w1 = c("Y#1 ON X#1" = 1, "Y#1 ON w | X#1" = 1),
+  p_w1 = function(p) plogis(p[["Y#1 Intercept"]] + p[["Y#1 ON X#1"]] +
+                            p[["Y#1 ON w"]] + p[["Y#1 ON w | X#1"]]))
 }
 }
 \references{
