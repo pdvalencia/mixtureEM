@@ -167,7 +167,9 @@ summary(fit_cov)
 | Latent transition analysis, mover-stayer models: if a child has low alphabet knowledge in the fall, what is the probability they are reading words by spring? | [`fit_lta()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lta.md) | [`lta`](https://pdvalencia.github.io/mixtureEM/articles/lta.html) |
 | Stepwise LTA (two-step, three-step ML or BCH): covariates on the statuses and the transitions, a distal outcome after the last occasion | `fit_lta(n_steps = )` | [`lta`](https://pdvalencia.github.io/mixtureEM/articles/lta.html) |
 | Random-intercept LTA: how much of that stability is a stable trait rather than a stage? | `fit_lta(random_intercept = )` | [`rilta`](https://pdvalencia.github.io/mixtureEM/articles/rilta.html) |
-| Latent class growth analysis, growth mixture models | [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md), [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md) | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |
+| Latent class growth analysis, growth mixture models, for a continuous or binary outcome or for several outcomes at once | [`fit_lcga()`](https://pdvalencia.github.io/mixtureEM/reference/fit_lcga.md), [`fit_gmm()`](https://pdvalencia.github.io/mixtureEM/reference/fit_gmm.md) | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |
+| Trajectory classes of a count outcome: Poisson, zero-inflated Poisson or negative binomial, and how to choose among them | `fit_lcga(family = )` | [`count_trajectories`](https://pdvalencia.github.io/mixtureEM/articles/count_trajectories.html) |
+| Two latent class variables in one model: are two typologies linked, and does a covariate change the link? One step or two | [`fit_joint_classes()`](https://pdvalencia.github.io/mixtureEM/reference/fit_joint_classes.md) | [`joint_classes`](https://pdvalencia.github.io/mixtureEM/articles/joint_classes.html) |
 | Linking two different mixture models by the three-step, e.g. early classes predicting later growth classes | [`link_models()`](https://pdvalencia.github.io/mixtureEM/reference/link_models.md) | [`?link_models`](https://pdvalencia.github.io/mixtureEM/reference/link_models.md) |
 | Complex survey designs (weights, strata, clusters) | every model | [`survey_lca`](https://pdvalencia.github.io/mixtureEM/articles/survey_lca.html) |
 | Growth-model standard errors and tests of equality constraints | [`growth_estimates()`](https://pdvalencia.github.io/mixtureEM/reference/growth_estimates.md), [`wald_test()`](https://pdvalencia.github.io/mixtureEM/reference/wald_test.md) | [`growth_mixture`](https://pdvalencia.github.io/mixtureEM/articles/growth_mixture.html) |
@@ -216,8 +218,10 @@ classes being estimated rather than observed
 If you use mixtureEM in published research, please cite it as:
 
 > Valencia, P. D. (2026). mixtureEM: Latent class and profile analysis
-> via mixture modelling (Version 0.5.0) \[R package\].
+> via mixture modelling (Version 0.7.0) \[R package\].
 > <https://github.com/pdvalencia/mixtureEM>
+
+`citation("mixtureEM")` gives the same reference, and a BibTeX entry.
 
 ## Acknowledgements
 
