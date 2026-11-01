@@ -13,6 +13,7 @@ fit_gmm(
   psi = c("equal", "variances", "free"),
   residual = c("occasion", "constant"),
   residual_equal = TRUE,
+  residual_covariances = NULL,
   time_scores = NULL,
   layout = c("time_major", "item_major"),
   id = NULL,
@@ -31,8 +32,13 @@ fit_gmm(
 \arguments{
 \item{indicator}{The repeated outcome. Either a wide matrix or data frame
 with one column per occasion, a three-dimensional array with dimensions n
-by 1 by times, or a long data frame together with \code{id} and \code{time}. Exactly
-one variable may be modelled.}
+by 1 by times, or a long data frame together with \code{id} and \code{time}. For
+several outcomes (see Details), a wide matrix with one column per outcome
+and occasion, ordered as \code{layout} says (\code{"time_major"}: every outcome at
+the first occasion, then every outcome at the second, ...), named like
+\code{"dep_1"}, \code{"anx_1"}, ... so the outcomes are named \code{"dep"} and \code{"anx"};
+an n by outcomes by times array; or a long data frame with one column per
+outcome.}
 
 \item{n_classes}{Integer. Number of trajectory classes.}
 
@@ -57,7 +63,13 @@ levels but change in parallel.
 same model as \code{fit_lcga(family = "gaussian")}, but with the residual
 variances free over occasions by default.
 \item \code{"all"} — every growth factor, including a quadratic or higher term.
-}}
+}
+
+With several outcomes a keyword applies to each outcome's curve. Or name
+the random growth factors one by one, as
+\code{c("intercept_DEP", "linear_DEP", "intercept_ANX")}: a factor left out
+has no variance and no covariances, so every case in a class shares it,
+which is how a slope that does not vary is written.}
 
 \item{psi}{How the growth-factor covariance \eqn{\Psi} may differ across
 classes: held \code{"equal"} (the default); class-specific \code{"variances"} with
@@ -99,6 +111,17 @@ default) or \code{"constant"} across occasions.}
 
 \item{residual_equal}{Logical. Hold the residual variances equal across
 classes (the conventional default).}
+
+\item{residual_covariances}{Residual covariances to estimate, held equal
+across classes: \code{NULL} (the default) for none; \code{"occasion"} for every
+pair of outcomes measured at the same occasion; a pair of data columns,
+as \code{c("DEP@T3", "DEP@T4")} or \code{"DEP@T3 with DEP@T4"}, for one cell, such
+as an outcome's residuals at two adjacent occasions; or a list of these.
+Columns are named \code{"<outcome>@<occasion>"}, as \code{colnames(fit$data)} shows
+them. Needs \code{residual = "occasion"}. The likelihood depends on the
+residual covariance only through each class's covariance of the repeated
+measures, which the fit keeps positive definite; if the residual
+covariance itself is not, a warning says so.}
 
 \item{time_scores}{Numeric values of time used in the polynomial, one per
 occasion. Defaults to \verb{0, 1, ..., times - 1}, which makes the intercept
@@ -194,10 +217,26 @@ The model is
 where \eqn{\Lambda} is the polynomial design in time, \eqn{\alpha_k} the
 growth-factor means of class \eqn{k}, \eqn{\Psi_k} the covariance of the
 growth factors that are allowed to vary within a class, and \eqn{\Theta_k}
-the diagonal matrix of residual variances. Because the outcome is continuous
-the random effects integrate out in closed form, so no numerical integration
-is involved and the estimator is the ordinary EM algorithm the rest of the
-package uses.
+the residual covariance: diagonal, the residual variances, unless
+\code{residual_covariances} frees some of its cells. Because the outcome is
+continuous the random effects integrate out in closed form, so no numerical
+integration is involved and the estimator is the ordinary EM algorithm the
+rest of the package uses.
+
+\strong{Several outcomes.} Give several outcomes measured at the same occasions
+(depression, anxiety and hostility at each wave, say) and each gets its own
+growth curve, fitted jointly: \eqn{\Lambda} is then one polynomial block per
+outcome, the classes are defined by all the curves at once, and the growth
+factors of every outcome share one covariance \eqn{\Psi}, so a case's
+starting level on one outcome can go with its rate of change on another.
+This is the multivariate, or parallel-process, growth mixture model. The
+growth factors are named
+\code{"<factor>_<outcome>"} (\code{"intercept_DEP"}, \code{"linear_DEP"}, ...), and the
+outcomes take their names from the columns. Residuals of two outcomes
+measured at the same occasion usually share occasion-specific influences,
+which \code{residual_covariances = "occasion"} lets them carry. With several
+outcomes, \eqn{\Psi} and the residuals are held equal across classes, and
+\code{growth_predictors} and \code{fix} are not available yet.
 
 \strong{A binary outcome.} With \code{family = "binomial"} the outcome is 0/1 and the
 trajectory is a curve in its log-odds,

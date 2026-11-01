@@ -14,6 +14,7 @@ structured_normal_model(
   growth_covariates = NULL,
   growth_covariates_equal = TRUE,
   psi_fixed = NULL,
+  theta_pairs = NULL,
   ...
 )
 }
@@ -24,7 +25,8 @@ structured_normal_model(
 growth coefficient, as built by the polynomial in the time scores.}
 
 \item{random_effects}{Which growth factors vary within a class: \code{"none"},
-\code{"intercept"}, \code{"intercept_slope"}, or \code{"all"}.}
+\code{"intercept"}, \code{"intercept_slope"}, or \code{"all"}; or the columns of
+\code{design} that do, as integers.}
 
 \item{psi}{Whether the growth-factor covariance is held \code{"equal"} across
 classes, has class-specific \code{"variances"} with the covariances held equal,
@@ -47,6 +49,12 @@ classes.}
 \item{psi_fixed}{Optional list of one matrix per class, the size of
 \eqn{\Psi}, holding the values fixed in that class and \code{NA} where the
 element is estimated. Built by \code{\link[=fit_gmm]{fit_gmm()}} from its \code{fix} argument.}
+
+\item{theta_pairs}{Optional two-column integer matrix, one row per pair of
+columns of the outcome whose residuals covary, each pair once. The
+residual covariance is then \eqn{\Theta} with those cells free, shared by
+the classes or not as \code{residual_equal} says. Built by \code{\link[=fit_gmm]{fit_gmm()}} from
+its \code{residual_covariances} argument.}
 
 \item{...}{Additional arguments, ignored.}
 }

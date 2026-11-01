@@ -1,5 +1,37 @@
 # mixtureEM (development version)
 
+## Growth mixture models of several outcomes at once
+
+`fit_gmm()` now takes several continuous outcomes measured at the same
+occasions and fits one growth curve to each, jointly: the classes are
+defined by all the curves at once, and the growth factors of every outcome
+share one covariance, so a case's starting level on one outcome can go with
+its rate of change on another. Name the outcomes' columns `"dep_1"`,
+`"anx_1"`, ... (time-major, or `layout = "item_major"`) and the growth
+factors come out as `"intercept_dep"`, `"linear_anx"`, and so on.
+
+Two arguments come with it, and both work for a single outcome too.
+`residual_covariances` frees residual covariances, held equal across
+classes: `"occasion"` for every pair of outcomes measured at the same
+occasion, or named cells such as `"DEP@T3 with DEP@T4"` for an outcome's
+residuals at two adjacent waves. `random_effects` also takes the names of
+the random growth factors, so that a slope with no variance in one outcome
+(and therefore no covariances) is written by leaving it out. The residual
+covariances are reported by `print()`, `measurement_summary()` and
+`growth_estimates()` (with standard errors), and `blrt()` and `predict()`
+carry them. With several outcomes the growth-factor covariance and the
+residuals are held equal across classes, and `growth_predictors` and `fix`
+are not available yet.
+
+Missing answers are handled by maximum likelihood as before. Each M-step
+fills in a case's unobserved outcomes from its observed ones (Little &
+Rubin, 2002, ch. 11), so its cost does not grow with the number of
+missingness patterns. On the published three-outcome example (436 cases,
+two to four classes), plain maximum-likelihood fits (priors off) reproduce
+the published log-likelihoods, BIC and class sizes to the printed digit,
+and the two- and three-class estimates and standard errors to the printed
+three decimals. Nothing changes for models fitted before.
+
 ## Ordinal random-intercept transition models are taken to the maximum by the finish
 
 A latent transition model with ordinal items and a freely loading random

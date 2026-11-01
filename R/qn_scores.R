@@ -165,6 +165,17 @@
         ci <- off_th + (cols - 1L) * nr + tr
         S[rows, ci] <- S[rows, ci] + Tt
       }
+      # A residual covariance (s, t) moves Sigma in both of its cells, so it
+      # takes a_s a_t - [Sigma^-1]_st, where both occasions are observed.
+      pr <- ms$theta_pairs
+      if (!is.null(pr)) {
+        ps <- match(pr[, 1L], cols); pt <- match(pr[, 2L], cols)
+        for (j in which(!is.na(ps) & !is.na(pt))) {
+          ci <- lo$off_pc + (j - 1L) * nr + tr
+          S[rows, ci] <- S[rows, ci] +
+            w * (A[, ps[j]] * A[, pt[j]] - Si[ps[j], pt[j]])
+        }
+      }
     }
   }
   S
@@ -213,7 +224,10 @@
   p  <- ncol(ms$design); q <- length(ms$r_cols); m <- .sn_m(ms)
   th <- .qn_sn_theta_dims(ms); nr <- length(th$rows)
   np <- length(.qn_pack_sn(ms)$par)
-  out <- list(th = th, nr = nr, np = np, off_th = np - nr * length(th$cols),
+  # Free residual covariances, when there are any, are packed after Theta.
+  npc <- if (is.null(ms$theta_pairs)) 0L else nr * nrow(ms$theta_pairs)
+  out <- list(th = th, nr = nr, np = np,
+              off_th = np - npc - nr * length(th$cols), off_pc = np - npc,
               off_psi = K * p + if (m > 0L)
                 (if (isTRUE(ms$gamma_equal)) 1L else K) * p * m else 0L)
   if (!q) return(out)
@@ -262,9 +276,10 @@
 # here on those alone, and the score matrix, sum_k r_ik g_ik, is the same
 # rows summed, so it is returned too (`S`, in .qn_mixture_score_matrix()'s
 # order) and the finish needs no second pass for it. Without growth
-# covariates only; NULL otherwise. `w` is the case weights.
+# covariates and free residual covariances only; NULL otherwise. `w` is the
+# case weights.
 .qn_sn_hessian <- function(ms, X, R, w, weights) {
-  if (.sn_m(ms) > 0L) return(NULL)
+  if (.sn_m(ms) > 0L || !is.null(ms$theta_pairs)) return(NULL)
   X  <- as.matrix(X)
   K  <- ms$n_components
   L  <- ms$design; p <- ncol(L)

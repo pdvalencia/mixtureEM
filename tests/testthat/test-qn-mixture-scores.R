@@ -220,6 +220,14 @@ test_that("growth mixture scores equal central differences", {
             "growth, regressions by class")
   .sc_check(gm(Y, predictors = data.frame(x = x), n_steps = 1),
             "growth, class regression")
+  # Two outcomes with free residual covariances: every pair at an occasion and
+  # one across occasions, with missing occasions on the first outcome.
+  Y2 <- matrix(0, n, 8)
+  Y2[, c(1, 3, 5, 7)] <- Ym
+  Y2[, c(2, 4, 6, 8)] <- 0.8 * Y + matrix(rnorm(n * 4, sd = .4), n)
+  colnames(Y2) <- paste0(c("a_", "b_"), rep(1:4, each = 2))
+  .sc_check(gm(Y2, residual_covariances = list("occasion", "a@T1 with a@T2")),
+            "growth, two outcomes, residual covariances")
 })
 
 test_that("zero-inflated growth scores equal central differences", {

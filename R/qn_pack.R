@@ -235,6 +235,10 @@
   th <- .qn_sn_theta_dims(ms)
   parts <- c(parts, list(.qn_part(
     0.5 * log(pmax(p$theta[th$rows, th$cols, drop = FALSE], 1e-300)), "scale")))
+  # Free residual covariances last, on their own scale.
+  if (!is.null(ms$theta_pairs))
+    parts <- c(parts, list(.qn_part(
+      p$theta_cov[th$rows, , drop = FALSE], "free")))
   .qn_join(parts)
 }
 
@@ -287,6 +291,12 @@
   ms$parameters$theta <- v[if (length(th$rows) == 1L) rep(1L, K) else seq_len(K),
                            if (length(th$cols) == 1L) rep(1L, Tn) else seq_len(Tn),
                            drop = FALSE]
+  if (!is.null(ms$theta_pairs)) {
+    np <- nrow(ms$theta_pairs)
+    v  <- matrix(take(length(th$rows) * np), length(th$rows), np)
+    ms$parameters$theta_cov <-
+      v[if (length(th$rows) == 1L) rep(1L, K) else seq_len(K), , drop = FALSE]
+  }
   ms
 }
 

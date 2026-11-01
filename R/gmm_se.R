@@ -198,6 +198,8 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
     g$coefficients <- .gmm_name_coefficients(mm, g$covariate_names)
   g$psi <- mm$parameters$psi[seq_len(if (isTRUE(mm$psi_equal)) 1L else K)]
   g$residual_variance <- mm$parameters$theta
+  if (!is.null(mm$theta_pairs))
+    g$residual_covariance <- .gmm_residual_cov_table(mm, colnames(fit$data))
   g$fitted <- .sn_fitted(mm)
   .growth_reported_table(g, K, st, logits)
 }

@@ -76,6 +76,9 @@ sort_model_classes <- function(model_state) {
       model_state$mm$parameters$alpha[new_order, , drop = FALSE]
     model_state$mm$parameters$theta <-
       model_state$mm$parameters$theta[new_order, , drop = FALSE]
+    if (!is.null(model_state$mm$parameters[["theta_cov"]]))
+      model_state$mm$parameters$theta_cov <-
+        model_state$mm$parameters$theta_cov[new_order, , drop = FALSE]
     model_state$mm$parameters$psi <-
       model_state$mm$parameters$psi[new_order]
     # Fixed values belong to their class, not to its number.

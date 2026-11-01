@@ -23,20 +23,142 @@
 # model that will still "converge", to an arbitrary point on a flat ridge. The
 # check is cheap and the failure it prevents is silent, which is the argument
 # for making it an error rather than a warning.
-.gmm_check_identified <- function(times, q, theta_shared_occasions) {
+.gmm_check_identified <- function(times, q, theta_shared_occasions,
+                                  n_pairs = 0L) {
   available <- times * (times + 1L) / 2L
-  spent <- q * (q + 1L) / 2L + (if (theta_shared_occasions) 1L else times)
+  spent <- q * (q + 1L) / 2L + (if (theta_shared_occasions) 1L else times) +
+    n_pairs
   if (spent > available)
     stop(sprintf(
       paste0("The covariance structure asked for is not identified: %d ",
-             "parameters (%d for the growth factors, %d residual variance%s) ",
+             "parameters (%d for the growth factors, %d residual variance%s%s) ",
              "from the %d distinct covariance elements %d occasions supply. ",
              "Use fewer random effects, or residual = \"constant\"."),
       spent, q * (q + 1L) / 2L,
       if (theta_shared_occasions) 1L else times,
       if (theta_shared_occasions) "" else "s",
+      if (n_pairs) sprintf(", %d residual covariances", n_pairs) else "",
       available, times), call. = FALSE)
   invisible(NULL)
+}
+
+# The design of several outcomes measured at the same occasions, each with its
+# own growth curve: one block of the polynomial per outcome, its rows in the
+# data's time-major order (every outcome at the first occasion, then every
+# outcome at the second, ...), its columns one outcome's growth factors after
+# another, named "<factor>_<outcome>". One outcome keeps the plain polynomial.
+.gmm_design <- function(poly, item_names, J) {
+  if (J == 1L) return(poly)
+  Tn <- nrow(poly); p <- ncol(poly)
+  D  <- matrix(0, Tn * J, p * J)
+  for (t in seq_len(Tn)) for (j in seq_len(J))
+    D[(t - 1L) * J + j, (j - 1L) * p + seq_len(p)] <- poly[t, ]
+  colnames(D) <- as.vector(outer(colnames(poly), item_names, paste, sep = "_"))
+  D
+}
+
+# Which columns of the design carry a random effect. A keyword applies to every
+# outcome alike; growth-factor names pick the random ones one by one, which is
+# how a factor that varies for one outcome and not another is written.
+.gmm_random_cols <- function(random_effects, named, poly, design, J) {
+  if (named) {
+    idx <- match(random_effects, colnames(design))
+    if (anyNA(idx))
+      stop(sprintf(paste0("`random_effects` names %s, which %s not a growth ",
+                          "factor here (%s)."),
+                   paste(sQuote(random_effects[is.na(idx)], FALSE),
+                         collapse = ", "),
+                   if (sum(is.na(idx)) == 1L) "is" else "are",
+                   paste(colnames(design), collapse = ", ")), call. = FALSE)
+    return(sort(unique(idx)))
+  }
+  base <- structured_normal_model(1L, poly,
+                                  random_effects = random_effects)$r_cols
+  as.vector(outer(base, (seq_len(J) - 1L) * ncol(poly), "+"))
+}
+
+# `residual_covariances` as pairs of data columns, or NULL. "occasion" frees
+# the covariance of every two outcomes measured at the same occasion; a pair of
+# column names ("DEP@T3", "DEP@T4"), or one string "DEP@T3 with DEP@T4", frees
+# that one cell. Columns are named "<outcome>@<occasion>", as the fitted data
+# are (colnames(fit$data)).
+.gmm_residual_pairs <- function(spec, columns, item_names, time_labels) {
+  if (is.null(spec) || identical(spec, "none")) return(NULL)
+  if (is.character(spec)) spec <- as.list(spec)
+  if (!is.list(spec))
+    stop(paste0("`residual_covariances` must be \"occasion\", pairs of column ",
+                "names such as c(\"DEP@T3\", \"DEP@T4\"), or a list of those."),
+         call. = FALSE)
+  J <- length(item_names); Tn <- length(time_labels)
+  out <- list()
+  for (s in spec) {
+    s <- as.character(s)
+    if (identical(s, "occasion")) {
+      if (J < 2L)
+        stop(paste0("residual_covariances = \"occasion\" needs several ",
+                    "outcomes per occasion; this model has one."),
+             call. = FALSE)
+      for (t in seq_len(Tn)) {
+        cols <- (t - 1L) * J + seq_len(J)
+        cb <- utils::combn(cols, 2L)
+        out[[length(out) + 1L]] <- t(cb)
+      }
+      next
+    }
+    if (length(s) == 1L) s <- trimws(strsplit(s, " with ", fixed = TRUE)[[1L]])
+    ij <- match(s, columns)
+    if (length(s) != 2L || anyNA(ij) || ij[1L] == ij[2L])
+      stop(sprintf(paste0("`residual_covariances` names %s; write a pair as ",
+                          "two of the data's columns (%s, ...)."),
+                   paste(sQuote(s, FALSE), collapse = " and "),
+                   paste(utils::head(columns, 3L), collapse = ", ")),
+           call. = FALSE)
+    out[[length(out) + 1L]] <- matrix(ij, 1L)
+  }
+  P <- do.call(rbind, out)
+  P <- cbind(pmin(P[, 1L], P[, 2L]), pmax(P[, 1L], P[, 2L]))
+  P[!duplicated(P), , drop = FALSE]
+}
+
+# The residual covariances as a K x pairs matrix named "<col> with <col>", or
+# NULL when the model has none.
+.gmm_residual_cov_table <- function(mm, columns) {
+  pr <- mm$theta_pairs
+  if (is.null(pr)) return(NULL)
+  out <- mm$parameters$theta_cov
+  colnames(out) <- paste(columns[pr[, 1L]], columns[pr[, 2L]], sep = " with ")
+  out
+}
+
+# A residual covariance matrix outside the positive semi-definite cone. As for
+# Psi, the likelihood depends on Theta only through each class's Sigma, which
+# the fit keeps positive definite, so the point is a valid maximum; the free
+# residual covariances are what can carry Theta outside, and the warning names
+# the smallest eigenvalue.
+.gmm_theta_inadmissible <- function(mm) {
+  if (is.null(mm$theta_pairs)) return(character(0))
+  rows <- if (isTRUE(mm$theta_equal)) 1L else mm$n_components
+  out <- character(0)
+  for (k in seq_len(rows)) {
+    ev <- min(eigen(.sn_theta_matrix(mm, k), symmetric = TRUE,
+                    only.values = TRUE)$values)
+    if (ev < -1e-8)
+      out <- c(out, sprintf("%sthe residual covariance has a negative eigenvalue (%.4g)",
+                            if (rows == 1L) "" else sprintf("in class %d ", k),
+                            ev))
+  }
+  out
+}
+
+.gmm_theta_inadmissible_message <- function(lines) {
+  sprintf(
+    paste0("The residual covariance is not positive definite: %s. Every ",
+           "class's covariance of the repeated measures is, so the ",
+           "log-likelihood and the estimates are a valid maximum, but the ",
+           "residual covariances cannot all be read as covariances. It usually ",
+           "means a residual correlation is close to +/-1 or that a residual ",
+           "covariance is not needed; compare the fit without it on BIC."),
+    paste(lines, collapse = "; "))
 }
 
 # Covariates on the growth factors, checked and put on the emission's terms.
@@ -126,10 +248,26 @@
 #' where \eqn{\Lambda} is the polynomial design in time, \eqn{\alpha_k} the
 #' growth-factor means of class \eqn{k}, \eqn{\Psi_k} the covariance of the
 #' growth factors that are allowed to vary within a class, and \eqn{\Theta_k}
-#' the diagonal matrix of residual variances. Because the outcome is continuous
-#' the random effects integrate out in closed form, so no numerical integration
-#' is involved and the estimator is the ordinary EM algorithm the rest of the
-#' package uses.
+#' the residual covariance: diagonal, the residual variances, unless
+#' `residual_covariances` frees some of its cells. Because the outcome is
+#' continuous the random effects integrate out in closed form, so no numerical
+#' integration is involved and the estimator is the ordinary EM algorithm the
+#' rest of the package uses.
+#'
+#' **Several outcomes.** Give several outcomes measured at the same occasions
+#' (depression, anxiety and hostility at each wave, say) and each gets its own
+#' growth curve, fitted jointly: \eqn{\Lambda} is then one polynomial block per
+#' outcome, the classes are defined by all the curves at once, and the growth
+#' factors of every outcome share one covariance \eqn{\Psi}, so a case's
+#' starting level on one outcome can go with its rate of change on another.
+#' This is the multivariate, or parallel-process, growth mixture model. The
+#' growth factors are named
+#' `"<factor>_<outcome>"` (`"intercept_DEP"`, `"linear_DEP"`, ...), and the
+#' outcomes take their names from the columns. Residuals of two outcomes
+#' measured at the same occasion usually share occasion-specific influences,
+#' which `residual_covariances = "occasion"` lets them carry. With several
+#' outcomes, \eqn{\Psi} and the residuals are held equal across classes, and
+#' `growth_predictors` and `fix` are not available yet.
 #'
 #' **A binary outcome.** With `family = "binomial"` the outcome is 0/1 and the
 #' trajectory is a curve in its log-odds,
@@ -213,8 +351,13 @@
 #'
 #' @param indicator The repeated outcome. Either a wide matrix or data frame
 #'   with one column per occasion, a three-dimensional array with dimensions n
-#'   by 1 by times, or a long data frame together with `id` and `time`. Exactly
-#'   one variable may be modelled.
+#'   by 1 by times, or a long data frame together with `id` and `time`. For
+#'   several outcomes (see Details), a wide matrix with one column per outcome
+#'   and occasion, ordered as `layout` says (`"time_major"`: every outcome at
+#'   the first occasion, then every outcome at the second, ...), named like
+#'   `"dep_1"`, `"anx_1"`, ... so the outcomes are named `"dep"` and `"anx"`;
+#'   an n by outcomes by times array; or a long data frame with one column per
+#'   outcome.
 #' @param n_classes Integer. Number of trajectory classes.
 #' @param times Integer. Number of occasions. Required for wide input; inferred
 #'   otherwise.
@@ -234,6 +377,12 @@
 #'     same model as `fit_lcga(family = "gaussian")`, but with the residual
 #'     variances free over occasions by default.
 #'   * `"all"` — every growth factor, including a quadratic or higher term.
+#'
+#'   With several outcomes a keyword applies to each outcome's curve. Or name
+#'   the random growth factors one by one, as
+#'   `c("intercept_DEP", "linear_DEP", "intercept_ANX")`: a factor left out
+#'   has no variance and no covariances, so every case in a class shares it,
+#'   which is how a slope that does not vary is written.
 #' @param psi How the growth-factor covariance \eqn{\Psi} may differ across
 #'   classes: held `"equal"` (the default); class-specific `"variances"` with
 #'   the covariances between growth factors held equal; or estimated `"free"`ly
@@ -272,6 +421,16 @@
 #'   default) or `"constant"` across occasions.
 #' @param residual_equal Logical. Hold the residual variances equal across
 #'   classes (the conventional default).
+#' @param residual_covariances Residual covariances to estimate, held equal
+#'   across classes: `NULL` (the default) for none; `"occasion"` for every
+#'   pair of outcomes measured at the same occasion; a pair of data columns,
+#'   as `c("DEP@T3", "DEP@T4")` or `"DEP@T3 with DEP@T4"`, for one cell, such
+#'   as an outcome's residuals at two adjacent occasions; or a list of these.
+#'   Columns are named `"<outcome>@<occasion>"`, as `colnames(fit$data)` shows
+#'   them. Needs `residual = "occasion"`. The likelihood depends on the
+#'   residual covariance only through each class's covariance of the repeated
+#'   measures, which the fit keeps positive definite; if the residual
+#'   covariance itself is not, a warning says so.
 #' @param time_scores Numeric values of time used in the polynomial, one per
 #'   occasion. Defaults to `0, 1, ..., times - 1`, which makes the intercept
 #'   growth factor the level at the first occasion. Supply the actual
@@ -402,6 +561,7 @@ fit_gmm <- function(indicator,
                     psi = c("equal", "variances", "free"),
                     residual = c("occasion", "constant"),
                     residual_equal = TRUE,
+                    residual_covariances = NULL,
                     time_scores = NULL,
                     layout = c("time_major", "item_major"),
                     id = NULL, time = NULL, item = NULL,
@@ -415,9 +575,15 @@ fit_gmm <- function(indicator,
                     ...) {
 
   growth_predictors_expr <- substitute(growth_predictors)
-  residual_given <- !missing(residual) || !missing(residual_equal)
+  residual_given <- !missing(residual) || !missing(residual_equal) ||
+    !is.null(residual_covariances)
   family         <- match.arg(family)
-  random_effects <- match.arg(random_effects)
+  # A character vector naming growth factors picks the random ones directly;
+  # a single keyword picks them by position, for every outcome alike.
+  random_named   <- !missing(random_effects) && is.character(random_effects) &&
+    !(length(random_effects) == 1L &&
+        random_effects %in% c("intercept_slope", "intercept", "none", "all"))
+  if (!random_named) random_effects <- match.arg(random_effects)
   psi            <- match.arg(psi)
   residual       <- match.arg(residual)
   layout         <- match.arg(layout)
@@ -426,12 +592,7 @@ fit_gmm <- function(indicator,
                                 layout = layout, id = id, time = time,
                                 time_labels = time_labels)
 
-  if (prep$n_items != 1L)
-    stop(sprintf(
-      paste0("A growth mixture model has one repeated outcome, but %d were ",
-             "found at each of the %d occasions. Select a single variable."),
-      prep$n_items, prep$n_times), call. = FALSE)
-
+  J  <- prep$n_items
   Tn <- prep$n_times
   if (is.null(time_scores)) time_scores <- seq.int(0L, Tn - 1L)
   if (length(time_scores) != Tn)
@@ -456,6 +617,10 @@ fit_gmm <- function(indicator,
     if (!is.null(growth_predictors) || !is.null(fix))
       stop(paste0("`growth_predictors` and `fix` are not available yet for ",
                   "family = \"binomial\"."), call. = FALSE)
+    if (J != 1L || random_named)
+      stop(paste0("A binary growth mixture model takes one repeated outcome ",
+                  "and a `random_effects` keyword; several outcomes are ",
+                  "available for family = \"gaussian\" only."), call. = FALSE)
     if (identical(random_effects, "none"))
       stop(paste0("With no random effects this is a latent class growth ",
                   "model: use fit_lcga(family = \"binomial\")."), call. = FALSE)
@@ -471,12 +636,28 @@ fit_gmm <- function(indicator,
 
   .lcga_check_outcome(prep$X, "gaussian")
 
-  design <- .lcga_design(time_scores, degree)
-  q <- length(structured_normal_model(1L, design,
-                                      random_effects = random_effects)$r_cols)
-  .gmm_check_identified(Tn, q, identical(residual, "constant"))
-  psi_fixed <- .gmm_psi_fixed(fix, colnames(design)[structured_normal_model(
-    1L, design, random_effects = random_effects)$r_cols], n_classes)
+  poly   <- .lcga_design(time_scores, degree)
+  design <- .gmm_design(poly, prep$item_names, J)
+  r_cols <- .gmm_random_cols(random_effects, random_named, poly, design, J)
+  pairs  <- .gmm_residual_pairs(residual_covariances, colnames(prep$X),
+                                prep$item_names, prep$time_labels)
+  if (J > 1L || !is.null(pairs)) {
+    if (!is.null(growth_predictors) || !is.null(fix))
+      stop(paste0("`growth_predictors` and `fix` are not available yet with ",
+                  "several outcomes or residual covariances."), call. = FALSE)
+    if (!identical(psi, "equal") || !isTRUE(residual_equal))
+      stop(paste0("With several outcomes or residual covariances the growth-",
+                  "factor covariance and the residuals are held equal across ",
+                  "classes for now: use psi = \"equal\" and residual_equal = ",
+                  "TRUE."), call. = FALSE)
+  }
+  if (!is.null(pairs) && identical(residual, "constant"))
+    stop(paste0("Residual covariances need a residual variance per occasion: ",
+                "use residual = \"occasion\"."), call. = FALSE)
+  q <- length(r_cols)
+  .gmm_check_identified(Tn * J, q, identical(residual, "constant"),
+                        NROW(pairs))
+  psi_fixed <- .gmm_psi_fixed(fix, colnames(design)[r_cols], n_classes)
 
   if (!is.null(predictors))
     predictors <- .as_named_covariates(predictors, substitute(predictors),
@@ -491,13 +672,15 @@ fit_gmm <- function(indicator,
     measurement             = "structured_normal",
     predictors              = predictors,
     design                  = design,
-    random_effects          = random_effects,
+    random_effects          = if (random_named || J > 1L) r_cols else
+                                random_effects,
     psi                     = psi,
     residual                = residual,
     residual_equal          = residual_equal,
     growth_covariates       = gx,
     growth_covariates_equal = growth_predictors_equal,
     psi_fixed               = psi_fixed,
+    theta_pairs             = pairs,
     ...
   )
 
@@ -506,9 +689,13 @@ fit_gmm <- function(indicator,
     model             = "gmm",
     family            = "gaussian",
     degree            = degree,
-    random_effects    = random_effects,
+    random_effects    = if (random_named || J > 1L) r_cols else
+                          random_effects,
     time_scores       = time_scores,
     time_labels       = prep$time_labels,
+    n_items           = J,
+    items             = if (J > 1L) prep$item_names,
+    columns           = if (J > 1L) colnames(prep$X),
     design            = design,
     factor_names      = colnames(design),
     means             = mm$parameters$alpha,
@@ -525,6 +712,8 @@ fit_gmm <- function(indicator,
     residual_variance = mm$parameters$theta,
     residual_equal    = mm$theta_equal,
     residual_constant = mm$theta_shared_occasions,
+    residual_pairs    = pairs,
+    residual_covariance = .gmm_residual_cov_table(mm, colnames(prep$X)),
     random_names      = colnames(design)[mm$r_cols],
     fix               = .gmm_fix_table(mm),
     wave_missing      = prep$wave_missing
@@ -538,6 +727,10 @@ fit_gmm <- function(indicator,
   fit$growth$inadmissible <- .gmm_inadmissible(mm)
   if (length(fit$growth$inadmissible))
     warning(.gmm_inadmissible_message(fit$growth$inadmissible, mm),
+            call. = FALSE)
+  fit$growth$theta_inadmissible <- .gmm_theta_inadmissible(mm)
+  if (length(fit$growth$theta_inadmissible))
+    warning(.gmm_theta_inadmissible_message(fit$growth$theta_inadmissible),
             call. = FALSE)
 
   # Issued here rather than in fit_mixture(), which returned before the boundary
@@ -1017,25 +1210,45 @@ plot.gmm <- function(x, observed = c("means", "cases", "none"), main = NULL,
   base   <- if (is.null(class_labels)) paste("Class", seq_len(K)) else class_labels
   labels <- .class_plot_labels(base, x$weights)
 
-  obs <- .growth_observed(x, observed)
   binary <- identical(g$family, "binomial")
-  rng <- range(c(ft, .growth_observed_range(obs)), na.rm = TRUE)
-  pad <- if (diff(rng) > 0) 0.05 * diff(rng) else max(abs(rng[1]), 1) * 0.05
-  # A probability panel is the full 0-1 range, as for a binary LCGA.
-  ylim <- if (binary) c(0, 1) else rng + c(-pad, pad)
+  J <- g$n_items %||% 1L
+  if (J > 1L) {
+    op <- graphics::par(mfrow = grDevices::n2mfrow(J))
+    on.exit(graphics::par(op))
+  }
+  for (j in seq_len(J)) {
+    xj <- x
+    if (J > 1L && !is.null(x$data))
+      xj$data <- .gmm_item_cols(x$data, g, j)
+    obs <- .growth_observed(xj, observed)
+    ftj <- .gmm_item_cols(ft, g, j)
+    rng <- range(c(ftj, .growth_observed_range(obs)), na.rm = TRUE)
+    pad <- if (diff(rng) > 0) 0.05 * diff(rng) else max(abs(rng[1]), 1) * 0.05
+    # A probability panel is the full 0-1 range, as for a binary LCGA.
+    ylim <- if (binary) c(0, 1) else rng + c(-pad, pad)
 
-  matplot(g$time_scores, t(ft), type = "n", ylim = ylim, xaxt = "n", las = 1,
-          bty = "l", xlab = "Occasion",
-          ylab = if (binary) "Probability" else "Mean",
-          main = main %||% "Estimated class trajectories")
-  .growth_draw_observed(obs, g$time_scores, cols)
-  matlines(g$time_scores, t(ft), type = "b", pch = shapes, lty = 1, lwd = 2.5,
-           col = cols)
-  axis(1, at = g$time_scores, labels = g$time_labels)
-  legend("topleft", legend = labels, col = cols, pch = shapes, lty = 1,
-         lwd = 2, bty = "n", cex = 0.85)
+    matplot(g$time_scores, t(ftj), type = "n", ylim = ylim, xaxt = "n",
+            las = 1, bty = "l", xlab = "Occasion",
+            ylab = if (binary) "Probability" else "Mean",
+            main = if (J > 1L) g$items[j] else
+              main %||% "Estimated class trajectories")
+    .growth_draw_observed(obs, g$time_scores, cols)
+    matlines(g$time_scores, t(ftj), type = "b", pch = shapes, lty = 1,
+             lwd = 2.5, col = cols)
+    axis(1, at = g$time_scores, labels = g$time_labels)
+    legend("topleft", legend = labels, col = cols, pch = shapes, lty = 1,
+           lwd = 2, bty = "n", cex = 0.85)
+  }
 
   invisible(x)
+}
+
+# The columns of one outcome, in occasion order, from a matrix laid out like
+# the fitted data (time-major); the whole matrix when there is one outcome.
+.gmm_item_cols <- function(mat, g, j) {
+  J <- g$n_items %||% 1L
+  if (J == 1L) return(mat)
+  mat[, seq(j, by = J, length.out = length(g$time_scores)), drop = FALSE]
 }
 
 #' Print a Fitted Growth Mixture Model
@@ -1057,6 +1270,9 @@ print.gmm <- function(x, ...) {
   cat(sprintf("Occasions          : %d (time scores %s)\n",
               length(g$time_scores),
               paste(format(g$time_scores, trim = TRUE), collapse = ", ")))
+  if (isTRUE(g$n_items > 1L))
+    cat(sprintf("Outcomes           : %s, one growth curve each\n",
+                paste(g$items, collapse = ", ")))
   cat(sprintf("Trajectory         : %s%s\n", shape,
               if (identical(g$family, "binomial")) ", logit link" else ""))
   if (identical(g$family, "binomial"))
@@ -1106,8 +1322,14 @@ print.gmm <- function(x, ...) {
                               drop = FALSE]
     dimnames(rv) <- list(
       if (g$residual_equal) "Variance" else paste("Class", seq_len(nrow(rv))),
-      g$time_labels)
+      if (ncol(rv) == length(g$columns)) g$columns else g$time_labels)
     print(round(rv, 3))
+  }
+
+  if (!is.null(g$residual_covariance)) {
+    cat("\nRESIDUAL COVARIANCE (held equal across classes)\n")
+    rc <- g$residual_covariance[1L, ]
+    print(round(data.frame(covariance = rc, row.names = names(rc)), 3))
   }
 
   cat(sprintf("\nFITTED TRAJECTORY (%s)\n",
@@ -1115,9 +1337,12 @@ print.gmm <- function(x, ...) {
                 "probability, averaged over the random effects" else
               if (is.null(g$coefficients)) "mean" else
                 "at the mean of the covariates"))
-  ft <- g$fitted
-  dimnames(ft) <- list(paste("Class", seq_len(K)), g$time_labels)
-  print(round(ft, 3))
+  for (j in seq_len(g$n_items %||% 1L)) {
+    ft <- .gmm_item_cols(g$fitted, g, j)
+    if (isTRUE(g$n_items > 1L)) cat(sprintf("  %s\n", g$items[j]))
+    dimnames(ft) <- list(paste("Class", seq_len(K)), g$time_labels)
+    print(round(ft, 3))
+  }
 
   .print_gmm_boundary_note(x)
 
@@ -1244,13 +1469,17 @@ print.gmm <- function(x, ...) {
   rv <- g$residual_variance
   if (!is.null(rv)) {
     if (!is.matrix(rv)) rv <- matrix(rv, ncol = 1L)
-    colnames(rv) <- if (ncol(rv) == length(g$time_labels)) g$time_labels
-                    else "Variance"
+    lab <- g$columns %||% g$time_labels
+    colnames(rv) <- if (ncol(rv) == length(lab)) lab else "Variance"
     add(sprintf("RESIDUAL VARIANCE%s",
                 if (isTRUE(g$residual_equal)) " (held equal across classes)"
                 else ""),
         "residual_variance", rv)
   }
+
+  if (!is.null(g$residual_covariance))
+    add("RESIDUAL COVARIANCE (held equal across classes)",
+        "residual_covariance", g$residual_covariance)
 
   if (!is.null(g$inflation)) {
     gi <- g$inflation
@@ -1273,7 +1502,7 @@ print.gmm <- function(x, ...) {
   }
 
   ft <- g$fitted
-  colnames(ft) <- g$time_labels
+  colnames(ft) <- if (isTRUE(g$n_items > 1L)) g$columns else g$time_labels
   add("FITTED TRAJECTORY", "fitted", ft)
 
   out

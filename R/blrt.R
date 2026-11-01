@@ -208,6 +208,7 @@ generate_synthetic_data <- function(mm, classes, N) {
          residual                = if (isTRUE(g$residual_constant)) "constant"
                                    else "occasion",
          residual_equal          = isTRUE(g$residual_equal),
+         theta_pairs             = g$residual_pairs,
          growth_covariates       = fit$mm$xmat,
          growth_covariates_equal = isTRUE(g$covariate_equal))
 
