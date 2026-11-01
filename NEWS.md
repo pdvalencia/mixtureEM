@@ -1,4 +1,14 @@
-# mixtureEM (development version)
+# mixtureEM 0.7.0
+
+Count trajectories, two latent class variables in one model, and the
+inference that clustered survey data needs: zero-inflated and negative
+binomial counts in growth and cross-sectional models, with a zero-inflation
+probability that can change over time; `fit_joint_classes()`, with its
+tests of association and moderation, in one step or two; cluster-robust
+standard errors for growth models, three-step and BCH estimates, and the
+VLMR test for growth mixtures. Growth mixtures also take a binary outcome
+and several outcomes at once, and the transition models' finish now reaches
+the maximum on ordinal random-intercept models.
 
 ## Two new vignettes
 
