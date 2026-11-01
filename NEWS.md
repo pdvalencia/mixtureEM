@@ -1,5 +1,19 @@
 # mixtureEM (development version)
 
+## Item profiles of a model with two latent class variables
+
+`measurement_summary()` now reports a `fit_joint_classes()` model in its
+own terms: one table per latent variable, its items under their own names
+and its classes as `CA#k` or `CS#k`, each probability beside the observed
+share of that answer. It used to fall through to the transition-model
+report, which spoke of occasions and numbered the items. The table is also
+returned, one row per item, category and class.
+
+`measurement_summary()` of an ordinal latent class analysis now names each
+row by item and category (`s1 (Cat 2)`) and shows the observed share of
+each category, where it numbered the rows `Item_1`, `Item_2`, ... across
+all categories. No estimate changes.
+
 ## Transition models whose finish runs out of iterations are taken on by EM
 
 After EM, every latent transition model (and every model fitted through

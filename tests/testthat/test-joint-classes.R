@@ -401,3 +401,42 @@ test_that("the default prior is spread over each variable's own classes, never t
                  tolerance = 1e-12, info = info)
   }
 })
+
+test_that("measurement_summary() reports each variable's items under its own classes", {
+  # Paired layout (binary items): block 1 holds ca's items, block 2 cs's.
+  d <- sim_joint(400, 3, 2, 4, 3, seed = 41)
+  colnames(d$A) <- paste0("a", 1:4); colnames(d$S) <- paste0("s", 1:3)
+  f <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2, n_init = 2,
+                         random_state = 3, standard_errors = FALSE)
+  expect_false(f$joint_stacked)
+  out <- capture.output(tab <- measurement_summary(f))
+  expect_true(any(grepl("CS#2", out)))
+  expect_false(any(grepl("occasion|Item_", out)))
+  expect_equal(unique(tab$item[tab$block == "ca"]), paste0("a", 1:4))
+  expect_equal(unique(tab$item[tab$block == "cs"]), paste0("s", 1:3))
+  expect_equal(nrow(tab), 4 * 3 + 3 * 2)
+  pis <- f$mm$models
+  r <- tab[tab$item == "a2" & tab$class == 3, ]
+  expect_equal(r$estimate, unname(pis[[1]]$parameters$pis[3, 2]))
+  expect_equal(r$overall, mean(d$A[, 2]))
+  r <- tab[tab$item == "s3" & tab$class == 2, ]
+  expect_equal(r$estimate, unname(pis[[2]]$parameters$pis[2, 3]))
+
+  # Stacked layout (a three-category item beside binary ones): every
+  # category of the three-category items, which sum to one in each class.
+  d <- sim_joint(400, 3, 2, 5, 4, seed = 30)
+  d$A[, 1:2] <- d$A[, 1:2] + rbinom(400 * 2, 1, 0.3)
+  g <- fit_joint_classes(d$A, d$S, n_ca = 3, n_cs = 2,
+                         measurement_ca = "ordinal", measurement_cs = "binary",
+                         n_init = 2, random_state = 7, standard_errors = FALSE)
+  expect_true(g$joint_stacked)
+  out <- capture.output(tab <- measurement_summary(g))
+  expect_true(any(grepl("ca_item1 (Cat 3)", out, fixed = TRUE)))
+  expect_equal(nrow(tab), (2 * 3 + 3 * 1) * 3 + 4 * 2)
+  sums <- tapply(tab$estimate[tab$item == "ca_item1"],
+                 tab$class[tab$item == "ca_item1"], sum)
+  expect_equal(as.vector(sums), rep(1, 3), tolerance = 1e-10)
+  expect_equal(tab$overall[tab$item == "ca_item2" & tab$category == 3][1],
+               mean(d$A[, 2] == 2))
+  expect_equal(tab$overall[tab$item == "cs_item4"][1], mean(d$S[, 4]))
+})

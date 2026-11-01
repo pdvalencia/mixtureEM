@@ -359,6 +359,17 @@ measurement_summary.default <- function(object,
         item_names <- item_names[keep]
         base_items <- base_items[keep]
         categories <- categories[keep]
+      } else if (!is.null(sub_model) && !is.null(sub_model$cats) &&
+                 ncol(mat) == sum(sub_model$cats)) {
+        # An ordinal block holds each item's own number of categories, item
+        # after item, with no padding to drop.
+        cats <- as.integer(sub_model$cats)
+        base <- sub_model$item_names
+        if (is.null(base) || length(base) != length(cats))
+          base <- paste0("Item_", seq_along(cats))
+        base_items <- rep(base, cats)
+        categories <- sequence(cats)
+        item_names <- paste0(base_items, " (Cat ", categories, ")")
       } else {
         item_names <- paste0("Item_", 1:ncol(mat))
       }
@@ -577,6 +588,16 @@ measurement_summary.default <- function(object,
         out[(j - 1L) * M + m] <- wmean(as.numeric(v == m))
     }
     return(out)
+  }
+  # An ordinal block: each item's categories in turn, coded from 1.
+  if (identical(parameter, "probability") && !is.null(sub_model$cats)) {
+    cats <- as.integer(sub_model$cats)
+    if (ncol(mat) != sum(cats)) return(NULL)
+    matched <- .match_indicator_columns(sub_model$item_names, data)
+    if (is.null(matched) || length(matched) != length(cats)) return(NULL)
+    return(unlist(lapply(seq_along(cats), function(j)
+      vapply(seq_len(cats[j]), function(m)
+        wmean(as.numeric(data[, matched[j]] == m)), numeric(1)))))
   }
 
   matched <- .match_indicator_columns(colnames(mat), data)

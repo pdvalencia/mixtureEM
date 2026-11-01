@@ -317,6 +317,10 @@ fit_joint_classes <- function(ca_items, cs_items,
   if (inherits(fit$step1, "lta_model")) fit$step1 <- uncount(fit$step1)
   if (redirect) fit$n_steps <- 2L
   fit$association_free <- !none
+  # The items' own names, for measurement_summary(): the occasion layout
+  # above names each column position once, after the first variable's items.
+  fit$item_names_ca <- colnames(A) %||% sprintf("ca_item%d", seq_len(Ja))
+  fit$item_names_cs <- colnames(S) %||% sprintf("cs_item%d", seq_len(Js))
 
   # P(ca, cs), averaged over the cases. With covariates on both variables and
   # no association the reported `tau` is the plain average of cs's
@@ -685,4 +689,88 @@ print.joint_classes <- function(x, digits = 3, ...) {
 #' @export
 summary.joint_classes <- function(object, digits = 3, ...) {
   print.joint_classes(object, digits = digits, ...)
+}
+
+# The item response probabilities of each variable's classes, long: one row
+# per item, category and class, with the observed share of the category beside
+# it. Read off the occasion layout fit_joint_classes() builds: stacked, one
+# block holds every item, `ca`'s first; paired, block 1 holds `ca`'s items and
+# block 2 `cs`'s, each padded to the longer list. In both, row k of an item's
+# probabilities is class k of the variable the item measures, and the rows
+# past that variable's own classes are padding. A two-category item keeps its
+# second category only, the probability of a 1 for a 0/1 item.
+.joint_item_probabilities <- function(fit) {
+  mods <- fit$mm$models
+  Ja <- fit$n_items_ca; Js <- fit$n_items_cs
+  stacked <- isTRUE(fit$joint_stacked)
+  J <- if (stacked) Ja + Js else max(Ja, Js)
+  X <- as.matrix(fit$data)
+  w <- fit$weights_vec
+  if (length(w) != nrow(X)) w <- rep(1, nrow(X))
+  names_of <- function(v) {
+    nm <- fit[[paste0("item_names_", v)]]
+    n  <- if (v == "ca") Ja else Js
+    if (length(nm) == n) nm else sprintf("%s_item%d", v, seq_len(n))
+  }
+  one <- function(v, i, name) {
+    K   <- if (v == "ca") fit$n_ca else fit$n_cs
+    m   <- if (v == "ca" || stacked) mods[[1]] else mods[[2]]
+    pos <- if (v == "cs" && stacked) Ja + i else i
+    col <- if (v == "ca") i else if (stacked) J + Ja + i else J + i
+    P   <- m$parameters$pis
+    if (is.null(m$cats)) {
+      pr <- cbind(1 - P[seq_len(K), pos], P[seq_len(K), pos]); val <- 0:1
+    } else {
+      M  <- as.integer(m$cats[pos])
+      pr <- P[seq_len(K), m$offsets[pos] + seq_len(M), drop = FALSE]
+      val <- seq_len(M)
+    }
+    x  <- X[, col]; ok <- !is.na(x)
+    overall <- vapply(val, function(u) sum(w[ok] * (x[ok] == u)) / sum(w[ok]),
+                      numeric(1))
+    show <- if (length(val) == 2L) 2L else seq_along(val)
+    data.frame(block = v, parameter = "probability", item = name,
+               category = rep(show, each = K), class = rep(seq_len(K), length(show)),
+               estimate = as.vector(pr[, show, drop = FALSE]),
+               overall = rep(overall[show], each = K),
+               label = rep(if (length(val) == 2L) name
+                           else sprintf("%s (Cat %d)", name, show), each = K),
+               stringsAsFactors = FALSE)
+  }
+  rows <- lapply(c("ca", "cs"), function(v) {
+    nm <- names_of(v)
+    do.call(rbind, lapply(seq_along(nm), function(i) one(v, i, nm[i])))
+  })
+  do.call(rbind, rows)
+}
+
+#' @rdname measurement_summary
+#' @export
+measurement_summary.joint_classes <- function(object, ...) {
+  tab <- .joint_item_probabilities(object)
+  cat("=========================================================\n")
+  cat("             MEASUREMENT MODEL PARAMETERS                \n")
+  cat("=========================================================\n")
+  for (v in c("ca", "cs")) {
+    d <- tab[tab$block == v, , drop = FALSE]
+    K <- if (v == "ca") object$n_ca else object$n_cs
+    cat(sprintf("\n%s: item response probabilities by %s class\n", v, v))
+    lab <- unique(d$label)
+    w <- max(20L, nchar(lab))
+    cat(sprintf("%-*s | Overall", w, "Indicator"))
+    for (k in seq_len(K)) cat(sprintf(" | %7s", sprintf("%s#%d", toupper(v), k)))
+    cat("\n", paste(rep("-", w + (K + 1L) * 10L), collapse = ""), "\n", sep = "")
+    for (l in lab) {
+      r <- d[d$label == l, , drop = FALSE]
+      cat(sprintf("%-*s | %7.3f", w, l, r$overall[1]))
+      for (k in seq_len(K)) cat(sprintf(" | %7.3f", r$estimate[r$class == k]))
+      cat("\n")
+    }
+  }
+  cat("\nA two-category item shows its second category: for an item coded 0/1,",
+      "the probability of a 1.\n")
+  .print_boundary_note(tab)
+  cat("=========================================================\n")
+  tab$label <- NULL
+  invisible(tab)
 }
