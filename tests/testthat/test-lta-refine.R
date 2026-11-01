@@ -362,7 +362,9 @@ test_that("the penalty's curvature is its second derivative, and the finish uses
   # in place of differencing the prior every iteration (.qn_lta_prior_grad(),
   # R/qn_finish.R). Default priors, so every block carries one; a plain binary
   # fit and a binary random intercept, whose alpha/lambda/ri_mass blocks are
-  # the rest of the closed forms.
+  # the rest of the closed forms, then ordinal items with and without a
+  # random intercept (thresholds, and the loading through the shift).
+  X_ord <- .lta_ordinal_sim(n = 200, cats = c(3L, 4L, 2L), seed = 3)
   fits <- list(
     suppressMessages(suppressWarnings(
       fit_lta(.lta_refine_sim(), n_statuses = 3, times = 3,
@@ -372,10 +374,19 @@ test_that("the penalty's curvature is its second derivative, and the finish uses
       fit_lta(.lta_refine_sim(n = 300, K = 2, Tn = 4, J = 4, seed = 2),
               n_statuses = 2, times = 4, measurement = "binary",
               random_intercept = "binary", n_ri = 2, n_init = 2,
-              random_state = 1, standard_errors = FALSE))))
+              random_state = 1, standard_errors = FALSE))),
+    suppressMessages(suppressWarnings(
+      fit_lta(X_ord, n_statuses = 2, times = 3, measurement = "ordinal",
+              n_init = 2, random_state = 1, standard_errors = FALSE))),
+    suppressMessages(suppressWarnings(
+      fit_lta(X_ord, n_statuses = 2, times = 3, measurement = "ordinal",
+              measurement_invariance = "full", random_intercept = "continuous",
+              n_quadrature = 7, n_init = 2, random_state = 1,
+              standard_errors = FALSE))))
   for (fit in fits) {
     X      <- .lta_refine_sim()
     if (!is.null(fit$ri)) X <- .lta_refine_sim(n = 300, K = 2, Tn = 4, J = 4, seed = 2)
+    if (!is.null(fit$mm$models[[1]]$cats)) X <- X_ord
     layout <- .lta_par_layout(fit)
     par0   <- .lta_par_pack(fit, layout)
     pen    <- .lta_penalty(fit, X, layout, 1)

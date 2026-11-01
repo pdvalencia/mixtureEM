@@ -65,8 +65,8 @@
 # multiple-group fits all sat short of the maximum by amounts that moved
 # reported parameters in the third or fourth decimal (RECORDS.md, "Part 53").
 # So the finish covers every model the package fits: each measurement and
-# structural model describes its own parameters (R/qn_pack.R), and the one
-# model left to its own optimiser is named in .qn_refused with the reason.
+# structural model describes its own parameters (R/qn_pack.R), and a model
+# left to its own optimiser would be named in .qn_refused with the reason.
 
 # Past this, on the logit scale, a coordinate is sent to `.qn_edge` and held.
 .qn_wall <- 15
@@ -221,15 +221,22 @@
 #
 # A packing that says nothing is all `logit`, which is what every coordinate of
 # the categorical fits the finish was first built for is.
-.qn_wall_hit <- function(x, kind, finish = FALSE) {
+#
+# `reach` moves a logit's wall outwards, coordinate by coordinate: a
+# threshold that a random intercept shifts by up to `reach` across the nodes
+# that carry mass is still inside the data at |15 + reach| (.qn_lta_ri_reach()),
+# and only past that is it heading for a boundary at every node. Zero
+# everywhere else.
+.qn_wall_hit <- function(x, kind, finish = FALSE, reach = 0) {
   lo <- kind == "logodds"
-  ((kind == "logit" | (lo & !finish)) & abs(x) > .qn_wall) |
+  ((kind == "logit" | (lo & !finish)) & abs(x) - reach > .qn_wall) |
     (lo & finish & abs(x) >= .bg_edge) | (kind == "log_pos" & x < -.qn_wall)
 }
 
 # Where a held coordinate is sent, and the projection of a step onto the
 # logodds coordinates' edge.
-.qn_edge_of <- function(kind) ifelse(kind == "logodds", .bg_edge, .qn_edge)
+.qn_edge_of <- function(kind, reach = 0)
+  ifelse(kind == "logodds", .bg_edge, .qn_edge + reach)
 .qn_project <- function(x, kind) {
   lo <- kind == "logodds"
   if (any(lo)) x[lo] <- pmin(pmax(x[lo], -.bg_edge), .bg_edge)
@@ -277,7 +284,7 @@
 .qn_finish <- function(case_ll, w, par0, prior = function(p) 0,
                        scores = NULL, gtol_stop = .qn_gtol_stop,
                        maxit = 500L, kind = NULL, fixed = integer(0),
-                       prior_grad = NULL, curvature = NULL) {
+                       prior_grad = NULL, curvature = NULL, reach = NULL) {
   analytic <- !is.null(scores)
   newton_after <- curvature$after %||% .qn_newton_after
   newton_hess  <- curvature$hessians %||% .qn_newton_hessians
@@ -286,6 +293,7 @@
   radius       <- curvature$radius %||% .qn_radius
   scores <- scores %||% function(p, idx) .qn_fd_scores(case_ll, p, idx)
   kind   <- kind %||% rep("logit", length(par0))
+  reach  <- reach %||% numeric(length(par0))
   value  <- function(p) {
     v <- sum(w * case_ll(p)) + prior(p)
     if (is.finite(v)) v else -Inf
@@ -294,13 +302,14 @@
   fx <- value(x)
   if (!is.finite(fx)) return(NULL)
   sw <- sum(w)
-  free <- setdiff(which(is.finite(x) & !.qn_wall_hit(x, kind, TRUE)), fixed)
+  free <- setdiff(which(is.finite(x) & !.qn_wall_hit(x, kind, TRUE, reach)),
+                  fixed)
   if (!length(free)) return(NULL)
 
   # Coordinates already past the wall go to the edge, if that does not cost.
   to_edge <- function(x, fx, idx) {
     e <- x
-    e[idx] <- sign(x[idx]) * .qn_edge_of(kind[idx])
+    e[idx] <- sign(x[idx]) * .qn_edge_of(kind[idx], reach[idx])
     fe <- value(e)
     if (fe >= fx) list(x = e, fx = fe) else list(x = x, fx = fx)
   }
@@ -470,7 +479,7 @@
       break
     }
 
-    hit <- free[.qn_wall_hit(xn[free], kind[free], TRUE)]
+    hit <- free[.qn_wall_hit(xn[free], kind[free], TRUE, reach[free])]
     if (length(hit)) {
       r <- to_edge(xn, fn, hit); xn <- r$x; fn <- r$fx
       free <- setdiff(free, hit)
@@ -555,15 +564,9 @@
 
 # Every model the package fits is either taken to the maximum by the finish or
 # named here with the reason it is not. The coverage test reads this list, so
-# a class that is neither packable nor listed fails it.
-.qn_refused <- c(
-  lta_random_intercept = paste(
-    "A latent transition model with ordinal items and a freely loading",
-    "random intercept keeps its own staged search and L-BFGS polish. With",
-    "binary items the finish lands on the same optimum and is faster, but",
-    "with ordinal items it was slower on every benchmark and landed below",
-    "the optimum on one: that optimum has thresholds beyond the logit wall,",
-    "which the finish holds at the edge (RECORDS.md, Part 55)."))
+# a class that is neither packable nor listed fails it. Empty since the last
+# entry, the ordinal random intercept, was finished (.qn_lta_ri_finished()).
+.qn_refused <- character(0)
 
 # ------------------------------------------------------------------------------
 # fit_mixture()
@@ -871,8 +874,7 @@
 # fit_lta()
 # ------------------------------------------------------------------------------
 
-# Every latent transition model except one with ordinal items and a freely
-# loading random intercept (.qn_refused). Two routes to the scores:
+# Every latent transition model. Two routes to the scores:
 #
 #   * analytic, from .lta_score_matrix(), wherever its blocks describe the
 #     whole packed vector: binary, ordinal and Gaussian items, and a fixed
@@ -900,18 +902,21 @@
        class(state$mm$models[[1]])[1] %in% .qn_lta_analytic_families)
 }
 
-# A freely loading random intercept is finished on binary items only. Its
-# survivors then run EM to the ordinary rule rather than 1e-11, and skip the
-# L-BFGS polish (fit_lta()): the finish lands where the long EM run lands,
-# from the same states, in a fraction of the time, measured on seven
-# benchmark fits. Ordinal items are refused (.qn_refused). The analytic
-# scores cover every coordinate of a binary-item random intercept -- the
-# loadings, the node masses, the factor regression -- and nothing else may
-# stand in for them: the finite-difference route packs the measurement model
-# without the factor.
+# A freely loading random intercept is finished on binary and ordinal items.
+# Its survivors then run EM to the ordinary rule rather than 1e-11, and skip
+# the L-BFGS polish (fit_lta()): the finish lands where the long EM run lands,
+# from the same states, in a fraction of the time, measured on seven binary
+# benchmark fits (Part 55). Ordinal items waited for the wall to read their
+# first thresholds against the factor's shift (.qn_lta_block_reach()); with
+# it they land at or above the long EM run (RECORDS.md, "E3"). The analytic
+# scores cover every coordinate of the random intercept -- the loadings, the
+# node masses, the factor regression -- and nothing else may stand in for
+# them: the finite-difference route packs the measurement model without the
+# factor.
 .qn_lta_ri_finished <- function(state) {
-  !is.null(state$ri) && is.null(state$ri$theta) &&
-    class(state$mm$models[[1]])[1] %in% c("bernoulli", "bernoulli_nan") &&
+  !is.null(state$ri) &&
+    class(state$mm$models[[1]])[1] %in% c("bernoulli", "bernoulli_nan",
+                                          "ordinal", "ordinal_nan") &&
     .qn_lta_analytic(state)
 }
 
@@ -971,8 +976,32 @@
   if (max(abs(r0[src] - full), 0) > 1e-8) return(NULL)
   kind_full <- rep(vapply(lay, function(b) .qn_lta_block_kind(b$kind),
                           character(1)), len)
+  reach_full <- unlist(lapply(lay, function(b) .qn_lta_block_reach(st, b)))
+  first <- match(seq_len(n_red), src)
   list(state = st, layout = lay, src = src, r0 = r0, shared = shared,
-       kind = kind_full[match(seq_len(n_red), src)])
+       kind = kind_full[first], reach = reach_full[first])
+}
+
+# How far a random intercept moves each coordinate of a block, for the wall
+# (.qn_wall_hit()). An ordinal item's first threshold is read against the
+# factor's shift `L_j' d_q` at every node: with a loading of 4.6 a threshold of
+# 13 is an ordinary interior value (RECORDS.md, "E3"), and walled at 15 it was
+# held short of the maximum. The remaining thresholds of an item are log gaps
+# between thresholds, which the shift does not move, and a binary item's
+# `alpha` keeps the wall at 15 as Part 55 measured it.
+.qn_lta_block_reach <- function(state, b) {
+  if (!identical(b$kind, "theta") || is.null(state$ri))
+    return(numeric(b$len))
+  K <- state$n_statuses
+  c(rep(.qn_lta_ri_reach(state$ri, b$j), K), numeric(b$len - K))
+}
+
+# The largest shift item j's loading gives its logit at a node carrying any
+# mass. A node below 1e-8 of the mass contributes less than that share of the
+# log-likelihood whatever its logit, as the finish's edge does (|25|).
+.qn_lta_ri_reach <- function(ri, j) {
+  live <- ri$mass > 1e-8
+  max(abs(ri$Dnode[live, , drop = FALSE] %*% ri$L[j, ]), 0)
 }
 
 # The objective's prior. A fixed emission's measurement term is a constant, so
@@ -986,10 +1015,11 @@
 # The prior's gradient and diagonal curvature in the reduced vector, from
 # .lta_penalty(), so the finish need not difference the prior 2p times an
 # iteration. Shared rows fold onto their one free coordinate as the scores do;
-# no term couples two of them, so the curvature folds the same way. NULL where
-# a block has no closed-form curvature (ordinal thresholds), or where the
-# formula and the objective's own prior (.qn_lta_prior()) disagree at the
-# start -- the finish then differences the prior as before.
+# no term couples two of them, so the curvature folds the same way. The
+# curvature is the diagonal the differenced route takes too (.qn_fd_grad2()),
+# an ordinal item's thresholds included, whose cross terms the BHHH step never
+# reads. NULL where the formula and the objective's own prior (.qn_lta_prior())
+# disagree at the start -- the finish then differences the prior as before.
 .qn_lta_prior_grad <- function(red, unpack, X, alpha, r0, prior,
                                fixed = integer(0)) {
   pg <- function(r) {
@@ -1068,6 +1098,7 @@
   n_red <- length(red$r0)
   r0    <- c(red$r0, pm$par)
   kind  <- c(red$kind, pm$kind)
+  reach <- c(red$reach, numeric(length(pm$par)))
   fixed <- if (analytic && frozen)
     unique(red$src[.lta_par_split(red$layout)$measurement]) else integer(0)
   w <- state$weights_vec
@@ -1183,7 +1214,7 @@
   } else if (analytic) .qn_lta_prior_grad(red, unpack_prior, X_prior, alpha,
                                           r0, prior, fixed)
   res <- .qn_finish(case_ll, w, r0, prior, scores, gtol_stop = gtol, kind = kind,
-                    fixed = fixed, prior_grad = prior_grad)
+                    fixed = fixed, prior_grad = prior_grad, reach = reach)
   if (is.null(res) || res$value <= start) return(NULL)
   if (.qn_scale_collapsed(r0, res$par, kind)) return(NULL)
 

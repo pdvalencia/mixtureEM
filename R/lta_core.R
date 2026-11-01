@@ -1437,7 +1437,7 @@
 # together so the two can never be written from different formulae. The
 # diagonal of its second derivatives comes with them for the Newton-type
 # finish (.qn_lta_prior_grad(), R/qn_finish.R); every term is separable within
-# its block, and the ordinal thresholds' curvature is left NA.
+# its block.
 .lta_penalty <- function(state, X, layout, alpha) {
   K <- state$n_statuses
   C <- state$n_classes %||% 1L
@@ -1562,12 +1562,13 @@
       mj  <- .lta_ri_item_marginal_ordinal(X, state$weights_vec,
                                            state$n_items, state$n_times, b$j, Sj)
       g <- numeric(b$len)
-      h <- rep(NA_real_, b$len)
+      h <- numeric(b$len)
       for (q in seq_len(Q)) {
         shift <- sum(ri$L[b$j, ] * ri$Dnode[q, ])
         term  <- .ordinal_theta_prior_term(theta_j, shift, mj, Sj)
         val   <- val + prior_obs[q] * term$value
         g     <- g + prior_obs[q] * term$grad
+        h     <- h + prior_obs[q] * term$hess
       }
     } else if (b$kind == "lambda" && a_cat > 0 && !is.null(state$ri$theta)) {
       # Ordinal analogue of the binary "lambda" branch: the shift-derivative
@@ -1583,12 +1584,16 @@
       mj  <- .lta_ri_item_marginal_ordinal(X, state$weights_vec,
                                            state$n_items, state$n_times, b$j, Sj)
       g <- numeric(b$len)
-      h <- rep(NA_real_, b$len)
+      h <- numeric(b$len)
       for (q in seq_len(Q)) {
         shift <- sum(ri$L[b$j, ] * ri$Dnode[q, ])
         term  <- .ordinal_theta_prior_term(theta_j, shift, mj, Sj)
         shift_grad <- sum(term$grad[seq_len(K)])
+        # The shift moves every threshold as eta_1 does, so its curvature is
+        # eta_1's.
+        shift_curv <- sum(term$hess[seq_len(K)])
         g <- g + prior_obs[q] * shift_grad * ri$Dnode[q, ]
+        h <- h + prior_obs[q] * shift_curv * ri$Dnode[q, ]^2
       }
     } else if (b$kind == "lambda" && a_cat > 0) {
       # Gradient only -- see the "alpha" branch just above for why.
@@ -1613,15 +1618,17 @@
       mj  <- .lta_ri_item_marginal_ordinal(X, state$weights_vec,
                                            state$n_items, state$n_times, b$j, Sj)
       rows  <- .lta_prior_rows(state, b$grp[1], b$j)
-      h     <- rep(NA_real_, b$len)
       if (length(rows)) {
         a_rho <- length(b$grp) * a_cat / length(rows)
         term  <- .ordinal_theta_prior_term(theta_j[rows, , drop = FALSE], 0,
                                            mj, Sj)
         val   <- val + a_rho * term$value
         gm    <- matrix(0, K, Sj - 1L)
+        hm    <- matrix(0, K, Sj - 1L)
         gm[rows, ] <- a_rho * term$grad
+        hm[rows, ] <- a_rho * term$hess
         g     <- as.vector(gm)
+        h     <- as.vector(hm)
       }
     } else if (b$kind == "ri_mass" && alpha > 0) {
       # Mirrors the "class" branch above with Q in place of C, matching the

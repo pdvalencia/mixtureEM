@@ -480,22 +480,43 @@ n_parameters.ordinal_nan <- n_parameters.ordinal
                   Fmat[, seq_len(Sj) + 1L, drop = FALSE], 1e-300)
   value <- sum(sweep(log(pmat), 2, m_j, "*"))
 
+  # `hess` is the diagonal of the second derivatives, for the finish
+  # (.lta_penalty()). In the thresholds th the curvature is tridiagonal: A on
+  # the diagonal, B between neighbours, which share one category. The chain
+  # rule to the increment scale reads it along th's derivative in each
+  # coordinate (all ones for eta_1, -exp(eta_u) from column u on), plus the
+  # gradient times th's own second derivative (-exp(eta_u) from column u on).
   grad <- matrix(0, K, Sj - 1L)
+  hess <- matrix(0, K, Sj - 1L)
   for (k in seq_len(K)) {
     Fk <- Fmat[k, ]; dF <- Fk * (1 - Fk); pk <- pmat[k, ]
-    g <- numeric(Sj - 1L)
-    for (m in seq_len(Sj - 1L))
+    d2F <- dF * (1 - 2 * Fk)
+    g <- numeric(Sj - 1L); A <- numeric(Sj - 1L); B <- numeric(Sj - 1L)
+    for (m in seq_len(Sj - 1L)) {
       g[m] <- dF[m + 1L] * (m_j[m + 1L] / pk[m + 1L] - m_j[m] / pk[m])
+      A[m] <- d2F[m + 1L] * (m_j[m + 1L] / pk[m + 1L] - m_j[m] / pk[m]) -
+        dF[m + 1L]^2 * (m_j[m + 1L] / pk[m + 1L]^2 + m_j[m] / pk[m]^2)
+      if (m < Sj - 1L)
+        B[m] <- dF[m + 1L] * dF[m + 2L] * m_j[m + 1L] / pk[m + 1L]^2
+    }
     e <- numeric(Sj - 1L)
+    h <- numeric(Sj - 1L)
     e[1] <- sum(g)
+    h[1] <- sum(A) + 2 * sum(B)
     if (Sj > 2L) {
       cs <- numeric(Sj - 1L)
       cs[Sj - 1L] <- g[Sj - 1L]
       if (Sj > 3L)
         for (u in (Sj - 2L):2L) cs[u] <- cs[u + 1L] + g[u]
-      for (u in 2:(Sj - 1L)) e[u] <- -exp(theta_j[k, u]) * cs[u]
+      for (u in 2:(Sj - 1L)) {
+        eu   <- exp(theta_j[k, u])
+        e[u] <- -eu * cs[u]
+        h[u] <- eu^2 * (sum(A[u:(Sj - 1L)]) + 2 * sum(B[u:(Sj - 1L)])) -
+          eu * cs[u]
+      }
     }
     grad[k, ] <- e
+    hess[k, ] <- h
   }
-  list(value = value, grad = as.vector(grad))
+  list(value = value, grad = as.vector(grad), hess = as.vector(hess))
 }

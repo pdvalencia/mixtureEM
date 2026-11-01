@@ -1,5 +1,27 @@
 # mixtureEM (development version)
 
+## Ordinal random-intercept transition models are taken to the maximum by the finish
+
+A latent transition model with ordinal items and a freely loading random
+intercept now ends with the Newton-type finish, as the binary-item model
+already did, instead of a long EM run and a quasi-Newton polish. The
+finish used to hold any threshold past 15 on the logit scale as heading for
+a boundary, which with a random intercept is wrong: an item's first
+threshold is read against the intercept's shift at every node, so with a
+loading of 4.6 a threshold of 13 is an ordinary value. The edge is now
+placed past the largest shift the item's loading gives a node that carries
+mass. On seven simulated sets (large loadings, far thresholds, a rare
+category, weak separation, 300 cases, missing responses) every estimate is
+the same as before to 1e-4 in the log-likelihood, and on 30,000 cases a
+25-start fit went from 897 to 407 seconds. On the Dating data's five-status
+model the log-likelihood rose by 5e-4, to -16040.5661, with one threshold
+of a nearly flat direction moving, and the fit took a seventh of the time.
+
+The finish of an ordinal transition model with the default prior no longer
+differences the prior at every iteration: the thresholds' and loadings'
+prior curvature is now in closed form. The finish lands on the same point
+(to 1e-11 in the log-likelihood) in a quarter to a sixth of the time.
+
 ## Faster latent class models on large samples
 
 Ordinal items, and items with direct covariate effects
