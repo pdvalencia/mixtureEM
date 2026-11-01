@@ -13,7 +13,9 @@ articles:
   - rmlca
   - lta
   - rilta
+  - joint_classes
   - growth_mixture
+  - count_trajectories
   - survey_lca
   - mglca_yrbs
 - title: Reference

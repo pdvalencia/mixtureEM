@@ -1,5 +1,17 @@
 # mixtureEM (development version)
 
+## Two new vignettes
+
+`vignette("count_trajectories")` works through trajectory classes of a
+count outcome: choosing between the Poisson, zero-inflated Poisson and
+negative binomial families on what the outcome is, then the number of
+classes within the chosen family, on simulated absence counts where a
+Poisson fit keeps adding classes and the negative binomial recovers the
+three that were simulated. `vignette("joint_classes")` fits two latent class
+variables and their association with `fit_joint_classes()`, tests the
+association and its moderation by a covariate, and reports the moderated
+association as conditional probabilities, in two steps and in one.
+
 ## Item profiles of a model with two latent class variables
 
 `measurement_summary()` now reports a `fit_joint_classes()` model in its

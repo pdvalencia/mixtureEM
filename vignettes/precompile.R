@@ -14,7 +14,7 @@
 #
 # from the package root. Needs pandoc only for the later render, not here.
 
-precomputed <- c("lta", "mglca_yrbs", "rilta")
+precomputed <- c("count_trajectories", "joint_classes", "lta", "mglca_yrbs", "rilta")
 
 knit_precomputed <- function(name, src_dir = "vignettes", out_dir = src_dir) {
   src <- normalizePath(file.path(src_dir, paste0(name, ".Rmd.orig")), mustWork = TRUE)
