@@ -404,7 +404,8 @@ test_that("an identity error matrix reduces step 3 to classify-analyse", {
                tolerance = 1e-6)
   for (t in seq_len(3L)) {
     tab <- table(factor(W[, t], levels = 1:3), factor(W[, t + 1L], levels = 1:3))
-    expect_equal(unname(fit$tau[[t]]), unname(prop.table(as.matrix(tab), 1)),
+    expect_equal(unname(fit$tau[[t]]),
+                 unname(unclass(prop.table(as.matrix(tab), 1))),
                  tolerance = 1e-6)
   }
 })
@@ -820,7 +821,8 @@ test_that("correction = \"none\" is the naive cross-tabulation of the labels", {
                tolerance = 1e-6)
   for (t in seq_len(3L)) {
     tab <- table(factor(W[, t], levels = 1:3), factor(W[, t + 1L], levels = 1:3))
-    expect_equal(unname(fit$tau[[t]]), unname(prop.table(as.matrix(tab), 1)),
+    expect_equal(unname(fit$tau[[t]]),
+                 unname(unclass(prop.table(as.matrix(tab), 1))),
                  tolerance = 1e-6)
   }
 })

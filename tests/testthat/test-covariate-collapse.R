@@ -202,7 +202,10 @@ test_that("the step-one Hessian on the pattern table is the rows' Hessian", {
   expect_lt(nrow(cp$X), nrow(d$X) / 2)
   H_rows <- .step1_fd_hessian(function(v) sum(w * .step1_ll_case(fit, d$X, v)), th)
   H_pat  <- .step1_fd_hessian(function(v) sum(cp$w * .step1_ll_case(fit, cp$X, v)), th)
-  expect_equal(H_pat, H_rows, tolerance = 1e-6)
+  # Both are differenced twice, which magnifies the rounding of two sums in a
+  # different order by 1/h^2: they agree to about 1e-6 on one platform and
+  # 1e-5 on another. A wrong pattern weight would be off by order one.
+  expect_equal(H_pat, H_rows, tolerance = 1e-4)
 
   # Continuous indicators keep their rows.
   Y <- matrix(stats::rnorm(400), 200, 2)
