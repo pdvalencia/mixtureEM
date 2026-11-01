@@ -229,8 +229,8 @@ growth curve, fitted jointly: \eqn{\Lambda} is then one polynomial block per
 outcome, the classes are defined by all the curves at once, and the growth
 factors of every outcome share one covariance \eqn{\Psi}, so a case's
 starting level on one outcome can go with its rate of change on another.
-This is the multivariate, or parallel-process, growth mixture model. The
-growth factors are named
+This is the multivariate, or parallel-process, growth mixture model
+(Wickrama et al., 2022, ch. 9). The growth factors are named
 \code{"<factor>_<outcome>"} (\code{"intercept_DEP"}, \code{"linear_DEP"}, ...), and the
 outcomes take their names from the columns. Residuals of two outcomes
 measured at the same occasion usually share occasion-specific influences,
@@ -365,6 +365,10 @@ Ram, N., & Grimm, K. J. (2009). Growth mixture modeling: A method for
 identifying differences in longitudinal change among unobserved groups.
 \emph{International Journal of Behavioral Development}, \emph{33}(6), 565-576.
 \doi{10.1177/0165025409343765}
+
+Wickrama, K. A. S., Lee, T. K., O'Neal, C. W., & Lorenz, F. O. (2022).
+\emph{Higher-order growth curves and mixture modeling with Mplus: A practical
+guide} (2nd ed.). Routledge. \doi{10.4324/9781003158769}
 }
 \seealso{
 \code{\link[=fit_lcga]{fit_lcga()}} for the no-random-effects version and
