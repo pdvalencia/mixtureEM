@@ -140,6 +140,17 @@
     ave_pp     <- diag(cd$ave_pp)
     separation <- attr(cd$separation, "min")
     shift      <- cd$class_shift
+    # A stepwise fit's classification is the measurement model's, as its
+    # entropy is: the ML correction leaves joint posteriors on the fit, so
+    # the measurement-only ones come back from one E-step on the frozen
+    # parameters (as add_covariates() recovers them).
+    if (!is.null(x$step1_metrics) && !is.null(x$sm)) {
+      x1 <- x; x1$sm <- NULL
+      x1$log_resp <- e_step(x1, x1$data, NULL)$log_resp
+      utils::capture.output(cd1 <- classification_diagnostics(x1))
+      ave_pp     <- diag(cd1$ave_pp)
+      separation <- attr(cd1$separation, "min")
+    }
   }
 
   bc     <- x$bayes_constants %||% list()
@@ -205,6 +216,7 @@
     r_version   = paste(R.version$major, R.version$minor, sep = "."),
     seed        = seed,
     call        = call,
+    step3_call  = x$step3_call,
     from_comparison = !is.null(comparison)
   )
 }
@@ -213,8 +225,11 @@
 # structural paragraph; empty when the fit carries no step-3 posterior.
 .shift_sentence <- function(sh) {
   if (is.null(sh)) return("")
-  sprintf(paste0(" The modal class of %s %s (%s) changed between the ",
-                 "measurement model and the third step."),
+  if (round(sh$n_moved) == 0)
+    return(paste0(" No case changed modal class between the measurement ",
+                  "model and the third step."))
+  sprintf(paste0(" %s %s (%s) changed modal class between the measurement ",
+                 "model and the third step."),
           .fmt(sh$n_moved, 0), .plural(round(sh$n_moved), "case", "cases"),
           .pct(sh$prop_moved))
 }
@@ -394,9 +409,9 @@
 
 .para_structural <- function(f) {
   if (is.null(f$structural) && f$n_steps == 1L) return(NULL)
-  what <- switch(f$structural %||% "", predictors = "class membership on the predictors",
-                 outcome = "the distal outcome on class membership",
-                 "the external variables on class membership")
+  what <- switch(f$structural %||% "", predictors = "class membership to the predictors",
+                 outcome = "the distal outcome to class membership",
+                 "the external variables to class membership")
   if (f$n_steps == 1L)
     return(list(text = sprintf(paste0(
       "The model relating %s was estimated jointly with the measurement ",
@@ -454,6 +469,14 @@
   if (!is.null(cl) && nchar(cl) <= 400L)
     s <- paste0(s, if (f$from_comparison) " The models are refitted by: "
                    else " The model is refitted by: ", cl)
+  # A structural model added afterwards is rebuilt by its own call, on the
+  # measurement model the line above rebuilds.
+  cl3 <- if (!is.null(f$step3_call))
+    paste(deparse(f$step3_call, width.cutoff = 500L), collapse = " ")
+  if (!is.null(cl3) && nchar(cl3) <= 400L)
+    s <- paste0(s, if (!is.null(cl) && nchar(cl) <= 400L)
+                     "; the structural model by: "
+                   else " The structural model is refitted by: ", cl3)
   list(text = s, refs = character())
 }
 

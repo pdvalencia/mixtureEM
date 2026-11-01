@@ -115,14 +115,37 @@ test_that("a three-step fit names its correction by its literature name", {
   rep <- report_methods(fit)
   text <- paste(rep, collapse = " ")
   expect_match(text, "maximum-likelihood correction (Vermunt, 2010)", fixed = TRUE)
-  expect_match(text, "class membership on the predictors")
+  expect_match(text, "class membership to the predictors")
   # The fit indices are the measurement model's, never step 3's.
   expect_match(text, sprintf("%.2f", fit$step1_metrics$ll), fixed = TRUE)
   # How many cases step 3 moved, read off classification_diagnostics().
   capture.output(cd <- classification_diagnostics(fit))
-  expect_match(text, sprintf("The modal class of %d case", round(cd$class_shift$n_moved)),
-               fixed = TRUE)
+  moved <- round(cd$class_shift$n_moved)
+  expect_match(text, if (moved == 0) "No case changed modal class"
+                     else sprintf("%d case", moved), fixed = TRUE)
+  # The search is the measurement model's, not a single start.
+  expect_match(text, "The search used 3 random starts", fixed = TRUE)
   expect_no_match(text, "Mahalanobis")   # binary indicators
+})
+
+test_that("a structural model added afterwards reports the measurement model's search and its own call", {
+  set.seed(2)
+  z <- rbinom(300, 1, 0.5)
+  X <- matrix(rbinom(300 * 5, 1, rep(ifelse(z == 1, 0.8, 0.2), 5)), ncol = 5)
+  d <- data.frame(w = rnorm(300) + z, out = rnorm(300, z))
+  fit <- suppressWarnings(fit_mixture(X, n_classes = 2, measurement = "binary",
+                                      n_init = 4, random_state = 1))
+  one <- paste(report_methods(fit), collapse = " ")
+  for (f3 in list(suppressMessages(add_covariates(fit, predictors = ~ w, data = d)),
+                  suppressMessages(add_outcome(fit, outcome = d$out)))) {
+    text <- paste(report_methods(f3), collapse = " ")
+    expect_match(text, "The search used 4 random starts", fixed = TRUE)
+    expect_no_match(text, "A single start")
+    # Classification is the measurement model's, as in its own report.
+    ave <- regmatches(one, regexpr("ranged from [0-9.]+ to [0-9.]+", one))
+    expect_match(text, ave, fixed = TRUE)
+    expect_match(text, "; the structural model by: add_", fixed = TRUE)
+  }
 })
 
 test_that("a continuous fit reports its smallest class separation", {

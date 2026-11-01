@@ -441,9 +441,13 @@ add_covariates <- function(fit, predictors,
     .as_named_covariates(predictors, predictors_expr, "predictor"))
   Y_use <- .align_structural_rows(Y_use, fit, "predictors")
 
-  .add_structural(fit, Y_use, "predict_class", correction, se, max_iter,
-                  assignment = assignment, steps = steps,
-                  missing_predictors = missing_predictors)
+  out <- .add_structural(fit, Y_use, "predict_class", correction, se, max_iter,
+                         assignment = assignment, steps = steps,
+                         missing_predictors = missing_predictors)
+  # The call that rebuilds this step from the measurement model, which
+  # report_methods() prints after the measurement model's own call.
+  out$step3_call <- match.call()
+  out
 }
 
 #' Examine a Distal Outcome on a Fitted Model
@@ -673,11 +677,14 @@ add_outcome <- function(fit, outcome, covariates = NULL,
     cov_expr   <- NULL
   }
 
-  if (!is.null(predictors))
-    return(.add_joint_outcome(fit, outcome, covariates, cov_expr, predictors,
+  if (!is.null(predictors)) {
+    out <- .add_joint_outcome(fit, outcome, covariates, cov_expr, predictors,
                               predictors_expr, data, outcome_type, slopes,
                               variances, correction, corr_set, steps, se,
-                              assignment, max_iter, missing_predictors))
+                              assignment, max_iter, missing_predictors)
+    out$step3_call <- match.call()
+    return(out)
+  }
 
   spec <- .build_outcome_spec(outcome, covariates, outcome_type, slopes,
                               cov_expr)
@@ -693,10 +700,12 @@ add_outcome <- function(fit, outcome, covariates = NULL,
 
   Y_use <- .align_structural_rows(spec$Y, fit, "outcome")
 
-  .add_structural(fit, Y_use, spec$engine, correction, se, max_iter,
-                  assignment = assignment, moderated = spec$moderated,
-                  steps = steps, variances = spec$variances,
-                  missing_predictors = missing_predictors)
+  out <- .add_structural(fit, Y_use, spec$engine, correction, se, max_iter,
+                         assignment = assignment, moderated = spec$moderated,
+                         steps = steps, variances = spec$variances,
+                         missing_predictors = missing_predictors)
+  out$step3_call <- match.call()
+  out
 }
 
 # `variances` is a choice for a continuous outcome, with or without covariates.

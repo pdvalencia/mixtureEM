@@ -40,7 +40,12 @@
     # (Baudry).
     icl      = bic_s1 + 2 * abs_ent_s1,
     sabic    = -2 * ll_s1 + log((n_eff + 2) / 24) * n_params_s1,
-    entropy  = rel_ent_s1
+    entropy  = rel_ent_s1,
+    # The search that found the measurement model: a methods paragraph built
+    # from a later step reports these, not the later step's single start.
+    n_starts     = model_state$n_starts %||% model_state$metrics$n_starts,
+    n_replicated = model_state$n_replicated %||% model_state$metrics$n_replicated,
+    n_requested  = model_state$n_requested %||% model_state$metrics$n_requested
   )
 }
 

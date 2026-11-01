@@ -16,6 +16,29 @@ and `wald_test()` read), `joint_probabilities()` returns columns `x` and
 `step1 =` given as a list names its two analyses `x` and `y`. Nothing is
 estimated differently.
 
+## `report_methods()` on a structural model added afterwards
+
+`report_methods()` on the result of `add_covariates()` or `add_outcome()`
+described the measurement model with facts that belonged to the third step.
+It said "a single start was used" where the measurement model's search had
+run many, because the step-1 summary the structural model keeps did not
+carry the search; it now does, and the paragraph reports the measurement
+model's starts and how many reached its best log-likelihood. The average
+posterior probabilities are now the measurement model's, as the entropy
+beside them already was, where an ML correction had left the third step's
+joint posteriors in their place. The closing line gives the call that
+rebuilds the structural model after the one that rebuilds the measurement
+model, and two sentences read better: the structural model is "relating
+class membership to the predictors", and a third step that moved no case
+says so. The fitted model is unchanged.
+
+## `measurement_estimates()` in the reporting vignette
+
+`vignette("reporting")` now shows how to turn `measurement_estimates()`
+into a table of class profiles with standard errors, which the README
+already pointed to, and what its `boundary`, `z` and `p_value` columns do
+and do not mean.
+
 # mixtureEM 0.7.0
 
 Count trajectories, two latent class variables in one model, and the
