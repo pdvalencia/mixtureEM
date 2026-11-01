@@ -276,12 +276,12 @@
 # here on those alone, and the score matrix, sum_k r_ik g_ik, is the same
 # rows summed, so it is returned too (`S`, in .qn_mixture_score_matrix()'s
 # order) and the finish needs no second pass for it. Without growth
-# covariates and free residual covariances only; NULL otherwise. `w` is the
-# case weights.
+# covariates only; NULL otherwise. `w` is the case weights.
 .qn_sn_hessian <- function(ms, X, R, w, weights) {
-  if (.sn_m(ms) > 0L || !is.null(ms$theta_pairs)) return(NULL)
+  if (.sn_m(ms) > 0L) return(NULL)
   X  <- as.matrix(X)
   K  <- ms$n_components
+  pr <- ms$theta_pairs
   L  <- ms$design; p <- ncol(L)
   q  <- length(ms$r_cols); Lr <- L[, ms$r_cols, drop = FALSE]
   lo <- .qn_sn_layout(ms)
@@ -333,6 +333,17 @@
         E  <- matrix(0, To, To); E[t, t] <- 1
         D[[length(D) + 1L]] <- 2 * th[cols[t]] * E
         D2[[length(D)]]     <- 4 * th[cols[t]] * E
+      }
+      # A residual covariance (s, t), packed on its own scale, moves Sigma by
+      # e_s e_t' + e_t e_s' where both occasions are observed, and is linear.
+      if (!is.null(pr)) {
+        ps <- match(pr[, 1L], cols); pt <- match(pr[, 2L], cols)
+        for (j in which(!is.na(ps) & !is.na(pt))) {
+          id <- c(id, lo$off_pc + (j - 1L) * lo$nr + tr)
+          E  <- matrix(0, To, To); E[ps[j], pt[j]] <- E[pt[j], ps[j]] <- 1
+          D[[length(D) + 1L]] <- E
+          D2[[length(D)]]     <- matrix(0, To, To)
+        }
       }
       nc  <- length(D)
       SD  <- lapply(D, function(Db) Si %*% Db)

@@ -32,6 +32,27 @@ the published log-likelihoods, BIC and class sizes to the printed digit,
 and the two- and three-class estimates and standard errors to the printed
 three decimals. Nothing changes for models fitted before.
 
+The fit and its standard errors are fast. Each M-step's update of the
+growth-factor covariance, the residual variances and the residual
+covariances is a Newton iteration on the exact curvature, which reaches the
+maximum a general-purpose optimiser reached in two or three steps; the
+filled-in moments come from one product of the data with the posteriors for
+every class at once; and EM is accelerated as it already was for the
+single-outcome model with a shared covariance. On simulated sets of three
+outcomes the search returns the same estimates as before to seven decimals,
+and a 30,000-case fit with its standard errors went from four minutes to ten
+seconds.
+
+## Exact information for growth mixture standard errors
+
+`growth_estimates()` on a growth mixture of continuous outcomes, fitted
+without growth predictors, a class regression or an outcome, now builds the
+observed information in closed form, in one pass over the data, instead of
+differencing the case scores twice over. Standard errors move only in the
+fifth significant digit, the differencing's own error, and take a fraction of
+a second where a model of several outcomes with missing data took up to four
+minutes.
+
 ## Ordinal random-intercept transition models are taken to the maximum by the finish
 
 A latent transition model with ordinal items and a freely loading random

@@ -211,9 +211,16 @@ structured_normal_model <- function(n_components, design,
     # parameters as plain EM to 1e-8, and as many replicated starts or more.
     # Only that model -- a random intercept and slope, Psi and Theta shared
     # by the classes, Theta by occasion, no growth covariates and no class
-    # regression; the class-varying model is the ridge case above.
-    em_squarem             = if (plain &&
-                                 identical(random_effects, "intercept_slope") &&
+    # regression; the class-varying model is the ridge case above. And the
+    # model with free residual covariances (several outcomes, Psi and Theta
+    # shared): on eight simulated stress sets of three outcomes (whole-wave
+    # and item-level missingness, weak separation, 4.5% and 8.2% classes,
+    # negative residual covariances, K = 2 and 4, n = 30,000) the same
+    # maximum and parameters as plain EM to 1e-7, as many replicated starts,
+    # and the 30,000-case fit 1.5x faster (RECORDS.md, "Part 54 E2.1").
+    em_squarem             = if ((plain &&
+                                  identical(random_effects, "intercept_slope") ||
+                                  !plain) &&
                                  identical(psi, "equal") && is.null(psi_fixed) &&
                                  isTRUE(residual_equal) &&
                                  identical(residual, "occasion") &&
@@ -871,15 +878,129 @@ structured_normal_model <- function(n_components, design,
   v0 <- v0 / pmax(cnt, 1)
   f0 <- negQ(v0)
   if (f0 >= 1e100) return(NULL)
-  res <- tryCatch(stats::optim(v0, negQ, grad, method = "BFGS",
-                               control = list(maxit = 100L, reltol = 1e-12)),
-                  error = function(e) NULL)
+  # Under free residual covariances (the filled-in step, one cross-product
+  # per class) Q is climbed by Newton's method (.sn_cov_newton()), which
+  # reaches the maximum BFGS reaches, to 1e-9, in two or three steps where
+  # BFGS took a hundred evaluations; BFGS remains the fallback.
+  vf <- if (npr && impute) .sn_cov_newton(v0, f0, negQ, build, SS, qk,
+                                          model_state, Lr, li, dg, Ul, pid,
+                                          npsi, tid, cid)
+  res <- if (!is.null(vf)) list(par = vf$par, value = vf$value) else
+    tryCatch(stats::optim(v0, negQ, grad, method = "BFGS",
+                          control = list(maxit = 100L, reltol = 1e-12)),
+             error = function(e) NULL)
   b <- build(if (!is.null(res) && is.finite(res$value) && res$value < f0)
     res$par else v0)
   model_state$parameters$psi   <- b$psi
   model_state$parameters$theta <- b$theta
   if (npr) model_state$parameters$theta_cov <- b$theta_cov
   model_state
+}
+
+# Newton's method on .sn_cov_step()'s Q, over the same vector `v` (Psi slots
+# in the finish's units, log residual variances, residual covariances). Each
+# coordinate a moves Sigma_k by D_a: Ul (l_a l_b' + l_b l_a') for a Psi slot
+# (l_a l_a' on the diagonal), theta_t e_t e_t' for a log variance and
+# e_s e_t' + e_t e_s' for a covariance. With W = Sigma^-1 S Sigma^-1 and
+# Si = Sigma^-1, summed over the classes Q is evaluated on,
+#
+#   dQ/da         tr((W - n Si) D_a) / 2
+#   -d2Q/da db    tr(W D_a Si D_b) - n tr(Si D_a Si D_b) / 2
+#                 - [a = b, a log variance] tr((W - n Si) D_a) / 2
+#
+# and n tr(Si D_a Si D_b) / 2 is the expected information, the curvature
+# where S = n Sigma. Scoring with the expected information alone crawled where
+# the class's model fits its data poorly (18-50 steps per M-step in a losing
+# basin, RECORDS.md "Part 54 E2.1"); the exact curvature takes two. It is used
+# wherever it is positive definite, the expected information elsewhere, and
+# the step is halved until Q rises. Returns the point and -Q there, or NULL
+# (the caller then runs BFGS) when neither can be solved or no step rises.
+.sn_cov_newton <- function(v0, f0, negQ, build, SS, qk, ms, Lr, li, dg, Ul,
+                            pid, npsi, tid, cid) {
+  Tn <- nrow(Lr); nv <- length(v0)
+  pr <- ms$theta_pairs
+  cell <- function(s, t) { M <- matrix(0, Tn, Tn); M[s, t] <- M[t, s] <- 1; M }
+  # The fixed directions (Psi slots, covariances) of each class, as columns of
+  # vec(D), with the coordinate each one adds to.
+  fixed_dirs <- lapply(seq_len(ms$n_components), function(k) {
+    if (!k %in% qk) return(NULL)
+    ip <- pid(k); D <- list(); id <- integer(0)
+    for (j in which(!is.na(ip))) {
+      M <- tcrossprod(Lr[, li[j, 1L]], Lr[, li[j, 2L]])
+      D[[length(D) + 1L]] <- Ul[j] * (if (dg[j]) M else M + t(M))
+      id <- c(id, ip[j])
+    }
+    if (!is.null(pr)) for (j in seq_len(nrow(pr))) {
+      D[[length(D) + 1L]] <- cell(pr[j, 1L], pr[j, 2L])
+      id <- c(id, cid(k)[j])
+    }
+    list(V = matrix(unlist(D), Tn * Tn), id = id)
+  })
+  info <- function(v) {
+    b <- build(v)
+    g <- numeric(nv); I <- H <- matrix(0, nv, nv)
+    for (k in qk) {
+      it <- npsi + tid(k)
+      Vt <- matrix(0, Tn * Tn, Tn)
+      Vt[cbind((seq_len(Tn) - 1L) * Tn + seq_len(Tn), seq_len(Tn))] <- b$theta[k, ]
+      V  <- cbind(fixed_dirs[[k]]$V, Vt)
+      id <- c(fixed_dirs[[k]]$id, it)
+      # Directions sharing a coordinate add up: A sums them.
+      A  <- matrix(0, length(id), nv); A[cbind(seq_along(id), id)] <- 1
+      Sig <- Lr %*% b$psi[[k]] %*% t(Lr) +
+        .sn_theta_matrix(ms, k, b$theta[k, ], b$theta_cov[k, ])
+      for (s in SS[[k]]) {
+        if (is.null(s)) next
+        cs <- s$cols; m <- length(cs)
+        ch <- tryCatch(chol(Sig[cs, cs, drop = FALSE]), error = function(e) NULL)
+        if (is.null(ch)) return(NULL)
+        Si <- chol2inv(ch)
+        cc <- as.vector(outer(cs, (cs - 1L) * Tn, "+"))
+        Vs <- V[cc, , drop = FALSE]
+        W  <- Si %*% s$S %*% Si
+        ga <- 0.5 * as.vector(crossprod(Vs, as.vector(W - s$n * Si)))
+        # tr(X D_a Si D_b) = vec(X D_a)' vec(D_b Si), and D_b Si is the
+        # transpose of Si D_b: every product from the stacked [D_1 D_2 ...].
+        Dw <- matrix(Vs, m)
+        SD <- matrix(Si %*% Dw, m * m)
+        tp <- as.vector(t(matrix(seq_len(m * m), m)))
+        Ia <- 0.5 * s$n * crossprod(SD, SD[tp, , drop = FALSE])
+        Tw <- crossprod(matrix(W %*% Dw, m * m), SD[tp, , drop = FALSE])
+        Ha <- (Tw + t(Tw)) / 2 - Ia
+        # A log variance's second derivative: Sigma moves by D_a again.
+        lv <- seq_len(Tn) + length(fixed_dirs[[k]]$id)
+        diag(Ha)[lv] <- diag(Ha)[lv] - ga[lv]
+        g  <- g + as.vector(crossprod(A, ga))
+        I  <- I + crossprod(A, Ia %*% A)
+        H  <- H + crossprod(A, Ha %*% A)
+      }
+    }
+    list(g = g, I = I, H = H)
+  }
+  v <- v0; f <- f0
+  for (iter in seq_len(50L)) {
+    e <- info(v)
+    if (is.null(e)) return(NULL)
+    # Newton on the exact curvature where it is positive definite; scoring
+    # elsewhere.
+    ch <- tryCatch(chol((e$H + t(e$H)) / 2), error = function(err) NULL)
+    step <- if (!is.null(ch)) backsolve(ch, forwardsolve(t(ch), e$g)) else
+      tryCatch(solve(e$I, e$g), error = function(err) NULL)
+    if (is.null(step) || !all(is.finite(step))) return(NULL)
+    dec <- sum(e$g * step)
+    if (dec < 1e-10) break
+    t <- 1
+    repeat {
+      fn <- negQ(v + t * step)
+      if (fn < f) break
+      t <- t / 2
+      if (t < 1e-4) break
+    }
+    if (!(fn < f)) break
+    v <- v + t * step; f <- fn
+  }
+  if (iter == 1L && f >= f0 && dec >= 1e-10) return(NULL)
+  list(par = v, value = f)
 }
 
 # The complete-data moments behind the generalised step when the missing
@@ -901,29 +1022,52 @@ structured_normal_model <- function(n_components, design,
   M2 <- rep(list(matrix(0, Tn, Tn)), K)
   Sig <- lapply(seq_len(K), function(k)
     if (shared && k > 1L) NULL else .sn_sigma(model_state, k))
-  for (k in seq_len(K)) {
-    S  <- Sig[[if (shared) 1L else k]]
-    mu <- .sn_mu(model_state, k)
-    for (pat in pats) {
-      cols <- pat$cols; rows <- pat$rows
-      if (!length(cols)) next
-      wk <- resp[rows, k]
-      sw <- sum(wk)
-      Yh <- matrix(0, length(rows), Tn)
-      Yh[, cols] <- pat$Y
-      if (length(cols) < Tn) {
-        mis <- setdiff(seq_len(Tn), cols)
-        ch  <- .sn_chol(S[cols, cols, drop = FALSE])
-        if (is.null(ch)) return(NULL)
-        B   <- S[mis, cols, drop = FALSE] %*% chol2inv(ch)        # |mis| x |cols|
-        Ro  <- pat$Y - rep(mu[cols], each = length(rows))
-        Yh[, mis] <- rep(mu[mis], each = length(rows)) + Ro %*% t(B)
-        C <- S[mis, mis, drop = FALSE] - B %*% S[cols, mis, drop = FALSE]
-        M2[[k]][mis, mis] <- M2[[k]][mis, mis] + sw * C
-      }
+  # A filled-in case is linear in its observed occasions, y_m = c + B y_o, so
+  # the class's totals need the pattern's data only through its weighted
+  # totals s1 = sum w y_o and S2 = sum w y_o y_o', taken for every class at
+  # once from the pattern's centred squares (`W`) and moved back.
+  mus <- lapply(seq_len(K), function(k) .sn_mu(model_state, k))
+  for (pat in pats) {
+    cols <- pat$cols; rows <- pat$rows
+    if (!length(cols)) next
+    RS <- if (length(rows) == nrow(resp)) resp else resp[rows, , drop = FALSE]
+    Mw <- crossprod(pat$W, RS)
+    sw_all <- colSums(RS)
+    ut <- pat$ut; cm <- pat$cm; nu <- nrow(ut)
+    mis <- setdiff(seq_len(Tn), cols)
+    fill <- NULL
+    for (k in seq_len(K)) {
+      sw  <- sw_all[k]
+      s1c <- Mw[nu + seq_along(cols), k]
+      S2  <- matrix(0, length(cols), length(cols))
+      S2[ut] <- S2[ut[, 2:1, drop = FALSE]] <- Mw[seq_len(nu), k]
+      S2  <- S2 + tcrossprod(cm, s1c) + tcrossprod(s1c, cm) + sw * tcrossprod(cm)
+      s1  <- s1c + sw * cm
       n[k] <- n[k] + sw
-      ysum[, k] <- ysum[, k] + colSums(wk * Yh)
-      M2[[k]] <- M2[[k]] + crossprod(Yh, wk * Yh)
+      ysum[cols, k] <- ysum[cols, k] + s1
+      M2[[k]][cols, cols] <- M2[[k]][cols, cols] + S2
+      if (length(mis)) {
+        # The regression of the missing occasions on the observed ones and
+        # its residual covariance: once per pattern under a shared Sigma.
+        if (is.null(fill) || !shared) {
+          S  <- Sig[[if (shared) 1L else k]]
+          ch <- .sn_chol(S[cols, cols, drop = FALSE])
+          if (is.null(ch)) return(NULL)
+          B  <- S[mis, cols, drop = FALSE] %*% chol2inv(ch)       # |mis| x |cols|
+          fill <- list(B = B, C = S[mis, mis, drop = FALSE] -
+                         B %*% S[cols, mis, drop = FALSE])
+        }
+        B  <- fill$B; C <- fill$C
+        mu <- mus[[k]]
+        cc <- mu[mis] - as.vector(B %*% mu[cols])
+        Bs <- as.vector(B %*% s1)
+        MO <- tcrossprod(cc, s1) + B %*% S2                      # sum w y_m y_o'
+        ysum[mis, k] <- ysum[mis, k] + sw * cc + Bs
+        M2[[k]][mis, cols] <- M2[[k]][mis, cols] + MO
+        M2[[k]][cols, mis] <- M2[[k]][cols, mis] + t(MO)
+        M2[[k]][mis, mis]  <- M2[[k]][mis, mis] + sw * (tcrossprod(cc) + C) +
+          tcrossprod(cc, Bs) + tcrossprod(Bs, cc) + B %*% S2 %*% t(B)
+      }
     }
   }
   alpha <- model_state$parameters$alpha

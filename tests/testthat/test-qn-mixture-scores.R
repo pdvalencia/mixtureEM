@@ -278,7 +278,7 @@ test_that("growth mixture curvature equals differenced scores", {
     }, numeric(length(p)))
     (H + t(H)) / 2
   }
-  check <- function(fit, label) {
+  check <- function(fit, label, tol = 1e-7) {
     X  <- fit$data
     pr <- .qn_mixture_problem(fit, X, NULL)
     set.seed(11)
@@ -291,7 +291,7 @@ test_that("growth mixture curvature equals differenced scores", {
       expect_lt(max(abs(hs$S - .qn_mixture_score_matrix(st, pr$lay, X, NULL, e$R))),
                 1e-10, label = paste(lab, "scores"))
       Hd <- fd_hess(function(q) grad(pr, X, q), p)
-      expect_lt(max(abs(hs$H - Hd)) / max(abs(Hd)), 1e-7, label = lab)
+      expect_lt(max(abs(hs$H - Hd)) / max(abs(Hd)), tol, label = lab)
     }
   }
   check(gm(Y, bayes_constants = off), "growth curvature, psi equal")
@@ -300,6 +300,36 @@ test_that("growth mixture curvature equals differenced scores", {
         "growth curvature, psi variances fixed")
   check(gm(Ym, psi = "free", residual = "constant", residual_equal = FALSE,
            bayes_constants = off), "growth curvature, residual constant by class")
+  # Free residual covariances: two outcomes with missing occasions on the
+  # first, every pair at an occasion and one across occasions, all growth
+  # factors random and one held fixed; and one outcome with one pair. The
+  # differenced Hessian's own error here is 2e-7 at this step and falls as
+  # the step squared (2e-9 at a tenth of it), so it is held to 1e-6.
+  Y2 <- matrix(0, n, 8)
+  Y2[, c(1, 3, 5, 7)] <- Ym
+  Y2[, c(2, 4, 6, 8)] <- 0.8 * Y + matrix(rnorm(n * 4, sd = .4), n)
+  colnames(Y2) <- paste0(c("a_", "b_"), rep(1:4, each = 2))
+  rc <- list("occasion", "a@T1 with a@T2")
+  check(gm(Y2, residual_covariances = rc, bayes_constants = off),
+        "growth curvature, two outcomes, residual covariances", tol = 1e-6)
+  check(gm(Y2, residual_covariances = rc, bayes_constants = off,
+           random_effects = c("intercept_a", "linear_a", "intercept_b")),
+        "growth curvature, two outcomes, one slope fixed", tol = 1e-6)
+  y1 <- Ym; colnames(y1) <- paste0("a_", 1:4)
+  check(gm(y1, residual_covariances = "a@T2 with a@T3", bayes_constants = off),
+        "growth curvature, one outcome, one pair", tol = 1e-6)
+
+  # growth_estimates() reads the same closed form for its information.
+  f2 <- gm(Y2, residual_covariances = rc, bayes_constants = off)
+  pr <- .qn_mixture_problem(f2, f2$data, NULL)
+  ci <- .gmm_closed_information(pr, f2$data, rep(1, n))
+  expect_false(is.null(ci))
+  Hd <- fd_hess(function(q) grad(pr, f2$data, q), pr$par)
+  expect_lt(max(abs(ci$info + Hd)) / max(abs(Hd)), 1e-6)
+  x <- rnorm(n)
+  fg <- gm(Y, psi = "free", growth_predictors = cbind(x))
+  expect_null(.gmm_closed_information(.qn_mixture_problem(fg, fg$data, NULL),
+                                      fg$data, rep(1, n)))
 
   # The hook, with the default class-size prior: the information it hands the
   # finish is minus the Hessian of the penalised objective.

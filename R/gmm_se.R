@@ -255,15 +255,25 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
   w   <- if (is.null(pr$w)) rep(1, n) else pr$w
   idx <- seq_len(p)
 
-  S <- .qn_fd_scores(pr$case_ll, par, idx)
-  grad <- function(x) colSums(w * .qn_fd_scores(pr$case_ll, x, idx))
   h <- 1e-4 * pmax(1, abs(par))
-  H <- vapply(idx, function(j) {
-    a <- par; a[j] <- a[j] + h[j]
-    b <- par; b[j] <- b[j] - h[j]
-    (grad(a) - grad(b)) / (2 * h[j])
-  }, numeric(p))
-  info <- -(H + t(H)) / 2
+  # A growth mixture with nothing estimated alongside has its scores and
+  # observed information in closed form (.qn_sn_hessian(), R/qn_scores.R), one
+  # pass over the data; differencing the differenced scores below costs 4p^2
+  # passes, minutes on a model of several outcomes.
+  cf <- .gmm_closed_information(pr, fit$data, w)
+  if (!is.null(cf)) {
+    S <- cf$S
+    info <- cf$info
+  } else {
+    S <- .qn_fd_scores(pr$case_ll, par, idx)
+    grad <- function(x) colSums(w * .qn_fd_scores(pr$case_ll, x, idx))
+    H <- vapply(idx, function(j) {
+      a <- par; a[j] <- a[j] + h[j]
+      b <- par; b[j] <- b[j] - h[j]
+      (grad(a) - grad(b)) / (2 * h[j])
+    }, numeric(p))
+    info <- -(H + t(H)) / 2
+  }
 
   # A survey design takes the linearisation meat every other clustered
   # sandwich in the package uses (compute_survey_B()): PSU score totals within
@@ -337,4 +347,19 @@ growth_estimates <- function(fit, se = c("robust", "hessian", "opg")) {
        hessian = map(Hi),
        opg     = map(Bi),
        robust  = if (is.null(Hi)) NULL else map(Hi %*% meat %*% Hi))
+}
+
+# The case scores and observed information of a growth mixture fitted alone,
+# in closed form at the packed point, or NULL where .qn_sn_hessian() does not
+# cover the model (growth covariates, an outcome or class regression
+# estimated with it) and the caller differences instead.
+.gmm_closed_information <- function(pr, X, w) {
+  st <- pr$unpack(pr$par)
+  if (!inherits(st$mm, "structured_normal") || pr$lay$has_sm ||
+      is.null(pr$lay$idx$weights))
+    return(NULL)
+  e  <- .qn_mixture_estep(st, pr$lay, X, NULL)
+  hs <- .qn_sn_hessian(st$mm, X, e$R, w, st$weights)
+  if (is.null(hs) || ncol(hs$H) != length(pr$par)) return(NULL)
+  list(S = hs$S, info = -(hs$H + t(hs$H)) / 2)
 }
