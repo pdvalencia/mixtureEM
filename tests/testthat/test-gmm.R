@@ -360,7 +360,9 @@ test_that("a Psi outside the cone with a positive definite Sigma is a valid fit,
   mm$parameters$psi[[2]][2, 2] <- -0.2
   ll <- log_likelihood(mm, Y)
   expect_true(all(is.nan(ll[, 2])))
-  expect_identical(ll[, 1], ok)
+  # Equal to the rounding, not bit for bit: every class is evaluated in one
+  # batched product, whose summation order can differ by platform.
+  expect_equal(ll[, 1], ok, tolerance = 1e-12)
 })
 
 test_that("EM at the edge of the cone steps across it and stays monotone", {
