@@ -213,17 +213,17 @@ above. `status_prevalences()` says which is which —
 round(status_prevalences(fit_pov), 3)
 ```
 
-— here status 2 is the low-alphabet stage (the one 69% start in), status 3
+— here status 3 is the low-alphabet stage (the one 69% start in), status 2
 early word reading and status 1 comprehension. The coefficients are
 multinomial logits against the last status, so with this labelling every
-contrast is *relative to early word reading*:
+contrast is *relative to the low-alphabet stage*:
 
 ```{r poverty-coefs}
 lta_covariate_summary(fit_pov)
 ```
 
-Turned around to be against the low-alphabet stage (subtract the status 2
-coefficient), poverty lowers the odds of starting kindergarten beyond it
+Read against the low-alphabet stage, poverty lowers the odds of starting
+kindergarten beyond it
 (OR 0.23 for early word reading, 0.13 for comprehension), and lowers the
 odds of reaching comprehension in every interval. The effect is sharpest
 over the summer, where a child in poverty has 0.40 times the odds of
@@ -260,7 +260,7 @@ status 3 comprehension, so the contrasts below are all against comprehension:
 lta_covariate_summary(fit_pov3)
 ```
 
-Turned around to be against low alphabet, as above, the answer barely moves.
+Turned around to be against low alphabet, the answer barely moves.
 A child in poverty has 0.25 times the odds of starting kindergarten in early
 word reading (0.23 in one step) and 0.16 times the odds of starting in
 comprehension (0.13). Over the summer those odds are 0.40 and 0.11 (0.40 and
