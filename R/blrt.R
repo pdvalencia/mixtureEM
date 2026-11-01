@@ -105,7 +105,7 @@ generate_synthetic_data <- function(mm, classes, N) {
         binomial = rbinom(Tn, 1, prob = m_i),
         poisson  = rpois(Tn, lambda = m_i),
         zip      = rpois(Tn, lambda = m_i) * (runif(Tn) >= pz[classes[i], ]),
-        negbin   = rnbinom(Tn, mu = m_i, size = 1 / pmax(
+        negbin   = stats::rnbinom(Tn, mu = m_i, size = 1 / pmax(
           mm$parameters$overdispersion[classes[i], ], 1e-12)),
         gaussian = rnorm(Tn, mean = m_i,
                          sd = sqrt(mm$parameters$dispersion[classes[i]])))
@@ -121,7 +121,7 @@ generate_synthetic_data <- function(mm, classes, N) {
       X_gen[i, ] <- rpois(D, lambda = rates[classes[i], ])
       if (!is.null(pz)) X_gen[i, runif(D) < pz[classes[i], ]] <- 0L
       if (!is.null(mm$parameters$overdispersion))
-        X_gen[i, ] <- rnbinom(D, mu = rates[classes[i], ], size = 1 / pmax(
+        X_gen[i, ] <- stats::rnbinom(D, mu = rates[classes[i], ], size = 1 / pmax(
           mm$parameters$overdispersion[classes[i], ], 1e-12))
     }
     return(X_gen)
