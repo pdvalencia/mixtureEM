@@ -1,5 +1,10 @@
 # mixtureEM 0.7.1
 
+A follow-up to 0.7.0: the joint model's latent variables get names of
+their own, `report_methods()` describes a structural model added
+afterwards correctly, and the reporting vignette shows the class profiles
+with standard errors.
+
 ## `fit_joint_classes()` names its latent variables `x` and `y`
 
 **This changes the interface released in 0.7.0, with no aliases.** The two
